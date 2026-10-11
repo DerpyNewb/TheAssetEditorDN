@@ -179,14 +179,18 @@ namespace Editors.VfxEditor.ViewModels
 
         /// <summary>Builds splices against the current document and applies them as one undo step. A refusal (a taken id,
         /// a tier with no block, an edit that would break the file) goes to the status line and changes nothing.</summary>
-        void Edit(Func<VfxDocument, IEnumerable<Splice>> build)
+        void Edit(Func<VfxDocument, IEnumerable<Splice>> build, VfxTreeNode? node = null)
         {
             var document = _session.Document;
             if (document == null)
                 return;
+            // Read before the edit: a remove can bring the counts back in line.
+            var skipped = node is { Kind: NodeKind.Modifier } && !ThisTierOnly ? TierEdits.UnmatchedTiers(ChainOf(document, node), Tier, node.Fragment!) : [];
             try
             {
                 document.Apply(build(document).ToList());
+                if (skipped.Count > 0)
+                    Status = $"{string.Join(" and ", skipped.Select(t => TierNames.ElementAtOrDefault(t) ?? $"tier {t}"))} left alone: its block has a different number of {node!.Fragment}, so which one matches is unknown";
             }
             catch (Exception e) when (e is ArgumentException or InvalidOperationException)
             {
@@ -210,7 +214,7 @@ namespace Editors.VfxEditor.ViewModels
                         row.Property, row.Attribute, value, ThisTierOnly),
                     _ => [document.SetAttribute(element, row.Attribute!, value)],
                 };
-            });
+            }, node);
         }
 
         // The value rows
@@ -416,7 +420,7 @@ namespace Editors.VfxEditor.ViewModels
                 return node.Kind == NodeKind.Modifier
                     ? VfxEdits.AddModifierProperty(document, ChainOf(document, node), Tier, node.Fragment!, node.Occurrence, template, ThisTierOnly)
                     : [VfxEdits.AddProperty(document, element, template)];
-            });
+            }, node);
         }
 
         [RelayCommand]
@@ -426,7 +430,7 @@ namespace Editors.VfxEditor.ViewModels
                 return;
             Edit(document => node.Kind == NodeKind.Modifier
                 ? VfxEdits.RemoveModifierProperty(document, ChainOf(document, node), Tier, node.Fragment!, node.Occurrence, row.Property, ThisTierOnly)
-                : VfxEdits.RemoveProperty(document, document.At(node.Path), row.Property, Tier, ThisTierOnly));
+                : VfxEdits.RemoveProperty(document, document.At(node.Path), row.Property, Tier, ThisTierOnly), node);
         }
 
         [RelayCommand]
@@ -443,7 +447,7 @@ namespace Editors.VfxEditor.ViewModels
         {
             if (SelectedNode is not { Kind: NodeKind.Modifier } node)
                 return;
-            Edit(document => VfxEdits.RemoveModifier(document, ChainOf(document, node), Tier, node.Fragment!, node.Occurrence, ThisTierOnly));
+            Edit(document => VfxEdits.RemoveModifier(document, ChainOf(document, node), Tier, node.Fragment!, node.Occurrence, ThisTierOnly), node);
         }
 
         [RelayCommand]

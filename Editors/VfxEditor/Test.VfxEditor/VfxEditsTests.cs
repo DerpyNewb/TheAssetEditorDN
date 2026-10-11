@@ -27,6 +27,19 @@ namespace Test.VfxEditor
                 Is.All.EqualTo(1));
         }
 
+        // High keeps one vs_colour of Ultra's two, so which one it kept is unknown and a linked edit must leave it alone.
+        [Test]
+        public void A_linked_remove_skips_a_block_whose_modifiers_do_not_line_up()
+        {
+            var d = Fixtures.Document();
+            d.Apply(VfxEdits.RemoveModifier(d, Fixtures.Chain(d), 1, "vs_colour", 0, thisTierOnly: true));
+            Assert.That(TierEdits.UnmatchedTiers(Fixtures.Chain(d), 0, "vs_colour"), Is.EqualTo(new[] { 1 }));
+
+            d.Apply(VfxEdits.RemoveModifier(d, Fixtures.Chain(d), 0, "vs_colour", 0, thisTierOnly: false));
+            Assert.That(Fixtures.Chain(d).ChildrenNamed("quality").Select(b => b.ChildrenNamed("modifier").Count(m => m.Attr("fragment") == "vs_colour")),
+                Is.EqualTo(new[] { 1, 1, 1 }));
+        }
+
         [Test]
         public void Ultras_block_is_copied_to_a_tier_without_one()
         {

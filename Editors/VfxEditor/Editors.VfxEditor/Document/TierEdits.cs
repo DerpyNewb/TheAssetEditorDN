@@ -91,10 +91,24 @@ namespace Editors.VfxEditor.Document
 
         public static SpanElement? PropertyIn(SpanElement? modifier, string name) => modifier?.Children.FirstOrDefault(c => c.Attr("name") == name);
 
+        /// <summary>The tiers whose block has a different number of this fragment than the tier's own, so its occurrences
+        /// cannot be matched to them; a linked edit leaves those blocks alone.</summary>
+        public static List<int> UnmatchedTiers(SpanElement chain, int tier, string fragment)
+        {
+            if (Block(chain, tier) is not { } own)
+                return [];
+            var count = CountOf(own, fragment);
+            return chain.ChildrenNamed("quality").Where(b => CountOf(b, fragment) != count)
+                .Select(b => int.TryParse(b.Attr("value"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var t) ? t : -1).ToList();
+        }
+
+        static int CountOf(SpanElement block, string fragment) => block.ChildrenNamed("modifier").Count(m => m.Attr("fragment") == fragment);
+
         public static IEnumerable<SpanElement> LinkedModifiers(SpanElement chain, int tier, string fragment, int occurrence, bool thisTierOnly)
         {
             var own = Block(chain, tier);
-            return chain.ChildrenNamed("quality").Where(b => !thisTierOnly || b == own)
+            var count = own == null ? -1 : CountOf(own, fragment);
+            return chain.ChildrenNamed("quality").Where(b => thisTierOnly ? b == own : CountOf(b, fragment) == count)
                 .Select(b => Modifier(b, fragment, occurrence)).OfType<SpanElement>();
         }
 

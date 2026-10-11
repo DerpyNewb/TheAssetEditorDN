@@ -85,6 +85,28 @@ namespace Test.VfxEditor
                 Does.Contain("<property name=\"A\" quality=\"0\" value=\"3\"/>\r\n\t\t\t<property name=\"A\" quality=\"1\" value=\"3\"/>"));
         }
 
+        [Test]
+        public void A_linked_edit_says_which_tiers_it_left_alone()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            runner.CreateOutputPack();
+            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
+            VfxTreeNode FirstColour() => editor.Tree[1].Children[0].Children[0].Children.First(n => n.Fragment == "vs_colour");
+
+            editor.Tier = 1;
+            editor.ThisTierOnly = true;
+            editor.SelectedNode = FirstColour();
+            editor.RemoveModifierCommand.Execute(null);
+            editor.Tier = 0;
+            editor.ThisTierOnly = false;
+            editor.SelectedNode = FirstColour();
+            editor.RemoveModifierCommand.Execute(null);
+
+            Assert.That(editor.Status, Does.Contain("High"));
+        }
+
         // Opened from Tools, the tab has no file: it says so, and Open picks one from the packs, asking first when the
         // open file has edits that are not saved.
         [Test]
