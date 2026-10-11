@@ -91,5 +91,17 @@ namespace GameWorld.Core.Test.Vfx
             var off = Emitter("off", """<property name="Enable" quality="0" value="false"/>""");
             Assert.That(Resolve(Pack(("fx.xml", Xml(emitters: off))), "fx").Emitters, Is.Empty);
         }
+
+        // An override reaches an emitter anywhere under its reference; one naming an id nothing there has does nothing,
+        // so it is said. A tracer switched on _rifle_100ms_aftertrail, which wh_main_lib_trail_small_arm does not contain.
+        [Test]
+        public void OverrideOfAnEmitterNothingBelowHas_IsAProblem()
+        {
+            var result = Resolve(Pack(
+                ("lib.xml", Xml(emitters: Emitter("a"))),
+                ("mid.xml", Xml(references: Reference("lib"))),
+                ("top.xml", Xml(references: Reference("mid", overrides: Override("a") + Override("ghost", enable: false))))), "top");
+            Assert.That((result.Emitters.Count, result.Problems), Is.EqualTo((1, new List<string> { "top: mid has no emitter ghost, so its override does nothing" })));
+        }
     }
 }

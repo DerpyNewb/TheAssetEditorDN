@@ -44,7 +44,7 @@ namespace GameWorld.Core.Vfx
             if (top == null)
                 return result;
 
-            Collect(vfxName.Trim(), top, Matrix.Identity, 0, 1, false, new Dictionary<string, VfxEmitterOverride>(), [Key(vfxName)], random, result);
+            Collect(vfxName.Trim(), top, Matrix.Identity, 0, 1, false, new Dictionary<string, VfxEmitterOverride>(), [Key(vfxName)], random, result, []);
             return result with { Found = true };
         }
 
@@ -73,10 +73,11 @@ namespace GameWorld.Core.Vfx
         }
 
         void Collect(string name, VfxFile file, Matrix transform, float startOffset, float speed, bool infinite,
-            IReadOnlyDictionary<string, VfxEmitterOverride> outer, HashSet<string> stack, Random random, VfxResolveResult result)
+            IReadOnlyDictionary<string, VfxEmitterOverride> outer, HashSet<string> stack, Random random, VfxResolveResult result, HashSet<string> seen)
         {
             foreach (var emitter in file.Emitters)
             {
+                seen.Add(emitter.Id);
                 var o = outer.GetValueOrDefault(emitter.Id) ?? VfxEmitterOverride.None;
                 var switchedOn = !emitter.Properties.TryGetValue("Enable", out var enable) || enable.IsTrue;
                 if (!o.Enable || !switchedOn)
@@ -109,10 +110,15 @@ namespace GameWorld.Core.Vfx
                 var start = MathHelper.Lerp(reference.StartTimeMin, reference.StartTimeMax, (float)random.NextDouble());
                 var local = VfxConventions.ReferenceMatrix(scale, reference.RotationDegrees, reference.Position);
 
+                // An override reaches any emitter under its reference; one naming an id nothing there has does nothing.
+                var below = new HashSet<string>();
                 stack.Add(key);
                 Collect(reference.Target, target, local * transform, startOffset + start, speed * reference.SimulationSpeed,
-                    infinite || reference.InfiniteLife, overrides, stack, random, result);
+                    infinite || reference.InfiniteLife, overrides, stack, random, result, below);
                 stack.Remove(key);
+                seen.UnionWith(below);
+                foreach (var missing in reference.Overrides.Keys.Where(x => !below.Contains(x)))
+                    result.Problems.Add($"{name}: {reference.Target} has no emitter {missing}, so its override does nothing");
             }
         }
     }
