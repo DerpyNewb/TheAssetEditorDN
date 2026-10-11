@@ -7,6 +7,7 @@ using Editors.VfxEditor.Document;
 using Editors.VfxEditor.Preview;
 using Editors.VfxEditor.Vocabulary;
 using GameWorld.Core.Components;
+using GameWorld.Core.Components.Grid;
 using GameWorld.Core.WpfWindow;
 using Serilog;
 using Shared.Core.PackFiles;
@@ -33,12 +34,14 @@ namespace Editors.VfxEditor.ViewModels
         readonly IStandardDialogs _dialogs;
         VfxVocabulary? _vocabulary;
         readonly VfxPreviewComponent _preview;
+        readonly GridComponent _grid;
         readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
         int _shownLines;
 
         public VfxEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs,
-            IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService, VfxPreviewComponent preview)
+            IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService, VfxPreviewComponent preview, GridComponent grid)
         {
+            _grid = grid;
             _session = new VfxFileSession(packFileService, fileSaveService);
             _dialogs = dialogs;
             Scene = gameWorld;
@@ -556,6 +559,8 @@ namespace Editors.VfxEditor.ViewModels
                 RefreshPreview();
             }
         }
+
+        public bool ShowGrid { get => _grid.ShowGrid; set { _grid.ShowGrid = value; OnPropertyChanged(); } }
 
         public bool StaticView { get => _preview.StaticView; set { _preview.StaticView = value; OnPropertyChanged(); _preview.SetTime(_preview.Time); } }
 

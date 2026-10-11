@@ -6,6 +6,7 @@ using Editors.VfxEditor.Preview;
 using Editors.VfxEditor.ViewModels;
 using Editors.VfxEditor.Views;
 using GameWorld.Core.Components;
+using GameWorld.Core.Components.Grid;
 using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Vfx;
 using Moq;
@@ -128,6 +129,7 @@ namespace Test.VfxEditor
 
             editor.LoopLength = 1;
             editor.ProjectileSpeed = 60;
+            editor.ProjectileAxis = 0;   // +Z
             editor.Projectile = true;
             editor.PreviewTime = 0.25;
             var node = preview.Model!;
@@ -147,6 +149,7 @@ namespace Test.VfxEditor
             editor.LoadModelCommand.Execute(null);
             editor.LoopLength = 1;
             editor.ProjectileSpeed = 60;
+            editor.ProjectileAxis = 0;   // +Z
             editor.Projectile = true;
             editor.StaticView = true;
             editor.PreviewTime = 0.25;
@@ -155,6 +158,28 @@ namespace Test.VfxEditor
 
             editor.StaticView = false;
             Assert.That((preview.Model!.ModelMatrix.Translation, effect.ModelMatrix.Translation), Is.EqualTo((new Vector3(0, 0, -15), Vector3.Zero)));
+        }
+
+        [Test]
+        public void A_projectile_flies_along_plus_z_unless_told_otherwise()
+        {
+            var (_, editor, preview) = OpenWithAGuideModelOffered();
+            editor.LoadModelCommand.Execute(null);
+            editor.LoopLength = 1;
+            editor.ProjectileSpeed = 60;
+            editor.Projectile = true;
+            editor.PreviewTime = 0.25;
+            Assert.That((editor.AxisNames[editor.ProjectileAxis], preview.Model!.ModelMatrix.Translation), Is.EqualTo(("+Z", new Vector3(0, 0, -15))));
+        }
+
+        [Test]
+        public void The_grid_can_be_switched_off()
+        {
+            var (runner, editor, _) = OpenWithAGuideModelOffered();
+            var grid = runner.GetRequiredServiceInCurrentEditorScope<GridComponent>();
+            Assert.That((editor.ShowGrid, grid.ShowGrid), Is.EqualTo((true, true)));
+            editor.ShowGrid = false;
+            Assert.That(grid.ShowGrid, Is.False);
         }
 
         // The list under the viewport takes no room while the preview has nothing to say, and some once it does.
