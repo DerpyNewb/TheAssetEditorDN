@@ -7,10 +7,8 @@ using Shared.Core.PackFiles.Utility;
 
 namespace Editors.VfxEditor
 {
-    /// <summary>
-    /// The open file: its document, where it lives, and saving it through the AssetEditor's save service (spec section 8).
-    /// Save writes to this file's path in the editable pack, so a file opened from CA's packs is created there.
-    /// </summary>
+    /// <summary>The open file (spec section 8): its document, where it lives, and saving through the AssetEditor's save
+    /// service. Save writes to this path in the editable pack, so a file opened from CA's packs is created there.</summary>
     public sealed class VfxFileSession(IPackFileService packFileService, IFileSaveService fileSaveService)
     {
         const string ReopenHint = "Close this tab and open the file again, picking the text editor.";

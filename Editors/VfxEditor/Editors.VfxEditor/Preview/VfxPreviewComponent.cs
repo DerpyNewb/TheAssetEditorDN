@@ -9,12 +9,8 @@ using Shared.Core.PackFiles.Models;
 
 namespace Editors.VfxEditor.Preview
 {
-    /// <summary>
-    /// Plays the open effect at the origin (spec section 7). Show replaces what plays: the effect resolved at a tier, with
-    /// the editor's unsaved bytes standing in for its file and its references read from the packs. Lines holds what could
-    /// not be found and every emitter left out and why, including what the texture loader and the simulator report later.
-    /// A model loaded as a guide stands at the effect's frame and outlives Show. Nothing throws into the viewport.
-    /// </summary>
+    /// <summary>Plays the open effect at the origin (spec section 7), its unsaved bytes standing in for its file. Lines lists
+    /// what was not found or left out and why; a guide model keeps the effect's frame across Shows. Nothing throws.</summary>
     public sealed class VfxPreviewComponent : BaseComponent, IDisposable
     {
         const int Seed = 1;

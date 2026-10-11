@@ -8,9 +8,9 @@ using Shared.Core.PackFiles;
 namespace GameWorld.Core.Vfx
 {
     /// <summary>
-    /// Draws one effect's particles: a camera-built quad per particle, or one strip for a trail-mode emitter, one draw per emitter, emitters and
-    /// particles back to front, through MonoGame's BasicEffect, unlit (lighting is step 2). Textures come from
-    /// the editor's VfxTextureCache on first draw; a missing one draws white.
+    /// Draws one effect's particles: a camera-built quad per particle, or one strip for a trail-mode emitter, one draw
+    /// per emitter, emitters and particles back to front, through MonoGame's BasicEffect, unlit (lighting is step 2).
+    /// Textures come from the editor's VfxTextureCache on first draw; a missing one draws white.
     /// </summary>
     public class ParticleRenderItem : IRenderItem, IDisposable
     {
@@ -97,11 +97,8 @@ namespace GameWorld.Core.Vfx
             return vertices;
         }
 
-        /// <summary>
-        /// enable_trail_mode (56 vanilla emitters, all continuous_mesh): the particles, oldest first, joined into one strip
-        /// facing the camera and as wide as each particle. The newest particle's texture cell runs along it from the
-        /// newest (the cell's top, where a velocity-aligned quad has its head) to the oldest.
-        /// </summary>
+        /// <summary>enable_trail_mode: the particles, oldest first, joined into one camera-facing strip as wide as each. The
+        /// newest particle's texture cell runs along it, its top (a velocity-aligned quad's head) at the newest.</summary>
         public static VertexPositionColorTexture[] Ribbon(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states)
         {
             if (states.Count < 2)

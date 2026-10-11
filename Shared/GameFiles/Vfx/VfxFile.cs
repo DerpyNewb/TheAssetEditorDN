@@ -47,8 +47,8 @@ namespace Shared.GameFormats.Vfx
         float StartTimeMin, float StartTimeMax, bool InfiniteLife, float SimulationSpeed, IReadOnlyDictionary<string, VfxEmitterOverride> Overrides);
 
     /// <summary>
-    /// One vfx/*.xml, read at one quality tier (0 is Ultra, the default). The file has several root elements (shader_library,
-    /// vfx, vfx_references, editor_data), so it is parsed inside a wrapper element. Emitters, behaviour
+    /// One vfx/*.xml, read at one quality tier (0 is Ultra, the default). The file has several root elements
+    /// (shader_library, vfx, vfx_references, editor_data), so it is parsed inside a wrapper element. Emitters, behaviour
     /// chains and render stacks share one id per emitter.
     /// </summary>
     public class VfxFile

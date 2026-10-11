@@ -15,7 +15,7 @@ namespace GameWorld.Core.Test.Vfx
     //   VFX_TIMES        seconds after the effect starts (default 0.25,0.5,1,2)
     //   VFX_PREVIEW_OUT  output folder
     //   VFX_DISTANCE     camera distance in metres (default 6)
-    //   VFX_FLIGHT       metres a second the effect flies along +X 1 m up, off the grid's axis, reaching x = 0 at each time (default 0, still)
+    //   VFX_FLIGHT       metres a second the effect flies along +X, 1 m up, passing x = 0 at each time (default 0)
     //   VFX_LOOSE        a folder of loose vfx *.xml read in place of the packs' copies, so a mod's effect draws
     public class VfxPreviewRender
     {

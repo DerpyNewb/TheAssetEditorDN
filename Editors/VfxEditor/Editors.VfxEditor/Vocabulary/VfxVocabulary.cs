@@ -3,12 +3,8 @@ using Editors.VfxEditor.Document;
 
 namespace Editors.VfxEditor.Vocabulary
 {
-    /// <summary>
-    /// What vanilla writes, collected from vfx/*.xml (spec section 6): the property names each emitter type, the render
-    /// stacks and each shader fragment use, the most common written form of each, the most common set of properties per
-    /// fragment, the small word sets behind the dropdowns, and every effect name. Contexts: "emitter:&lt;type&gt;",
-    /// "stack", "fragment:&lt;name&gt;". Only tier-0 elements and block-0 modifiers count.
-    /// </summary>
+    /// <summary>What vanilla writes (spec section 6), from tier-0 elements and block-0 modifiers: property names, common forms
+    /// and fragment shapes per context ("emitter:&lt;type&gt;", "stack", "fragment:&lt;name&gt;"), dropdown words, effect names.</summary>
     public sealed class VfxVocabulary
     {
         // ponytail: the most common form among the first 64 distinct ones seen per property; exact counts if a template ever looks wrong

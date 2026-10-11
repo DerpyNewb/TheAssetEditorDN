@@ -107,9 +107,8 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(states.All(x => x.Velocity.Length() > 4.9f), Is.True);
         }
 
-        // SpawnSpacing (1,291 vanilla emitters, 334 of them at rate 0, so distance has to spawn on its own): one particle
-        // per that many metres the emitter moves, laid evenly along its path, on top of the rate. At 150 m/s a step
-        // moves 2.5 m, so particles bunched at the step's end would show as gaps of 2 and 3.
+        // SpawnSpacing: one particle per that many metres moved, laid evenly along the path, on top of the rate. At 150 m/s
+        // a step moves 2.5 m, so particles bunched at each step's end would show as gaps of 2 and 3.
         [Test]
         public void SpawnSpacing_LaysOneParticlePerSpacingAlongThePath()
         {

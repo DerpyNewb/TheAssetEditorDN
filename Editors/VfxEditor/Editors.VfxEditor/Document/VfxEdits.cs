@@ -2,11 +2,8 @@ using System.Globalization;
 
 namespace Editors.VfxEditor.Document
 {
-    /// <summary>
-    /// Adding and removing (spec section 6), as splices. Linked edits reach every tier, as TierEdits' value edits do; a
-    /// modifier is matched across blocks by fragment and occurrence. A refusal throws ArgumentException (a bad id) or
-    /// InvalidOperationException (no block at the tier, a value that cannot be removed at one tier alone).
-    /// </summary>
+    /// <summary>Adding and removing (spec section 6) as splices; a linked edit reaches every tier, matching modifiers by
+    /// fragment and occurrence. Refusals throw ArgumentException (a bad id) or InvalidOperationException (not at this tier).</summary>
     public static class VfxEdits
     {
         static readonly string[] s_emitterSections = ["emitters", "behaviour_chains", "effect_render_stacks"];
@@ -14,7 +11,7 @@ namespace Editors.VfxEditor.Document
         static SpanElement Required(VfxDocument document, string section) =>
             document.Section(section) ?? throw new InvalidOperationException($"the file has no <{section}>");
 
-        // ---- properties of an emitter or render stack
+        // Properties of an emitter or render stack
 
         /// <summary>A tier-0 base, which the other tiers inherit, after the container's last child.</summary>
         public static Splice AddProperty(VfxDocument document, SpanElement container, string propertyXml) => document.InsertInto(container, propertyXml);
@@ -35,7 +32,7 @@ namespace Editors.VfxEditor.Document
             return splices;
         }
 
-        // ---- properties of a modifier
+        // Properties of a modifier
 
         public static List<Splice> AddModifierProperty(VfxDocument document, SpanElement chain, int tier, string fragment, int occurrence, string propertyXml, bool thisTierOnly)
         {
@@ -50,7 +47,7 @@ namespace Editors.VfxEditor.Document
                 .Select(m => TierEdits.PropertyIn(m, name)).OfType<SpanElement>()
                 .Select(document.Remove).ToList();
 
-        // ---- modifiers
+        // Modifiers
 
         /// <summary>Into every block the chain has, or the tier's own; each property on its own line.</summary>
         public static List<Splice> AddModifier(VfxDocument document, SpanElement chain, int tier, string fragment, IReadOnlyList<string> properties, bool thisTierOnly)
@@ -75,7 +72,7 @@ namespace Editors.VfxEditor.Document
             return document.InsertAfter(chain.ChildrenNamed("quality").Last(), copy);
         }
 
-        // ---- emitters
+        // Emitters
 
         /// <summary>An emitter, its behaviour chain and its render stack share one id; all three are copied under the new one,
         /// each after its original.</summary>
@@ -95,7 +92,7 @@ namespace Editors.VfxEditor.Document
         public static List<Splice> RemoveEmitter(VfxDocument document, string id) =>
             s_emitterSections.Select(s => document.ById(s, id)).OfType<SpanElement>().Select(document.Remove).ToList();
 
-        // ---- references
+        // References
 
         /// <summary>CA's attributes for a reference, in CA's order, with the most common value of each across vfx_desc.pack
         /// (measured 2026-10-11).</summary>

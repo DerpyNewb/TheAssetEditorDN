@@ -7,11 +7,8 @@ namespace Editors.VfxEditor.Document
     /// <summary>Replaces Text[Start..End) with Text; Start == End inserts.</summary>
     public readonly record struct Splice(int Start, int End, string Text);
 
-    /// <summary>
-    /// A vfx/*.xml as its text, read into SpanElements. An edit is a set of splices on the text followed by a re-read, so
-    /// bytes nobody edited never change and an unedited document saves byte-identical, in the encoding it was read in
-    /// (CA's effects are UTF-16 with a BOM; hand-edited ones are often UTF-8 without one).
-    /// </summary>
+    /// <summary>A vfx/*.xml as text read into SpanElements. An edit splices the text and re-reads it, so untouched bytes
+    /// never change and an unedited document saves byte-identical, in the encoding it was read in.</summary>
     public sealed class VfxDocument
     {
         static readonly UnicodeEncoding s_utf16 = new(bigEndian: false, byteOrderMark: false, throwOnInvalidBytes: true);
@@ -54,7 +51,7 @@ namespace Editors.VfxEditor.Document
             _ => s_utf8.GetBytes(Text),
         };
 
-        // ---- reading
+        // Reading
 
         public SpanElement At(int[] path)
         {
@@ -98,7 +95,7 @@ namespace Editors.VfxEditor.Document
             return outer.Length > 0 ? outer + "\t" : "";
         }
 
-        // ---- splices, built against the current text and applied together by Apply
+        // Splices, built against the current text and applied together by Apply
 
         public Splice SetAttribute(SpanElement element, string name, string value)
         {
@@ -143,10 +140,8 @@ namespace Editors.VfxEditor.Document
             return new Splice(from, element.End, "");
         }
 
-        /// <summary>
-        /// Applies the splices as one undo step. Splices must not overlap; inserts at one point keep the order given. A
-        /// result that does not re-read is refused and the document is left as it was.
-        /// </summary>
+        /// <summary>Applies the splices as one undo step. Splices must not overlap; inserts at one point keep their order.
+        /// A result that does not re-read is refused and the document is left as it was.</summary>
         public void Apply(IEnumerable<Splice> splices)
         {
             var ordered = splices.Select((splice, index) => (splice, index)).OrderBy(x => x.splice.Start).ThenBy(x => x.index).ToList();

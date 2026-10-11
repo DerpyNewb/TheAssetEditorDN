@@ -6,12 +6,8 @@ namespace Editors.VfxEditor.ViewModels
 {
     public enum RowKind { Bool, Choice, Number, Text, Curve }
 
-    /// <summary>
-    /// One editable field: an attribute of a property element, or its text (a curve) when Attribute is null. Property is
-    /// the element's name attribute, empty for the attributes of a plain element (the effect root, a reference, an
-    /// override row). A typed value goes to the editor, which writes it through the document; a number that does not
-    /// parse is shown as invalid and not written.
-    /// </summary>
+    /// <summary>One editable field: an attribute of a property element, or its text (a curve) when Attribute is null; Property
+    /// is empty on a plain element's attributes. A number that does not parse shows as invalid and is not written.</summary>
     public sealed partial class PropertyRow : ObservableObject
     {
         readonly Action<PropertyRow, string> _commit;

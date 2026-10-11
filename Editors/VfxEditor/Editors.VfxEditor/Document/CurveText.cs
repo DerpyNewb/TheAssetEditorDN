@@ -2,11 +2,8 @@ using System.Globalization;
 
 namespace Editors.VfxEditor.Document
 {
-    /// <summary>
-    /// A curve property's text split so a key can be read, changed, added or removed and the text rebuilt with
-    /// everything else as written: "channel|channel:mapping|mapping", a channel "name,colour,flag;key;key", a key nine
-    /// comma fields (docs/VFX.md section 2). Keys stay in file order; whitespace around the text is kept.
-    /// </summary>
+    /// <summary>A curve property's text, split so keys can be changed, added or removed and the rest rebuilt as written:
+    /// "channel|channel:mapping|mapping", a channel "name,colour,flag;key;key", a key nine fields (docs/VFX.md section 2).</summary>
     public sealed class CurveText
     {
         public const int KeyFields = 9;

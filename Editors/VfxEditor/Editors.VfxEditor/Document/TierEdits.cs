@@ -2,12 +2,8 @@ using System.Globalization;
 
 namespace Editors.VfxEditor.Document
 {
-    /// <summary>
-    /// The quality-tier rules of spec section 4 (docs/sessions/HANDOFF_20260829_VFX_QUALITY_TIERS.md). A property of an
-    /// emitter or render stack carries quality="N": tier 0 is the base and 1 and 2 override it, so a tier's value is its
-    /// own element or else the base. A behaviour chain holds one quality block per tier, with no fallback. A field is an
-    /// attribute of a property element, or its text when the attribute is null.
-    /// </summary>
+    /// <summary>Quality tiers (spec section 4): a property's quality="0" is the base and 1 and 2 override it, while a behaviour
+    /// chain has one quality block per tier with no fallback. A field is an attribute, or the element's text when null.</summary>
     public static class TierEdits
     {
         public static int TierOf(SpanElement property) => int.TryParse(property.Attr("quality"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var tier) ? tier : 0;
@@ -38,11 +34,8 @@ namespace Editors.VfxEditor.Document
         static Splice SetField(VfxDocument document, SpanElement element, string? attribute, string value) =>
             attribute == null ? document.SetText(element, value) : document.SetAttribute(element, attribute, value);
 
-        /// <summary>
-        /// Linked: every tier element whose field held the old value takes the new one, so tiers that matched stay matched.
-        /// This tier only: tier 0 changes the base and first gives each tier that inherited it an override holding the old
-        /// value; tier 1 or 2 sets its own override, adding one when it has none.
-        /// </summary>
+        /// <summary>Linked: every tier holding the old value takes the new one. This tier only: tier 0 gives each inheriting
+        /// tier an override holding the old value, then changes the base; tier 1 or 2 sets its own override.</summary>
         public static List<Splice> SetProperty(VfxDocument document, SpanElement container, string name, string? attribute, int tier, string value, bool thisTierOnly)
         {
             var tiers = Tiers(container, name);
@@ -74,7 +67,7 @@ namespace Editors.VfxEditor.Document
             return document.InsertAfter(tiers.Values.OrderBy(e => e.Start).Last(), copy);
         }
 
-        // ---- behaviour chains
+        // Behaviour chains
 
         public static SpanElement? Block(SpanElement chain, int tier) =>
             chain.ChildrenNamed("quality").FirstOrDefault(q => q.Attr("value") == tier.ToString(CultureInfo.InvariantCulture));

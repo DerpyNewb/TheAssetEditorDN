@@ -15,9 +15,8 @@ namespace Test.VfxEditor
                 Is.EqualTo(new[] { new Vector3(0, 0, -30), Vector3.Zero, new Vector3(0, 0, 30) }));
         }
 
-        // Ten particles a second that live 100 s and do not move, for one second of a two-second flight at 60 m/s. A world-
-        // space emitter leaves them along the path, spawned from x = -54 to x = 0 (the trail); standing still they all sit
-        // at the origin, and a local-space emitter carries them with it.
+        // Ten still particles a second for one second of a 60 m/s flight: world space leaves them from x = -54 to 0 (the
+        // trail), standing still they sit at the origin, and local space carries them along.
         [TestCase(true, SimulationSpace.World, 54f)]
         [TestCase(false, SimulationSpace.World, 0f)]
         [TestCase(true, SimulationSpace.LocalPositionOnly, 0f)]

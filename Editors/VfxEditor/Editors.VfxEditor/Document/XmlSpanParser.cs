@@ -9,11 +9,8 @@ namespace Editors.VfxEditor.Document
         public string Value => XmlText.Unescape(Raw);
     }
 
-    /// <summary>
-    /// An element and where it sits in the text. Start is its '&lt;' and End one past the '&gt;' that closes it.
-    /// StartTagClose is the '/' of '/&gt;' or the '&gt;' that ends the start tag. ContentStart..ContentEnd is what lies
-    /// between the start and end tags, empty for a self-closing element. The root is synthetic and spans the file.
-    /// </summary>
+    /// <summary>An element's positions in the text: Start..End from its '&lt;' to one past its last '&gt;', StartTagClose at the
+    /// start tag's '/&gt;' or '&gt;', ContentStart..ContentEnd between the tags. The root is synthetic and spans the file.</summary>
     public sealed class SpanElement
     {
         public string Name { get; internal set; } = "";
@@ -53,10 +50,8 @@ namespace Editors.VfxEditor.Document
         public int Column { get; } = column;
     }
 
-    /// <summary>
-    /// Reads XML into SpanElements, keeping every position. Comments, processing instructions, CDATA and text between
-    /// elements are stepped over. Not a validating parser: it reads what CA writes and refuses what it cannot place.
-    /// </summary>
+    /// <summary>Reads XML into SpanElements, keeping every position and stepping over comments, processing instructions,
+    /// CDATA and text. Not a validating parser: it reads what CA writes and refuses what it cannot place.</summary>
     public static class XmlSpanParser
     {
         public static SpanElement Parse(string text)

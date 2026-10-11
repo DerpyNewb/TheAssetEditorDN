@@ -19,11 +19,8 @@ using Shared.CoreLog;
 
 namespace Editors.VfxEditor.ViewModels
 {
-    /// <summary>
-    /// The VFX editor tab (docs/superpowers/specs/2026-10-11-vfx-editor-design.md): the effect as a tree, the picked node's
-    /// values, quality tiers, and saving. Every change goes through the document as splices, so the file keeps every byte
-    /// nobody edited.
-    /// </summary>
+    /// <summary>The VFX editor tab (docs/superpowers/specs/2026-10-11-vfx-editor-design.md). Every change goes through the
+    /// document as splices, so the file keeps every byte nobody edited.</summary>
     public sealed partial class VfxEditorViewModel : ObservableObject, IEditorInterface, IFileEditor, ISaveableEditor, IDisposable
     {
         static readonly string[] s_nodeFlags = [nameof(IsEmitterNode), nameof(IsChainNode), nameof(IsModifierNode), nameof(IsReferencesNode),
@@ -100,9 +97,8 @@ namespace Editors.VfxEditor.ViewModels
         // Opened from the Tools menu, the tab has no file yet.
         [ObservableProperty] string? _loadError = "No file is open. Use Open to pick a vfx\\*.xml from the loaded packs, or double-click one in the pack explorer.";
 
-        /// <summary>Set by the view: writes what is typed in a text box that has not lost focus yet. The toolbar and the
-        /// shortcuts take no focus from the box, so this runs before the tier or the toggle changes and before saving or
-        /// undoing, and the value lands on the tier and node it was typed against.</summary>
+        /// <summary>Set by the view: writes a box's typed text before a tier, toggle, save or undo, none of which take its
+        /// focus, so the value lands on the tier and node it was typed against.</summary>
         public Action? FlushPendingEdits { get; set; }
 
         partial void OnTierChanging(int value) => FlushPendingEdits?.Invoke();
@@ -179,7 +175,7 @@ namespace Editors.VfxEditor.ViewModels
             SchedulePreview();
         }
 
-        // ---- edits
+        // Edits
 
         /// <summary>Builds splices against the current document and applies them as one undo step. A refusal (a taken id,
         /// a tier with no block, an edit that would break the file) goes to the status line and changes nothing.</summary>
@@ -217,7 +213,7 @@ namespace Editors.VfxEditor.ViewModels
             });
         }
 
-        // ---- the value rows
+        // The value rows
 
         void RefreshRows(bool rebuild = false)
         {
@@ -272,7 +268,7 @@ namespace Editors.VfxEditor.ViewModels
             return new PropertyRow(property, attribute, label, kind, value, choices, note, Commit, message => Status = message);
         }
 
-        // ---- the tree
+        // The tree
 
         void RebuildTree()
         {
@@ -360,7 +356,7 @@ namespace Editors.VfxEditor.ViewModels
             return node;
         }
 
-        // ---- adding and removing
+        // Adding and removing
 
         [ObservableProperty] string? _newPropertyName;
         [ObservableProperty] string? _newFragment;
@@ -527,7 +523,7 @@ namespace Editors.VfxEditor.ViewModels
             Edit(document => VfxEdits.SetAllOverrides(document, document.At(node.Path), enable));
         }
 
-        // ---- the preview
+        // The preview
 
         public ObservableCollection<string> PreviewLines { get; } = [];
         public double PreviewTime { get => _preview.Time; set => _preview.SetTime((float)value); }
@@ -616,7 +612,7 @@ namespace Editors.VfxEditor.ViewModels
                 PreviewLines.Add(line);
         }
 
-        // ---- saving, undo
+        // Saving, undo
 
         public bool Save() => Store(_session.Save);
 

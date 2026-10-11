@@ -2,11 +2,8 @@ using Microsoft.Xna.Framework;
 
 namespace Editors.VfxEditor.Preview
 {
-    /// <summary>
-    /// The effect's frame when the preview flies it like a projectile: a straight line along a local axis at a speed in
-    /// metres a second (the unit of projectiles_tables.muzzle_velocity), crossing the origin halfway through the flight.
-    /// The simulator leaves world-space particles where they spawned, so a moving effect draws its trail.
-    /// </summary>
+    /// <summary>The effect's frame when the preview flies it: a straight line along a local axis in metres a second (as
+    /// projectiles_tables.muzzle_velocity), crossing the origin halfway. World-space particles stay behind as the trail.</summary>
     public static class ProjectileFlight
     {
         // Which local axis a projectile flies along is recorded nowhere found, so the user picks it.
