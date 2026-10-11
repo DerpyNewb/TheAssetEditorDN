@@ -122,6 +122,18 @@ namespace Test.VfxEditor
         }
 
         [Test]
+        public void Undo_keeps_the_last_hundred_edits()
+        {
+            var document = VfxDocument.FromText("<a v=\"0\"/>");
+            for (var i = 1; i <= 150; i++)
+                document.Apply([document.SetAttribute(document.Root.Children[0], "v", i.ToString())]);
+            var undone = 0;
+            for (; document.CanUndo; undone++)
+                document.Undo();
+            Assert.That((undone, document.Text), Is.EqualTo((100, "<a v=\"50\"/>")));
+        }
+
+        [Test]
         public void Undo_and_redo_step_through_edits()
         {
             var document = VfxDocument.FromText("<a v=\"1\"/>");

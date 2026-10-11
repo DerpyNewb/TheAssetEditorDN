@@ -14,7 +14,8 @@ namespace Editors.VfxEditor.Document
         static readonly UnicodeEncoding s_utf16 = new(bigEndian: false, byteOrderMark: false, throwOnInvalidBytes: true);
         static readonly UTF8Encoding s_utf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-        readonly Stack<string> _undo = new();
+        const int UndoDepth = 100;   // each step is a full copy of the text
+        readonly LinkedList<string> _undo = new();
         readonly Stack<string> _redo = new();
 
         VfxDocument(string text, VfxEncoding encoding)
@@ -168,7 +169,7 @@ namespace Editors.VfxEditor.Document
             {
                 throw new InvalidOperationException($"the edit would break the file, so it was not made: {e.Message}", e);
             }
-            _undo.Push(Text);
+            PushUndo(Text);
             _redo.Clear();
             Text = text;
             Root = root;
@@ -180,15 +181,24 @@ namespace Editors.VfxEditor.Document
             if (_undo.Count == 0)
                 return;
             _redo.Push(Text);
-            Restore(_undo.Pop());
+            var text = _undo.Last!.Value;
+            _undo.RemoveLast();
+            Restore(text);
         }
 
         public void Redo()
         {
             if (_redo.Count == 0)
                 return;
-            _undo.Push(Text);
+            PushUndo(Text);
             Restore(_redo.Pop());
+        }
+
+        void PushUndo(string text)
+        {
+            _undo.AddLast(text);
+            if (_undo.Count > UndoDepth)
+                _undo.RemoveFirst();
         }
 
         void Restore(string text)
