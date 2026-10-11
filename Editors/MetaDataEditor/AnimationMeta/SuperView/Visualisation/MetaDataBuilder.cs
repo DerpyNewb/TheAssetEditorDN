@@ -174,25 +174,19 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 // Add the prop skeleton
                 var skeletonSceneNode = new SkeletonNode(skeleton)
                 {
-                    NodeColour = color,
-                    ScaleMult = animatedPropMeta.Scale
+                    NodeColour = color
                 };
                 loadedNode.AddObject(skeletonSceneNode);
             }
 
-            // Configure scale
             loadedNode.ForeachNodeRecursive((node) =>
             {
                 if (node is ISelectable selectableNode)
                     selectableNode.IsSelectable = false;
-
-                if (node is SceneNode sceneNode)
-                    sceneNode.ScaleMult = animatedPropMeta.Scale;
             });
-            loadedNode.ScaleMult = animatedPropMeta.Scale;
 
-            // Add the animation rules
-            var animationRule = new CopyRootTransform(rootSkeleton, animatedPropMeta.BoneId, animatedPropMeta.Position, new Quaternion(animatedPropMeta.Orientation));
+            // Add the animation rules; the tag's Scale is applied there, in the bones
+            var animationRule = new CopyRootTransform(rootSkeleton, animatedPropMeta.BoneId, animatedPropMeta.Position, new Quaternion(animatedPropMeta.Orientation), animatedPropMeta.Scale);
             propPlayer.AnimationRules.Add(animationRule);
             if(rootPlayer.IsPlaying)
                 propPlayer.Play();
