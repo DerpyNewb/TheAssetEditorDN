@@ -2,8 +2,11 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Editors.VfxEditor.Preview;
 using Editors.VfxEditor.ViewModels;
 using Editors.VfxEditor.Views;
+using GameWorld.Core.Components;
+using GameWorld.Core.SceneNodes;
 using Moq;
 using Shared.Core.Commands;
 using Shared.Core.Services;
@@ -11,6 +14,8 @@ using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
 using Test.TestingUtility.Shared;
+using Test.TestingUtility.TestUtility;
+using Vector3 = Microsoft.Xna.Framework.Vector3;
 
 namespace Test.VfxEditor
 {
@@ -106,6 +111,39 @@ namespace Test.VfxEditor
             runner.Dialogs.Setup(x => x.ShowYesNoBox(It.IsAny<string>(), It.IsAny<string>())).Returns(ShowMessageBoxResult.Cancel);
             editor.OpenFileCommand.Execute(null);
             Assert.That((editor.HasUnsavedChanges, editor.Rows.Single(r => r.Label == "A").Value), Is.EqualTo((true, "2")));
+        }
+
+        // A model picked as a guide stands where the effect is: at the origin standing still, along the flight when the
+        // effect flies, and it stays in the scene when the preview is rebuilt.
+        [Test]
+        public void A_guide_model_rides_where_the_effect_is()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), false);
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            runner.CreateOutputPack();
+            var model = runner.PackFileService.FindFile(@"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2")!;
+            runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, model));
+            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
+            var preview = runner.GetRequiredServiceInCurrentEditorScope<VfxPreviewComponent>();
+
+            editor.LoadModelCommand.Execute(null);
+            Assert.That(editor.ModelName, Is.EqualTo("emp_karl_franz.rigid_model_v2"));
+            editor.PreviewTime = 0.25;
+            Assert.That(preview.Model!.ModelMatrix.Translation, Is.EqualTo(Vector3.Zero));
+
+            editor.LoopLength = 1;
+            editor.ProjectileSpeed = 60;
+            editor.Projectile = true;
+            editor.PreviewTime = 0.25;
+            var node = preview.Model!;
+            var root = runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode;
+            Assert.That((node.ModelMatrix.Translation, root.Children.Contains(node)), Is.EqualTo((new Vector3(0, 0, -15), true)));
+
+            editor.ClearModelCommand.Execute(null);
+            Assert.That((preview.Model, editor.ModelName, root.Children.Contains(node)), Is.EqualTo(((SceneNode?)null, (string?)null, false)));
         }
 
         static IEnumerable<DependencyObject> Descendants(DependencyObject parent)

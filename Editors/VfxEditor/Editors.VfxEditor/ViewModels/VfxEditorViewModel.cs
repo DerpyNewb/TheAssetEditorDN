@@ -557,6 +557,28 @@ namespace Editors.VfxEditor.ViewModels
             }
         }
 
+        [ObservableProperty] string? _modelName;
+
+        /// <summary>A model from the packs to stand where the effect is, as a guide. The preview only; nothing is written.</summary>
+        [RelayCommand]
+        void LoadModel()
+        {
+            var picked = _dialogs.DisplayBrowseDialog([".rigid_model_v2"]);
+            if (!picked.Result || picked.File == null)
+                return;
+            _preview.LoadModel(picked.File);
+            ModelName = _preview.Model == null ? null : picked.File.Name;
+            ShowPreviewLines();
+        }
+
+        [RelayCommand]
+        void ClearModel()
+        {
+            _preview.ClearModel();
+            ModelName = null;
+            RefreshPreview();
+        }
+
         // 300 ms after the last edit, so typing a value re-simulates once.
         void SchedulePreview()
         {

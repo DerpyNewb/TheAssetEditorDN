@@ -1,7 +1,11 @@
+using GameWorld.Core.Animation;
 using GameWorld.Core.Components;
+using GameWorld.Core.SceneNodes;
+using GameWorld.Core.Services;
 using GameWorld.Core.Vfx;
 using Microsoft.Xna.Framework;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 
 namespace Editors.VfxEditor.Preview
 {
@@ -9,22 +13,26 @@ namespace Editors.VfxEditor.Preview
     /// Plays the open effect at the origin (spec section 7). Show replaces what plays: the effect resolved at a tier, with
     /// the editor's unsaved bytes standing in for its file and its references read from the packs. Lines holds what could
     /// not be found and every emitter left out and why, including what the texture loader and the simulator report later.
-    /// Nothing throws into the viewport.
+    /// A model loaded as a guide stands at the effect's frame and outlives Show. Nothing throws into the viewport.
     /// </summary>
     public sealed class VfxPreviewComponent : BaseComponent, IDisposable
     {
         const int Seed = 1;
         readonly IPackFileService _packFileService;
         readonly SceneManager _sceneManager;
+        readonly ComplexMeshLoader _meshLoader;
         readonly VfxTextureCache _textures;
         readonly List<string> _lines = [];
         ParticleSimulator? _simulator;
         VfxEffectNode? _node;
+        Func<float, Matrix> _effectWorldAt = _ => Matrix.Identity;
+        string? _modelProblem;
 
-        public VfxPreviewComponent(IPackFileService packFileService, SceneManager sceneManager)
+        public VfxPreviewComponent(IPackFileService packFileService, SceneManager sceneManager, ComplexMeshLoader meshLoader)
         {
             _packFileService = packFileService;
             _sceneManager = sceneManager;
+            _meshLoader = meshLoader;
             _textures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(packFileService, _lines.Add));
         }
 
@@ -38,12 +46,15 @@ namespace Editors.VfxEditor.Preview
         public float ProjectileSpeed { get; set; } = 60;
         public int ProjectileAxis { get; set; }
         public IReadOnlyList<string> Lines => _lines;
+        public SceneNode? Model { get; private set; }
         public event Action? TimeChanged;
 
         public void Show(string effectName, byte[] unsaved, int tier)
         {
             Clear();
             _lines.Clear();
+            if (_modelProblem != null)
+                _lines.Add(_modelProblem);
             var resolver = new VfxResolver(_packFileService, new Dictionary<string, byte[]> { [VfxResolver.Key(effectName)] = unsaved }, tier);
             var resolved = resolver.Resolve(effectName, new Random(Seed));
             _lines.AddRange(resolved.Problems);
@@ -56,10 +67,10 @@ namespace Editors.VfxEditor.Preview
             }
             if (settings.Count == 0)
                 _lines.Add("no emitter is switched on at this tier");
-            Func<float, Matrix> effectWorldAt = Projectile
+            _effectWorldAt = Projectile
                 ? ProjectileFlight.WorldAt(ProjectileFlight.Axes[ProjectileAxis].Axis, ProjectileSpeed, LoopLength)
                 : _ => Matrix.Identity;
-            _simulator = new ParticleSimulator(settings, Seed, effectWorldAt, log: _lines.Add);
+            _simulator = new ParticleSimulator(settings, Seed, _effectWorldAt, log: _lines.Add);
             _node = _sceneManager.RootNode.AddObject(new VfxEffectNode("VfxPreview", new ParticleRenderItem(_simulator, _textures)));
             SetTime(Time);
         }
@@ -75,6 +86,8 @@ namespace Editors.VfxEditor.Preview
         public void SetTime(float time)
         {
             Time = Math.Max(0, time);
+            if (Model != null)
+                Model.ModelMatrix = _effectWorldAt(Time);
             try
             {
                 _simulator?.AdvanceTo(Time);
@@ -85,6 +98,31 @@ namespace Editors.VfxEditor.Preview
                 _simulator = null;
             }
             TimeChanged?.Invoke();
+        }
+
+        /// <summary>Puts a model where the effect is, as a guide (a projectile's own mesh, say), in place of the last one.</summary>
+        public void LoadModel(PackFile file)
+        {
+            ClearModel();
+            try
+            {
+                Model = _sceneManager.RootNode.AddObject(_meshLoader.Load(file, new AnimationPlayer(), onlyLoadRootNode: true, onlyLoadFirstMesh: false));
+            }
+            catch (Exception e)
+            {
+                _modelProblem = $"guide model: {e.Message}";
+                _lines.Add(_modelProblem);
+            }
+            SetTime(Time);
+        }
+
+        public void ClearModel()
+        {
+            _modelProblem = null;
+            if (Model == null)
+                return;
+            _sceneManager.RootNode.RemoveObject(Model);   // frees its buffers (OnNodeRemoved)
+            Model = null;
         }
 
         void Clear()
@@ -100,6 +138,7 @@ namespace Editors.VfxEditor.Preview
         public void Dispose()
         {
             Clear();
+            ClearModel();
             _textures.Dispose();
         }
     }

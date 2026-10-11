@@ -206,7 +206,7 @@
                         <TextBlock DockPanel.Dock="Right" Text="{Binding PreviewTime, StringFormat='{}{0:0.00} s'}" Width="55" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         <Slider Minimum="0" Maximum="{Binding LoopLength}" Value="{Binding PreviewTime}" Margin="8,0" VerticalAlignment="Center"/>
                     </DockPanel>
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="4,0,4,4">
+                    <WrapPanel Grid.Row="2" Margin="4,0,4,4">
                         <CheckBox Content="Projectile" IsChecked="{Binding Projectile}" VerticalAlignment="Center"
                                   ToolTip="Fly the effect in a straight line, crossing the origin halfway through each loop. World-space emitters leave their particles behind as a trail; local-space ones move with it."/>
                         <TextBlock Text="Velocity" Margin="10,0,4,0" VerticalAlignment="Center"/>
@@ -216,7 +216,11 @@
                         <TextBlock Text="Axis" Margin="0,0,4,0" VerticalAlignment="Center"/>
                         <ComboBox ItemsSource="{Binding AxisNames}" SelectedIndex="{Binding ProjectileAxis}" Width="55"
                                   ToolTip="The effect's local axis the projectile flies along"/>
-                    </StackPanel>
+                        <Button Content="Model..." Command="{Binding LoadModelCommand}" Margin="10,0,0,0" Padding="6,0"
+                                ToolTip="A .rigid_model_v2 from the loaded packs to stand where the effect is, as a guide. The preview only; nothing is written to the file."/>
+                        <TextBlock Text="{Binding ModelName}" Margin="6,0" VerticalAlignment="Center"/>
+                        <Button Content="Clear" Command="{Binding ClearModelCommand}" Padding="6,0"/>
+                    </WrapPanel>
                     <ListBox Grid.Row="3" ItemsSource="{Binding PreviewLines}" ToolTip="What the preview could not find, and what it leaves out"/>
                 </Grid>
             </Grid>
