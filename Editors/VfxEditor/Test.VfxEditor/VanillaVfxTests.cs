@@ -1,0 +1,56 @@
+using System.Xml.Linq;
+using Editors.VfxEditor.Document;
+
+namespace Test.VfxEditor
+{
+    class VanillaVfxTests
+    {
+        // Every vfx/*.xml CA ships saves back byte-identical unedited, and reads into the same elements, attributes and
+        // text as the .NET XML parser reads.
+        [Test, Explicit("reads vfx_desc.pack; set WH3_DATA")]
+        public void Every_vanilla_file_round_trips_and_reads_like_the_xml_parser()
+        {
+            var problems = new List<string>();
+            var files = VanillaVfx.Files();
+            foreach (var (path, bytes) in files)
+            {
+                var document = VfxDocument.Load(bytes);
+                if (!document.Save().AsSpan().SequenceEqual(bytes))
+                    problems.Add($"{path}: does not save byte-identical");
+                // PreserveWhitespace, or a whitespace-only text such as <editor_data>\r\n</editor_data> reads as "".
+                var xml = XElement.Parse("<root>" + document.Text + "</root>", LoadOptions.PreserveWhitespace);
+                if (Difference(document, document.Root, xml) is { } difference)
+                    problems.Add($"{path}: {difference}");
+            }
+            TestContext.Out.WriteLine($"{files.Count} files, {problems.Count} problems");
+            Assert.That(problems.Take(20), Is.Empty);
+            Assert.That(files, Has.Count.EqualTo(8308));
+        }
+
+        internal static IEnumerable<SpanElement> All(SpanElement element) => element.Children.SelectMany(All).Prepend(element);
+
+        static string? Difference(VfxDocument document, SpanElement span, XElement xml)
+        {
+            var name = span.Parent == null ? "root" : span.Name;
+            if (name != xml.Name.LocalName)
+                return $"<{span.Name}> read as <{xml.Name.LocalName}>";
+            if (!span.Attributes.Select(a => (a.Name, Normalize(a.Value))).SequenceEqual(xml.Attributes().Select(a => (a.Name.LocalName, a.Value))))
+                return $"<{span.Name}> attributes differ";
+            var children = xml.Elements().ToList();
+            if (children.Count != span.Children.Count)
+                return $"<{span.Name}> has {span.Children.Count} children, not {children.Count}";
+            if (span.Parent != null && children.Count == 0 && !span.SelfClosing && !xml.Nodes().OfType<XComment>().Any()
+                && document.TextOf(span).ReplaceLineEndings("\n") != xml.Value)
+                return $"<{span.Name}> text differs";
+            for (var i = 0; i < children.Count; i++)
+            {
+                if (Difference(document, span.Children[i], children[i]) is { } d)
+                    return d;
+            }
+            return null;
+        }
+
+        // The XML parser turns a line break or tab inside an attribute value into a space.
+        static string Normalize(string value) => value.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Replace('\t', ' ');
+    }
+}
