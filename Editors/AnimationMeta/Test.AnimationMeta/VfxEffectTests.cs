@@ -1,0 +1,153 @@
+﻿using System.Text;
+using Editors.AnimationMeta.SuperView.Visualisation;
+using Editors.AnimationMeta.SuperView.Visualisation.Instances;
+using Editors.Shared.Core.Common;
+using GameWorld.Core.Animation;
+using GameWorld.Core.SceneNodes;
+using GameWorld.Core.Vfx;
+using Microsoft.Xna.Framework;
+using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
+using Shared.GameFormats.Animation;
+using Shared.GameFormats.AnimationMeta.Definitions;
+using Shared.GameFormats.AnimationMeta.Parsing;
+using Shared.GameFormats.RigidModel.Transforms;
+using Test.TestingUtility.Shared;
+
+namespace Test.AnimationMeta
+{
+    // EFFECT tags in SuperView: particles on the tag's bone, on the main animation's clock from the tag's Start Time.
+    public class VfxEffectTests
+    {
+        record Provider(GameSkeleton Skeleton) : ISkeletonProvider;
+
+        // One emitter, 30 particles a second that live 10 s and do not move, carried by the bone.
+        const string Smoke = """<shader_library file="fx/particle_vfx_library.hlsl"/><vfx revision="2"><emitters><emitter type="continuous_mesh" id="puff"><property name="InfiniteLife" quality="0" value="true"/><property name="ParticleSimulationSpace" quality="0" value="LOCAL_SPACE_POSITION_ROTATION"/><property name="EmissionRateCurve" quality="0">x_min,0,0;0.0,30.0,linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,30.0,linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1</property><property name="ParticleLifeTime" quality="0">x_min,0,0;0.0,10.0,linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,10.0,linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1</property></emitter></emitters><behaviour_chains><behaviour_chain id="puff"><quality value="0"><modifier fragment="ps_texture"><texture_property name="diffuse" type="file" path=""/></modifier></quality></behaviour_chain></behaviour_chains><effect_render_stacks><effect_render_stack id="puff"/></effect_render_stacks></vfx><vfx_references></vfx_references>""";
+
+        GroupNode _root = null!;
+        AnimationPlayer _player = null!;
+        Provider _skeleton = null!;
+        MetaDataBuilder _builder = null!;
+
+        [TearDown]
+        public void TearDown() => _builder.Dispose();
+
+        [SetUp]
+        public void Setup()
+        {
+            // PackFileService is internal to Shared.Core; the runner's is the public way to an in-memory pack.
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            var pack = runner.CreateOutputPack();
+            byte[] bytes = [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes(Smoke)];
+            runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("test_smoke.xml", bytes))]);
+            // Only the EFFECT path runs here, and it uses none of the mesh, render or skeleton loaders.
+            _builder = new MetaDataBuilder(null!, null!, null!, runner.PackFileService);
+
+            // Two bones; the fx bone walks 2 m/s along X, 1 m up, in 21 frames over 2 s so whole-frame times sample exactly.
+            _player = new AnimationPlayer();
+            var skeleton = new GameSkeleton(SkeletonFile(), _player);
+            var clip = new AnimationClip { PlayTimeInSec = 2 };
+            for (var frame = 0; frame <= 20; frame++)
+            {
+                clip.DynamicFrames.Add(new AnimationClip.KeyFrame
+                {
+                    Position = [Vector3.Zero, new Vector3(frame * 0.2f, 1, 0)],
+                    Rotation = [Quaternion.Identity, Quaternion.Identity],
+                    Scale = [Vector3.One, Vector3.One],
+                });
+            }
+            _player.SetAnimation(clip, skeleton);
+            _player.IsEnabled = true;
+            _skeleton = new Provider(skeleton);
+            _root = new GroupNode("root");
+        }
+
+        static AnimationFile SkeletonFile()
+        {
+            var file = new AnimationFile();
+            file.Header.SkeletonName = "test_skeleton";
+            file.Bones =
+            [
+                new AnimationFile.BoneInfo { Id = 0, Name = "root", ParentId = AnimationFile.BoneIndexNoParent },
+                new AnimationFile.BoneInfo { Id = 1, Name = "fx", ParentId = 0 },
+            ];
+            var bind = new AnimationFile.Frame();
+            bind.Transforms.Add(new RmvVector3(0, 0, 0));
+            bind.Transforms.Add(new RmvVector3(0, 1, 0));
+            bind.Quaternion.Add(new RmvVector4(0, 0, 0, 1));
+            bind.Quaternion.Add(new RmvVector4(0, 0, 0, 1));
+            var part = new AnimationFile.AnimationPart();
+            part.DynamicFrames.Add(bind);
+            file.AnimationParts.Add(part);
+            return file;
+        }
+
+        static Effect_v11 Tag(string vfx, int bone = 1, float start = 0.5f, bool tracking = true) =>
+            new() { VfxName = vfx, NodeIndex = bone, StartTime = start, EndTime = 0, Tracking = tracking };
+
+        static ParsedMetadataFile Meta(params ParsedMetadataAttribute[] tags) => new() { Version = 2, Attributes = [.. tags] };
+
+        List<IMetaDataInstance> Build(ParsedMetadataFile? persistent, ParsedMetadataFile meta) =>
+            _builder.Create(persistent, meta, null, _root, _skeleton, _player, null!);
+
+        static List<ParticleState> States(VfxEffectInstance instance) => instance.Simulator!.Emitters.SelectMany(ParticleSimulator.States).ToList();
+
+        [Test]
+        public void Effect_Spawns_OnItsBone_OnlyAfterItsStartTime()
+        {
+            var instance = (VfxEffectInstance)Build(null, Meta(Tag("test_smoke"))).Single();
+
+            instance.Update(0.4f);
+            Assert.That(States(instance), Is.Empty, "particles before the tag's Start Time");
+
+            instance.Update(1.5f);
+            var states = States(instance);
+            Assert.That(states.Count, Is.EqualTo(30).Within(1), "one second of 30 a second");
+            // At 1.5 s the bone is at (3, 1, 0); local-space particles ride on it.
+            Assert.That(states.Max(x => Vector3.Distance(x.Position, new Vector3(3, 1, 0))), Is.LessThan(0.01f));
+        }
+
+        [Test]
+        public void UntrackedEffect_StaysWhereItsBoneWasAtTheStart()
+        {
+            var instance = (VfxEffectInstance)Build(null, Meta(Tag("test_smoke", tracking: false))).Single();
+            instance.Update(1.5f);
+            // The bone was at (1, 1, 0) at the tag's 0.5 s start.
+            Assert.That(States(instance).Max(x => Vector3.Distance(x.Position, new Vector3(1, 1, 0))), Is.LessThan(0.01f));
+        }
+
+        [Test]
+        public void MissingEffect_KeepsItsLocator_AndDrawsNoParticles()
+        {
+            Assert.DoesNotThrow(() => Build(null, Meta(Tag("no_such_fx"))));
+            Assert.That(_root.Children.Select(x => x.Name), Is.EquivalentTo(new[] { "Effect:no_such_fx" }));
+        }
+
+        [Test]
+        public void ShowVfxOff_DrawsTheLocatorOnly()
+        {
+            _builder.ShowVfx = false;
+            var instance = (VfxEffectInstance)Build(null, Meta(Tag("test_smoke"))).Single();
+            Assert.That(instance.Simulator, Is.Null);
+            Assert.That(_root.Children.OfType<VfxEffectNode>(), Is.Empty);
+        }
+
+        [Test]
+        public void DisablePersistentVfx_DropsThePersistentMetasEffects()
+        {
+            var persistent = Meta(Tag("test_smoke", start: 0));
+            Build(persistent, Meta(new DisablePersistantVfx_v10()));
+            Assert.That(_root.Children.OfType<VfxEffectNode>(), Is.Empty, "DISABLE_PERSISTENT_VFX kept the persistent meta's effect");
+            Assert.That(Build(persistent, Meta()), Has.Count.EqualTo(1), "without it, the persistent effect is built");
+        }
+
+        [Test]
+        public void EffectOnABoneTheSkeletonLacks_DrawsAtTheOrigin()
+        {
+            var instance = (VfxEffectInstance)Build(null, Meta(Tag("test_smoke", bone: 99))).Single();
+            Assert.DoesNotThrow(() => instance.Update(1.5f));
+            Assert.That(States(instance).Max(x => x.Position.Length()), Is.LessThan(0.01f));
+        }
+    }
+}

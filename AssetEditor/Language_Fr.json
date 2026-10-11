@@ -385,6 +385,7 @@
     "TextureEditor.Labels.Height":  "Height",
     "TextureEditor.Labels.NumMipMaps":  "Num MipMaps",
     "MetadataEditor.Buttons.Refresh":  "Refresh",
+    "SuperView.ShowVfx":  "Afficher les VFX",
     "MetadataEditor.Buttons.New":  "New",
     "MetadataEditor.Buttons.Delete":  "Delete",
     "MetadataEditor.Buttons.Up":  "Up",

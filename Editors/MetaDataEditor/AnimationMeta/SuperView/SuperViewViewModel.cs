@@ -74,6 +74,12 @@ namespace Editors.AnimationMeta.SuperView
         void OnMetaDataAttributeChanged(MetaDataAttributeChangedEvent @event) => RecreateMetaDataInformation();
         void OnMetaDataChanged(SceneObject sceneObject) => RecreateMetaDataInformation();
 
+        partial void OnShowVfxChanged(bool value)
+        {
+            _metaDataFactory.ShowVfx = value;
+            RecreateMetaDataInformation();
+        }
+
         private void OnFileSaved(ScopedFileSavedEvent evnt)
         {
             var newFile = _packFileService.FindFile(evnt.NewPath);

@@ -294,6 +294,17 @@ namespace GameWorld.Core.Components.Rendering
             foreach (var item in _renderItems[RenderBuckedId.Selection])
                 item.Draw(device, commonShaderParameters, renderingTechnique);
 
+            // Particles: after everything solid, reading depth without writing it, both faces; each item sets its blend.
+            if (renderingTechnique == RenderingTechnique.Normal && _renderItems[RenderBuckedId.Transparent].Count != 0)
+            {
+                var blendState = device.BlendState;
+                device.DepthStencilState = DepthStencilState.DepthRead;
+                device.RasterizerState = RasterizerState.CullNone;
+                foreach (var item in _renderItems[RenderBuckedId.Transparent])
+                    item.Draw(device, commonShaderParameters, renderingTechnique);
+                device.BlendState = blendState;
+                device.DepthStencilState = DepthStencilState.Default;
+            }
 
         }
 

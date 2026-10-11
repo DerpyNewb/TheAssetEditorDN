@@ -8,6 +8,7 @@ using GameWorld.Core.Rendering;
 using GameWorld.Core.Rendering.RenderItems;
 using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Services;
+using GameWorld.Core.Vfx;
 using Microsoft.Xna.Framework;
 using Shared.Core.Misc;
 using Shared.Core.PackFiles;
@@ -20,19 +21,28 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 {
     public interface IMetaDataBuilder
     {
+        // Off, an EFFECT tag draws its locator and no particles.
+        bool ShowVfx { get; set; }
         List<IMetaDataInstance> Create(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData, ParsedMetadataAttribute? selectedMetaDataAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment);
     }
 
-    public class MetaDataBuilder : IMetaDataBuilder
+    // IDisposable so the editor's scope frees the effects' textures when SuperView closes.
+    public class MetaDataBuilder : IMetaDataBuilder, IDisposable
     {
         private readonly ILogger _logger = Logging.Create<MetaDataBuilder>();
         private readonly ComplexMeshLoader _complexMeshLoader;
         private readonly RenderEngineComponent _resourceLibrary;
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
         private readonly IPackFileService _packFileService;
+        private readonly VfxTextureCache _vfxTextures;
 
         private static Color s_color = Color.Black;
         private static Color s_selectedColor = Color.Red;
+
+        public bool ShowVfx { get; set; } = true;
+
+        // A broken effect would log again on every rebuild (every click in the tag list); once is enough.
+        private static readonly HashSet<string> s_loggedVfxMessages = [];
 
         public MetaDataBuilder(ComplexMeshLoader complexMeshLoader,
             RenderEngineComponent resourceLibrary,
@@ -43,7 +53,10 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             _resourceLibrary = resourceLibrary;
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
             _packFileService = packFileService;
+            _vfxTextures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(packFileService, LogOnce));
         }
+
+        public void Dispose() => _vfxTextures.Dispose();
 
         public List<IMetaDataInstance> Create(ParsedMetadataFile? persistent, 
             ParsedMetadataFile? metaData, ParsedMetadataAttribute? selectedMetaDataAttribute,
@@ -54,9 +67,11 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             // Apply persistent meta data, if no disable is given.
             var usePersistent = metaData == null || metaData.GetItemsOfType<DisablePersistant_v10>().Count == 0;
+            // DISABLE_PERSISTENT_VFX drops the persistent meta's effects and keeps the rest of it.
+            var usePersistentVfx = metaData == null || metaData.GetItemsOfType<DisablePersistantVfx_v10>().Count == 0;
             if (usePersistent)
             {
-                var metaDataPersistent = ApplyMetaData(persistent, selectedMetaDataAttribute,root, skeleton, rootPlayer, fragment);
+                var metaDataPersistent = ApplyMetaData(persistent, selectedMetaDataAttribute, root, skeleton, rootPlayer, fragment, usePersistentVfx);
                 output.AddRange(metaDataPersistent);
             }
 
@@ -113,7 +128,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return AnimationSampler.Sample(0, 0, skeleton, new AnimationClip(AnimationFile.Create(file), skeleton));
         }
 
-        private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment)
+        private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment, bool includeEffects = true)
         {
             var output = new List<IMetaDataInstance>();
             if (file == null)
@@ -129,7 +144,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             output.AddRange(file.GetItemsOfType<SplashAttack_v10>().Select(meteDataItem => CreateSplashAttack(meteDataItem, root, $"SplashAttack_{Math.Round(meteDataItem.EndTime, 2)}", 0.1f, selectedAttribute)));
 
-            output.AddRange(file.GetItemsOfType<IEffectMeta>().Select(x => CreateEffect(x, root, skeleton, selectedAttribute)));
+            if (includeEffects)
+                output.AddRange(file.GetItemsOfType<IEffectMeta>().Select(x => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer)));
 
             foreach (var meteDataItem in file.GetItemsOfType<DockEquipment>())
                 CreateEquipmentDock(meteDataItem, fragment, skeleton, rootPlayer);
@@ -326,15 +342,21 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return instance;
         }
 
-        private IMetaDataInstance CreateEffect(IEffectMeta effect, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute)
+        private IMetaDataInstance CreateEffect(IEffectMeta effect, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute, AnimationPlayer rootPlayer)
         {
+            var resolved = ShowVfx ? new VfxResolver(_packFileService).Resolve(effect.VfxName, new Random(StableSeed(effect))) : null;
+            if (resolved is { Found: false })
+                LogOnce($"EFFECT {effect.VfxName}: {VfxResolver.PathOf(effect.VfxName)} is not in any loaded pack, so only its locator is drawn");
+            foreach (var problem in resolved?.Problems ?? [])
+                LogOnce($"EFFECT {effect.VfxName}: {problem}");
+
             var color = selectedAttribute == effect ? s_selectedColor : s_color;
             var locatorScale = 0.3f;
             var textOffset = locatorScale * 1.5f + 0.01f;
 
             var rotationQuat = new Quaternion(effect.Orientation);
             var rotMatrix = Matrix.CreateFromQuaternion(rotationQuat);
-    
+
             var localX = Vector3.Transform(Vector3.UnitX, rotMatrix);
             var localY = Vector3.Transform(Vector3.UnitY, rotMatrix);
             var localZ = Vector3.Transform(Vector3.UnitZ, rotMatrix);
@@ -344,17 +366,93 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             node.AddItem(LineHelper.AddLine(effect.Position, effect.Position + localY * locatorScale, Color.Green));
             node.AddItem(LineHelper.AddLine(effect.Position, effect.Position + localZ * locatorScale, Color.Blue));
 
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, effect.VfxName, effect.Position, color));
+            var label = resolved is { Found: false } ? effect.VfxName + " (not found)" : effect.VfxName;
+            node.AddItem(new WorldTextRenderItem(_resourceLibrary, label, effect.Position, color));
             node.AddItem(new WorldTextRenderItem(_resourceLibrary, "X", effect.Position + localX * textOffset, Color.Red));
             node.AddItem(new WorldTextRenderItem(_resourceLibrary, "Y", effect.Position + localY * textOffset, Color.Green));
             node.AddItem(new WorldTextRenderItem(_resourceLibrary, "Z", effect.Position + localZ * textOffset, Color.Blue));
 
             root.AddObject(node);
 
-            var instance = new DrawableMetaInstance(effect.EffectStartTime, effect.EffectEndTime, node.Name, node);
-            if (effect.Tracking)
-                instance.FollowBone(skeleton, effect.NodeIndex);
+            // An untracked effect stays where its bone was at the tag's Start Time.
+            var startTime = effect.EffectStartTime;
+            var boneAt = BoneAt(effect.NodeIndex, skeleton, rootPlayer);
+            if (!effect.Tracking)
+            {
+                var atStart = boneAt(startTime);
+                boneAt = _ => atStart;
+            }
+
+            if (resolved is not { Found: true })
+            {
+                var locatorOnly = new VfxEffectInstance(node, boneAt, startTime);
+                locatorOnly.Update(rootPlayer.GetTimeUs() / 1_000_000f);
+                return locatorOnly;
+            }
+
+            var settings = resolved.Emitters.Select(EmitterSettings.From).ToList();
+            foreach (var emitter in settings)
+            {
+                foreach (var gap in emitter.Skipped)
+                    LogOnce($"EFFECT {effect.VfxName}, emitter {emitter.Name}: {gap}");
+            }
+
+            var offset = Matrix.CreateScale(ScaleOf(effect)) * rotMatrix * Matrix.CreateTranslation(effect.Position);
+            // A 0/0 tag (or one ending before it starts) spawns for the whole animation.
+            var spawnEnd = effect.EffectEndTime > startTime ? effect.EffectEndTime - startTime : float.PositiveInfinity;
+            var simulator = new ParticleSimulator(settings, StableSeed(effect), t => offset * boneAt(t + startTime), spawnEnd,
+                message => LogOnce($"EFFECT {effect.VfxName}, {message}"));
+            var particles = root.AddObject(new VfxEffectNode("Vfx:" + effect.VfxName,
+                new ParticleRenderItem(simulator, _vfxTextures)));
+
+            var instance = new VfxEffectInstance(node, boneAt, startTime, particles, simulator);
+            instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
             return instance;
+        }
+
+        // The tag's bone at a time on the main clock, sampled from the main clip, so a re-simulation can ask
+        // for any time. -1, or a bone the skeleton lacks, is the model's origin.
+        // ponytail: sampled without the player's rules (hand poses, TRANSFORM); pass rootPlayer.AnimationRules
+        // if an effect is ever placed on a bone a rule moves.
+        static Func<float, Matrix> BoneAt(int boneIndex, ISkeletonProvider skeleton, AnimationPlayer rootPlayer) => mainTime =>
+        {
+            var gameSkeleton = skeleton.Skeleton;
+            if (gameSkeleton == null || boneIndex < 0 || boneIndex >= gameSkeleton.BoneCount)
+                return Matrix.Identity;
+            var clip = rootPlayer.AnimationClip;
+            if (clip == null || clip.PlayTimeInSec <= 0)
+                return gameSkeleton.GetWorldTransform(boneIndex);
+            var frame = AnimationSampler.Sample(Math.Clamp(mainTime / clip.PlayTimeInSec, 0, 1), gameSkeleton, clip);
+            return frame.GetSkeletonAnimatedWorld(gameSkeleton, boneIndex);
+        };
+
+        // Scale is on EFFECT v3, v5, v7, v11 and v12, not on IEffectMeta; the other versions draw at 1.
+        static float ScaleOf(IEffectMeta effect) => effect switch
+        {
+            Effect_v3 e => e.Scale,
+            Effect_v7 e => e.Scale,
+            Effect_v11 e => e.Scale,
+            Effect_v12 e => e.Scale,
+            _ => 1,
+        };
+
+        // The same tag gets the same particles on every rebuild; string.GetHashCode differs per process.
+        static int StableSeed(IEffectMeta effect)
+        {
+            var hash = 17;
+            foreach (var c in effect.VfxName)
+                hash = hash * 31 + c;
+            return hash ^ (effect.NodeIndex * 7919) ^ BitConverter.SingleToInt32Bits(effect.EffectStartTime);
+        }
+
+        void LogOnce(string message)
+        {
+            lock (s_loggedVfxMessages)
+            {
+                if (!s_loggedVfxMessages.Add(message))
+                    return;
+            }
+            _logger.Here().Warning(message);
         }
     }
 }

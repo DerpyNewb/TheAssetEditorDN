@@ -409,6 +409,7 @@
   "TextureEditor.Labels.NumMipMaps": "MipMap 数量",
 
   "MetadataEditor.Buttons.Refresh": "刷新",
+  "SuperView.ShowVfx": "显示特效",
   "MetadataEditor.Buttons.New": "新建",
   "MetadataEditor.Buttons.Delete": "删除",
   "MetadataEditor.Buttons.Up": "上移",
