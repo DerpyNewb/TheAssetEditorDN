@@ -1,4 +1,3 @@
-using System.Text;
 using Editors.VfxEditor.Document;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
@@ -35,7 +34,7 @@ namespace Editors.VfxEditor.Vocabulary
                 {
                     document = VfxDocument.Load(file.DataSource.ReadData());
                 }
-                catch (Exception e) when (e is VfxParseException or DecoderFallbackException)
+                catch (Exception)   // a pack moved on disk too, not only a file that does not parse
                 {
                 }
                 if (document != null)

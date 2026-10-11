@@ -2,6 +2,7 @@ using Editors.VfxEditor;
 using Moq;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
+using Shared.Core.PackFiles.Models.FileSources;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
 using Shared.Core.Settings;
@@ -78,6 +79,15 @@ namespace Test.VfxEditor
             Assert.That(_session.EffectName, Is.EqualTo("fx"));
             Assert.That(_session.EmitterIdsOf("lib"), Is.EqualTo(new[] { "t1", "t2" }));
             Assert.That(_session.EmitterIdsOf("missing"), Is.Null);
+        }
+
+        [Test]
+        public void A_target_whose_pack_cannot_be_read_has_no_emitter_list()
+        {
+            var unreadable = new Mock<IDataSource>();
+            unreadable.Setup(s => s.ReadData()).Throws(new System.IO.IOException("the pack moved"));
+            File("vfx\\lib.xml").DataSource = unreadable.Object;
+            Assert.That(_session.EmitterIdsOf("lib"), Is.Null);
         }
     }
 }

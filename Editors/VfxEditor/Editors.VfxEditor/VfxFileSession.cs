@@ -84,7 +84,7 @@ namespace Editors.VfxEditor
                 var document = VfxDocument.Load(file.DataSource.ReadData());
                 return document.Section("emitters")?.ChildrenNamed("emitter").Select(e => e.Attr("id") ?? "").ToList() ?? [];
             }
-            catch (Exception e) when (e is VfxParseException or DecoderFallbackException)
+            catch (Exception)   // a pack moved on disk too, not only a file that does not parse
             {
                 return null;
             }
