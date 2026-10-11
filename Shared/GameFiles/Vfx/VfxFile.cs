@@ -82,12 +82,11 @@ namespace Shared.GameFormats.Vfx
             {
                 var blocks = chain.Elements("quality").ToList();
                 // A block has no fallback (docs/sessions/HANDOFF_20260829_VFX_QUALITY_TIERS.md): with no block at the tier the
-                // chain draws nothing there. Tier 0 keeps reading the lowest block when there is no "0".
-                var block = blocks.FirstOrDefault(x => (string?)x.Attribute("value") == tier.ToString(CultureInfo.InvariantCulture))
-                    ?? (tier == 0 ? blocks.OrderBy(x => (string?)x.Attribute("value")).FirstOrDefault() : null);
-                if (block == null && tier != 0)
+                // chain draws nothing there, Ultra included.
+                var block = blocks.FirstOrDefault(x => (string?)x.Attribute("value") == tier.ToString(CultureInfo.InvariantCulture));
+                if (block == null)
                     continue;
-                var modifiers = (block?.Elements("modifier") ?? []).Select(m => new VfxModifier(
+                var modifiers = block.Elements("modifier").Select(m => new VfxModifier(
                     (string?)m.Attribute("fragment") ?? "",
                     Properties(m.Elements("property")),
                     m.Elements("texture_property").GroupBy(t => (string?)t.Attribute("name") ?? "").ToDictionary(g => g.Key, g => (string?)g.First().Attribute("path") ?? ""))).ToList();

@@ -20,6 +20,16 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(VfxFile.Parse(bytes).Emitters[0].Properties["A"].Value, Is.EqualTo("1"));
         }
 
+        // No vanilla chain lacks a value="0" block; one a modder wrote without it draws nothing at Ultra in game.
+        [Test]
+        public void Ultra_reads_no_other_tiers_block()
+        {
+            var bytes = VfxTestFiles.Xml(
+                emitters: VfxTestFiles.Emitter("e", """<property name="A" quality="0" value="1"/>"""),
+                chains: """<behaviour_chain id="e"><quality value="1"><modifier fragment="vs_colour"/></quality></behaviour_chain>""");
+            Assert.That(VfxFile.Parse(bytes).Chains.ContainsKey("e"), Is.False);
+        }
+
         const string Sample = """
             <shader_library file="fx/particle_vfx_library.hlsl"/><vfx revision="2" construction_type="1" enable_in_ted="false">
             <emitters>

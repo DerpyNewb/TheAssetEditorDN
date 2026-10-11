@@ -208,7 +208,7 @@ namespace GameWorld.Core.Vfx
         {
             if (chain == null)
             {
-                NotDrawn(s, "no behaviour chain, so nothing to draw");
+                NotDrawn(s, "no behaviour chain block at this quality tier, so nothing to draw");
                 return;
             }
             foreach (var modifier in chain.Modifiers.Where(x => !s_knownFragments.Contains(x.Fragment)))
