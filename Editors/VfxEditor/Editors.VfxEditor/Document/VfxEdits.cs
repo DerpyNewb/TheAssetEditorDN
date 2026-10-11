@@ -13,8 +13,10 @@ namespace Editors.VfxEditor.Document
 
         // Properties of an emitter or render stack
 
-        /// <summary>A tier-0 base, which the other tiers inherit, after the container's last child.</summary>
-        public static Splice AddProperty(VfxDocument document, SpanElement container, string propertyXml) => document.InsertInto(container, propertyXml);
+        /// <summary>After the container's last child: at tier 0 a base the other tiers inherit, otherwise that tier's override.</summary>
+        public static Splice AddProperty(VfxDocument document, SpanElement container, string propertyXml, int tier = 0) =>
+            document.InsertInto(container, tier == 0 ? propertyXml
+                : VfxDocument.Rewrite(propertyXml, (d, e) => [d.SetAttribute(e, "quality", tier.ToString(CultureInfo.InvariantCulture))]));
 
         /// <summary>Linked: every tier of it. This tier only: the tier's own element; at tier 0 the tiers that inherited the
         /// base first get an override holding it. A tier that inherits cannot drop the base's value alone.</summary>

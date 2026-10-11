@@ -179,11 +179,11 @@ namespace Editors.VfxEditor.ViewModels
 
         /// <summary>Builds splices against the current document and applies them as one undo step. A refusal (a taken id,
         /// a tier with no block, an edit that would break the file) goes to the status line and changes nothing.</summary>
-        void Edit(Func<VfxDocument, IEnumerable<Splice>> build, VfxTreeNode? node = null)
+        bool Edit(Func<VfxDocument, IEnumerable<Splice>> build, VfxTreeNode? node = null)
         {
             var document = _session.Document;
             if (document == null)
-                return;
+                return false;
             // Read before the edit: a remove can bring the counts back in line.
             var skipped = node is { Kind: NodeKind.Modifier } && !ThisTierOnly ? TierEdits.UnmatchedTiers(ChainOf(document, node), Tier, node.Fragment!) : [];
             try
@@ -191,12 +191,14 @@ namespace Editors.VfxEditor.ViewModels
                 document.Apply(build(document).ToList());
                 if (skipped.Count > 0)
                     Status = $"{string.Join(" and ", skipped.Select(t => TierNames.ElementAtOrDefault(t) ?? $"tier {t}"))} left alone: its block has a different number of {node!.Fragment}, so which one matches is unknown";
+                return true;
             }
             catch (Exception e) when (e is ArgumentException or InvalidOperationException)
             {
                 _logger.Warning("VFX edit refused: {Reason}", e.Message);
                 Status = e.Message;
                 RefreshRows();
+                return false;
             }
         }
 
@@ -413,14 +415,16 @@ namespace Editors.VfxEditor.ViewModels
             if (SelectedNode is not { } node || _vocabulary is not { } vocabulary || string.IsNullOrEmpty(NewPropertyName))
                 return;
             var name = NewPropertyName;
-            Edit(document =>
+            var added = Edit(document =>
             {
                 var element = document.At(node.Path);
                 var template = vocabulary.PropertyTemplate(ContextOf(node, element), name) ?? throw new ArgumentException($"vanilla never writes {name} here");
                 return node.Kind == NodeKind.Modifier
                     ? VfxEdits.AddModifierProperty(document, ChainOf(document, node), Tier, node.Fragment!, node.Occurrence, template, ThisTierOnly)
-                    : [VfxEdits.AddProperty(document, element, template)];
+                    : [VfxEdits.AddProperty(document, element, template, ThisTierOnly ? Tier : 0)];
             }, node);
+            if (added && ThisTierOnly && Tier == 0 && node.Kind != NodeKind.Modifier)
+                Status = $"{name} added at Ultra; High and Medium inherit it, having no value of their own to keep";
         }
 
         [RelayCommand]

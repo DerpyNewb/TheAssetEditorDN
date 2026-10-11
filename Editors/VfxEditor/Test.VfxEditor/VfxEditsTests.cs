@@ -104,6 +104,14 @@ namespace Test.VfxEditor
         }
 
         [Test]
+        public void A_property_added_for_one_tier_is_that_tiers_override()
+        {
+            var d = Fixtures.Document();
+            d.Apply([VfxEdits.AddProperty(d, Fixtures.Emitter(d), "<property name=\"Z\" quality=\"0\" value=\"1\"/>", tier: 2)]);
+            Assert.That(TierEdits.Tiers(Fixtures.Emitter(d), "Z").Keys, Is.EqualTo(new[] { 2 }));
+        }
+
+        [Test]
         public void A_modifier_property_is_added_where_it_is_missing_and_removed_by_tier()
         {
             var d = Fixtures.Document();
