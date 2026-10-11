@@ -7,6 +7,7 @@ using Editors.VfxEditor.ViewModels;
 using Editors.VfxEditor.Views;
 using GameWorld.Core.Components;
 using GameWorld.Core.SceneNodes;
+using GameWorld.Core.Vfx;
 using Moq;
 using Shared.Core.Commands;
 using Shared.Core.Services;
@@ -118,16 +119,7 @@ namespace Test.VfxEditor
         [Test]
         public void A_guide_model_rides_where_the_effect_is()
         {
-            var runner = new AssetEditorTestRunner();
-            runner.CreateCaContainer();
-            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), false);
-            var source = runner.CreateEmptyPackFile("source", false);
-            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
-            runner.CreateOutputPack();
-            var model = runner.PackFileService.FindFile(@"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2")!;
-            runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, model));
-            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
-            var preview = runner.GetRequiredServiceInCurrentEditorScope<VfxPreviewComponent>();
+            var (runner, editor, preview) = OpenWithAGuideModelOffered();
 
             editor.LoadModelCommand.Execute(null);
             Assert.That(editor.ModelName, Is.EqualTo("emp_karl_franz.rigid_model_v2"));
@@ -144,6 +136,40 @@ namespace Test.VfxEditor
 
             editor.ClearModelCommand.Execute(null);
             Assert.That((preview.Model, editor.ModelName, root.Children.Contains(node)), Is.EqualTo(((SceneNode?)null, (string?)null, false)));
+        }
+
+        // Static draws from the projectile's frame: it and its model hold the centre while the particles, the trail, are
+        // drawn shifted back by the flight. Switching the view back re-places both without moving the time.
+        [Test]
+        public void A_static_view_holds_the_projectile_at_the_centre_and_shifts_the_trail_back()
+        {
+            var (runner, editor, preview) = OpenWithAGuideModelOffered();
+            editor.LoadModelCommand.Execute(null);
+            editor.LoopLength = 1;
+            editor.ProjectileSpeed = 60;
+            editor.Projectile = true;
+            editor.StaticView = true;
+            editor.PreviewTime = 0.25;
+            var effect = runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode.Children.OfType<VfxEffectNode>().Single();
+            Assert.That((preview.Model!.ModelMatrix.Translation, effect.ModelMatrix.Translation), Is.EqualTo((Vector3.Zero, new Vector3(0, 0, 15))));
+
+            editor.StaticView = false;
+            Assert.That((preview.Model!.ModelMatrix.Translation, effect.ModelMatrix.Translation), Is.EqualTo((new Vector3(0, 0, -15), Vector3.Zero)));
+        }
+
+        // vfx\fx.xml open in the editor, with Karl Franz's model as what the pack browser will hand back.
+        static (AssetEditorTestRunner, VfxEditorViewModel, VfxPreviewComponent) OpenWithAGuideModelOffered()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), false);
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            runner.CreateOutputPack();
+            var model = runner.PackFileService.FindFile(@"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2")!;
+            runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, model));
+            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
+            return (runner, editor, runner.GetRequiredServiceInCurrentEditorScope<VfxPreviewComponent>());
         }
 
         static IEnumerable<DependencyObject> Descendants(DependencyObject parent)

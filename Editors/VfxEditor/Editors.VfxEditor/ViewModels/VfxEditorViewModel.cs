@@ -557,6 +557,8 @@ namespace Editors.VfxEditor.ViewModels
             }
         }
 
+        public bool StaticView { get => _preview.StaticView; set { _preview.StaticView = value; OnPropertyChanged(); _preview.SetTime(_preview.Time); } }
+
         [ObservableProperty] string? _modelName;
 
         /// <summary>A model from the packs to stand where the effect is, as a guide. The preview only; nothing is written.</summary>

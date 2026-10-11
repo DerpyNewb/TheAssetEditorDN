@@ -216,6 +216,8 @@
                         <TextBlock Text="Axis" Margin="0,0,4,0" VerticalAlignment="Center"/>
                         <ComboBox ItemsSource="{Binding AxisNames}" SelectedIndex="{Binding ProjectileAxis}" Width="55"
                                   ToolTip="The effect's local axis the projectile flies along"/>
+                        <CheckBox Content="Static" IsChecked="{Binding StaticView}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                  ToolTip="Watch from the projectile: it and the guide model hold the centre of the view while the trail streams back behind them. Unticked, they fly across the view."/>
                         <Button Content="Model..." Command="{Binding LoadModelCommand}" Margin="10,0,0,0" Padding="6,0"
                                 ToolTip="A .rigid_model_v2 from the loaded packs to stand where the effect is, as a guide. The preview only; nothing is written to the file."/>
                         <TextBlock Text="{Binding ModelName}" Margin="6,0" VerticalAlignment="Center"/>

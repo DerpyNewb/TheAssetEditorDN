@@ -45,6 +45,8 @@ namespace Editors.VfxEditor.Preview
         public bool Projectile { get; set; }
         public float ProjectileSpeed { get; set; } = 60;
         public int ProjectileAxis { get; set; }
+        /// <summary>Draw from the projectile's frame: it and the guide model hold the centre and the trail streams back.</summary>
+        public bool StaticView { get; set; }
         public IReadOnlyList<string> Lines => _lines;
         public SceneNode? Model { get; private set; }
         public event Action? TimeChanged;
@@ -86,8 +88,12 @@ namespace Editors.VfxEditor.Preview
         public void SetTime(float time)
         {
             Time = Math.Max(0, time);
+            var effectWorld = _effectWorldAt(Time);
+            var view = StaticView ? Matrix.Invert(effectWorld) : Matrix.Identity;
+            if (_node != null)
+                _node.ModelMatrix = view;
             if (Model != null)
-                Model.ModelMatrix = _effectWorldAt(Time);
+                Model.ModelMatrix = effectWorld * view;
             try
             {
                 _simulator?.AdvanceTo(Time);
