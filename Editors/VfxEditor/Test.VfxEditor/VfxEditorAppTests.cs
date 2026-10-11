@@ -85,6 +85,28 @@ namespace Test.VfxEditor
                 Does.Contain("<property name=\"A\" quality=\"0\" value=\"3\"/>\r\n\t\t\t<property name=\"A\" quality=\"1\" value=\"3\"/>"));
         }
 
+        // The vocabulary arrives seconds after the first editor opens and rebuilds the rows; a value typed by then is kept.
+        [Test, Apartment(ApartmentState.STA)]
+        public void A_value_typed_before_the_vocabulary_arrives_is_kept()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            runner.CreateOutputPack();
+            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
+            Settle(editor.VocabularyLoaded);
+            var view = new VfxEditorView { DataContext = editor };
+            editor.SelectedNode = editor.Tree[1].Children[0];
+            view.Measure(new Size(1600, 900));
+            view.Arrange(new Rect(0, 0, 1600, 900));
+            view.UpdateLayout();
+
+            Descendants(view).OfType<TextBox>().First(b => b.DataContext is PropertyRow { Label: "A" }).Text = "2";
+            editor.OnVocabularyArrived();
+
+            Assert.That(editor.Rows.Single(r => r.Label == "A").Value, Is.EqualTo("2"));
+        }
+
         [Test]
         public void A_linked_edit_says_which_tiers_it_left_alone()
         {
@@ -256,6 +278,14 @@ namespace Test.VfxEditor
             runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, model));
             var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
             return (runner, editor, runner.GetRequiredServiceInCurrentEditorScope<VfxPreviewComponent>());
+        }
+
+        // Waits for the task, pumping this thread's dispatcher so a continuation posted back to it can run.
+        static void Settle(Task task)
+        {
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            task.ContinueWith(_ => frame.Continue = false, TaskScheduler.Default);
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
         }
 
         static IEnumerable<DependencyObject> Descendants(DependencyObject parent)

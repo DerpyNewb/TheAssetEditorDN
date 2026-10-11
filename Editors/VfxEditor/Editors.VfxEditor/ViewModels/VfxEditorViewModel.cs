@@ -50,8 +50,11 @@ namespace Editors.VfxEditor.ViewModels
                 _previewTimer.Stop();
                 RefreshPreview();
             };
-            _ = LoadVocabulary(vocabularyService);
+            VocabularyLoaded = LoadVocabulary(vocabularyService);
         }
+
+        /// <summary>The vocabulary read and the rows rebuilt with it (or the failure reported).</summary>
+        internal Task VocabularyLoaded { get; }
 
         async Task LoadVocabulary(VfxVocabularyService vocabularyService)
         {
@@ -66,6 +69,12 @@ namespace Editors.VfxEditor.ViewModels
                 _logger.Error(e, "Reading the vanilla effects failed");
                 Status = "Could not read the vanilla effects: " + e.Message;
             }
+            OnVocabularyArrived();
+        }
+
+        internal void OnVocabularyArrived()
+        {
+            FlushPendingEdits?.Invoke();   // the rows are rebuilt below, and a box's typed text would go with them
             OnPropertyChanged(nameof(FragmentChoices));
             OnPropertyChanged(nameof(EffectChoices));
             RefreshRows(rebuild: true);
