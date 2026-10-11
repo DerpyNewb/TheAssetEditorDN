@@ -110,7 +110,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 ProbablyPosition { get; set; }
 
         [MetaDataTag(7)]
-        public Vector4 ProbablyOrientation { get; set; }
+        public Vector4 ProbablyOrientation { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(8)]
         public int UnknownInt_v10 { get; set; }
@@ -193,34 +193,23 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     [MetaData("PARENT_CONSTRAINT", 10)]
     public class ParentConstraint_v10 : DecodedMetaEntryBase
     {
-        [MetaDataTag(5)]
+        // Same 44 bytes the old int-typed layout read. Retyped from all 53 vanilla WH3 uses:
+        // the four values after Position are a unit quaternion in every one of them.
+        [MetaDataTag(5, "1, 2, 3 or 6 in vanilla")]
         public int UnknownInt0 { get; set; }
-        [MetaDataTag(6)]
+        [MetaDataTag(6, "Probably the bone index the constraint follows (1-159 in vanilla)")]
         public int UnknownInt1 { get; set; }
 
         [MetaDataTag(7)]
+        public Vector3 Position { get; set; }
+
+        [MetaDataTag(8, "", MetaDataTagAttribute.DisplayType.EulerVector)]
+        public Vector4 Orientation { get; set; } = new Vector4(0, 0, 0, 1);
+
+        [MetaDataTag(9, "0, 0.1 or 1 in vanilla")]
         public float UnknownFloat0 { get; set; }
-
-        //or floats
-        [MetaDataTag(8)]
-        public int UnknownInt2 { get; set; }
-        [MetaDataTag(9)]
-        public int UnknownInt3 { get; set; }
         [MetaDataTag(10)]
-        public int UnknownInt4 { get; set; }
-        [MetaDataTag(11)]
-        public int UnknownInt5 { get; set; }
-        [MetaDataTag(12)]
-        public int UnknownInt6 { get; set; }
-
-        [MetaDataTag(13)]
-        public float UnknownFloat1 { get; set; }
-
-        // or floats
-        [MetaDataTag(14)]
-        public int UnknownInt7 { get; set; }
-        [MetaDataTag(15)]
-        public int UnknownInt8 { get; set; }
+        public int UnknownInt2 { get; set; }
     }
 
 

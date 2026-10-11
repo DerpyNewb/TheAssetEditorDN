@@ -12,4 +12,12 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         [MetaDataTag(5, "This might be a %, 0 = invisible and 1 = visible.")]
         public float DesiredAlpha { get; set; }
     }
+
+    // Same layout as ALPHA_10. Vanilla WH3 uses it on Nagash's special-ability spellcast, value 1.
+    [MetaData("VFX_ALPHA", 10)]
+    public class VfxAlpha_v10 : DecodedMetaEntryBase
+    {
+        [MetaDataTag(5, "0 = invisible, 1 = fully visible.")]
+        public float DesiredAlpha { get; set; } = 1;
+    }
 }

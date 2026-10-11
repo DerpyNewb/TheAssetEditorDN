@@ -72,19 +72,16 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     [MetaData("ANIMATED_PROP", 10)]
     public class AnimatedProp_v10 : Prop_v10, IAnimatedPropMeta
     {
-        public float Scale { get => 1; }
     }
 
     [MetaData("ANIMATED_PROP", 11)]
     public class AnimatedProp_v11 : Prop_v11, IAnimatedPropMeta
     {
-        public float Scale { get => 1; }
     }
 
     [MetaData("ANIMATED_PROP", 12)]
     public class AnimatedProp_v12 : Prop_v12, IAnimatedPropMeta
     {
-        public float Scale { get => 1; }
     }
 
     [MetaData("ANIMATED_PROP", 13)]

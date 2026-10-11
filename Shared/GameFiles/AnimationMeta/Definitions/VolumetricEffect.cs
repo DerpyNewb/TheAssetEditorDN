@@ -17,7 +17,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Unknown0_v2 { get; set; }
 
         [MetaDataTag(6)]
-        public Vector4 Unknown1_v2 { get; set; }
+        public Vector4 Unknown1_v2 { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(7)]
         public Vector3 Unknown2_v2 { get; set; }
@@ -26,7 +26,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Unknown3_v2 { get; set; }
 
         [MetaDataTag(9)]
-        public Vector4 Unknown4_v2 { get; set; }
+        public Vector4 Unknown4_v2 { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(10)]
         public Vector3 Unknown5_v2 { get; set; }
@@ -42,7 +42,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Unknown0_v10 { get; set; }
 
         [MetaDataTag(7)]
-        public Vector4 Unknown1_v10 { get; set; }
+        public Vector4 Unknown1_v10 { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(8)]
         public Vector3 Unknown2_v10 { get; set; }
@@ -51,7 +51,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Unknown3_v10 { get; set; }
 
         [MetaDataTag(10)]
-        public Vector4 Unknown4_v10 { get; set; }
+        public Vector4 Unknown4_v10 { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(11)]
         public Vector3 Unknown5_v10 { get; set; }

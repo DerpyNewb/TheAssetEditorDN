@@ -47,7 +47,8 @@ namespace Editors.AnimationMeta.Presentation
 
                 AttributeViewModel? editableItem = null;
                 var fieldName = FormatFieldName(prop.Name);
-                if (attributeInfo.DisplayOverride == MetaDataTagAttribute.DisplayType.EulerVector || value is Vector3)
+                // Every Vector4 in a meta tag is a rotation; the plain text editor cannot parse or write one.
+                if (attributeInfo.DisplayOverride == MetaDataTagAttribute.DisplayType.EulerVector || value is Vector3 || value is Vector4)
                 {
                     if (value is Vector3 vector3)
                         editableItem = new VectorAttributeViewModel(fieldName, itemDiscription, parser as Vector3Parser, vector3, typedMetaItem, prop, eventHub);

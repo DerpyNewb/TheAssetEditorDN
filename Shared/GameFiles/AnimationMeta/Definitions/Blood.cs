@@ -20,7 +20,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Position { get; set; }
 
         [MetaDataTag(7, "", MetaDataTagAttribute.DisplayType.EulerVector)]
-        public Vector4 Orientation { get; set; }
+        public Vector4 Orientation { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(8, "Bone the effect is attached to")]
         public int NodeIndex { get; set; }
@@ -52,7 +52,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Position { get; set; }
 
         [MetaDataTag(11, "", MetaDataTagAttribute.DisplayType.EulerVector)]
-        public Vector4 Orientation { get; set; }
+        public Vector4 Orientation { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(12, "Bone the effect is attached to")]
         public int NodeIndex { get; set; }
@@ -74,7 +74,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public new Vector3 Position { get; set; }
 
         [MetaDataTag(12, "", MetaDataTagAttribute.DisplayType.EulerVector)]
-        public new Vector4 Orientation { get; set; }
+        public new Vector4 Orientation { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(13, "Bone the effect is attached to")]
         public new int NodeIndex { get; set; }

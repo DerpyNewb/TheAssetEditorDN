@@ -6,18 +6,50 @@
         xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
         mc:Ignorable="d"
         Style="{StaticResource CustomWindowStyle}"
-        Title="{loc:Loc MetadataEditor.NewEntryWindow.Title}" Height="450" Width="400">
-    <Grid>
-        <ListView
-            ItemsSource="{Binding Items, UpdateSourceTrigger=PropertyChanged}"
-            SelectedItem="{Binding SelectedItem, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
+        Title="{loc:Loc MetadataEditor.NewEntryWindow.Title}" Height="600" Width="520"
+        WindowStartupLocation="CenterOwner"
+        FocusManager.FocusedElement="{Binding ElementName=FilterBox}">
+    <Grid Margin="5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBox x:Name="FilterBox" Grid.Row="0" Margin="0,0,0,5"
+                 Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="{loc:Loc MetadataEditor.NewEntryWindow.FilterTooltip}"/>
+
+        <!-- A version vanilla WH3 never uses is dimmed: most of those are formats from older games. -->
+        <ListView Grid.Row="1"
+            ItemsSource="{Binding Items}"
+            SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
             MouseDoubleClick="ListView_MouseDoubleClick">
             <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
+                <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
                     <Setter Property="Height" Value="24"/>
+                    <Setter Property="ToolTip" Value="{Binding Description}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Warhammer3Uses}" Value="0">
+                            <Setter Property="Opacity" Value="0.55"/>
+                        </DataTrigger>
+                    </Style.Triggers>
                 </Style>
             </ListView.ItemContainerStyle>
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="{loc:Loc MetadataEditor.NewEntryWindow.TagColumn}" DisplayMemberBinding="{Binding Key}" Width="300"/>
+                    <GridViewColumn Header="{loc:Loc MetadataEditor.NewEntryWindow.Warhammer3Column}" DisplayMemberBinding="{Binding Warhammer3Uses}" Width="150"/>
+                </GridView>
+            </ListView.View>
         </ListView>
+
+        <TextBlock Grid.Row="2" Margin="0,5" MinHeight="48" TextWrapping="Wrap" Text="{Binding SelectedItem.Description}"/>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="{loc:Loc MetadataEditor.NewEntryWindow.Ok}" Width="90" Margin="0,0,10,0" IsDefault="True" Click="OnOkClick"/>
+            <Button Content="{loc:Loc MetadataEditor.NewEntryWindow.Cancel}" Width="90" IsCancel="True"/>
+        </StackPanel>
     </Grid>
-    
 </Window>

@@ -41,9 +41,14 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public int OverrideProp { get; set; }
     }
 
+    // PROP_10+ implement IAnimatedPropMeta so SuperView draws them like ANIMATED_PROP.
+    // A class that hides Position/Orientation/BoneId/Scale with 'new' must re-list the interface,
+    // or the interface keeps reading the hidden base property.
     [MetaData("PROP", 10)]
-    public class Prop_v10 : DecodedMetaEntryBase
+    public class Prop_v10 : DecodedMetaEntryBase, IAnimatedPropMeta
     {
+        public float Scale => 1;
+
         [MetaDataTag(5)]
         public bool DistanceCulled { get; set; }
 
@@ -80,7 +85,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("PROP", 12)]
-    public class Prop_v12 : Prop_v11
+    public class Prop_v12 : Prop_v11, IAnimatedPropMeta
     {
         // new field
         [MetaDataTag(8)]
@@ -110,11 +115,11 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("PROP", 13)]
-    public class Prop_v13 : Prop_v12
+    public class Prop_v13 : Prop_v12, IAnimatedPropMeta
     {
         // new field
         [MetaDataTag(11)]
-        public float Scale { get; set; } = 1;
+        public new float Scale { get; set; } = 1;
 
         // override order
         [MetaDataTag(12)]
@@ -134,7 +139,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("PROP", 14)]
-    public class Prop_v14 : DecodedMetaEntryBase
+    public class Prop_v14 : DecodedMetaEntryBase, IAnimatedPropMeta
     {
         // new field
         [MetaDataTag(5, "")]
@@ -179,7 +184,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("PROP", 15)]
-    public class Prop_v15 : DecodedMetaEntryBase
+    public class Prop_v15 : DecodedMetaEntryBase, IAnimatedPropMeta
     {
         // new field
         [MetaDataTag(5, "")]
@@ -231,7 +236,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     // YOBANNYI VROT ETO KASINO
 
     [MetaData("PROP", 12, MetaDataAttributePriority.Low)]
-    public class Prop_v12_3K : DecodedMetaEntryBase
+    public class Prop_v12_3K : DecodedMetaEntryBase, IAnimatedPropMeta
     {
         public override string Description { get; } = "_3KOnly";
 

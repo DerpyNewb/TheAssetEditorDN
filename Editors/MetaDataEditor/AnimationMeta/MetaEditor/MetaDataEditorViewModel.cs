@@ -102,20 +102,11 @@ namespace Editors.AnimationMeta.Presentation
             if (ParsedFile == null)
                 return;
 
+            // Descriptions are keyed by the bare tag name; DisplayName carries the version ("EFFECT_11").
             foreach (var metadataEntry in ParsedFile.Attributes)
             {
-                if (metadataEntry is ParsedUnknownMetadataAttribute uknMeta)
-                {
-                    var desc = _metaDataFileParser.GetDatabase().GetDescriptionSafe(uknMeta.DisplayName);
-                    Tags.Add(new MetaDataEntry(uknMeta, desc, _eventHub, false));
-                }
-                else if (metadataEntry is ParsedMetadataAttribute parsedKnownAttribute)
-                {
-                    var desc = _metaDataFileParser.GetDatabase().GetDescriptionSafe(parsedKnownAttribute.DisplayName);
-                    Tags.Add(new MetaDataEntry(parsedKnownAttribute, desc, _eventHub, true));
-                }
-                else
-                    throw new Exception($"{metadataEntry.GetType()} is not a known type for {nameof(MetaDataEditorViewModel)}");
+                var desc = _metaDataFileParser.GetDatabase().GetDescriptionSafe(metadataEntry.Name);
+                Tags.Add(new MetaDataEntry(metadataEntry, desc, _eventHub, metadataEntry is not ParsedUnknownMetadataAttribute));
             }
         }
 

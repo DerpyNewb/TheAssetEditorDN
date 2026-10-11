@@ -194,6 +194,13 @@ namespace Shared.GameFormats.AnimationMeta.Parsing
 
         public byte[]? Serialize(ParsedMetadataAttribute entry, out string? errorMessage)
         {
+            // An undecoded tag has no fields to write but Version; its original bytes are all there is.
+            if (entry is ParsedUnknownMetadataAttribute)
+            {
+                errorMessage = null;
+                return entry.Data;
+            }
+
             var classLayout = GetClassLayoutsForMetaDataAttribute(entry);
             if (classLayout == null)
             {

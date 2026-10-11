@@ -20,7 +20,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Position { get; set; }
 
         [MetaDataTag(7, "", MetaDataTagAttribute.DisplayType.EulerVector)]
-        public Vector4 Orientation { get; set; }
+        public Vector4 Orientation { get; set; } = new Vector4(0, 0, 0, 1);
     }
 
     [MetaData("CREW_LOCATION", 3)]
@@ -47,7 +47,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Position { get; set; }
 
         [MetaDataTag(8, "", MetaDataTagAttribute.DisplayType.EulerVector)]
-        public Vector4 Orientation { get; set; }
+        public Vector4 Orientation { get; set; } = new Vector4(0, 0, 0, 1);
 
         [MetaDataTag(9)]
         public int UnknownInt0_v3 { get; set; }

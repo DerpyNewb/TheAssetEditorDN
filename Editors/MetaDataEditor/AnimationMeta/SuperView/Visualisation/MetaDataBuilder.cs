@@ -1,5 +1,4 @@
-﻿using System.Data;
-using Editors.AnimationMeta.SuperView.Visualisation.Instances;
+﻿using Editors.AnimationMeta.SuperView.Visualisation.Instances;
 using Editors.AnimationMeta.SuperView.Visualisation.Rules;
 using Editors.Shared.Core.Common;
 using GameWorld.Core.Animation;
@@ -219,10 +218,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
         private IMetaDataInstance CreateSplashAttack(SplashAttack_v10 splashAttack, SceneNode root, string displayName, float scale, ParsedMetadataAttribute? selectedAttribute)
         {
+            // A half-typed or brand-new tag (all zeros) gets its locators drawn and a log line, not an
+            // exception: an exception here aborts Create() and wipes every other tag from the view.
             var distance = Vector3.Distance(splashAttack.StartPosition, splashAttack.EndPosition);
-            if (MathUtil.CompareEqualFloats(distance))
-                throw new ConstraintException($"{displayName}: the distance between StartPosition {splashAttack.StartPosition} and EndPosition {splashAttack.EndPosition} is close to 0");
-
             var color = selectedAttribute == splashAttack ? s_selectedColor : s_color;
 
             var node = new SimpleDrawableNode(displayName);
@@ -236,6 +234,14 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             
             node.AddItem(new WorldTextRenderItem(_resourceLibrary, displayName, textPos, color));
             node.AddItem(LineHelper.AddLine(splashAttack.StartPosition, splashAttack.EndPosition, color));
+            root.AddObject(node);
+            var instance = new DrawableMetaInstance(splashAttack.StartTime, splashAttack.EndTime, node.Name, node);
+
+            if (MathUtil.CompareEqualFloats(distance))
+            {
+                _logger.Here().Warning($"{displayName}: StartPosition and EndPosition are the same point, so no area is drawn");
+                return instance;
+            }
 
             var normal = splashAttack.EndPosition - splashAttack.StartPosition;  // corresponds to Z
             normal.Normalize();
@@ -260,7 +266,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             {
                 if (MathUtil.CompareEqualFloats(splashAttack.AngleForCone / 2, tolerance: 0.1f))
                 {
-                    throw new ConstraintException($"{displayName}: the half-angle {splashAttack.AngleForCone / 2} of the cone is close to 0");
+                    _logger.Here().Warning($"{displayName}: AngleForCone is 0, so no cone is drawn");
+                    return instance;
                 }
                 var transformationM = rotationM * Matrix.CreateScale(distance) * Matrix.CreateTranslation(splashAttack.StartPosition);
                 node.AddItem(LineHelper.AddConeSplash(splashAttack.StartPosition, splashAttack.EndPosition, transformationM, splashAttack.AngleForCone, color));
@@ -269,15 +276,14 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             {
                 if (MathUtil.CompareEqualFloats(splashAttack.WidthForCorridor, tolerance: 0.001f))
                 {
-                    throw new ConstraintException($"{displayName}: the WidthForCorridor {splashAttack.WidthForCorridor} of the corridor is close to 0");
+                    _logger.Here().Warning($"{displayName}: WidthForCorridor is 0, so no corridor is drawn");
+                    return instance;
                 }
                 var transformationM = rotationM * Matrix.CreateScale(splashAttack.WidthForCorridor / 2) * Matrix.CreateTranslation(splashAttack.StartPosition);
                 node.AddItem(LineHelper.AddCorridorSplash(splashAttack.StartPosition, splashAttack.EndPosition, transformationM, color));
             }
-            
-            root.AddObject(node);
 
-            return new DrawableMetaInstance(splashAttack.StartTime, splashAttack.EndTime, node.Name, node);
+            return instance;
         }
 
         private IMetaDataInstance CreateEffect(IEffectMeta effect, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute)

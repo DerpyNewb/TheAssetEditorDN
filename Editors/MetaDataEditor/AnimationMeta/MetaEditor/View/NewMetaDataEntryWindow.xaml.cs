@@ -1,5 +1,6 @@
-﻿using System.Collections.ObjectModel;
+﻿using System.ComponentModel;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
 using CommunityToolkit.Diagnostics;
 using Shared.Core.Misc;
@@ -45,10 +46,23 @@ namespace Editors.AnimationMeta.Presentation.View
         }
     }
 
+    record NewTagItem(string Key, string Description, int Warhammer3Uses);
+
     class NewTagWindowViewModel : NotifyPropertyChangedImpl
     {
-        public ObservableCollection<string> Items { get; set; } = [];
-        string? _selectedItem;
-        public string? SelectedItem { get => _selectedItem; set { SetAndNotify(ref _selectedItem, value); } }
+        public NewTagWindowViewModel(List<NewTagItem> items)
+        {
+            Items = CollectionViewSource.GetDefaultView(items);
+            Items.Filter = x => x is NewTagItem item &&
+                (item.Key.Contains(FilterText, StringComparison.OrdinalIgnoreCase) || item.Description.Contains(FilterText, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public ICollectionView Items { get; }
+
+        string _filterText = "";
+        public string FilterText { get => _filterText; set { SetAndNotify(ref _filterText, value); Items.Refresh(); } }
+
+        NewTagItem? _selectedItem;
+        public NewTagItem? SelectedItem { get => _selectedItem; set { SetAndNotify(ref _selectedItem, value); } }
     }
 }

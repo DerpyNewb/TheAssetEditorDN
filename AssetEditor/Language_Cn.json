@@ -770,6 +770,11 @@
   "TwuiEditor.Component.Bool": "布尔值",
 
   "MetadataEditor.NewEntryWindow.Title": "创建元数据条目",
+  "MetadataEditor.NewEntryWindow.FilterTooltip": "按标签名或描述筛选",
+  "MetadataEditor.NewEntryWindow.TagColumn": "标签",
+  "MetadataEditor.NewEntryWindow.Warhammer3Column": "原版WH3使用次数",
+  "MetadataEditor.NewEntryWindow.Ok": "添加",
+  "MetadataEditor.NewEntryWindow.Cancel": "取消",
 
   "WaveformVisualiser.Play": "播放",
   "WaveformVisualiser.Pause": "暂停",

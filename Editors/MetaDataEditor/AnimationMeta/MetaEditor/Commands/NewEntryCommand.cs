@@ -1,5 +1,4 @@
-﻿using System.Collections.ObjectModel;
-using Editors.AnimationMeta.Presentation.View;
+﻿using Editors.AnimationMeta.Presentation.View;
 using Shared.Core.Events;
 using Shared.GameFormats.AnimationMeta.Parsing;
 using System.Windows;
@@ -27,18 +26,18 @@ namespace Editors.AnimationMeta.MetaEditor.Commands
         public void Execute()
         {
             var dialog = new NewMetaDataEntryWindow() { Owner = Application.Current.MainWindow };
-            var allDefs = _metaDataDatabase.GetSupportedTypes();
+            // Keys are "NAME_VERSION"; descriptions are stored per NAME.
+            var items = _metaDataDatabase.GetSupportedTypes()
+                .Select(key => new NewTagItem(key, _metaDataDatabase.GetDescriptionSafe(key[..key.LastIndexOf('_')]), _metaDataDatabase.GetWarhammer3UseCount(key)))
+                .ToList();
 
-            var model = new NewTagWindowViewModel
-            {
-                Items = new ObservableCollection<string>(allDefs)
-            };
+            var model = new NewTagWindowViewModel(items);
             dialog.DataContext = model;
 
             var res = dialog.ShowDialog();
             if (res.HasValue && res.Value == true)
             {
-                var newEntry = _metaDataFileParser.CreateDefault(model.SelectedItem);
+                var newEntry = _metaDataFileParser.CreateDefault(model.SelectedItem!.Key);
                 _controller.ParsedFile.Attributes.Add(newEntry);
                 _controller.UpdateView();
                 _controller.SelectedTag = _controller.Tags.LastOrDefault();   
