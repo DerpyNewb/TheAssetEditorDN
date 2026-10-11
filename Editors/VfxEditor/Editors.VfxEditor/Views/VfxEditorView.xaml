@@ -193,7 +193,7 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="110"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <ContentControl Content="{Binding Scene, Mode=OneTime}"/>
                     <DockPanel Grid.Row="1" Margin="4">
@@ -223,7 +223,8 @@
                         <TextBlock Text="{Binding ModelName}" Margin="6,0" VerticalAlignment="Center"/>
                         <Button Content="Clear" Command="{Binding ClearModelCommand}" Padding="6,0"/>
                     </WrapPanel>
-                    <ListBox Grid.Row="3" ItemsSource="{Binding PreviewLines}" ToolTip="What the preview could not find, and what it leaves out"/>
+                    <ListBox Grid.Row="3" ItemsSource="{Binding PreviewLines}" MaxHeight="110" ToolTip="What the preview could not find, and what it leaves out"
+                             Visibility="{Binding HasItems, RelativeSource={RelativeSource Self}, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
             </Grid>
         </Grid>

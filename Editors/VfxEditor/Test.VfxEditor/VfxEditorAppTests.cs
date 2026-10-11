@@ -157,6 +157,26 @@ namespace Test.VfxEditor
             Assert.That((preview.Model!.ModelMatrix.Translation, effect.ModelMatrix.Translation), Is.EqualTo((new Vector3(0, 0, -15), Vector3.Zero)));
         }
 
+        // The list under the viewport takes no room while the preview has nothing to say, and some once it does.
+        [Test, Apartment(ApartmentState.STA)]
+        public void The_preview_list_takes_no_room_while_it_is_empty()
+        {
+            var (_, editor, _) = OpenWithAGuideModelOffered();
+            var view = new VfxEditorView { DataContext = editor };
+            double ListHeight()
+            {
+                view.Measure(new Size(1600, 900));
+                view.Arrange(new Rect(0, 0, 1600, 900));
+                view.UpdateLayout();
+                return Descendants(view).OfType<ListBox>().Single(x => x.ItemsSource == editor.PreviewLines).ActualHeight;
+            }
+
+            editor.PreviewLines.Clear();
+            Assert.That(ListHeight(), Is.Zero);
+            editor.PreviewLines.Add("a line");
+            Assert.That(ListHeight(), Is.GreaterThan(10));
+        }
+
         // vfx\fx.xml open in the editor, with Karl Franz's model as what the pack browser will hand back.
         static (AssetEditorTestRunner, VfxEditorViewModel, VfxPreviewComponent) OpenWithAGuideModelOffered()
         {
