@@ -106,6 +106,28 @@ namespace Test.VfxEditor
             Assert.That(editor.Rows.Single(r => r.Label == "A").Value, Is.EqualTo("2"));
         }
 
+        // The Add pickers are bound as the view binds them; refilling their lists must not drop the name picked.
+        [Test, Apartment(ApartmentState.STA)]
+        public void A_name_picked_for_add_survives_a_value_edit()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default))),
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("lib.xml", Fixtures.Utf16(Fixtures.Effect(emitters: Fixtures.Emitters("a", "b", "c")))))]);
+            runner.CreateOutputPack();
+            var editor = Open(runner);
+            editor.SelectedNode = editor.Tree[2].Children[0];
+            var picker = new ComboBox { DataContext = editor };
+            picker.SetBinding(ItemsControl.ItemsSourceProperty, "OverrideChoices");
+            picker.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, "NewOverrideName");
+            editor.NewOverrideName = "c";
+
+            editor.Rows.Single(r => r.Label == "scale_min").Value = "2.00";
+
+            Assert.That((editor.HasUnsavedChanges, editor.NewOverrideName), Is.EqualTo((true, "c")));
+        }
+
         [Test]
         public void A_preview_input_that_is_not_a_finite_number_is_ignored()
         {

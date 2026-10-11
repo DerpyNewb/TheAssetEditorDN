@@ -397,8 +397,17 @@ namespace Editors.VfxEditor.ViewModels
         /// that have no row yet.</summary>
         void RefreshAddChoices()
         {
+            // A bound picker pushes null while its list is emptied; a name still offered after the refill is picked again.
+            var (property, emitter) = (NewPropertyName, NewOverrideName);
             PropertyNameChoices.Clear();
             OverrideChoices.Clear();
+            FillAddChoices();
+            NewPropertyName = property != null && PropertyNameChoices.Contains(property) ? property : null;
+            NewOverrideName = emitter != null && OverrideChoices.Contains(emitter) ? emitter : null;
+        }
+
+        void FillAddChoices()
+        {
             if (_session.Document is not { } document || SelectedNode is not { } node)
                 return;
             var element = document.At(node.Path);
