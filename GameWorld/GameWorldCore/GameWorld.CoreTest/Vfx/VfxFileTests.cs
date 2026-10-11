@@ -6,6 +6,20 @@ namespace GameWorld.Core.Test.Vfx
 {
     public class VfxFileTests
     {
+        [Test]
+        public void A_tier_takes_its_override_and_the_base_where_it_has_none()
+        {
+            var bytes = VfxTestFiles.Xml(
+                emitters: VfxTestFiles.Emitter("e", """<property name="A" quality="0" value="1"/><property name="A" quality="1" value="2"/><property name="B" quality="0" value="3"/><property name="C" quality="2" value="4"/>"""),
+                chains: """<behaviour_chain id="e"><quality value="0"><modifier fragment="ps_texture"/></quality><quality value="1"><modifier fragment="vs_colour"/></quality></behaviour_chain>""");
+            var high = VfxFile.Parse(bytes, tier: 1);
+            var properties = high.Emitters[0].Properties;
+            Assert.That((properties["A"].Value, properties["B"].Value, properties.ContainsKey("C")), Is.EqualTo(("2", "3", false)));
+            Assert.That(high.Chains["e"].Modifiers.Single().Fragment, Is.EqualTo("vs_colour"));
+            Assert.That(VfxFile.Parse(bytes, tier: 2).Chains.ContainsKey("e"), Is.False);   // no block 2: draws nothing at Medium
+            Assert.That(VfxFile.Parse(bytes).Emitters[0].Properties["A"].Value, Is.EqualTo("1"));
+        }
+
         const string Sample = """
             <shader_library file="fx/particle_vfx_library.hlsl"/><vfx revision="2" construction_type="1" enable_in_ted="false">
             <emitters>

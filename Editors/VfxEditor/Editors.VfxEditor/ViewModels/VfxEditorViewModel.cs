@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.VfxEditor.Document;
+using Editors.VfxEditor.Preview;
 using Editors.VfxEditor.Vocabulary;
 using GameWorld.Core.Components;
 using GameWorld.Core.WpfWindow;
@@ -30,14 +32,24 @@ namespace Editors.VfxEditor.ViewModels
         readonly VfxFileSession _session;
         readonly IStandardDialogs _dialogs;
         VfxVocabulary? _vocabulary;
+        readonly VfxPreviewComponent _preview;
+        readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
+        int _shownLines;
 
         public VfxEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs,
-            IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService)
+            IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService, VfxPreviewComponent preview)
         {
             _session = new VfxFileSession(packFileService, fileSaveService);
             _dialogs = dialogs;
             Scene = gameWorld;
             componentInserter.Execute();
+            _preview = preview;
+            _preview.TimeChanged += OnPreviewTimeChanged;
+            _previewTimer.Tick += (_, _) =>
+            {
+                _previewTimer.Stop();
+                RefreshPreview();
+            };
             _ = LoadVocabulary(vocabularyService);
         }
 
@@ -110,6 +122,7 @@ namespace Editors.VfxEditor.ViewModels
             _session.Document.Changed += OnDocumentChanged;
             RebuildTree();
             Status = $"{_session.EffectName} ({_session.Document.Encoding})";
+            RefreshPreview();
         }
 
         partial void OnLoadErrorChanged(string? value)
@@ -124,6 +137,7 @@ namespace Editors.VfxEditor.ViewModels
             RefreshRows(rebuild: true);
             NotifyNodeFlags();
             RefreshAddChoices();
+            RefreshPreview();
         }
 
         partial void OnSelectedNodeChanged(VfxTreeNode? value)
@@ -148,6 +162,7 @@ namespace Editors.VfxEditor.ViewModels
             RefreshRows();
             NotifyNodeFlags();
             RefreshAddChoices();
+            SchedulePreview();
         }
 
         // ---- edits
@@ -498,6 +513,45 @@ namespace Editors.VfxEditor.ViewModels
             Edit(document => VfxEdits.SetAllOverrides(document, document.At(node.Path), enable));
         }
 
+        // ---- the preview
+
+        public ObservableCollection<string> PreviewLines { get; } = [];
+        public double PreviewTime { get => _preview.Time; set => _preview.SetTime((float)value); }
+        public bool IsPlaying { get => _preview.IsPlaying; set { _preview.IsPlaying = value; OnPropertyChanged(); } }
+        public bool Loop { get => _preview.Loop; set { _preview.Loop = value; OnPropertyChanged(); } }
+        public double LoopLength { get => _preview.LoopLength; set { _preview.LoopLength = Math.Max(0.1f, (float)value); OnPropertyChanged(); } }
+        public double Speed { get => _preview.Speed; set { _preview.Speed = (float)value; OnPropertyChanged(); } }
+
+        // 300 ms after the last edit, so typing a value re-simulates once.
+        void SchedulePreview()
+        {
+            _previewTimer.Stop();
+            _previewTimer.Start();
+        }
+
+        void RefreshPreview()
+        {
+            if (_session.Document == null)
+                return;
+            _preview.Show(_session.EffectName, _session.Document.Save(), Tier);
+            ShowPreviewLines();
+        }
+
+        void OnPreviewTimeChanged()
+        {
+            OnPropertyChanged(nameof(PreviewTime));
+            if (_preview.Lines.Count != _shownLines)
+                ShowPreviewLines();
+        }
+
+        void ShowPreviewLines()
+        {
+            _shownLines = _preview.Lines.Count;
+            PreviewLines.Clear();
+            foreach (var line in _preview.Lines.Distinct())
+                PreviewLines.Add(line);
+        }
+
         // ---- saving, undo
 
         public bool Save() => Store(_session.Save);
@@ -535,6 +589,8 @@ namespace Editors.VfxEditor.ViewModels
 
         public void Dispose()
         {
+            _previewTimer.Stop();
+            _preview.TimeChanged -= OnPreviewTimeChanged;
             if (_session.Document != null)
                 _session.Document.Changed -= OnDocumentChanged;
         }

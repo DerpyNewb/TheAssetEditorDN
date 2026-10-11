@@ -1,4 +1,5 @@
 using Editors.VfxEditor.ViewModels;
+using Editors.VfxEditor.Preview;
 using Editors.VfxEditor.Views;
 using Editors.VfxEditor.Vocabulary;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ namespace Editors.VfxEditor
             serviceCollection.AddScoped<VfxEditorViewModel>();
             serviceCollection.AddScoped<IEditorInterface, VfxEditorViewModel>();
             serviceCollection.AddSingleton<VfxVocabularyService>();
+            RegisterGameComponent<VfxPreviewComponent>(serviceCollection);
         }
 
         public override void RegisterTools(IEditorDatabase editorDatabase)

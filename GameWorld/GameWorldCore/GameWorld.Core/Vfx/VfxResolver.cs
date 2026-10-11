@@ -19,8 +19,17 @@ namespace GameWorld.Core.Vfx
     public class VfxResolver
     {
         private readonly IPackFileService _packFileService;
+        private readonly IReadOnlyDictionary<string, byte[]> _unsaved;
+        private readonly int _tier;
 
-        public VfxResolver(IPackFileService packFileService) => _packFileService = packFileService;
+        /// <param name="unsaved">Bytes by Key(name) read in place of the pack's copy: an editor's unsaved file.</param>
+        /// <param name="tier">The quality tier read, 0 (Ultra) by default.</param>
+        public VfxResolver(IPackFileService packFileService, IReadOnlyDictionary<string, byte[]>? unsaved = null, int tier = 0)
+        {
+            _packFileService = packFileService;
+            _unsaved = unsaved ?? new Dictionary<string, byte[]>();
+            _tier = tier;
+        }
 
         public static string PathOf(string vfxName)
         {
@@ -39,16 +48,17 @@ namespace GameWorld.Core.Vfx
             return result with { Found = true };
         }
 
-        static string Key(string vfxName) => PathOf(vfxName).ToLowerInvariant();
+        public static string Key(string vfxName) => PathOf(vfxName).ToLowerInvariant();
 
         VfxFile? Load(string vfxName, List<string> problems)
         {
-            var file = _packFileService.FindFile(PathOf(vfxName));
-            if (file == null)
+            var unsaved = _unsaved.GetValueOrDefault(Key(vfxName));
+            var file = unsaved == null ? _packFileService.FindFile(PathOf(vfxName)) : null;
+            if (unsaved == null && file == null)
                 return null;
             try
             {
-                return VfxFile.Parse(file.DataSource.ReadData());
+                return VfxFile.Parse(unsaved ?? file!.DataSource.ReadData(), _tier);
             }
             catch (XmlException e)
             {

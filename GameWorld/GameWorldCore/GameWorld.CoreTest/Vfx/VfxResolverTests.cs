@@ -11,6 +11,15 @@ namespace GameWorld.Core.Test.Vfx
         static VfxResolveResult Resolve(IPackFileService pack, string name) => new VfxResolver(pack).Resolve(name, new Random(1));
 
         [Test]
+        public void Unsaved_bytes_stand_in_for_the_packs_copy()
+        {
+            var packs = VfxTestFiles.Pack(("a.xml", VfxTestFiles.Xml(emitters: VfxTestFiles.Emitter("saved"))));
+            var unsaved = new Dictionary<string, byte[]> { [VfxResolver.Key("a")] = VfxTestFiles.Xml(emitters: VfxTestFiles.Emitter("edited")) };
+            var result = new VfxResolver(packs, unsaved).Resolve("a", new Random(1));
+            Assert.That(result.Emitters.Select(e => e.Emitter.Id), Is.EqualTo(new[] { "edited" }));
+        }
+
+        [Test]
         public void NestedReferences_ComposeTransforms_AndTheOuterOverrideWins()
         {
             var pack = Pack(

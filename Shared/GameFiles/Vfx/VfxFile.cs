@@ -47,7 +47,7 @@ namespace Shared.GameFormats.Vfx
         float StartTimeMin, float StartTimeMax, bool InfiniteLife, float SimulationSpeed, IReadOnlyDictionary<string, VfxEmitterOverride> Overrides);
 
     /// <summary>
-    /// One vfx/*.xml, read at quality 0 (Ultra). The file has several root elements (shader_library,
+    /// One vfx/*.xml, read at one quality tier (0 is Ultra, the default). The file has several root elements (shader_library,
     /// vfx, vfx_references, editor_data), so it is parsed inside a wrapper element. Emitters, behaviour
     /// chains and render stacks share one id per emitter.
     /// </summary>
@@ -59,7 +59,7 @@ namespace Shared.GameFormats.Vfx
         public Dictionary<string, string> SceneViewTypes { get; } = [];
         public List<VfxReference> References { get; } = [];
 
-        public static VfxFile Parse(byte[] bytes)
+        public static VfxFile Parse(byte[] bytes, int tier = 0)
         {
             using var reader = new StreamReader(new MemoryStream(bytes), Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
             var text = reader.ReadToEnd();
@@ -72,15 +72,20 @@ namespace Shared.GameFormats.Vfx
 
             foreach (var emitter in vfx?.Element("emitters")?.Elements("emitter") ?? [])
             {
-                var properties = Properties(emitter.Elements().Where(x => x.Name.LocalName is "property" or "ranged_property"));
+                var properties = Properties(emitter.Elements().Where(x => x.Name.LocalName is "property" or "ranged_property"), tier);
                 file.Emitters.Add(new VfxEmitter((string?)emitter.Attribute("id") ?? "", (string?)emitter.Attribute("type") ?? "", properties));
             }
 
             foreach (var chain in vfx?.Element("behaviour_chains")?.Elements("behaviour_chain") ?? [])
             {
                 var blocks = chain.Elements("quality").ToList();
-                var ultra = blocks.FirstOrDefault(x => (string?)x.Attribute("value") == "0") ?? blocks.OrderBy(x => (string?)x.Attribute("value")).FirstOrDefault();
-                var modifiers = (ultra?.Elements("modifier") ?? []).Select(m => new VfxModifier(
+                // A block has no fallback (docs/sessions/HANDOFF_20260829_VFX_QUALITY_TIERS.md): with no block at the tier the
+                // chain draws nothing there. Tier 0 keeps reading the lowest block when there is no "0".
+                var block = blocks.FirstOrDefault(x => (string?)x.Attribute("value") == tier.ToString(CultureInfo.InvariantCulture))
+                    ?? (tier == 0 ? blocks.OrderBy(x => (string?)x.Attribute("value")).FirstOrDefault() : null);
+                if (block == null && tier != 0)
+                    continue;
+                var modifiers = (block?.Elements("modifier") ?? []).Select(m => new VfxModifier(
                     (string?)m.Attribute("fragment") ?? "",
                     Properties(m.Elements("property")),
                     m.Elements("texture_property").GroupBy(t => (string?)t.Attribute("name") ?? "").ToDictionary(g => g.Key, g => (string?)g.First().Attribute("path") ?? ""))).ToList();
@@ -90,7 +95,7 @@ namespace Shared.GameFormats.Vfx
 
             foreach (var stack in vfx?.Element("effect_render_stacks")?.Elements("effect_render_stack") ?? [])
             {
-                if (Properties(stack.Elements("property")).TryGetValue("scene_view_type", out var view) && view.Value != null)
+                if (Properties(stack.Elements("property"), tier).TryGetValue("scene_view_type", out var view) && view.Value != null)
                     file.SceneViewTypes[(string?)stack.Attribute("id") ?? ""] = view.Value;
             }
 
@@ -119,18 +124,25 @@ namespace Shared.GameFormats.Vfx
             return file;
         }
 
-        // Properties without a quality attribute, or at quality 0; the first one written wins.
-        static Dictionary<string, VfxProperty> Properties(IEnumerable<XElement> elements)
+        // Tier 0 (or no quality attribute) is the base; a property written at the asked tier replaces it. The first one
+        // written at each wins.
+        static Dictionary<string, VfxProperty> Properties(IEnumerable<XElement> elements, int tier = 0)
         {
             var output = new Dictionary<string, VfxProperty>();
+            var overrides = new Dictionary<string, VfxProperty>();
+            var asked = tier.ToString(CultureInfo.InvariantCulture);
             foreach (var element in elements)
             {
                 var name = (string?)element.Attribute("name");
-                if (name == null || (string?)element.Attribute("quality") is not (null or "0"))
+                var quality = (string?)element.Attribute("quality") ?? "0";
+                var target = quality == "0" ? output : quality == asked ? overrides : null;
+                if (name == null || target == null)
                     continue;
                 var attributes = element.Attributes().Where(a => a.Name.LocalName is not ("name" or "quality")).ToDictionary(a => a.Name.LocalName, a => a.Value);
-                output.TryAdd(name, new VfxProperty(name, attributes, element.Value.Length == 0 ? null : element.Value));
+                target.TryAdd(name, new VfxProperty(name, attributes, element.Value.Length == 0 ? null : element.Value));
             }
+            foreach (var (name, property) in overrides)
+                output[name] = property;
             return output;
         }
 
