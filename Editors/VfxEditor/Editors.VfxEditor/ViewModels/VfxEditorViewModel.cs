@@ -530,8 +530,32 @@ namespace Editors.VfxEditor.ViewModels
         public double PreviewTime { get => _preview.Time; set => _preview.SetTime((float)value); }
         public bool IsPlaying { get => _preview.IsPlaying; set { _preview.IsPlaying = value; OnPropertyChanged(); } }
         public bool Loop { get => _preview.Loop; set { _preview.Loop = value; OnPropertyChanged(); } }
-        public double LoopLength { get => _preview.LoopLength; set { _preview.LoopLength = Math.Max(0.1f, (float)value); OnPropertyChanged(); } }
+        public double LoopLength
+        {
+            get => _preview.LoopLength;
+            set
+            {
+                _preview.LoopLength = Math.Max(0.1f, (float)value);
+                OnPropertyChanged();
+                if (Projectile)
+                    RefreshPreview();   // one loop is one flight
+            }
+        }
         public double Speed { get => _preview.Speed; set { _preview.Speed = (float)value; OnPropertyChanged(); } }
+
+        public string[] AxisNames { get; } = ProjectileFlight.Axes.Select(a => a.Name).ToArray();
+        public bool Projectile { get => _preview.Projectile; set { _preview.Projectile = value; OnPropertyChanged(); RefreshPreview(); } }
+        public double ProjectileSpeed { get => _preview.ProjectileSpeed; set { _preview.ProjectileSpeed = (float)value; OnPropertyChanged(); RefreshPreview(); } }
+        public int ProjectileAxis
+        {
+            get => _preview.ProjectileAxis;
+            set
+            {
+                _preview.ProjectileAxis = Math.Clamp(value, 0, ProjectileFlight.Axes.Count - 1);
+                OnPropertyChanged();
+                RefreshPreview();
+            }
+        }
 
         // 300 ms after the last edit, so typing a value re-simulates once.
         void SchedulePreview()

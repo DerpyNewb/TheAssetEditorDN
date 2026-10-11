@@ -33,6 +33,10 @@ namespace Editors.VfxEditor.Preview
         public bool Loop { get; set; } = true;
         public float LoopLength { get; set; } = 4;
         public float Speed { get; set; } = 1;
+        /// <summary>Fly the effect like a projectile (ProjectileFlight), once per loop; read when Show builds the simulation.</summary>
+        public bool Projectile { get; set; }
+        public float ProjectileSpeed { get; set; } = 60;
+        public int ProjectileAxis { get; set; }
         public IReadOnlyList<string> Lines => _lines;
         public event Action? TimeChanged;
 
@@ -52,7 +56,10 @@ namespace Editors.VfxEditor.Preview
             }
             if (settings.Count == 0)
                 _lines.Add("no emitter is switched on at this tier");
-            _simulator = new ParticleSimulator(settings, Seed, _ => Matrix.Identity, log: _lines.Add);
+            Func<float, Matrix> effectWorldAt = Projectile
+                ? ProjectileFlight.WorldAt(ProjectileFlight.Axes[ProjectileAxis].Axis, ProjectileSpeed, LoopLength)
+                : _ => Matrix.Identity;
+            _simulator = new ParticleSimulator(settings, Seed, effectWorldAt, log: _lines.Add);
             _node = _sceneManager.RootNode.AddObject(new VfxEffectNode("VfxPreview", new ParticleRenderItem(_simulator, _textures)));
             SetTime(Time);
         }
