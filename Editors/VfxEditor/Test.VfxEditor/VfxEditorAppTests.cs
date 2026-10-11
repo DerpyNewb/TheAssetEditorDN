@@ -160,6 +160,25 @@ namespace Test.VfxEditor
             Assert.That((preview.Model!.ModelMatrix.Translation, effect.ModelMatrix.Translation), Is.EqualTo((new Vector3(0, 0, -15), Vector3.Zero)));
         }
 
+        // The simulator runs whole 1/60 s steps, so at 0.26 s the particles are at 0.25 s. The model and the Static view
+        // follow the particles, or the trail would shake against them by up to one step's flight.
+        [TestCase(false, -15f, 0f)]
+        [TestCase(true, 0f, 15f)]
+        public void The_model_and_the_static_view_follow_the_simulated_time(bool staticView, float modelZ, float effectZ)
+        {
+            var (runner, editor, preview) = OpenWithAGuideModelOffered();
+            editor.LoadModelCommand.Execute(null);
+            editor.LoopLength = 1;
+            editor.ProjectileSpeed = 60;
+            editor.ProjectileAxis = 0;   // +Z
+            editor.Projectile = true;
+            editor.StaticView = staticView;
+            editor.PreviewTime = 0.26;
+            var effect = runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode.Children.OfType<VfxEffectNode>().Single();
+            Assert.That(preview.Model!.ModelMatrix.Translation.Z, Is.EqualTo(modelZ).Within(1e-3));
+            Assert.That(effect.ModelMatrix.Translation.Z, Is.EqualTo(effectZ).Within(1e-3));
+        }
+
         [Test]
         public void A_projectile_flies_along_plus_z_unless_told_otherwise()
         {

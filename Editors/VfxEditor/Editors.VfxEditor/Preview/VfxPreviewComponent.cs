@@ -88,12 +88,6 @@ namespace Editors.VfxEditor.Preview
         public void SetTime(float time)
         {
             Time = Math.Max(0, time);
-            var effectWorld = _effectWorldAt(Time);
-            var view = StaticView ? Matrix.Invert(effectWorld) : Matrix.Identity;
-            if (_node != null)
-                _node.ModelMatrix = view;
-            if (Model != null)
-                Model.ModelMatrix = effectWorld * view;
             try
             {
                 _simulator?.AdvanceTo(Time);
@@ -103,6 +97,13 @@ namespace Editors.VfxEditor.Preview
                 _lines.Add($"the preview stopped: {e.Message}");
                 _simulator = null;
             }
+            // The simulator runs whole steps; the model and the view follow its time, not the one asked for.
+            var effectWorld = _effectWorldAt(_simulator?.Time ?? Time);
+            var view = StaticView ? Matrix.Invert(effectWorld) : Matrix.Identity;
+            if (_node != null)
+                _node.ModelMatrix = view;
+            if (Model != null)
+                Model.ModelMatrix = effectWorld * view;
             TimeChanged?.Invoke();
         }
 
