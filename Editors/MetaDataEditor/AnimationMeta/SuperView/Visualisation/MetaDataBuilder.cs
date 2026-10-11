@@ -53,7 +53,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var output = new List<IMetaDataInstance>();
 
             // Apply persistent meta data, if no disable is given.
-            if (metaData == null || metaData.GetItemsOfType<DisablePersistant_v10>().Count == 0)
+            var usePersistent = metaData == null || metaData.GetItemsOfType<DisablePersistant_v10>().Count == 0;
+            if (usePersistent)
             {
                 var metaDataPersistent = ApplyMetaData(persistent, selectedMetaDataAttribute,root, skeleton, rootPlayer, fragment);
                 output.AddRange(metaDataPersistent);
@@ -61,7 +62,55 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             var metaDataInstances = ApplyMetaData(metaData, selectedMetaDataAttribute,root, skeleton, rootPlayer, fragment);
             output.AddRange(metaDataInstances);
+
+            // Hand poses are keys across both files, so they are built from both at once.
+            CreateHandPoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
             return output;
+        }
+
+        // HandPoseId indexes these slots, in the order of the WH3 slot table.
+        static readonly string[] s_handPoseSlots =
+        [
+            "HAND_POSE_RELAX", "HAND_POSE_FLAT", "HAND_POSE_CLENCH", "HAND_POSE_GRIP", "HAND_POSE_HALF_OPEN", "HAND_POSE_THUMB_GRIP",
+            "HAND_POSE_CUSTOM_1", "HAND_POSE_CUSTOM_2", "HAND_POSE_CUSTOM_3", "HAND_POSE_CUSTOM_4", "HAND_POSE_CUSTOM_5",
+            "HAND_POSE_CUSTOM_6", "HAND_POSE_CUSTOM_7", "HAND_POSE_CUSTOM_8", "HAND_POSE_CUSTOM_9", "HAND_POSE_CUSTOM_10",
+        ];
+
+        void CreateHandPoses(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData, IAnimationBinGenericFormat? fragment, ISkeletonProvider skeleton, AnimationPlayer rootPlayer)
+        {
+            if (skeleton.Skeleton == null)
+                return;
+
+            // Persistent keys sit before time 0, so a key in the animation's own meta overrides them.
+            var tags = (persistent?.GetItemsOfType<HandPose>() ?? []).Select(x => (Time: -1f, Tag: x))
+                .Concat((metaData?.GetItemsOfType<HandPose>() ?? []).Select(x => (Time: x.StartTime, Tag: x)))
+                .ToList();
+
+            foreach (var (tagName, handBone) in new[] { ("LHAND_POSE", "hand_left"), ("RHAND_POSE", "hand_right") })
+            {
+                var keys = tags.Where(x => x.Tag.Name == tagName)
+                    .Select(x => new HandPoseRule.Key(x.Time, LoadHandPose(x.Tag.HandPoseId, fragment, skeleton.Skeleton), x.Tag.Weight))
+                    .ToList();
+                if (keys.Count != 0)
+                    rootPlayer.AnimationRules.Add(new HandPoseRule(skeleton.Skeleton, handBone, keys));
+            }
+        }
+
+        AnimationFrame? LoadHandPose(int handPoseId, IAnimationBinGenericFormat? fragment, GameSkeleton skeleton)
+        {
+            if (handPoseId < 0 || handPoseId >= s_handPoseSlots.Length)
+                return null;
+
+            var slot = s_handPoseSlots[handPoseId];
+            var animPath = fragment?.Entries.FirstOrDefault(x => x.SlotName == slot)?.AnimationFile;
+            var file = string.IsNullOrWhiteSpace(animPath) ? null : _packFileService.FindFile(animPath);
+            if (file == null)
+            {
+                _logger.Here().Warning($"Hand pose {slot} is not in the animation set, so the fingers keep the animation's pose");
+                return null;
+            }
+
+            return AnimationSampler.Sample(0, 0, skeleton, new AnimationClip(AnimationFile.Create(file), skeleton));
         }
 
         private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment)

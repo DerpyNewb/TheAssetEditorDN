@@ -6,12 +6,16 @@ namespace GameWorld.Core.Animation
 {
     public class AnimationSampler
     {
-        public static AnimationFrame Sample(int frameIndex, float frameIterpolation, GameSkeleton skeleton, AnimationClip animationClip, List<IAnimationChangeRule> animationChangeRules = null, bool freezeFrame = false)
+        public static AnimationFrame Sample(int frameIndex, float frameIterpolation, GameSkeleton skeleton, AnimationClip animationClip, List<IAnimationChangeRule> animationChangeRules = null, bool freezeFrame = false, float? timeInSec = null)
         {
             try
             {
                 if (skeleton == null)
                     return null;
+
+                // Rules are timed from the meta tags' start and end, so they get the playback time,
+                // not the clip's length.
+                var ruleTime = timeInSec ?? animationClip?.PlayTimeInSec ?? 0;
 
                 var currentFrame = skeleton.ConvertToAnimationFrame();
 
@@ -33,7 +37,7 @@ namespace GameWorld.Core.Animation
                     if (animationChangeRules != null)
                     {
                         foreach (var rule in animationChangeRules.OfType<ILocalSpaceAnimationRule>())
-                            rule.TransformFrameLocalSpace(currentFrame, boneIndex, animationClip.PlayTimeInSec);
+                            rule.TransformFrameLocalSpace(currentFrame, boneIndex, ruleTime);
                     }
 
                     var parentindex = currentFrame.BoneTransforms[boneIndex].ParentBoneIndex;
@@ -47,7 +51,7 @@ namespace GameWorld.Core.Animation
                 if (animationChangeRules != null && animationClip != null)
                 {
                     foreach (var rule in animationChangeRules.OfType<IWorldSpaceAnimationRule>())
-                        rule.TransformFrameWorldSpace(currentFrame, animationClip.PlayTimeInSec);
+                        rule.TransformFrameWorldSpace(currentFrame, ruleTime);
                 }
 
                 // Remove the skeleten info from the world transform.
@@ -151,7 +155,7 @@ namespace GameWorld.Core.Animation
                     frameIndex = (int)clampedFrame;
                     frameIterpolation = frameWithLeftover - clampedFrame;
                 }
-                return Sample(frameIndex, frameIterpolation, skeleton, animationClip, animationChangeRules, freezeFrame);
+                return Sample(frameIndex, frameIterpolation, skeleton, animationClip, animationChangeRules, freezeFrame, clampedT * (animationClip?.PlayTimeInSec ?? 0));
             }
             catch (Exception e)
             {
