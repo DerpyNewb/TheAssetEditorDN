@@ -32,7 +32,7 @@ namespace Test.VfxEditor
             runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
             var output = runner.CreateOutputPack();
 
-            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
+            var editor = Open(runner);
             Assert.That(editor.Tree.Select(n => n.Label), Is.EqualTo(new[] { "Effect", "Emitters", "References" }));
 
             editor.SelectedNode = editor.Tree[1].Children[0];
@@ -62,7 +62,7 @@ namespace Test.VfxEditor
             var source = runner.CreateEmptyPackFile("source", false);
             runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
             var output = runner.CreateOutputPack();
-            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
+            var editor = Open(runner);
             var view = new VfxEditorView { DataContext = editor };
             editor.SelectedNode = editor.Tree[1].Children[0];
             TextBox Box()
@@ -93,8 +93,7 @@ namespace Test.VfxEditor
             var source = runner.CreateEmptyPackFile("source", false);
             runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
             runner.CreateOutputPack();
-            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
-            Settle(editor.VocabularyLoaded);
+            var editor = Open(runner);
             var view = new VfxEditorView { DataContext = editor };
             editor.SelectedNode = editor.Tree[1].Children[0];
             view.Measure(new Size(1600, 900));
@@ -114,7 +113,7 @@ namespace Test.VfxEditor
             var source = runner.CreateEmptyPackFile("source", false);
             runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
             runner.CreateOutputPack();
-            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
+            var editor = Open(runner);
             VfxTreeNode FirstColour() => editor.Tree[1].Children[0].Children[0].Children.First(n => n.Fragment == "vs_colour");
 
             editor.Tier = 1;
@@ -145,7 +144,7 @@ namespace Test.VfxEditor
             var info = database.GetEditorInfos().Single(x => x.EditorEnum == EditorEnums.Vfx_Editor);
             Assert.That((info.AddToolbarButton, info.ToolbarName, info.IsToolbarButtonEnabled), Is.EqualTo((true, "VFX Editor", true)));
 
-            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.Vfx_Editor);
+            var editor = Open(runner, null);
             Assert.That((editor.Tree.Count, editor.CurrentFile), Is.EqualTo((0, (PackFile?)null)));
             Assert.That(editor.LoadError, Does.Contain("Open"));
 
@@ -276,16 +275,20 @@ namespace Test.VfxEditor
             runner.CreateOutputPack();
             var model = runner.PackFileService.FindFile(@"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2")!;
             runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, model));
-            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute("vfx\\fx.xml", EditorEnums.Vfx_Editor);
+            var editor = Open(runner);
             return (runner, editor, runner.GetRequiredServiceInCurrentEditorScope<VfxPreviewComponent>());
         }
 
-        // Waits for the task, pumping this thread's dispatcher so a continuation posted back to it can run.
-        static void Settle(Task task)
+        // Opens the tab the way the app does and waits for the vocabulary, whose arrival rebuilds the rows and the status
+        // line. The wait pumps the dispatcher: the arrival is posted back to this thread when it has a context.
+        static VfxEditorViewModel Open(AssetEditorTestRunner runner, string? path = "vfx\\fx.xml")
         {
+            var command = runner.CommandFactory.Create<OpenEditorCommand>();
+            var editor = (VfxEditorViewModel)(path == null ? command.Execute(EditorEnums.Vfx_Editor) : command.Execute(path, EditorEnums.Vfx_Editor));
             var frame = new System.Windows.Threading.DispatcherFrame();
-            task.ContinueWith(_ => frame.Continue = false, TaskScheduler.Default);
+            editor.VocabularyLoaded.ContinueWith(_ => frame.Continue = false, TaskScheduler.Default);
             System.Windows.Threading.Dispatcher.PushFrame(frame);
+            return editor;
         }
 
         static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
