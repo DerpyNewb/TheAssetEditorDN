@@ -63,6 +63,13 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void SkipParticlePositionUpdate_IsRead()
+        {
+            var head = Read(Emitter("sparks", """<property name="SkipParticlePositionUpdate" quality="0" value="true"/>"""), SparksChain).Single();
+            Assert.That((head.SkipPositionUpdate, Read(Emitter("sparks"), SparksChain).Single().SkipPositionUpdate), Is.EqualTo((true, false)));
+        }
+
+        [Test]
         public void EmitterWithoutAChain_IsNotDrawn() => Assert.That(Read(Emitter("lonely"), "").Single().Draws, Is.False);
 
         [Test]

@@ -95,6 +95,18 @@ namespace GameWorld.Core.Test.Vfx
         [Test]
         public void ZeroParticleLife_SpawnsNothing() => Assert.That(Count(Run(Steady(x => x.ParticleLife = C(0)), 1)), Is.Zero);
 
+        // SkipParticlePositionUpdate (651 vanilla emitters, the nuln rifle's head among them): a particle stays where it
+        // spawned and keeps its velocity, which still aligns and stretches it.
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        public void SkipPositionUpdate_KeepsParticlesWhereTheySpawned(bool skip, bool moved)
+        {
+            var states = States(Run(Steady(x => { x.InitialSpeed = C(5); x.SkipPositionUpdate = skip; }), 1));
+            Assert.That(states, Has.Count.GreaterThan(5));
+            Assert.That(states.Any(x => x.Position.Length() > 1), Is.EqualTo(moved));
+            Assert.That(states.All(x => x.Velocity.Length() > 4.9f), Is.True);
+        }
+
         [Test]
         public void ZeroEmitterLifeTime_GivesFiniteStates()
         {

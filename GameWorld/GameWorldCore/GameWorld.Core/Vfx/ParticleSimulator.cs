@@ -252,7 +252,8 @@ namespace GameWorld.Core.Vfx
                 foreach (var curve in s.Forces)
                     force += Vector(curve, v, p.RForce) * VfxConventions.ForceToMetres;
                 // Exact for a constant force, so a path under one is the analytic path.
-                p.Position += p.Velocity * dt + force * (dt * dt / 2);
+                if (!s.SkipPositionUpdate)
+                    p.Position += p.Velocity * dt + force * (dt * dt / 2);
                 p.Velocity = (p.Velocity + force * dt) * VfxConventions.Drag(s.Deceleration?.Evaluate(0, v, p.RDeceleration) ?? 0, dt);
                 p.Angle += p.Spin * dt;
                 p.Spin *= VfxConventions.Drag(s.SpinDeceleration?.Evaluate(0, v, p.RSpinDeceleration) ?? 0, dt);
