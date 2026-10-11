@@ -130,7 +130,9 @@ namespace Shared.ByteParsing.Parsers
 
         public byte[] WriteCaString(string value)
         {
-            if (string.IsNullOrWhiteSpace(value))
+            // Only empty is written as empty: CA files carry whitespace-only strings (27 vanilla WH3
+            // .anm.meta files have an EFFECT filter of two spaces), and blanking them changes the file.
+            if (string.IsNullOrEmpty(value))
             {
                 if (IsOptStr)
                     return new byte[] { 0 };
@@ -138,10 +140,9 @@ namespace Shared.ByteParsing.Parsers
                     return BitConverter.GetBytes((short)0);
             }
 
-
-
-            var byteLength = BitConverter.GetBytes((short)value.Length);
+            // The reader takes the count as bytes for UTF-8 and as 2-byte characters for UTF-16.
             var byteStr = StringEncoding.GetBytes(value);
+            var byteLength = BitConverter.GetBytes((short)(StringEncoding == Encoding.Unicode ? value.Length : byteStr.Length));
 
             var stringWithCountAtFront = byteLength.Concat(byteStr).ToArray();
 
