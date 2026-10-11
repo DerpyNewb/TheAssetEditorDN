@@ -8,7 +8,7 @@ using Shared.Core.PackFiles;
 namespace GameWorld.Core.Vfx
 {
     /// <summary>
-    /// Draws one effect's particles: a camera-built quad per particle, one draw per emitter, emitters and
+    /// Draws one effect's particles: a camera-built quad per particle, or one strip for a trail-mode emitter, one draw per emitter, emitters and
     /// particles back to front, through MonoGame's BasicEffect, unlit (lighting is step 2). Textures come from
     /// the editor's VfxTextureCache on first draw; a missing one draws white.
     /// </summary>
@@ -72,10 +72,9 @@ namespace GameWorld.Core.Vfx
         public static void DrawEmitter(GraphicsDevice device, BasicEffect effect, CommonShaderParameters parameters, Matrix world,
             CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states)
         {
-            var vertices = new VertexPositionColorTexture[states.Count * 6];
-            var n = 0;
-            foreach (var state in states.OrderByDescending(x => Vector3.DistanceSquared(x.Position, camera.Position)))
-                n = AddQuad(vertices, n, settings, camera, state);
+            var vertices = settings.Trail ? Ribbon(settings, camera, states) : Quads(settings, camera, states);
+            if (vertices.Length == 0)
+                return;
 
             effect.World = world;
             effect.View = parameters.View;
@@ -85,8 +84,53 @@ namespace GameWorld.Core.Vfx
             foreach (var pass in effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, states.Count * 2);
+                device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertices.Length / 3);
             }
+        }
+
+        static VertexPositionColorTexture[] Quads(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states)
+        {
+            var vertices = new VertexPositionColorTexture[states.Count * 6];
+            var n = 0;
+            foreach (var state in states.OrderByDescending(x => Vector3.DistanceSquared(x.Position, camera.Position)))
+                n = AddQuad(vertices, n, s, camera, state);
+            return vertices;
+        }
+
+        /// <summary>
+        /// enable_trail_mode (56 vanilla emitters, all continuous_mesh): the particles, oldest first, joined into one strip
+        /// facing the camera and as wide as each particle. The newest particle's texture cell runs along it from the
+        /// newest (the cell's top, where a velocity-aligned quad has its head) to the oldest.
+        /// </summary>
+        public static VertexPositionColorTexture[] Ribbon(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states)
+        {
+            if (states.Count < 2)
+                return [];
+            var uv = UvRect(s, states[^1].Cell);
+            var last = states.Count - 1;
+            var edges = new (Vector3 Left, Vector3 Right, Color Colour, float V)[states.Count];
+            for (var i = 0; i <= last; i++)
+            {
+                var p = states[i];
+                var along = states[Math.Min(i + 1, last)].Position - states[Math.Max(i - 1, 0)].Position;
+                var side = Vector3.Cross(along, camera.Position - p.Position);
+                side = side.LengthSquared() > 1e-12f ? Vector3.Normalize(side) * (p.Size.X / 2) : Vector3.Zero;
+                edges[i] = (p.Position - side, p.Position + side, VertexColour(s, p.Colour, p.Alpha), uv.Y + (1 - i / (float)last) * uv.W);
+            }
+
+            var vertices = new VertexPositionColorTexture[last * 6];
+            var n = 0;
+            for (var i = 0; i < last; i++)
+            {
+                var (a, b) = (edges[i], edges[i + 1]);
+                vertices[n++] = new(a.Left, a.Colour, new Vector2(uv.X, a.V));
+                vertices[n++] = new(a.Right, a.Colour, new Vector2(uv.X + uv.Z, a.V));
+                vertices[n++] = new(b.Right, b.Colour, new Vector2(uv.X + uv.Z, b.V));
+                vertices[n++] = new(a.Left, a.Colour, new Vector2(uv.X, a.V));
+                vertices[n++] = new(b.Right, b.Colour, new Vector2(uv.X + uv.Z, b.V));
+                vertices[n++] = new(b.Left, b.Colour, new Vector2(uv.X, b.V));
+            }
+            return vertices;
         }
 
         static int AddQuad(VertexPositionColorTexture[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p)

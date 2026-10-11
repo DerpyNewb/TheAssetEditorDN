@@ -190,7 +190,8 @@ namespace GameWorld.Core.Vfx
             if (due < 1)
                 return;
             e.Travelled -= due * spacing;
-            for (var k = 0; k < Math.Min(due, limit) && e.Particles.Count < limit; k++)
+            // Oldest first, so the particle list stays in spawn order, the order a trail joins them in.
+            for (var k = (int)Math.Min(due, limit) - 1; k >= 0 && e.Particles.Count < limit; k--)
             {
                 var back = travelled > 0 ? Math.Clamp((e.Travelled + k * spacing) / travelled, 0, 1) : 0;
                 var at = world;

@@ -77,6 +77,13 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void TrailMode_IsReadFromTheRenderStack()
+        {
+            var trail = Read(Emitter("sparks"), SparksChain, """<effect_render_stack id="sparks"><property name="enable_trail_mode" quality="0" value="true"/></effect_render_stack>""").Single();
+            Assert.That((trail.Trail, Read(Emitter("sparks"), SparksChain).Single().Trail), Is.EqualTo((true, false)));
+        }
+
+        [Test]
         public void EmitterWithoutAChain_IsNotDrawn() => Assert.That(Read(Emitter("lonely"), "").Single().Draws, Is.False);
 
         [Test]

@@ -7,7 +7,7 @@ namespace GameWorld.Core.Vfx
 {
     /// <summary>An enabled emitter of an effect, with what every reference on the way to it said.</summary>
     public record ResolvedEmitter(VfxEmitter Emitter, VfxBehaviourChain? Chain, string? SceneViewType, string File,
-        Matrix ReferenceTransform, float StartOffset, float SpeedMultiplier, bool InfiniteLife, VfxEmitterOverride Override);
+        Matrix ReferenceTransform, float StartOffset, float SpeedMultiplier, bool InfiniteLife, VfxEmitterOverride Override, bool TrailMode = false);
 
     public record VfxResolveResult(bool Found, List<ResolvedEmitter> Emitters, List<string> Problems);
 
@@ -84,7 +84,7 @@ namespace GameWorld.Core.Vfx
                     continue;
                 file.Chains.TryGetValue(emitter.Id, out var chain);
                 file.SceneViewTypes.TryGetValue(emitter.Id, out var sceneView);
-                result.Emitters.Add(new ResolvedEmitter(emitter, chain, sceneView, name, transform, startOffset, speed, infinite, o));
+                result.Emitters.Add(new ResolvedEmitter(emitter, chain, sceneView, name, transform, startOffset, speed, infinite, o, file.TrailModes.Contains(emitter.Id)));
             }
 
             foreach (var reference in file.References)

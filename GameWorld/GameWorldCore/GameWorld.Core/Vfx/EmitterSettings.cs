@@ -80,6 +80,8 @@ namespace GameWorld.Core.Vfx
         public float AdditiveMul { get; set; }
         public Vector2 Pivot { get; set; } = new(0.5f, 0.5f);
         public QuadOrientation Orientation { get; set; }
+        /// <summary>enable_trail_mode on the render stack: the particles drawn as one strip, not a quad each.</summary>
+        public bool Trail { get; set; }
         public float StretchCap { get; set; }
         public int CellsX { get; set; } = 1;
         public int CellsY { get; set; } = 1;
@@ -124,6 +126,7 @@ namespace GameWorld.Core.Vfx
             float Z(string name) => P(name)?.Number("z") ?? 0;
 
             s.ReferenceTransform = resolved.ReferenceTransform;
+            s.Trail = resolved.TrailMode;
             s.StartOffset = resolved.StartOffset;
             s.SpeedMultiplier = resolved.SpeedMultiplier * Number("SimulationSpeedMultiplier", 1);
             s.StartTime = Range("StartTime", (0, 0));

@@ -120,6 +120,14 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(gaps.Max() - gaps.Min(), Is.LessThan(0.01f), string.Join(", ", gaps.Take(6)));
         }
 
+        // A trail joins its particles in the order they come out, so that order is the order they were spawned in.
+        [Test]
+        public void SpawnSpacing_ParticlesComeOutOldestFirst()
+        {
+            var xs = States(Run(Steady(x => { x.Rate = C(0); x.SpawnSpacing = 1; }), 1, t => Matrix.CreateTranslation(150 * t, 0, 0))).Select(x => x.Position.X).ToList();
+            Assert.That(xs, Is.Ordered.Ascending);
+        }
+
         [Test]
         public void SpawnSpacing_StandingStill_SpawnsOnlyByRate()
         {

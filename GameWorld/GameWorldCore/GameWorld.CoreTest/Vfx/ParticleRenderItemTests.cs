@@ -73,6 +73,31 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with
+        // the texture cell running from the newest (its top, as a velocity-aligned quad's head) to the oldest.
+        [Test]
+        public void Ribbon_JoinsTheParticles_AsWideAsEach_TextureHeadToTail()
+        {
+            ParticleState At(float x, float width) => new(new Vector3(x, 0, 0), Vector3.Zero, new Vector2(width, width), 0, Vector3.One, 1, 0, 0);
+            var vertices = ParticleRenderItem.Ribbon(new EmitterSettings { Trail = true }, ParticleRenderItem.CameraAxes.From(View, Matrix.Identity), [At(0, 0.2f), At(1, 0.4f), At(2, 0.6f)]);
+            Assert.That(vertices, Has.Length.EqualTo(12), "two segments of two triangles");
+            var edges = vertices.Select(v => (X: MathF.Round(v.Position.X, 3), HalfWidth: MathF.Round(MathF.Abs(v.Position.Y), 3), V: v.TextureCoordinate.Y)).Distinct().OrderBy(x => x.X).ToList();
+            Assert.That(edges, Is.EqualTo(new[] { (0f, 0.1f, 1f), (1f, 0.2f, 0.5f), (2f, 0.3f, 0f) }));
+            Assert.That(vertices.All(v => v.Position.Z == 0), Is.True, "faces the camera on +Z");
+        }
+
+        // Two particles off the sides of the view: as quads they leave its middle grey, as a trail the strip crosses it.
+        [TestCase(false, 0.502f)]
+        [TestCase(true, 1f)]
+        public void TrailMode_DrawsTheStripBetweenTheParticles(bool trail, float red)
+        {
+            ParticleState At(float x) => new(new Vector3(x, 0, 0), Vector3.Zero, new Vector2(2, 2), 0, new Vector3(1, 0, 0), 1, 0, 0);
+            using var effect = new BasicEffect(_device) { TextureEnabled = true, VertexColorEnabled = true };
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, new EmitterSettings { Trail = trail }, _white, [At(-4), At(4)]));
+            Assert.That(pixel.X, Is.EqualTo(red).Within(0.02));
+        }
+
         [Test]
         public void UvRect_AtlasCellThenFlipbookCell()
         {

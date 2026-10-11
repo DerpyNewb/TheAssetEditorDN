@@ -57,6 +57,8 @@ namespace Shared.GameFormats.Vfx
         public Dictionary<string, VfxBehaviourChain> Chains { get; } = [];
         /// <summary>Render stack id to its quality-0 scene_view_type, for the stacks that set one.</summary>
         public Dictionary<string, string> SceneViewTypes { get; } = [];
+        /// <summary>Render stack ids with enable_trail_mode on: their emitter's particles are drawn as one strip.</summary>
+        public HashSet<string> TrailModes { get; } = [];
         public List<VfxReference> References { get; } = [];
 
         public static VfxFile Parse(byte[] bytes, int tier = 0)
@@ -95,8 +97,12 @@ namespace Shared.GameFormats.Vfx
 
             foreach (var stack in vfx?.Element("effect_render_stacks")?.Elements("effect_render_stack") ?? [])
             {
-                if (Properties(stack.Elements("property"), tier).TryGetValue("scene_view_type", out var view) && view.Value != null)
-                    file.SceneViewTypes[(string?)stack.Attribute("id") ?? ""] = view.Value;
+                var id = (string?)stack.Attribute("id") ?? "";
+                var properties = Properties(stack.Elements("property"), tier);
+                if (properties.TryGetValue("scene_view_type", out var view) && view.Value != null)
+                    file.SceneViewTypes[id] = view.Value;
+                if (properties.TryGetValue("enable_trail_mode", out var trail) && trail.IsTrue)
+                    file.TrailModes.Add(id);
             }
 
             foreach (var reference in root.Element("vfx_references")?.Elements("vfx") ?? [])
