@@ -60,6 +60,8 @@
 
     <DockPanel>
         <ToolBar DockPanel.Dock="Top">
+            <Button Content="Open" Command="{Binding OpenFileCommand}" ToolTip="Pick a vfx\*.xml from the loaded packs"/>
+            <Separator/>
             <Button Content="Save" Command="{Binding SaveFileCommand}" ToolTip="Ctrl+S: into the editable pack, at this file's path"/>
             <Button Content="Save As" Command="{Binding SaveFileAsCommand}"/>
             <Separator/>

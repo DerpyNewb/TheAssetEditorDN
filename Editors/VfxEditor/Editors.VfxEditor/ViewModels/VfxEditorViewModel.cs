@@ -94,7 +94,8 @@ namespace Editors.VfxEditor.ViewModels
         [ObservableProperty] bool _thisTierOnly;
         [ObservableProperty] VfxTreeNode? _selectedNode;
         [ObservableProperty] string _status = "";
-        [ObservableProperty] string? _loadError;
+        // Opened from the Tools menu, the tab has no file yet.
+        [ObservableProperty] string? _loadError = "No file is open. Use Open to pick a vfx\\*.xml from the loaded packs, or double-click one in the pack explorer.";
 
         /// <summary>Set by the view: writes what is typed in a text box that has not lost focus yet. The toolbar and the
         /// shortcuts take no focus from the box, so this runs before the tier or the toggle changes and before saving or
@@ -123,6 +124,8 @@ namespace Editors.VfxEditor.ViewModels
             _session.Load(file);
             DisplayName = file.Name;
             LoadError = _session.LoadError;
+            OnPropertyChanged(nameof(CurrentFile));
+            OnPropertyChanged(nameof(HasUnsavedChanges));
             Tree.Clear();
             Rows.Clear();
             if (_session.Document == null)
@@ -563,6 +566,18 @@ namespace Editors.VfxEditor.ViewModels
         // ---- saving, undo
 
         public bool Save() => Store(_session.Save);
+
+        /// <summary>Picks a file from the loaded packs, the way a tab opened from the Tools menu gets one.</summary>
+        [RelayCommand]
+        void OpenFile()
+        {
+            FlushPendingEdits?.Invoke();
+            if (HasUnsavedChanges && _dialogs.ShowYesNoBox($"{DisplayName} has edits that are not saved. Open another file and lose them?", "Unsaved edits") != ShowMessageBoxResult.OK)
+                return;
+            var picked = _dialogs.DisplayBrowseDialog([".xml"]);
+            if (picked.Result && picked.File != null)
+                LoadFile(picked.File);
+        }
 
         [RelayCommand] void SaveFile() => Save();
         [RelayCommand] void SaveFileAs() => Store(_session.SaveAs);

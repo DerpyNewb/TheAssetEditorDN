@@ -4,7 +4,9 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Editors.VfxEditor.ViewModels;
 using Editors.VfxEditor.Views;
+using Moq;
 using Shared.Core.Commands;
+using Shared.Core.Services;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
@@ -74,6 +76,36 @@ namespace Test.VfxEditor
             var saved = runner.PackFileService.FindFile("vfx\\fx.xml", output)!.DataSource.ReadData();
             Assert.That(Encoding.Unicode.GetString(saved, 2, saved.Length - 2),
                 Does.Contain("<property name=\"A\" quality=\"0\" value=\"3\"/>\r\n\t\t\t<property name=\"A\" quality=\"1\" value=\"3\"/>"));
+        }
+
+        // Opened from Tools, the tab has no file: it says so, and Open picks one from the packs, asking first when the
+        // open file has edits that are not saved.
+        [Test]
+        public void The_tools_menu_opens_the_editor_and_open_picks_a_file_from_the_packs()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            runner.CreateOutputPack();
+            var file = runner.PackFileService.FindFile("vfx\\fx.xml")!;
+            runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, file));
+
+            var database = (IEditorDatabase)runner.ServiceProvider.GetService(typeof(IEditorDatabase))!;
+            var info = database.GetEditorInfos().Single(x => x.EditorEnum == EditorEnums.Vfx_Editor);
+            Assert.That((info.AddToolbarButton, info.ToolbarName, info.IsToolbarButtonEnabled), Is.EqualTo((true, "VFX Editor", true)));
+
+            var editor = (VfxEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.Vfx_Editor);
+            Assert.That((editor.Tree.Count, editor.CurrentFile), Is.EqualTo((0, (PackFile?)null)));
+            Assert.That(editor.LoadError, Does.Contain("Open"));
+
+            editor.OpenFileCommand.Execute(null);
+            Assert.That((editor.DisplayName, editor.Tree.Count, editor.HasLoadError, editor.CurrentFile), Is.EqualTo(("fx.xml", 3, false, file)));
+
+            editor.SelectedNode = editor.Tree[1].Children[0];
+            editor.Rows.Single(r => r.Label == "A").Value = "2";
+            runner.Dialogs.Setup(x => x.ShowYesNoBox(It.IsAny<string>(), It.IsAny<string>())).Returns(ShowMessageBoxResult.Cancel);
+            editor.OpenFileCommand.Execute(null);
+            Assert.That((editor.HasUnsavedChanges, editor.Rows.Single(r => r.Label == "A").Value), Is.EqualTo((true, "2")));
         }
 
         static IEnumerable<DependencyObject> Descendants(DependencyObject parent)

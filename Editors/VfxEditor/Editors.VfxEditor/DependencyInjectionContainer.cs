@@ -24,6 +24,7 @@ namespace Editors.VfxEditor
             // vfx\*.xml only; every other .xml keeps the text editor. Both match a vfx file, so the AssetEditor asks which to use.
             EditorInfoBuilder
                 .Create<VfxEditorViewModel, VfxEditorView>(EditorEnums.Vfx_Editor)
+                .AddToToolbar("VFX Editor")
                 .AddExtention(".xml", EditorPriorites.High)
                 .ValidForFoldersContaining("vfx\\")
                 .Build(editorDatabase);
