@@ -4,8 +4,8 @@ using Shared.Core.PackFiles.Models;
 
 namespace Editors.VfxEditor.Vocabulary
 {
-    /// <summary>Builds the vocabulary once per session from the CA packs' vfx files, on a background thread, the first time
-    /// a VFX editor asks for it. A file that does not read adds nothing.</summary>
+    /// <summary>Builds the vocabulary from the CA packs' vfx files on a background thread when a VFX editor first asks, and
+    /// again for the next editor if that scan failed or found nothing. A file that does not read adds nothing.</summary>
     public sealed class VfxVocabularyService(IPackFileService packFileService)
     {
         readonly object _lock = new();
@@ -14,7 +14,11 @@ namespace Editors.VfxEditor.Vocabulary
         public Task<VfxVocabulary> Get()
         {
             lock (_lock)
+            {
+                if (_task is { IsFaulted: true } or { IsCompletedSuccessfully: true, Result.EffectNames.Count: 0 })
+                    _task = null;
                 return _task ??= Task.Run(Build);
+            }
         }
 
         VfxVocabulary Build()

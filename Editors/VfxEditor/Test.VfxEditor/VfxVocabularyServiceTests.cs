@@ -31,5 +31,33 @@ namespace Test.VfxEditor
 
             Assert.That(new VfxVocabularyService(service).Get().Result.EffectNames, Is.EqualTo(new[] { "a" }));
         }
+
+        [Test]
+        public void An_empty_scan_is_not_kept()
+        {
+            var service = Service();
+            var vocabularies = new VfxVocabularyService(service);
+            Assert.That(vocabularies.Get().Result.EffectNames, Is.Empty);
+
+            AddCaPack(service, Effect("a"));
+            Assert.That(vocabularies.Get().Result.EffectNames, Is.EqualTo(new[] { "a" }));
+        }
+
+        [Test]
+        public void A_failed_scan_is_not_kept()
+        {
+            var service = Service();
+            AddCaPack(service, Effect("a"));
+            var flaky = new Mock<IPackFileService>();
+            flaky.SetupSequence(s => s.GetAllPackfileContainers())
+                .Throws(new InvalidOperationException("a pack was added mid-scan"))
+                .Returns(service.GetAllPackfileContainers);
+            flaky.Setup(s => s.FindAllWithExtention(It.IsAny<string>(), It.IsAny<IPackFileContainer?>()))
+                .Returns((string extension, IPackFileContainer? pack) => service.FindAllWithExtention(extension, pack));
+            var vocabularies = new VfxVocabularyService(flaky.Object);
+            Assert.That(() => vocabularies.Get().Result, Throws.InstanceOf<AggregateException>());
+
+            Assert.That(vocabularies.Get().Result.EffectNames, Is.EqualTo(new[] { "a" }));
+        }
     }
 }
