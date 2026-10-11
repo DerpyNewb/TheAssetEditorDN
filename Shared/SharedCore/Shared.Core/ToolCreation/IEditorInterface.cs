@@ -18,7 +18,8 @@ namespace Shared.Core.ToolCreation
 
     public interface IFileEditor
     {
-        PackFile CurrentFile { get; }
+        // Null for an editor that can also be opened empty, e.g. SuperView from the toolbar.
+        PackFile? CurrentFile { get; }
         public void LoadFile(PackFile file);
     }
 

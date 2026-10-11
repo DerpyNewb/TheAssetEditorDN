@@ -73,11 +73,12 @@ namespace AssetEditor.Services
             // TODO: Ensure we can only get here if we have a fileEditor
             if (editorViewModel is IFileEditor fileEditor)
             {
-                // Ensure file is not already open
+                // Ensure file is not already open in this kind of editor. Another kind is the user
+                // picking a different tool for it (Kitbash vs SuperView), so open a new tab.
                 for (var i = 0; i < CurrentEditorsList.Count; i++)
                 {
                     var existingEditor = CurrentEditorsList[i];
-                    if (existingEditor is IFileEditor existingFileEditor)
+                    if (existingEditor is IFileEditor existingFileEditor && existingEditor.GetType() == editorViewModel.GetType())
                     {
                         if (existingFileEditor.CurrentFile == file)
                         {
@@ -150,7 +151,7 @@ namespace AssetEditor.Services
             var openFiles = new List<IEditorInterface>();
             for (var i = 0; i < CurrentEditorsList.Count; i++)
             {
-                if (CurrentEditorsList[i] is not IFileEditor fileEditor)
+                if (CurrentEditorsList[i] is not IFileEditor { CurrentFile: not null } fileEditor)
                     continue;
 
                 var containterForPack = _packFileService.GetPackFileContainer(fileEditor.CurrentFile);

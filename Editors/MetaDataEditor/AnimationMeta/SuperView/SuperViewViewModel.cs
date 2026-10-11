@@ -8,12 +8,13 @@ using Microsoft.Xna.Framework;
 using Shared.Core.Events;
 using Shared.Core.Events.Scoped;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationMeta.Parsing;
 
 namespace Editors.AnimationMeta.SuperView
 {
-    public partial class SuperViewViewModel : EditorHostBase, ISaveableEditor
+    public partial class SuperViewViewModel : EditorHostBase, ISaveableEditor, IFileEditor
     {
         SceneObjectViewModel _asset;
 
@@ -29,6 +30,7 @@ namespace Editors.AnimationMeta.SuperView
         [ObservableProperty] MetaDataEditorViewModel _persistentMetaEditor;
         [ObservableProperty] MetaDataEditorViewModel _metaEditor;
         [ObservableProperty] int _selectedTabControllerIndex = 0;
+        [ObservableProperty] bool _showVfx = true;
         public override Type EditorViewModelType => typeof(EditorView);
         public bool HasUnsavedChanges
         { 
@@ -94,6 +96,10 @@ namespace Editors.AnimationMeta.SuperView
             assetViewModel.Data.MetaDataChanged += OnMetaDataChanged;
 
             _asset = assetViewModel;
+
+            // The meta's props always play, so the model under them has to as well; off, it stands
+            // in its bind pose (Rmv2MeshNode only skins while its player is enabled).
+            Player.IsEnabled.Value = true;
             OnSceneObjectUpdated(new SceneObjectUpdateEvent(_asset.Data, false, false, false, true));
         }
 
@@ -121,6 +127,17 @@ namespace Editors.AnimationMeta.SuperView
             MetaEditor.LoadFile(e.Owner.MetaData);
 
             RecreateMetaDataInformation();
+        }
+
+        // Opened on a .variantmeshdefinition from the pack browser: the file is the mesh, and the
+        // animation set and slot are then picked in the scene object panel as usual.
+        public PackFile? CurrentFile { get; private set; }
+
+        public void LoadFile(PackFile file)
+        {
+            CurrentFile = file;
+            DisplayName = $"Super view - {file.Name}";
+            _sceneObjectBuilder.SetMesh(_asset.Data, file);
         }
 
         public void Load(AnimationToolInput debugDataToLoad)

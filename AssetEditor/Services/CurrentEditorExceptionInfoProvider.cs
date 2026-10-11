@@ -35,7 +35,7 @@ namespace AssetEditor.Services
                     var editor = allEditors[currentEditorIndex];
                     editorName = editor.GetType().Name;
             
-                    if (editor is IFileEditor fileEditor)
+                    if (editor is IFileEditor { CurrentFile: not null } fileEditor)
                     {
                         editorFileInput = fileEditor.CurrentFile.Name;
                         editorFileFullName = _pfs.GetFullPath(fileEditor.CurrentFile);

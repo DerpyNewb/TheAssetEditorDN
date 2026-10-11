@@ -39,6 +39,7 @@ namespace Editors.AnimationMeta
             EditorInfoBuilder
                 .Create<SuperViewViewModel, EditorHostView>(EditorEnums.SuperView_Editor)
                 .AddToToolbar("SuperView")
+                .AddExtention(".variantmeshdefinition", EditorPriorites.Low)
                 .Build(factory);
 
             EditorInfoBuilder
