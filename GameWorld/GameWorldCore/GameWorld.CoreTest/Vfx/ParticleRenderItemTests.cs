@@ -157,6 +157,16 @@ namespace GameWorld.Core.Test.Vfx
         // textures again: about half a second per effect, measured on the firebox. The editor's cache loads a
         // path once and owns what it loads; a render item disposes only its own objects.
         [Test]
+        public void TextureCache_RemembersAPathThatDidNotLoad()
+        {
+            using var cache = NoTextures();
+            using var item = new ParticleRenderItem(OneParticle("broken"), cache);
+            Assert.That(cache.Failed("broken"), Is.False, "not tried yet");
+            Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
+            Assert.That((cache.Failed("broken"), cache.Failed("other")), Is.EqualTo((true, false)));
+        }
+
+        [Test]
         public void TextureCache_LoadsEachPathOnce_AndOwnsWhatItLoads()
         {
             var loads = 0;

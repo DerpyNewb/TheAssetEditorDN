@@ -62,6 +62,8 @@ namespace Editors.VfxEditor.Preview
                 _lines.AddRange(emitter.Skipped.Select(gap => $"{emitter.Name}: {gap}"));
                 if (emitter.Texture is { } texture && _packFileService.FindFile(texture) == null)
                     _lines.Add($"{emitter.Name}: texture {texture} is not in the loaded packs");
+                else if (emitter.Texture is { } found && _textures.Failed(found))
+                    _lines.Add($"{emitter.Name}: texture {found} did not load, so it is drawn white");
             }
             if (settings.Count == 0)
                 _lines.Add("no emitter is switched on at this tier");

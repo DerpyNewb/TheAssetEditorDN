@@ -24,6 +24,9 @@ namespace GameWorld.Core.Vfx
             return texture;
         }
 
+        /// <summary>True once a load of this path has been tried and failed.</summary>
+        public bool Failed(string path) => _textures.TryGetValue(path, out var texture) && texture == null;
+
         public void Dispose()
         {
             foreach (var texture in _textures.Values)
