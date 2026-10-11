@@ -11,6 +11,7 @@ namespace Test.VfxEditor
         public void Every_vanilla_file_round_trips_and_reads_like_the_xml_parser()
         {
             var problems = new List<string>();
+            var curves = 0;
             var files = VanillaVfx.Files();
             foreach (var (path, bytes) in files)
             {
@@ -21,8 +22,21 @@ namespace Test.VfxEditor
                 var xml = XElement.Parse("<root>" + document.Text + "</root>", LoadOptions.PreserveWhitespace);
                 if (Difference(document, document.Root, xml) is { } difference)
                     problems.Add($"{path}: {difference}");
+                // property only: a material's <PROPERTY name="Shader"> holds a path with a drive colon, not a curve.
+                foreach (var element in All(document.Root).Where(e => e.Name == "property" && !e.SelfClosing && e.Children.Count == 0))
+                {
+                    var text = document.TextOf(element);
+                    if (!text.Contains(':'))
+                        continue;
+                    curves++;
+                    var curve = CurveText.Parse(text);
+                    if (curve == null)
+                        problems.Add($"{path}: {element.Attr("name")} is not read as a curve");
+                    else if (curve.ToString() != text)
+                        problems.Add($"{path}: {element.Attr("name")} does not rebuild");
+                }
             }
-            TestContext.Out.WriteLine($"{files.Count} files, {problems.Count} problems");
+            TestContext.Out.WriteLine($"{files.Count} files, {curves} curves, {problems.Count} problems");
             Assert.That(problems.Take(20), Is.Empty);
             Assert.That(files, Has.Count.EqualTo(8308));
         }
