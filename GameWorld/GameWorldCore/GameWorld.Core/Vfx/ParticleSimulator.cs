@@ -40,6 +40,9 @@ namespace GameWorld.Core.Vfx
         internal Random Random { get; }
         internal float Start, Life, RateScale, BurstInterval, BurstLength, RRate, RTransform, Accumulator;
         internal bool CapLogged;
+        // SpawnSpacing: where the emitter was at the last step, and the metres moved since the last particle.
+        internal Vector3 LastPosition;
+        internal float Travelled;
     }
 
     /// <summary>
@@ -126,6 +129,9 @@ namespace GameWorld.Core.Vfx
             // A negative Start Time pre-warms: that emitter was already running when the effect began.
             _origin = Math.Max(-VfxConventions.MaxPreWarm, _emitters.Select(x => x.Start).Append(0).Min());
             _steps = 0;
+            var effectWorld = _effectWorldAt(_origin);
+            foreach (var e in _emitters)
+                e.LastPosition = EmitterWorld(e, _origin, effectWorld).Translation;
         }
 
         void StepOnce()
@@ -140,16 +146,21 @@ namespace GameWorld.Core.Vfx
 
                 var age = (end - e.Start) * s.SpeedMultiplier;
                 var alive = age > 0 && (s.InfiniteLife || age <= e.Life);
+                var world = EmitterWorld(e, end, effectWorld);
+                var from = e.LastPosition;
+                e.LastPosition = world.Translation;
                 if (!alive || end > _spawnEnd + Epsilon || !VfxConventions.InBurst(age, e.BurstInterval, e.BurstLength))
                     continue;
+
+                var limit = Math.Min(s.MaxParticles, ParticleCap);
+                if (s.SpawnSpacing > 0)
+                    SpawnAlong(e, age, world, from, dt, limit);
 
                 var rate = s.Rate?.Evaluate(0, VfxConventions.EmitterTime(age, e.Life, s.LoopRate), e.RRate) ?? 0;
                 e.Accumulator += Math.Max(0, rate) * e.RateScale * dt;
                 if (e.Accumulator < 1)
                     continue;
 
-                var world = EmitterWorld(e, end, effectWorld);
-                var limit = Math.Min(s.MaxParticles, ParticleCap);
                 // The step's whole particles are taken in one go: "-= 1" in a loop stops changing a float past
                 // 2^25, which a modder's rate reaches, and the loop never ended. At most `limit` tries a step.
                 var due = MathF.Floor(e.Accumulator);
@@ -165,6 +176,30 @@ namespace GameWorld.Core.Vfx
                 }
             }
             _steps++;
+        }
+
+        // SpawnSpacing: one particle per that many metres the emitter moved this step, laid back along the step's path
+        // and aged by the part of the step since it passed there, so a fast emitter leaves them evenly spaced.
+        static void SpawnAlong(EmitterRuntime e, float age, Matrix world, Vector3 from, float dt, int limit)
+        {
+            var spacing = e.Settings.SpawnSpacing;
+            var to = world.Translation;
+            var travelled = Vector3.Distance(from, to);
+            e.Travelled += travelled;
+            var due = MathF.Floor(e.Travelled / spacing);
+            if (due < 1)
+                return;
+            e.Travelled -= due * spacing;
+            for (var k = 0; k < Math.Min(due, limit) && e.Particles.Count < limit; k++)
+            {
+                var back = travelled > 0 ? Math.Clamp((e.Travelled + k * spacing) / travelled, 0, 1) : 0;
+                var at = world;
+                at.Translation = Vector3.Lerp(to, from, back);
+                var count = e.Particles.Count;
+                Spawn(e, age, at);
+                if (e.Particles.Count > count)
+                    e.Particles[^1] = e.Particles[^1] with { Age = back * dt };
+            }
         }
 
         static Matrix EmitterWorld(EmitterRuntime e, float time, Matrix effectWorld)

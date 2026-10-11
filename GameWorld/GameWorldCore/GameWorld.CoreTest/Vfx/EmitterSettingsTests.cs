@@ -70,6 +70,13 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void SpawnSpacing_IsRead()
+        {
+            var trail = Read(Emitter("sparks", """<property name="SpawnSpacing" quality="0" value="0.50"/>"""), SparksChain).Single();
+            Assert.That((trail.SpawnSpacing, Read(Emitter("sparks"), SparksChain).Single().SpawnSpacing), Is.EqualTo((0.5f, 0f)));
+        }
+
+        [Test]
         public void EmitterWithoutAChain_IsNotDrawn() => Assert.That(Read(Emitter("lonely"), "").Single().Draws, Is.False);
 
         [Test]

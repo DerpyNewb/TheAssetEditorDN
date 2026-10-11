@@ -45,6 +45,8 @@ namespace GameWorld.Core.Vfx
         public Vector2 SpawnAngle { get; set; }
         public Vector2 SpawnArc { get; set; }
         public (float Min, float Max) Spread { get; set; } = (90, 90);
+        /// <summary>Metres the emitter moves per extra particle, on top of the rate; 0 is none.</summary>
+        public float SpawnSpacing { get; set; }
         /// <summary>SkipParticlePositionUpdate: particles stay where they spawned; their velocity still aligns and stretches them.</summary>
         public bool SkipPositionUpdate { get; set; }
 
@@ -156,6 +158,7 @@ namespace GameWorld.Core.Vfx
             s.SpawnArc = Xy("SpawnArc");
             s.Spread = Range("SpawnSpread", (90, 90));
             s.SkipPositionUpdate = Flag("SkipParticlePositionUpdate");
+            s.SpawnSpacing = Math.Max(0, Number("SpawnSpacing", 0));
 
             s.InitialSpeed = ParseCurve(s, P("ParticleInitialSpeed"));
             s.InitialScale = ParseCurve(s, P("ParticleInitialScale"));

@@ -107,6 +107,26 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(states.All(x => x.Velocity.Length() > 4.9f), Is.True);
         }
 
+        // SpawnSpacing (1,291 vanilla emitters, 334 of them at rate 0, so distance has to spawn on its own): one particle
+        // per that many metres the emitter moves, laid evenly along its path, on top of the rate. At 150 m/s a step
+        // moves 2.5 m, so particles bunched at the step's end would show as gaps of 2 and 3.
+        [Test]
+        public void SpawnSpacing_LaysOneParticlePerSpacingAlongThePath()
+        {
+            var states = States(Run(Steady(x => { x.Rate = C(0); x.SpawnSpacing = 1; }), 1, t => Matrix.CreateTranslation(150 * t, 0, 0)));
+            var xs = states.Select(x => x.Position.X).OrderBy(x => x).ToList();
+            Assert.That(xs.Count, Is.EqualTo(150).Within(2));
+            var gaps = xs.Zip(xs.Skip(1), (a, b) => b - a).ToList();
+            Assert.That(gaps.Max() - gaps.Min(), Is.LessThan(0.01f), string.Join(", ", gaps.Take(6)));
+        }
+
+        [Test]
+        public void SpawnSpacing_StandingStill_SpawnsOnlyByRate()
+        {
+            Assert.That(Count(Run(Steady(x => { x.Rate = C(0); x.SpawnSpacing = 1; }), 1)), Is.Zero);
+            Assert.That(Count(Run(Steady(x => x.SpawnSpacing = 1), 1)), Is.EqualTo(10).Within(1));
+        }
+
         [Test]
         public void ZeroEmitterLifeTime_GivesFiniteStates()
         {
