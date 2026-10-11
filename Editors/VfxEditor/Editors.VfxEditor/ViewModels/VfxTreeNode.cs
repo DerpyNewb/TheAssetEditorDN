@@ -10,7 +10,7 @@ namespace Editors.VfxEditor.ViewModels
     public sealed partial class VfxTreeNode(NodeKind kind, string label, string key, int[] path) : ObservableObject
     {
         public NodeKind Kind { get; } = kind;
-        public string Label { get; } = label;
+        [ObservableProperty] string _label = label;
         public string Key { get; } = key;
         public int[] Path { get; set; } = path;
         public string? Fragment { get; init; }

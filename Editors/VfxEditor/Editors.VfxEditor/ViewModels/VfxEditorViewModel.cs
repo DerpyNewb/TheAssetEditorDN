@@ -294,7 +294,7 @@ namespace Editors.VfxEditor.ViewModels
             if (Signature(fresh).SequenceEqual(Signature(Tree)))
             {
                 foreach (var (old, now) in All(Tree).Zip(All(fresh)))
-                    old.Path = now.Path;
+                    (old.Path, old.Label) = (now.Path, now.Label);
                 return;
             }
             var expanded = All(Tree).Where(n => n.IsExpanded).Select(n => n.Key).ToHashSet();
@@ -312,7 +312,8 @@ namespace Editors.VfxEditor.ViewModels
 
         static IEnumerable<VfxTreeNode> All(IEnumerable<VfxTreeNode> nodes) => nodes.SelectMany(n => All(n.Children).Prepend(n));
 
-        static IEnumerable<string> Signature(IEnumerable<VfxTreeNode> nodes) => All(nodes).Select(n => n.Key + "\n" + n.Label);
+        // The same keys in the same order keep the tree, so a rename does not drop the item being clicked.
+        static IEnumerable<string> Signature(IEnumerable<VfxTreeNode> nodes) => All(nodes).Select(n => n.Key);
 
         List<VfxTreeNode> BuildTree(VfxDocument document)
         {

@@ -128,6 +128,24 @@ namespace Test.VfxEditor
             Assert.That((editor.HasUnsavedChanges, editor.NewOverrideName), Is.EqualTo((true, "c")));
         }
 
+        // A tree click commits the box it leaves; rebuilding the tree then would drop the item being clicked.
+        [Test]
+        public void An_edit_that_only_renames_a_node_keeps_the_tree()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            runner.CreateOutputPack();
+            var editor = Open(runner);
+            var reference = editor.Tree[2].Children[0];
+            editor.SelectedNode = reference;
+
+            editor.Rows.Single(r => r.Label == "vfx_ref").Value = "lib2";
+
+            Assert.That(editor.Tree[2].Children[0], Is.SameAs(reference));
+            Assert.That(reference.Label, Does.StartWith("lib2"));
+        }
+
         [Test]
         public void A_preview_input_that_is_not_a_finite_number_is_ignored()
         {
