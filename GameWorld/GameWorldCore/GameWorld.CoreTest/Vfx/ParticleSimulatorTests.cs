@@ -127,6 +127,24 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(xs, Is.Ordered.Ascending);
         }
 
+        // 334 vanilla SpawnSpacing emitters run at rate 0, so the distance spawner meets the cap on its own.
+        [Test]
+        public void SpawnSpacing_ParticleCap_IsLoggedOnce()
+        {
+            var log = new List<string>();
+            var simulator = Run(Steady(x => { x.Rate = C(0); x.SpawnSpacing = 0.01f; }), 0.5f, t => Matrix.CreateTranslation(150 * t, 0, 0), log: log.Add);
+            Assert.That((Count(simulator), log.Count), Is.EqualTo((ParticleSimulator.ParticleCap, 1)));
+        }
+
+        // A particle laid back along the step is as old as the time since the emitter passed there, and has moved for it.
+        [Test]
+        public void SpawnSpacing_ParticlesHaveMovedForTheirAge()
+        {
+            var s = Steady(x => { x.Rate = C(0); x.SpawnSpacing = 1; x.InitialSpeed = C(2); x.Spread = (90, 90); });
+            var particles = Run(s, 0.5f, t => Matrix.CreateTranslation(150 * t, 0, 0)).Emitters[0].Particles;
+            Assert.That(particles.Max(p => MathF.Abs(p.Position.Y - 2 * p.Age)), Is.LessThan(1e-3f));
+        }
+
         [Test]
         public void SpawnSpacing_StandingStill_SpawnsOnlyByRate()
         {

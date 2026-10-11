@@ -169,18 +169,22 @@ namespace GameWorld.Core.Vfx
                 var tried = 0;
                 for (; tried < tries && e.Particles.Count < limit; tried++)
                     Spawn(e, age, world);
-                if (due > tried && e.Particles.Count >= limit && limit == ParticleCap && !e.CapLogged)
-                {
-                    e.CapLogged = true;
-                    _log?.Invoke($"emitter {s.Name}: {ParticleCap} particles reached, the rest are not spawned");
-                }
+                LogCap(e, due, tried, limit);
             }
             _steps++;
         }
 
+        void LogCap(EmitterRuntime e, float due, int spawned, int limit)
+        {
+            if (due <= spawned || e.Particles.Count < limit || limit != ParticleCap || e.CapLogged)
+                return;
+            e.CapLogged = true;
+            _log?.Invoke($"emitter {e.Settings.Name}: {ParticleCap} particles reached, the rest are not spawned");
+        }
+
         // SpawnSpacing: one particle per that many metres the emitter moved this step, laid back along the step's path
-        // and aged by the part of the step since it passed there, so a fast emitter leaves them evenly spaced.
-        static void SpawnAlong(EmitterRuntime e, float age, Matrix world, Vector3 from, float dt, int limit)
+        // and aged and moved by the part of the step since it passed there, so a fast emitter leaves them evenly spaced.
+        void SpawnAlong(EmitterRuntime e, float age, Matrix world, Vector3 from, float dt, int limit)
         {
             var spacing = e.Settings.SpawnSpacing;
             var to = world.Translation;
@@ -191,16 +195,23 @@ namespace GameWorld.Core.Vfx
                 return;
             e.Travelled -= due * spacing;
             // Oldest first, so the particle list stays in spawn order, the order a trail joins them in.
-            for (var k = (int)Math.Min(due, limit) - 1; k >= 0 && e.Particles.Count < limit; k--)
+            var spawned = 0;
+            for (var k = (int)Math.Min(due, limit) - 1; k >= 0 && e.Particles.Count < limit; k--, spawned++)
             {
                 var back = travelled > 0 ? Math.Clamp((e.Travelled + k * spacing) / travelled, 0, 1) : 0;
                 var at = world;
                 at.Translation = Vector3.Lerp(to, from, back);
                 var count = e.Particles.Count;
                 Spawn(e, age, at);
-                if (e.Particles.Count > count)
-                    e.Particles[^1] = e.Particles[^1] with { Age = back * dt };
+                if (e.Particles.Count <= count)
+                    continue;
+                var p = e.Particles[^1];
+                p.Age = back * dt;
+                if (!e.Settings.SkipPositionUpdate)
+                    p.Position += p.Velocity * p.Age;
+                e.Particles[^1] = p;
             }
+            LogCap(e, due, spawned, limit);
         }
 
         static Matrix EmitterWorld(EmitterRuntime e, float time, Matrix effectWorld)
