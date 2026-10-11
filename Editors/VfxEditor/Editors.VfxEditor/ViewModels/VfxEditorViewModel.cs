@@ -556,17 +556,18 @@ namespace Editors.VfxEditor.ViewModels
             get => _preview.LoopLength;
             set
             {
-                _preview.LoopLength = Math.Max(0.1f, (float)value);
+                if (double.IsFinite(value))
+                    _preview.LoopLength = Math.Max(0.1f, (float)value);
                 OnPropertyChanged();
                 if (Projectile)
                     RefreshPreview();   // one loop is one flight
             }
         }
-        public double Speed { get => _preview.Speed; set { _preview.Speed = (float)value; OnPropertyChanged(); } }
+        public double Speed { get => _preview.Speed; set { if (double.IsFinite(value)) _preview.Speed = (float)value; OnPropertyChanged(); } }
 
         public string[] AxisNames { get; } = ProjectileFlight.Axes.Select(a => a.Name).ToArray();
         public bool Projectile { get => _preview.Projectile; set { _preview.Projectile = value; OnPropertyChanged(); RefreshPreview(); } }
-        public double ProjectileSpeed { get => _preview.ProjectileSpeed; set { _preview.ProjectileSpeed = (float)value; OnPropertyChanged(); RefreshPreview(); } }
+        public double ProjectileSpeed { get => _preview.ProjectileSpeed; set { if (double.IsFinite(value)) _preview.ProjectileSpeed = (float)value; OnPropertyChanged(); RefreshPreview(); } }
         public int ProjectileAxis
         {
             get => _preview.ProjectileAxis;

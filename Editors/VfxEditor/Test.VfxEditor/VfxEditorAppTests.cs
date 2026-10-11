@@ -107,6 +107,16 @@ namespace Test.VfxEditor
         }
 
         [Test]
+        public void A_preview_input_that_is_not_a_finite_number_is_ignored()
+        {
+            var (_, editor, _) = OpenWithAGuideModelOffered();
+            editor.LoopLength = double.NaN;
+            editor.Speed = double.PositiveInfinity;
+            editor.ProjectileSpeed = double.NaN;
+            Assert.That((editor.LoopLength, editor.Speed, editor.ProjectileSpeed), Is.EqualTo((4d, 1d, 60d)));
+        }
+
+        [Test]
         public void An_effect_cannot_reference_itself()
         {
             var runner = new AssetEditorTestRunner();
