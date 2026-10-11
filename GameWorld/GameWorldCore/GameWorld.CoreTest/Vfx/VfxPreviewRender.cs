@@ -15,6 +15,8 @@ namespace GameWorld.Core.Test.Vfx
     //   VFX_TIMES        seconds after the effect starts (default 0.25,0.5,1,2)
     //   VFX_PREVIEW_OUT  output folder
     //   VFX_DISTANCE     camera distance in metres (default 6)
+    //   VFX_FLIGHT       metres a second the effect flies along +X 1 m up, off the grid's axis, reaching x = 0 at each time (default 0, still)
+    //   VFX_LOOSE        a folder of loose vfx *.xml read in place of the packs' copies, so a mod's effect draws
     public class VfxPreviewRender
     {
         static string Env(string name, string fallback) => Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : fallback;
@@ -27,6 +29,10 @@ namespace GameWorld.Core.Test.Vfx
             var times = Env("VFX_TIMES", "0.25,0.5,1,2").Split(',').Select(x => float.Parse(x, CultureInfo.InvariantCulture)).ToList();
             var output = Env("VFX_PREVIEW_OUT", Path.Combine(TestContext.CurrentContext.WorkDirectory, "vfx_preview"));
             var distance = float.Parse(Env("VFX_DISTANCE", "6"), CultureInfo.InvariantCulture);
+            var flight = float.Parse(Env("VFX_FLIGHT", "0"), CultureInfo.InvariantCulture);
+            var loose = Env("VFX_LOOSE", "") is { Length: > 0 } folder
+                ? Directory.GetFiles(folder, "*.xml").ToDictionary(x => VfxResolver.Key(Path.GetFileNameWithoutExtension(x)), File.ReadAllBytes)
+                : [];
             Directory.CreateDirectory(output);
 
             var service = new GraphicsDeviceServiceMock();
@@ -45,12 +51,12 @@ namespace GameWorld.Core.Test.Vfx
 
             foreach (var name in names)
             {
-                var resolved = new VfxResolver(runner.PackFileService).Resolve(name, new Random(1));
+                var resolved = new VfxResolver(runner.PackFileService, loose).Resolve(name, new Random(1));
                 Assert.That(resolved.Found, $"{name} is not in vfx_desc.pack");
                 var settings = resolved.Emitters.Select(EmitterSettings.From).ToList();
                 foreach (var time in times)
                 {
-                    var simulator = new ParticleSimulator(settings, 1, _ => Matrix.Identity, log: log.Add);
+                    var simulator = new ParticleSimulator(settings, 1, t => Matrix.CreateTranslation(flight * (t - time), flight == 0 ? 0 : 1, 0), log: log.Add);
                     simulator.AdvanceTo(time);
                     using var item = new ParticleRenderItem(simulator, textures);
                     foreach (var (view, eye, up) in views)
@@ -71,6 +77,8 @@ namespace GameWorld.Core.Test.Vfx
                     }
                 }
                 TestContext.Out.WriteLine($"{name}: {settings.Count(x => x.Draws)} of {settings.Count} emitters drawn");
+                foreach (var problem in resolved.Problems)
+                    TestContext.Out.WriteLine("  " + problem);
                 foreach (var gap in settings.SelectMany(x => x.Skipped.Select(g => $"  {x.Name}: {g}")).Distinct())
                     TestContext.Out.WriteLine(gap);
             }
