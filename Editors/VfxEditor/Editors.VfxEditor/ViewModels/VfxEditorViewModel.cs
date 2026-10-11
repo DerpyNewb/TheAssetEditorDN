@@ -96,6 +96,14 @@ namespace Editors.VfxEditor.ViewModels
         [ObservableProperty] string _status = "";
         [ObservableProperty] string? _loadError;
 
+        /// <summary>Set by the view: writes what is typed in a text box that has not lost focus yet. The toolbar and the
+        /// shortcuts take no focus from the box, so this runs before the tier or the toggle changes and before saving or
+        /// undoing, and the value lands on the tier and node it was typed against.</summary>
+        public Action? FlushPendingEdits { get; set; }
+
+        partial void OnTierChanging(int value) => FlushPendingEdits?.Invoke();
+        partial void OnThisTierOnlyChanging(bool value) => FlushPendingEdits?.Invoke();
+
         public bool HasLoadError => LoadError != null;
         public bool IsLoaded => LoadError == null;
         public bool IsEmitterNode => SelectedNode?.Kind == NodeKind.Emitter;
@@ -558,11 +566,23 @@ namespace Editors.VfxEditor.ViewModels
 
         [RelayCommand] void SaveFile() => Save();
         [RelayCommand] void SaveFileAs() => Store(_session.SaveAs);
-        [RelayCommand] void Undo() => _session.Document?.Undo();
-        [RelayCommand] void Redo() => _session.Document?.Redo();
+        [RelayCommand]
+        void Undo()
+        {
+            FlushPendingEdits?.Invoke();
+            _session.Document?.Undo();
+        }
+
+        [RelayCommand]
+        void Redo()
+        {
+            FlushPendingEdits?.Invoke();
+            _session.Document?.Redo();
+        }
 
         bool Store(Func<bool> save)
         {
+            FlushPendingEdits?.Invoke();
             if (_session.Document == null)
                 return false;
             try
