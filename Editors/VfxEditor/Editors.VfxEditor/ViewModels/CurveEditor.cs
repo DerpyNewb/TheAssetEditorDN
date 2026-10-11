@@ -28,7 +28,13 @@ namespace Editors.VfxEditor.ViewModels
         [ObservableProperty] CurveText.Channel? _selectedChannel;
         [ObservableProperty] CurveKeyRow? _selectedKey;
 
-        partial void OnSelectedChannelChanged(CurveText.Channel? value) => ShowKeys();
+        bool _reloading;
+
+        partial void OnSelectedChannelChanged(CurveText.Channel? value)
+        {
+            if (!_reloading)
+                ShowKeys();
+        }
 
         [RelayCommand]
         void AddKey()
@@ -67,9 +73,13 @@ namespace Editors.VfxEditor.ViewModels
             var channel = SelectedChannel == null ? 0 : Math.Max(0, _curve.Channels.IndexOf(SelectedChannel));
             var key = SelectedKey?.Index;
             _curve = curve;
+            // A bound channel picker pushes null while its list is swapped; the key rows wait for the channel to come back.
+            _reloading = true;
             OnPropertyChanged(nameof(Channels));
             OnPropertyChanged(nameof(Mapping));
             SelectedChannel = curve.Channels.ElementAtOrDefault(channel);
+            _reloading = false;
+            ShowKeys();
             SelectedKey = key is { } k ? Keys.ElementAtOrDefault(k) : null;
         }
 
