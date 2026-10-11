@@ -494,6 +494,11 @@ namespace Editors.VfxEditor.ViewModels
             var target = NewReferenceTarget?.Trim();
             if (string.IsNullOrEmpty(target))
                 return;
+            if (_session.EffectName is { } self && GameWorld.Core.Vfx.VfxResolver.Key(target) == GameWorld.Core.Vfx.VfxResolver.Key(self))
+            {
+                Status = $"{target} is this effect; a reference to itself would loop";
+                return;
+            }
             if (_session.EmitterIdsOf(target) is not { } ids)
             {
                 Status = $"{GameWorld.Core.Vfx.VfxResolver.PathOf(target)} is not in the loaded packs, or does not read";

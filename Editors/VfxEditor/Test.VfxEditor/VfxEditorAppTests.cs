@@ -107,6 +107,23 @@ namespace Test.VfxEditor
         }
 
         [Test]
+        public void An_effect_cannot_reference_itself()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            runner.CreateOutputPack();
+            var editor = Open(runner);
+            var references = editor.Tree[2].Children.Count;
+
+            editor.NewReferenceTarget = "FX.xml";
+            editor.AddReferenceCommand.Execute(null);
+
+            Assert.That((editor.Tree[2].Children.Count, editor.HasUnsavedChanges), Is.EqualTo((references, false)));
+            Assert.That(editor.Status, Does.Contain("itself"));
+        }
+
+        [Test]
         public void A_linked_edit_says_which_tiers_it_left_alone()
         {
             var runner = new AssetEditorTestRunner();
