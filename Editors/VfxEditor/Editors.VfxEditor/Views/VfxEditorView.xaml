@@ -98,7 +98,49 @@
                 </TreeView>
                 <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch"/>
                 <DockPanel Grid.Column="2">
-                    <!-- Task 4: the add and remove panel -->
+                    <StackPanel DockPanel.Dock="Top" Margin="4">
+                        <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding CanAddProperty, Converter={StaticResource BoolToVis}}">
+                            <ComboBox ItemsSource="{Binding PropertyNameChoices}" SelectedItem="{Binding NewPropertyName}" Width="220"/>
+                            <Button Content="Add property" Command="{Binding AddPropertyCommand}" Margin="4,0,0,0" Padding="6,0"
+                                    ToolTip="Written the way vanilla most often writes it"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsChainNode, Converter={StaticResource BoolToVis}}">
+                            <ComboBox ItemsSource="{Binding FragmentChoices}" SelectedItem="{Binding NewFragment}" Width="220"/>
+                            <Button Content="Add modifier" Command="{Binding AddModifierCommand}" Margin="4,0,0,0" Padding="6,0"
+                                    ToolTip="With the properties vanilla most often gives this fragment"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsBlockMissing, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="No modifiers at this tier, so it draws nothing." Foreground="OrangeRed" VerticalAlignment="Center"/>
+                            <Button Content="Copy Ultra's block here" Command="{Binding CopyUltraBlockCommand}" Margin="6,0,0,0" Padding="6,0"/>
+                        </StackPanel>
+                        <Button Content="Remove modifier" Command="{Binding RemoveModifierCommand}" HorizontalAlignment="Left" Padding="6,0" Margin="0,2"
+                                Visibility="{Binding IsModifierNode, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsEmitterNode, Converter={StaticResource BoolToVis}}">
+                            <TextBox Text="{Binding NewEmitterId, UpdateSourceTrigger=PropertyChanged}" Width="220"/>
+                            <Button Content="Duplicate emitter" Command="{Binding DuplicateEmitterCommand}" Margin="4,0,0,0" Padding="6,0"
+                                    ToolTip="Copies the emitter, its behaviour chain and its render stack under this id"/>
+                            <Button Content="Remove emitter" Command="{Binding RemoveEmitterCommand}" Margin="4,0,0,0" Padding="6,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsReferencesNode, Converter={StaticResource BoolToVis}}">
+                            <ComboBox IsEditable="True" ItemsSource="{Binding EffectChoices}" Text="{Binding NewReferenceTarget, UpdateSourceTrigger=PropertyChanged}" Width="260">
+                                <ComboBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel/>
+                                    </ItemsPanelTemplate>
+                                </ComboBox.ItemsPanel>
+                            </ComboBox>
+                            <Button Content="Add reference" Command="{Binding AddReferenceCommand}" Margin="4,0,0,0" Padding="6,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsReferenceNode, Converter={StaticResource BoolToVis}}">
+                            <ComboBox ItemsSource="{Binding OverrideChoices}" SelectedItem="{Binding NewOverrideName}" Width="180"/>
+                            <Button Content="Add override" Command="{Binding AddOverrideCommand}" Margin="4,0,0,0" Padding="6,0"/>
+                            <Button Content="All on" Command="{Binding AllOverridesOnCommand}" Margin="8,0,0,0" Padding="6,0"/>
+                            <Button Content="All off" Command="{Binding AllOverridesOffCommand}" Margin="4,0,0,0" Padding="6,0"/>
+                            <Button Content="Remove reference" Command="{Binding RemoveReferenceCommand}" Margin="8,0,0,0" Padding="6,0"/>
+                        </StackPanel>
+                        <Button Content="Remove override" Command="{Binding RemoveOverrideCommand}" HorizontalAlignment="Left" Padding="6,0" Margin="0,2"
+                                Visibility="{Binding IsOverrideNode, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding Rows}" Margin="4">
                             <ItemsControl.ItemTemplate>
@@ -132,7 +174,10 @@
                                             </TextBox.Style>
                                         </TextBox>
                                         <TextBlock Grid.Column="2" Text="{Binding Note}" Margin="6,0" VerticalAlignment="Center" Opacity="0.7"/>
-                                        <!-- Task 4: the remove button -->
+                                        <Button Grid.Column="3" Content="Remove" Padding="6,0" ToolTip="Remove this property"
+                                                Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.RemovePropertyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"/>
                                         <ContentControl Grid.Row="1" Grid.ColumnSpan="4" Content="{Binding Curve}"/>
                                     </Grid>
                                 </DataTemplate>

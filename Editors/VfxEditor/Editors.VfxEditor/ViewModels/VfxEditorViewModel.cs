@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.VfxEditor.Document;
+using Editors.VfxEditor.Vocabulary;
 using GameWorld.Core.Components;
 using GameWorld.Core.WpfWindow;
 using Serilog;
@@ -28,14 +29,35 @@ namespace Editors.VfxEditor.ViewModels
         readonly ILogger _logger = Logging.Create<VfxEditorViewModel>();
         readonly VfxFileSession _session;
         readonly IStandardDialogs _dialogs;
+        VfxVocabulary? _vocabulary;
 
         public VfxEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs,
-            IWpfGame gameWorld, IComponentInserter componentInserter)
+            IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService)
         {
             _session = new VfxFileSession(packFileService, fileSaveService);
             _dialogs = dialogs;
             Scene = gameWorld;
             componentInserter.Execute();
+            _ = LoadVocabulary(vocabularyService);
+        }
+
+        async Task LoadVocabulary(VfxVocabularyService vocabularyService)
+        {
+            Status = "Reading vanilla effects";
+            try
+            {
+                _vocabulary = await vocabularyService.Get();
+                Status = $"Read {_vocabulary.EffectNames.Count} vanilla effects";
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, "Reading the vanilla effects failed");
+                Status = "Could not read the vanilla effects: " + e.Message;
+            }
+            OnPropertyChanged(nameof(FragmentChoices));
+            OnPropertyChanged(nameof(EffectChoices));
+            RefreshRows(rebuild: true);
+            RefreshAddChoices();
         }
 
         public IWpfGame Scene { get; }
@@ -101,12 +123,16 @@ namespace Editors.VfxEditor.ViewModels
             RebuildTree();
             RefreshRows(rebuild: true);
             NotifyNodeFlags();
+            RefreshAddChoices();
         }
 
         partial void OnSelectedNodeChanged(VfxTreeNode? value)
         {
             RefreshRows(rebuild: true);
             NotifyNodeFlags();
+            if (value?.Kind == NodeKind.Emitter && _session.Document is { } document)
+                NewEmitterId = document.At(value.Path).Attr("id") + "_copy";
+            RefreshAddChoices();
         }
 
         void NotifyNodeFlags()
@@ -121,6 +147,7 @@ namespace Editors.VfxEditor.ViewModels
             RebuildTree();
             RefreshRows();
             NotifyNodeFlags();
+            RefreshAddChoices();
         }
 
         // ---- edits
@@ -205,7 +232,7 @@ namespace Editors.VfxEditor.ViewModels
         PropertyRow Row(string property, string? attribute, string value, string note)
         {
             var label = property.Length == 0 ? attribute! : attribute is null or "value" ? property : $"{property} {attribute}";
-            IReadOnlyList<string>? choices = null;
+            var choices = attribute != null && property.Length > 0 ? _vocabulary?.Choices(property, attribute) : null;
             if (choices != null && !choices.Contains(value))
                 choices = [value, .. choices];
             var kind = attribute == null ? (CurveText.Parse(value) != null ? RowKind.Curve : RowKind.Text)
@@ -302,6 +329,173 @@ namespace Editors.VfxEditor.ViewModels
             if (document.ById("effect_render_stacks", id) is { } stack)
                 node.Children.Add(new VfxTreeNode(NodeKind.Stack, "Render stack", node.Key + "/stack", stack.Path));
             return node;
+        }
+
+        // ---- adding and removing
+
+        [ObservableProperty] string? _newPropertyName;
+        [ObservableProperty] string? _newFragment;
+        [ObservableProperty] string _newEmitterId = "";
+        [ObservableProperty] string? _newReferenceTarget;
+        [ObservableProperty] string? _newOverrideName;
+
+        public ObservableCollection<string> PropertyNameChoices { get; } = [];
+        public ObservableCollection<string> OverrideChoices { get; } = [];
+        public IReadOnlyList<string> FragmentChoices => _vocabulary?.Fragments ?? [];
+        public IReadOnlyList<string> EffectChoices => _vocabulary?.EffectNames ?? [];
+
+        static string ContextOf(VfxTreeNode node, SpanElement element) => node.Kind switch
+        {
+            NodeKind.Emitter => "emitter:" + element.Attr("type"),
+            NodeKind.Stack => "stack",
+            _ => "fragment:" + node.Fragment,
+        };
+
+        static SpanElement ChainOf(VfxDocument document, VfxTreeNode modifier) => document.At(modifier.Path).Parent!.Parent!;
+
+        /// <summary>The property names vanilla uses here that the node does not have yet, and a reference's target emitters
+        /// that have no row yet.</summary>
+        void RefreshAddChoices()
+        {
+            PropertyNameChoices.Clear();
+            OverrideChoices.Clear();
+            if (_session.Document is not { } document || SelectedNode is not { } node)
+                return;
+            var element = document.At(node.Path);
+            if (CanAddProperty && _vocabulary != null)
+            {
+                var present = node.Kind == NodeKind.Modifier
+                    ? element.Children.Select(c => c.Attr("name")).OfType<string>().ToHashSet()
+                    : TierEdits.EffectiveProperties(element, 0).Select(p => p.Attr("name")!).ToHashSet();
+                foreach (var name in _vocabulary.PropertyNames(ContextOf(node, element)).Where(n => !present.Contains(n)))
+                    PropertyNameChoices.Add(name);
+            }
+            if (node.Kind == NodeKind.Reference && _session.EmitterIdsOf(element.Attr("vfx_ref") ?? "") is { } ids)
+            {
+                var present = element.ChildrenNamed("emitter").Select(r => r.Attr("name")).ToHashSet();
+                foreach (var id in ids.Where(i => !present.Contains(i)))
+                    OverrideChoices.Add(id);
+            }
+        }
+
+        [RelayCommand]
+        void AddProperty()
+        {
+            if (SelectedNode is not { } node || _vocabulary is not { } vocabulary || string.IsNullOrEmpty(NewPropertyName))
+                return;
+            var name = NewPropertyName;
+            Edit(document =>
+            {
+                var element = document.At(node.Path);
+                var template = vocabulary.PropertyTemplate(ContextOf(node, element), name) ?? throw new ArgumentException($"vanilla never writes {name} here");
+                return node.Kind == NodeKind.Modifier
+                    ? VfxEdits.AddModifierProperty(document, ChainOf(document, node), Tier, node.Fragment!, node.Occurrence, template, ThisTierOnly)
+                    : [VfxEdits.AddProperty(document, element, template)];
+            });
+        }
+
+        [RelayCommand]
+        void RemoveProperty(PropertyRow? row)
+        {
+            if (row is not { CanRemove: true } || SelectedNode is not { } node)
+                return;
+            Edit(document => node.Kind == NodeKind.Modifier
+                ? VfxEdits.RemoveModifierProperty(document, ChainOf(document, node), Tier, node.Fragment!, node.Occurrence, row.Property, ThisTierOnly)
+                : VfxEdits.RemoveProperty(document, document.At(node.Path), row.Property, Tier, ThisTierOnly));
+        }
+
+        [RelayCommand]
+        void AddModifier()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Chain } node || _vocabulary is not { } vocabulary || string.IsNullOrEmpty(NewFragment))
+                return;
+            var fragment = NewFragment;
+            Edit(document => VfxEdits.AddModifier(document, document.At(node.Path), Tier, fragment, vocabulary.ModifierTemplate(fragment), ThisTierOnly));
+        }
+
+        [RelayCommand]
+        void RemoveModifier()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Modifier } node)
+                return;
+            Edit(document => VfxEdits.RemoveModifier(document, ChainOf(document, node), Tier, node.Fragment!, node.Occurrence, ThisTierOnly));
+        }
+
+        [RelayCommand]
+        void CopyUltraBlock()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Chain } node)
+                return;
+            Edit(document => [VfxEdits.CopyBlock(document, document.At(node.Path), 0, Tier)]);
+        }
+
+        [RelayCommand]
+        void DuplicateEmitter()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Emitter } node)
+                return;
+            var newId = NewEmitterId;
+            Edit(document => VfxEdits.DuplicateEmitter(document, document.At(node.Path).Attr("id") ?? "", newId));
+        }
+
+        [RelayCommand]
+        void RemoveEmitter()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Emitter } node)
+                return;
+            Edit(document => VfxEdits.RemoveEmitter(document, document.At(node.Path).Attr("id") ?? ""));
+        }
+
+        [RelayCommand]
+        void AddReference()
+        {
+            var target = NewReferenceTarget?.Trim();
+            if (string.IsNullOrEmpty(target))
+                return;
+            if (_session.EmitterIdsOf(target) is not { } ids)
+            {
+                Status = $"{GameWorld.Core.Vfx.VfxResolver.PathOf(target)} is not in the loaded packs, or does not read";
+                return;
+            }
+            Edit(document => [VfxEdits.AddReference(document, target, ids)]);
+        }
+
+        [RelayCommand]
+        void RemoveReference()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Reference } node)
+                return;
+            Edit(document => [document.Remove(document.At(node.Path))]);
+        }
+
+        [RelayCommand]
+        void AddOverride()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Reference } node || string.IsNullOrEmpty(NewOverrideName))
+                return;
+            var name = NewOverrideName;
+            Edit(document => [VfxEdits.AddOverride(document, document.At(node.Path), name)]);
+        }
+
+        [RelayCommand]
+        void RemoveOverride()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Override } node)
+                return;
+            Edit(document => [document.Remove(document.At(node.Path))]);
+        }
+
+        [RelayCommand]
+        void AllOverridesOn() => SetAllOverrides(true);
+
+        [RelayCommand]
+        void AllOverridesOff() => SetAllOverrides(false);
+
+        void SetAllOverrides(bool enable)
+        {
+            if (SelectedNode is not { Kind: NodeKind.Reference } node)
+                return;
+            Edit(document => VfxEdits.SetAllOverrides(document, document.At(node.Path), enable));
         }
 
         // ---- saving, undo

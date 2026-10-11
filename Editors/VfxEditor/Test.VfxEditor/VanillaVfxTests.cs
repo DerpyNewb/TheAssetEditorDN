@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using Editors.VfxEditor.Document;
+using Editors.VfxEditor.Vocabulary;
 
 namespace Test.VfxEditor
 {
@@ -39,6 +40,16 @@ namespace Test.VfxEditor
             TestContext.Out.WriteLine($"{files.Count} files, {curves} curves, {problems.Count} problems");
             Assert.That(problems.Take(20), Is.Empty);
             Assert.That(files, Has.Count.EqualTo(8308));
+        }
+
+        // The vocabulary over CA's files: every effect at vfx/ root named, materials left out, and the fragments vanilla uses.
+        [Test, Explicit("reads vfx_desc.pack; set WH3_DATA")]
+        public void The_vocabulary_reads_every_vanilla_effect()
+        {
+            var vocabulary = VfxVocabulary.Build(VanillaVfx.Files().Select(f => (f.Path, VfxDocument.Load(f.Bytes))));
+            TestContext.Out.WriteLine($"{vocabulary.EffectNames.Count} effects; fragments: {string.Join(", ", vocabulary.Fragments)}");
+            Assert.That(vocabulary.EffectNames, Has.Count.EqualTo(7470));
+            Assert.That(vocabulary.Fragments, Has.Count.EqualTo(18));
         }
 
         internal static IEnumerable<SpanElement> All(SpanElement element) => element.Children.SelectMany(All).Prepend(element);

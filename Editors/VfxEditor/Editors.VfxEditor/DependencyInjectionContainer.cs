@@ -1,5 +1,6 @@
 using Editors.VfxEditor.ViewModels;
 using Editors.VfxEditor.Views;
+using Editors.VfxEditor.Vocabulary;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.DependencyInjection;
 using Shared.Core.ToolCreation;
@@ -13,6 +14,7 @@ namespace Editors.VfxEditor
             serviceCollection.AddTransient<VfxEditorView>();
             serviceCollection.AddScoped<VfxEditorViewModel>();
             serviceCollection.AddScoped<IEditorInterface, VfxEditorViewModel>();
+            serviceCollection.AddSingleton<VfxVocabularyService>();
         }
 
         public override void RegisterTools(IEditorDatabase editorDatabase)
