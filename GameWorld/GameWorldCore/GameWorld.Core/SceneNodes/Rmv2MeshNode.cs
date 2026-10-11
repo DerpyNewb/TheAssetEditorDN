@@ -63,7 +63,10 @@ namespace GameWorld.Core.SceneNodes
             Name = material.ModelName;
             PivotPoint = material.PivotPoint;
 
-            if(material != null && material is WeightedMaterial weightedMaterial)
+            // MatrixIndex pins a mesh rigidly to one bone, so only a static mesh, which has no weights
+            // to skin with, reads it. Vanilla WH3 sets it on static destruction pieces only; some
+            // tools write 0 on skinned meshes, which the game still skins.
+            if (material is WeightedMaterial weightedMaterial && meshObject?.VertexFormat == UiVertexFormat.Static)
                 AnimationMatrixOverride = weightedMaterial.MatrixIndex;
         }
 
