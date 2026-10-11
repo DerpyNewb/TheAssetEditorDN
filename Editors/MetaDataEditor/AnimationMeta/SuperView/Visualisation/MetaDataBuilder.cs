@@ -30,7 +30,6 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         private readonly RenderEngineComponent _resourceLibrary;
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
         private readonly IPackFileService _packFileService;
-        private readonly AnimationsContainerComponent _animationsContainerComponent;
 
         private static Color s_color = Color.Black;
         private static Color s_selectedColor = Color.Red;
@@ -38,14 +37,12 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         public MetaDataBuilder(ComplexMeshLoader complexMeshLoader,
             RenderEngineComponent resourceLibrary,
             ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper,
-            IPackFileService packFileService,
-            AnimationsContainerComponent animationsContainerComponent)
+            IPackFileService packFileService)
         {
             _complexMeshLoader = complexMeshLoader;
             _resourceLibrary = resourceLibrary;
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
             _packFileService = packFileService;
-            _animationsContainerComponent = animationsContainerComponent;
         }
 
         public List<IMetaDataInstance> Create(ParsedMetadataFile? persistent, 
@@ -153,7 +150,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 //throw new Exception($"Unable to find model for animated prop. Searched for {animatedPropMeta.ModelName} and failed to find it in the pack file service. This is required to visualise the animated prop.");
 
             var animationPath = _packFileService.FindFile(animatedPropMeta.AnimationName);
-            var propPlayer = _animationsContainerComponent.RegisterAnimationPlayer(new AnimationPlayer(), propName + Guid.NewGuid());
+            // Not registered with the animation container: the prop runs on the main animation's clock (AnimatedPropInstance).
+            var propPlayer = new AnimationPlayer();
 
             // Configure the mesh
             var loadedNode = _complexMeshLoader.Load(meshPath, new GroupNode(propName), propPlayer, true, true); 
@@ -188,14 +186,13 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             // Add the animation rules; the tag's Scale is applied there, in the bones
             var animationRule = new CopyRootTransform(rootSkeleton, animatedPropMeta.BoneId, animatedPropMeta.Position, new Quaternion(animatedPropMeta.Orientation), animatedPropMeta.Scale);
             propPlayer.AnimationRules.Add(animationRule);
-            if(rootPlayer.IsPlaying)
-                propPlayer.Play();
-            propPlayer.Refresh();
 
             // Add to scene
             root.AddObject(loadedNode);
 
-            return new AnimatedPropInstance(loadedNode, propPlayer);
+            var instance = new AnimatedPropInstance(loadedNode, propPlayer, animatedPropMeta.StartTime);
+            instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
+            return instance;
         }
 
         private IMetaDataInstance CreateStaticLocator(DecodedMetaEntryBase metaData, SceneNode root, Vector3 position, string displayName, ParsedMetadataAttribute? selectedMetaDataAttribute, float scale = 0.3f)

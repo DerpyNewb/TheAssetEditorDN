@@ -171,6 +171,13 @@ namespace GameWorld.Core.Animation
             }
         }
 
+        /// <summary>Moves playback to a time and samples it there; a time outside the clip samples its first or last frame.</summary>
+        public void SetTime(long timeUs)
+        {
+            _timeSinceStart = TimeSpanExtension.FromMicroseconds(timeUs);
+            Refresh();
+        }
+
         public void Play() { IsPlaying = true; IsEnabled = true; }
 
         public void Pause() { IsPlaying = false; }

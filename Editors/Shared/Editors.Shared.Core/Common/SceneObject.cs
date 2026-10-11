@@ -95,9 +95,9 @@ namespace Editors.Shared.Core.Common
         {
             ParentNode.ModelMatrix = Matrix.Multiply(Offset, Matrix.Identity);
 
-            var p = Player.CurrentFrame;
+            var timeInSec = Player.GetTimeUs() / 1_000_000f;
             foreach (var item in MetaDataItems)
-                item.Update(p);
+                item.Update(timeInSec);
         }
 
     }
