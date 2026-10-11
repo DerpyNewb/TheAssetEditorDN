@@ -114,13 +114,17 @@ namespace Editors.VfxEditor.Document
 
         /// <summary>A reference to `target` with a row, switched on, for each of its emitters (planning ruling: CA's most
         /// common row is switched off, but on shows the target at once).</summary>
+        /// <summary>A file with no &lt;vfx_references&gt; gains one after &lt;vfx&gt;, where every vanilla file has it.</summary>
         public static Splice AddReference(VfxDocument document, string target, IReadOnlyList<string> targetEmitters)
         {
-            var references = Required(document, "vfx_references");
             var attributes = ReferenceDefaults.Select(a => a.Name == "vfx_ref" ? (a.Name, target) : a);
             var start = "<vfx " + string.Join(' ', attributes.Select(a => $"{a.Name}=\"{XmlText.EscapeAttribute(a.Item2, '"')}\"")) + ">";
             var rows = targetEmitters.Select(e => OverrideRow(e)).ToList();
-            return document.InsertInto(references, VfxDocument.Wrap(start, rows, "</vfx>", document.ChildBreak(references)));
+            if (document.Section("vfx_references") is { } references)
+                return document.InsertInto(references, VfxDocument.Wrap(start, rows, "</vfx>", document.ChildBreak(references)));
+            var vfx = document.Root.Child("vfx") ?? throw new InvalidOperationException("the file has no <vfx>");
+            var nl = document.Text.Contains("\r\n") ? "\r\n" : "\n";
+            return new Splice(vfx.End, vfx.End, $"{nl}<vfx_references>{nl}\t{VfxDocument.Wrap(start, rows, "</vfx>", nl + "\t")}{nl}</vfx_references>");
         }
 
         public static Splice AddOverride(VfxDocument document, SpanElement reference, string emitterName) => document.InsertInto(reference, OverrideRow(emitterName));

@@ -136,6 +136,20 @@ namespace Test.VfxEditor
         }
 
         [Test]
+        public void A_reference_added_to_a_file_without_a_references_section_creates_one()
+        {
+            var start = Fixtures.Default.IndexOf("<vfx_references>", StringComparison.Ordinal);
+            var end = Fixtures.Default.IndexOf("</vfx_references>", StringComparison.Ordinal) + "</vfx_references>\r\n".Length;
+            var d = Fixtures.Document(Fixtures.Default.Remove(start, end - start));
+            Assert.That(d.Section("vfx_references"), Is.Null);
+
+            d.Apply([VfxEdits.AddReference(d, "wh_main_lib_trail", ["t1"])]);
+
+            Assert.That(d.Section("vfx_references")!.ChildrenNamed("vfx").Single().Attr("vfx_ref"), Is.EqualTo("wh_main_lib_trail"));
+            Assert.That(d.Text, Does.Contain("</vfx>\r\n<vfx_references>\r\n\t<vfx inst_name="));
+        }
+
+        [Test]
         public void Overrides_are_switched_together_and_added_singly()
         {
             var d = Fixtures.Document();
