@@ -170,6 +170,23 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.X, Is.EqualTo(0).Within(0.01));
         }
 
+        // ...but it still hides the glow of what lies behind it, as unlit smoke does: a fire's glow under a lit puff of alpha 1
+        // is gone from the glow pass.
+        [Test]
+        public void Lighting_ALitQuadHidesTheGlowBehindIt()
+        {
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var fire = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(4, 0, 0), 1, 0, 0);
+            var puff = fire with { Colour = new Vector3(4) };
+            var pixel = Render(() =>
+            {
+                ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera, new EmitterSettings { AdditiveMul = 1 }, _white, [fire], glow: true);
+                ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera,
+                    new EmitterSettings { Lighting = new ParticleLighting(0.8f, 0, 0.4f, 0, 0.8f) }, _white, [puff], glow: true);
+            }, Color.Black);
+            Assert.That(pixel.X, Is.EqualTo(0).Within(0.01));
+        }
+
         // ps_normal shapes that light. CA's ps_main reads a DXT5nm texel, x in alpha and y in green, each half a step up, y down
         // the texture. The sun high and the texel tilted up; the sun to the right and the texel tilted right; and the same quad
         // mirrored left to right, which tilts it left, away from the sun.

@@ -109,9 +109,11 @@ namespace GameWorld.Core.Vfx
             // A distortion bends what is drawn already, and adds no light to bloom.
             if (settings.Distortion && (glow || scene == null))
                 return;
-            // A lit particle's colour is light the sun and sky put on it, as a model's is, and blooms no more than a model's does.
+            // A lit particle's colour is light the sun and sky put on it, as a model's is, and blooms no more than a model's does;
+            // it is drawn black there, so it still hides the glow behind it by its alpha, as unlit smoke does.
+            var lit = settings.Lit && !glow;
             if (glow && settings.Lit)
-                return;
+                states = states.Select(p => p with { Colour = Vector3.Zero }).ToList();
             (states, var scale) = Hdr(settings, states, glow);
             var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
@@ -120,8 +122,8 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["WorldViewProjection"].SetValue(world * parameters.View * parameters.Projection);
             effect.Parameters["WorldView"].SetValue(world * parameters.View);
             effect.Parameters["World"].SetValue(world);
-            effect.Parameters["Lit"].SetValue(settings.Lit ? 1f : 0f);
-            if (settings.Lit)
+            effect.Parameters["Lit"].SetValue(lit ? 1f : 0f);
+            if (lit)
             {
                 var (toSun, sun, sky) = Sun(parameters);
                 var l = settings.Lighting!;
@@ -132,8 +134,8 @@ namespace GameWorld.Core.Vfx
                 effect.Parameters["Scattering"].SetValue(new Vector4(l.Small, l.Large, l.Directionality, l.Emissive));
                 effect.Parameters["AverageSize"].SetValue(l.AverageSize);
             }
-            effect.Parameters["UseNormalMap"].SetValue(settings.Lit && normalMap != null ? 1f : 0f);
-            if (settings.Lit && normalMap != null)
+            effect.Parameters["UseNormalMap"].SetValue(lit && normalMap != null ? 1f : 0f);
+            if (lit && normalMap != null)
                 effect.Parameters["NormalMap"].SetValue(normalMap);
             effect.Parameters["Scale"].SetValue(scale);
             effect.Parameters["Texture"].SetValue(texture);
