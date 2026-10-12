@@ -1,5 +1,12 @@
 ﻿using Editors.AnimationMeta.Presentation;
 using Shared.Core.Commands;
+using Shared.Ui.Common.Behaviors;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using Editors.AnimationMeta.Presentation.View;
+using Microsoft.Xaml.Behaviors;
 using Shared.GameFormats.AnimationMeta.Definitions;
 using Shared.GameFormats.AnimationMeta.Parsing;
 using Test.TestingUtility.Shared;
@@ -241,6 +248,80 @@ namespace Test.AnimationMeta
             Assert.That(pastedSplashAttack.Filter, Is.EqualTo(editedFilter));
             Assert.That(pastedSplashAttack.AoeShape, Is.EqualTo(editedAoeShape));
             Assert.That(pastedSplashAttack.EndPosition.X, Is.EqualTo(editedEndPositionX));
+        }
+
+        // A field drags as a number only when it is one: whole for an int, decimal for a float, and not at all for a string.
+        [Test]
+        public void MetaDataEditor_OnlyNumberFieldsScrub()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Throt.pack"), true);
+            var metaPackFile = runner.PackFileService.FindFile(@"animations/battle/humanoid17/throt_whip_catcher/attacks/hu17_whip_catcher_attack_05.anm.meta");
+            var editor = runner.CommandFactory
+                .Create<OpenEditorCommand>()
+                .Execute<MetaDataEditorViewModel>(metaPackFile!, Shared.Core.ToolCreation.EditorEnums.Meta_Editor);
+
+            var splash = editor.Tags[4].Variables.ToDictionary(x => x.FieldName, x => x.Scrub);
+            Assert.That((splash["Filter"], splash["Group Sound"], splash["Aoe Shape"], splash["Start Time"], splash["Impact Mass In Kg"]),
+                Is.EqualTo((ScrubMode.None, ScrubMode.None, ScrubMode.Integer, ScrubMode.Decimal, ScrubMode.Decimal)));
+        }
+
+        // ...and the panel's boxes drag that way: a drag on Start Time's box and on End Position's X box writes the tag, Aoe Shape's
+        // moves in whole steps, and Filter's box does not drag at all.
+        [Test, Apartment(ApartmentState.STA)]
+        public void MetaDataEditor_DraggingANumberBoxWritesTheTag()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Throt.pack"), true);
+            var metaPackFile = runner.PackFileService.FindFile(@"animations/battle/humanoid17/throt_whip_catcher/attacks/hu17_whip_catcher_attack_05.anm.meta");
+            var editor = runner.CommandFactory
+                .Create<OpenEditorCommand>()
+                .Execute<MetaDataEditorViewModel>(metaPackFile!, Shared.Core.ToolCreation.EditorEnums.Meta_Editor);
+            editor.SelectedTag = editor.Tags[4];
+            var splash = (SplashAttack_v10)editor.ParsedFile!.Attributes[4];
+            var (startTime, endX, aoe) = (splash.StartTime, splash.EndPosition.X, splash.AoeShape);
+
+            // The panel's one app-level resource, which the test has no App.xaml to give it.
+            var app = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            app.Resources["InvBoolToHiddenConverter"] = new BooleanToVisibilityConverter();
+            var view = new MetaDataAttributeView { DataContext = editor };
+            view.Measure(new Size(900, 700));
+            view.Arrange(new Rect(0, 0, 900, 700));
+            view.UpdateLayout();
+            var boxes = Descendants(view).OfType<TextBox>().ToList();
+            NumberScrubBehavior Scrub(TextBox box) => Interaction.GetBehaviors(box).OfType<NumberScrubBehavior>().Single();
+            NumberScrubBehavior Field(string name) => Scrub(boxes.First(b => b.DataContext is AttributeViewModel a && a.FieldName == name));
+            void Drag(NumberScrubBehavior scrub)
+            {
+                Assert.That(scrub.Begin(0), Is.True);
+                scrub.Move(100, ModifierKeys.None);
+                scrub.End();
+            }
+
+            Drag(Field("Start Time"));
+            Drag(Field("Aoe Shape"));
+            // Vector3View's three boxes, X first, sit in End Position's row.
+            Drag(Scrub(boxes.First(b => b.DataContext is VectorAttributeViewModel { FieldName: "End Position" })));
+            Assert.Multiple(() =>
+            {
+                Assert.That(Field("Filter").Begin(0), Is.False);
+                Assert.That(splash.StartTime, Is.EqualTo(startTime + Math.Max(0.01f, Math.Abs(startTime) * 0.01f) * 100).Within(0.001));
+                Assert.That(splash.EndPosition.X, Is.EqualTo(endX + Math.Max(0.01f, Math.Abs(endX) * 0.01f) * 100).Within(0.001));
+                Assert.That(splash.AoeShape, Is.EqualTo((int)Math.Round(aoe + Math.Max(0.1, Math.Abs(aoe) * 0.01) * 100, MidpointRounding.AwayFromZero)));
+            });
+        }
+
+        static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
+        {
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                yield return child;
+                foreach (var descendant in Descendants(child))
+                    yield return descendant;
+            }
         }
     }
 }

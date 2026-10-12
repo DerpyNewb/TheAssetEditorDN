@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework;
 using Shared.ByteParsing.Parsers;
 using Shared.Core.Events;
 using Shared.Core.Misc;
+using Shared.Ui.Common.Behaviors;
 using Shared.Ui.BaseDialogs.MathViews;
 
 namespace Editors.AnimationMeta.Presentation
@@ -27,6 +28,14 @@ namespace Editors.AnimationMeta.Presentation
         [ObservableProperty] string _description;
         [ObservableProperty] bool _isReadOnly = true;
         [ObservableProperty] bool _isValid = true;
+
+        /// <summary>How the field's box drags as a number: a string does not.</summary>
+        public ScrubMode Scrub => _parser.Type switch
+        {
+            DbTypesEnum.Integer or DbTypesEnum.Byte => ScrubMode.Integer,
+            DbTypesEnum.Single => ScrubMode.Decimal,
+            _ => ScrubMode.None,
+        };
 
         public AttributeViewModel(string fieldName, string description, IByteParser parser, object value, object target, PropertyInfo property, IEventHub eventHub)
         {

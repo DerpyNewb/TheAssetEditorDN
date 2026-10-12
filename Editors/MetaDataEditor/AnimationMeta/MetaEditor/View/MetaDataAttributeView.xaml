@@ -7,6 +7,8 @@
              xmlns:System="clr-namespace:System;assembly=mscorlib" 
              xmlns:mathviews="clr-namespace:CommonControls.MathViews;assembly=Shared.Ui" xmlns:materialIcons="clr-namespace:Material.Icons.WPF;assembly=Material.Icons.WPF"
              xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+             xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+             xmlns:behaviors="clr-namespace:Shared.Ui.Common.Behaviors;assembly=Shared.Ui"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
     <UserControl.Resources>
@@ -56,7 +58,11 @@
                                 <Border BorderThickness="0.5" Margin="3" BorderBrush="DarkGray" DockPanel.Dock="Bottom"/>
                                 <Label  FontWeight="bold"  Content="{Binding FieldName, UpdateSourceTrigger=PropertyChanged}" Width ="{StaticResource labelWidth}" />
                                 <Label FontWeight="bold"  Content=":"/>
-                                <TextBox Text="{Binding ValueAsString, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"  VerticalContentAlignment="Center" IsReadOnly="{Binding IsReadOnly}"/>
+                                <TextBox Text="{Binding ValueAsString, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"  VerticalContentAlignment="Center" IsReadOnly="{Binding IsReadOnly}">
+                                    <b:Interaction.Behaviors>
+                                        <behaviors:NumberScrubBehavior Mode="{Binding Scrub}"/>
+                                    </b:Interaction.Behaviors>
+                                </TextBox>
                         
                             </DockPanel>
                         </ContentControl>
