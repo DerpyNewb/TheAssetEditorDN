@@ -471,7 +471,7 @@ namespace Editors.VfxEditor.ViewModels
             {
                 var present = node.Kind == NodeKind.Modifier
                     ? element.Children.Select(c => c.Attr("name")).OfType<string>().ToHashSet()
-                    : TierEdits.EffectiveProperties(element, 0).Select(p => p.Attr("name")!).ToHashSet();
+                    : TierEdits.EffectiveProperties(element, Tier).Select(p => p.Attr("name")!).ToHashSet();
                 foreach (var name in _vocabulary.PropertyNames(ContextOf(node, element)).Where(n => !present.Contains(n)))
                     PropertyNameChoices.Add(name);
             }

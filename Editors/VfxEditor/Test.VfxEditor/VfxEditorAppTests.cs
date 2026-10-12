@@ -524,6 +524,26 @@ namespace Test.VfxEditor
             return pixels;
         }
 
+        // The Add list offers what the tier shown lacks. At Medium, C (written for Medium alone) is there already: offering it
+        // let "This tier only" write a second C.
+        [Test]
+        public void The_add_list_leaves_out_what_the_shown_tier_has()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            var lib = Fixtures.Effect(emitters: "\r\n\t\t<emitter type=\"continuous_mesh\" id=\"x\">\r\n\t\t\t<property name=\"C\" quality=\"0\" value=\"1\"/>\r\n\t\t</emitter>");
+            runner.PackFileService.AddFilesToPack(source, [
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default))),
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("lib.xml", Fixtures.Utf16(lib)))]);
+            source.IsCaPackFile = true;   // the vocabulary is read from CA's packs, where another file has C at Ultra
+            runner.CreateOutputPack();
+            var editor = Open(runner);
+            editor.SelectedNode = editor.Tree[1].Children[0];
+            Assert.That(editor.PropertyNameChoices, Does.Contain("C"));
+            editor.Tier = 2;
+            Assert.That(editor.PropertyNameChoices, Does.Not.Contain("C"));
+        }
+
         const string KarlFranz = @"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2";
 
         // vfx\fx.xml open in the editor, with Karl Franz's model as what the pack browser will hand back.
