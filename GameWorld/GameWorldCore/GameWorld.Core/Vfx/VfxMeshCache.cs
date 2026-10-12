@@ -143,16 +143,22 @@ namespace GameWorld.Core.Vfx
             return mesh;
         }
 
-        /// <summary>A model changed in a pack: let go of it, so the next draw loads the new one.</summary>
+        /// <summary>A file changed in a pack: let go of what was loaded from it, so the next draw loads the new one. A wsmodel is
+        /// built from geometry and material files this cache does not track, so a change to any model file lets go of every model.</summary>
         public void Forget(string path)
         {
             var key = Key(path);
             foreach (var clip in _clips.Keys.Where(x => x.Anim == key || Key($"animations/skeletons/{x.Skeleton}.anim") == key).ToList())
                 _clips.Remove(clip);
-            if (_models.Remove(key, out var model))
-                foreach (var mesh in model.Meshes)
-                    mesh.Geometry.Dispose();
+            // ponytail: any model file reloads every model; track the files each wsmodel names if reloads get slow.
+            var models = s_modelFiles.Any(key.EndsWith) ? _models.Keys.ToList() : [key];
+            foreach (var model in models)
+                if (_models.Remove(model, out var loaded))
+                    foreach (var mesh in loaded.Meshes)
+                        mesh.Geometry.Dispose();
         }
+
+        static readonly string[] s_modelFiles = [".rigid_model_v2", ".wsmodel", ".material"];
 
         public void Dispose()
         {

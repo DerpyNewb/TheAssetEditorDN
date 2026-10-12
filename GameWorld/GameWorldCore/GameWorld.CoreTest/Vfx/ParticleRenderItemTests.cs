@@ -348,6 +348,23 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((loads, cache.Get("vfx/a.wsmodel").Meshes.Count), Is.EqualTo((2, 0)));
         }
 
+        // A wsmodel is built from a geometry file and material files the cache does not track, so a change to any model file
+        // reloads every model; a texture or an effect file reloads none.
+        [TestCase(@"variantmeshes\wh_variantmodels\x\x.rigid_model_v2", 2)]
+        [TestCase("vfx/models/b.wsmodel", 2)]
+        [TestCase("vfx/materials/wave.xml.material", 2)]
+        [TestCase("vfx/textures/wave.dds", 1)]
+        [TestCase("vfx/fx.xml", 1)]
+        public void MeshCache_ForgetsEveryModelWhenAModelFileChanges(string changed, int loads)
+        {
+            var count = 0;
+            using var cache = new VfxMeshCache(path => { count++; return new GroupNode("empty"); });
+            cache.Get("vfx/models/a.wsmodel");
+            cache.Forget(changed);
+            cache.Get("vfx/models/a.wsmodel");
+            Assert.That(count, Is.EqualTo(loads));
+        }
+
         // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with
         // the texture cell running from the newest (its top, as a velocity-aligned quad's head) to the oldest.
         [Test]

@@ -85,8 +85,13 @@ namespace Test.AnimationMeta
         }
 
         // A vfx file added or saved in any pack (the VFX editor's save, a replaced texture) rebuilds the scene's effects, so
-        // SuperView shows it without the tab being reopened; any other file leaves the scene alone.
+        // SuperView shows it without the tab being reopened, and so does a model, material or animation a rigid particle may
+        // draw, wherever it lives; any other file leaves the scene alone.
         [TestCase(@"vfx\test_smoke.xml", true)]
+        [TestCase(@"variantmeshes\wh_variantmodels\x\x.rigid_model_v2", true)]
+        [TestCase(@"variantmeshes\wh_variantmodels\x\x.wsmodel", true)]
+        [TestCase(@"variantmeshes\wh_variantmodels\x\x.xml.material", true)]
+        [TestCase(@"animations\battle\x\x.anim", true)]
         [TestCase(@"text\notes.txt", false)]
         public void AChangedVfxFile_RebuildsTheScene(string path, bool rebuilds)
         {

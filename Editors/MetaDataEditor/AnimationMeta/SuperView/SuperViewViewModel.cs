@@ -76,12 +76,15 @@ namespace Editors.AnimationMeta.SuperView
             globalEventHub.Register<PackFileContainerFilesUpdatedEvent>(this, x => OnPackFilesChanged(x.Container, x.ChangedFiles));
         }
 
-        // A vfx file or a texture changed in a pack (the VFX editor saved, a texture was replaced): forget what was loaded
-        // from it and rebuild, so the scene shows it without the tab being reopened.
+        // A vfx file, a texture, or a model, material or animation a rigid particle may draw changed in a pack (the VFX editor
+        // saved, a file was replaced): forget what was loaded from it and rebuild, so the scene shows it without the tab being
+        // reopened.
+        static readonly string[] s_reloaded = [".dds", ".rigid_model_v2", ".wsmodel", ".material", ".anim"];
+
         void OnPackFilesChanged(IPackFileContainer container, List<PackFile> files)
         {
             var paths = files.Select(x => _packFileService.GetFullPath(x, container))
-                .Where(x => x.StartsWith("vfx", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
+                .Where(x => x.StartsWith("vfx", StringComparison.OrdinalIgnoreCase) || s_reloaded.Any(e => x.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
             if (paths.Count == 0)
                 return;
