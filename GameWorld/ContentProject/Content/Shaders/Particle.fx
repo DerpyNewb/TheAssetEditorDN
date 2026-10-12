@@ -82,6 +82,12 @@ struct VertexShaderOutput
 	float Depth : TEXCOORD2;
 };
 
+// sRGB to linear, as CA's ps_main decodes a texture's alpha.
+float Linear(float x)
+{
+	return x <= 0.04045 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4);
+}
+
 float4 Ramp(float t)
 {
 	float x = saturate(t) * 15;
@@ -108,6 +114,9 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	// The rest works on the straight colour: a premultiplied texel is divided out first and multiplied back after.
 	float a = texel.a;
 	float3 rgb = Premultiplied > 0 && a > 0 ? texel.rgb / a : texel.rgb;
+	// ps_texture: CA reads the alpha as sRGB, as the hardware reads the colour off its BC7_UNORM_SRGB files, so a texel covers
+	// its alpha linearised. The colour stays as stored: this shader works in the screen's gamma.
+	a = Linear(a);
 
 	// ps_gradient, read as a gradient map: the texel's red picks a colour off the strip. Its alpha is multiplied by the
 	// strip's there, or with alpha_mapping is put through the strip's alpha itself.

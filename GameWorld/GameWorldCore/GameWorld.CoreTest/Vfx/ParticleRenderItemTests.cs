@@ -104,6 +104,21 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.W, Is.EqualTo(alpha).Within(0.02));
         }
 
+        // ps_texture reads a texture's alpha as sRGB, as the hardware reads its colour off a BC7_UNORM_SRGB file: CA's ps_main
+        // linearises it before anything else uses it. A white texel at alpha 128 covers 21.6 % of black, not half.
+        [TestCase(true)]
+        [TestCase(false)]
+        public void TextureAlpha_IsReadAsSrgb(bool premultiplied)
+        {
+            using var texture = new Texture2D(_device, 1, 1);
+            texture.SetData(new[] { premultiplied ? new Color(128, 128, 128, 128) : new Color(255, 255, 255, 128) });
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var white = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, Vector3.One, 1, 0, 0);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera,
+                new EmitterSettings { Premultiplied = premultiplied }, texture, [white]), Color.Black);
+            Assert.That(pixel.X, Is.EqualTo(0.216).Within(0.01));
+        }
+
         // A light's pool and a heat haze hide nothing over nothing: the pool's unlit corners and a haze with no scene behind
         // it blacked out the background.
         [Test]
@@ -234,8 +249,8 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((pixel.X, pixel.Z), Is.EqualTo((red, blue)).Using<(float, float)>((a, b) => Math.Abs(a.Item1 - b.Item1) < 0.02f && Math.Abs(a.Item2 - b.Item2) < 0.02f));
         }
 
-        // ps_alpha_crush on a texel of alpha 0.75 over mid grey: a soft crush of 0.5 leaves half of it, a sharp one of 0.8
-        // cuts it away and one of 0.5 leaves it whole.
+        // ps_alpha_crush on a texel of alpha 0.75 (225, read as sRGB) over mid grey: a soft crush of 0.5 leaves half of it, a
+        // sharp one of 0.8 cuts it away and one of 0.5 leaves it whole.
         [TestCase(false, 0f, 0.875f)]
         [TestCase(false, 0.5f, 0.751f)]
         [TestCase(true, 0.8f, 0.502f)]
@@ -243,7 +258,7 @@ namespace GameWorld.Core.Test.Vfx
         public void AlphaCrush_ThinsTheTexture(bool sharp, float crush, float grey)
         {
             using var faint = new Texture2D(_device, 1, 1);
-            faint.SetData(new[] { new Color(191, 191, 191, 191) });
+            faint.SetData(new[] { new Color(225, 225, 225, 225) });
             var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
             var particle = RedHalfAlpha with { Colour = Vector3.One, Alpha = 1, Crush = crush };
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera, new EmitterSettings { CrushSharp = sharp }, faint, [particle]));
