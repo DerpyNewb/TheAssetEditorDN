@@ -42,7 +42,7 @@ namespace Test.AnimationMeta
             byte[] bytes = [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes(Smoke)];
             runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("test_smoke.xml", bytes))]);
             // Only the EFFECT path runs here, and it uses none of the mesh, render or skeleton loaders.
-            _builder = new MetaDataBuilder(null!, null!, null!, runner.PackFileService);
+            _builder = new MetaDataBuilder(null!, null!, null!, runner.PackFileService, null!);
 
             // Two bones; the fx bone walks 2 m/s along X, 1 m up, in 21 frames over 2 s so whole-frame times sample exactly.
             _player = new AnimationPlayer();

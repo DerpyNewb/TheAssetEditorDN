@@ -1,7 +1,9 @@
 ﻿using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Rendering;
 using GameWorld.Core.Vfx;
+using System.IO;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Shared.GameFormats.Vfx;
 using Test.TestingUtility.Shared;
@@ -14,6 +16,9 @@ namespace GameWorld.Core.Test.Vfx
         GraphicsDeviceServiceMock _service;
         GraphicsDevice _device;
         Texture2D _white;
+        ContentManager _content;
+        // The content manager owns it, and caches it.
+        Effect Shader => _content.Load<Effect>("Shaders/Particle");
 
         // Looking down -Z at the origin from 5 m; a 10 m quad there fills the view.
         static readonly CommonShaderParameters View = new(
@@ -30,12 +35,22 @@ namespace GameWorld.Core.Test.Vfx
             _device = _service.GraphicsDevice;
             _white = new Texture2D(_device, 1, 1);
             _white.SetData(new[] { Color.White });
+            _content = Content(_service);
+        }
+
+        // Shaders/Particle comes out of this test's own copy of the content.
+        internal static ContentManager Content(IGraphicsDeviceService service)
+        {
+            var services = new GameServiceContainer();
+            services.AddService(service);
+            return new ContentManager(services, Path.Combine(TestContext.CurrentContext.TestDirectory, "Content"));
         }
 
         [OneTimeTearDown]
         public void TearDown()
         {
             _white.Dispose();
+            _content.Dispose();
             _service.Release();
         }
 
@@ -62,7 +77,7 @@ namespace GameWorld.Core.Test.Vfx
         public void Blend_OverAKnownBackground(bool premultiplied, float additiveMul, float red, float greenAndBlue)
         {
             var settings = new EmitterSettings { Premultiplied = premultiplied, AdditiveMul = additiveMul };
-            using var effect = new BasicEffect(_device) { TextureEnabled = true, VertexColorEnabled = true };
+            var effect = Shader;
             var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, settings, _white, [RedHalfAlpha]));
             Assert.Multiple(() =>
@@ -79,7 +94,7 @@ namespace GameWorld.Core.Test.Vfx
         {
             using var quarter = new Texture2D(_device, 1, 1);
             quarter.SetData(new[] { new Color(64, 64, 64, 255) });
-            using var effect = new BasicEffect(_device) { TextureEnabled = true, VertexColorEnabled = true };
+            var effect = Shader;
             var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
             var bright = RedHalfAlpha with { Colour = new Vector3(4, 0, 0), Alpha = 1 };
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, new EmitterSettings(), quarter, [bright]));
@@ -91,7 +106,7 @@ namespace GameWorld.Core.Test.Vfx
         [TestCase(0.8f, 0.502f)]
         public void GlowPass_DrawsWhatLiesOverOne(float colour, float red)
         {
-            using var effect = new BasicEffect(_device) { TextureEnabled = true, VertexColorEnabled = true };
+            var effect = Shader;
             var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
             var particle = RedHalfAlpha with { Colour = new Vector3(colour, 0, 0), Alpha = 1 };
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, new EmitterSettings { AdditiveMul = 1 }, _white, [particle], glow: true));
@@ -102,7 +117,7 @@ namespace GameWorld.Core.Test.Vfx
         [Test]
         public void TheEmissivePass_DrawsTheEffectsGlow()
         {
-            using var item = new ParticleRenderItem(OneParticle(null, new Vector4(2, 2, 2, 1)), NoTextures());
+            using var item = new ParticleRenderItem(OneParticle(null, new Vector4(2, 2, 2, 1)), NoTextures(), () => Shader);
             var pixel = Render(() => item.Draw(_device, View, RenderingTechnique.Emissive));
             Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.All.EqualTo(1).Within(0.02));
         }
@@ -147,7 +162,7 @@ namespace GameWorld.Core.Test.Vfx
         public void TrailMode_DrawsTheStripBetweenTheParticles(bool trail, float red)
         {
             ParticleState At(float x) => new(new Vector3(x, 0, 0), Vector3.Zero, new Vector2(2, 2), 0, new Vector3(1, 0, 0), 1, 0, 0);
-            using var effect = new BasicEffect(_device) { TextureEnabled = true, VertexColorEnabled = true };
+            var effect = Shader;
             var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, new EmitterSettings { Trail = trail }, _white, [At(-4), At(4)]));
             Assert.That(pixel.X, Is.EqualTo(red).Within(0.02));
@@ -236,7 +251,7 @@ namespace GameWorld.Core.Test.Vfx
         [Test]
         public void MissingTexture_DrawsWhite()
         {
-            using var item = new ParticleRenderItem(OneParticle(@"vfx\textures\missing.dds"), NoTextures());
+            using var item = new ParticleRenderItem(OneParticle(@"vfx\textures\missing.dds"), NoTextures(), () => Shader);
             var pixel = Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
             Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.All.EqualTo(1).Within(0.02));
         }
@@ -246,7 +261,7 @@ namespace GameWorld.Core.Test.Vfx
         [Test]
         public void DrawAfterDispose_DrawsAgain()
         {
-            using var item = new ParticleRenderItem(OneParticle(null), NoTextures());
+            using var item = new ParticleRenderItem(OneParticle(null), NoTextures(), () => Shader);
             Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
             item.Dispose();
             var pixel = Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
@@ -258,7 +273,7 @@ namespace GameWorld.Core.Test.Vfx
         [Test]
         public void DisposingTheEffectNode_DisposesItsRenderItem()
         {
-            var item = new ParticleRenderItem(OneParticle(null), NoTextures());
+            var item = new ParticleRenderItem(OneParticle(null), NoTextures(), () => Shader);
             Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
             (new VfxEffectNode("test", item) as IDisposable)?.Dispose();
             Assert.That(item.IsDisposed, Is.True);
@@ -271,7 +286,7 @@ namespace GameWorld.Core.Test.Vfx
         public void TextureCache_RemembersAPathThatDidNotLoad()
         {
             using var cache = NoTextures();
-            using var item = new ParticleRenderItem(OneParticle("broken"), cache);
+            using var item = new ParticleRenderItem(OneParticle("broken"), cache, () => Shader);
             Assert.That(cache.Failed("broken"), Is.False, "not tried yet");
             Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
             Assert.That((cache.Failed("broken"), cache.Failed("other")), Is.EqualTo((true, false)));
@@ -299,7 +314,7 @@ namespace GameWorld.Core.Test.Vfx
             var cache = new VfxTextureCache((_, _) => { loads++; return texture; });
             for (var i = 0; i < 2; i++)
             {
-                using var item = new ParticleRenderItem(OneParticle("t"), cache);
+                using var item = new ParticleRenderItem(OneParticle("t"), cache, () => Shader);
                 Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
             }
             Assert.Multiple(() =>

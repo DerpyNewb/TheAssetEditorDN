@@ -38,6 +38,8 @@ namespace GameWorld.Core.Test.Vfx
             var service = new GraphicsDeviceServiceMock();
             var device = service.GraphicsDevice;
             var log = new List<string>();
+            using var content = ParticleRenderItemTests.Content(service);
+            var shader = content.Load<Effect>("Shaders/Particle");
             var textures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(runner.PackFileService, log.Add));
             using var target = new RenderTarget2D(device, 512, 512, false, SurfaceFormat.Color, DepthFormat.Depth24);
             using var lines = new BasicEffect(device) { VertexColorEnabled = true };
@@ -58,7 +60,7 @@ namespace GameWorld.Core.Test.Vfx
                 {
                     var simulator = new ParticleSimulator(settings, 1, t => Matrix.CreateTranslation(flight * (t - time), flight == 0 ? 0 : 1, 0), log: log.Add);
                     simulator.AdvanceTo(time);
-                    using var item = new ParticleRenderItem(simulator, textures);
+                    using var item = new ParticleRenderItem(simulator, textures, () => shader);
                     foreach (var (view, eye, up) in views)
                     {
                         var parameters = new CommonShaderParameters(Matrix.CreateLookAt(eye, lookAt, up),

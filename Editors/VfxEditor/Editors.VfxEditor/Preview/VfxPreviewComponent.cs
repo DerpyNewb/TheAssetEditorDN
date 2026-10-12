@@ -18,14 +18,16 @@ namespace Editors.VfxEditor.Preview
         readonly SceneManager _sceneManager;
         readonly ComplexMeshLoader _meshLoader;
         readonly VfxTextureCache _textures;
+        readonly ResourceLibrary _resourceLibrary;
         readonly List<string> _lines = [];
         ParticleSimulator? _simulator;
         VfxEffectNode? _node;
         Func<float, Matrix> _effectWorldAt = _ => Matrix.Identity;
         string? _modelProblem;
 
-        public VfxPreviewComponent(IPackFileService packFileService, SceneManager sceneManager, ComplexMeshLoader meshLoader)
+        public VfxPreviewComponent(IPackFileService packFileService, SceneManager sceneManager, ComplexMeshLoader meshLoader, ResourceLibrary resourceLibrary)
         {
+            _resourceLibrary = resourceLibrary;
             _packFileService = packFileService;
             _sceneManager = sceneManager;
             _meshLoader = meshLoader;
@@ -71,7 +73,7 @@ namespace Editors.VfxEditor.Preview
                 ? ProjectileFlight.WorldAt(ProjectileFlight.Axes[ProjectileAxis].Axis, ProjectileSpeed, LoopLength)
                 : _ => Matrix.Identity;
             _simulator = new ParticleSimulator(settings, Seed, _effectWorldAt, log: _lines.Add);
-            _node = _sceneManager.RootNode.AddObject(new VfxEffectNode("VfxPreview", new ParticleRenderItem(_simulator, _textures)));
+            _node = _sceneManager.RootNode.AddObject(new VfxEffectNode("VfxPreview", new ParticleRenderItem(_simulator, _textures, () => _resourceLibrary.GetStaticEffect(ShaderTypes.Particle))));
             SetTime(Time);
         }
 

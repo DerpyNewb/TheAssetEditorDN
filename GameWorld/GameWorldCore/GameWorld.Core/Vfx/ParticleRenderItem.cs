@@ -9,7 +9,7 @@ namespace GameWorld.Core.Vfx
 {
     /// <summary>
     /// Draws one effect's particles: a camera-built quad per particle, or one strip for a trail-mode emitter, one draw
-    /// per emitter, emitters and particles back to front, through MonoGame's BasicEffect, unlit (lighting is step 2). The
+    /// per emitter, emitters and particles back to front, through Shaders/Particle.fx, unlit (lighting is step 2). The
     /// app's emissive pass gets what lies over 1 of each colour, and blooms it.
     /// Textures come from the editor's VfxTextureCache on first draw; a missing one draws white.
     /// </summary>
@@ -17,14 +17,16 @@ namespace GameWorld.Core.Vfx
     {
         private readonly ParticleSimulator _simulator;
         private readonly VfxTextureCache _textureCache;
-        private BasicEffect? _effect;
+        private readonly Func<Effect> _shader;
         private Texture2D? _white;
 
         public Matrix World { get; set; } = Matrix.Identity;
         public bool IsDisposed { get; private set; }
 
-        public ParticleRenderItem(ParticleSimulator simulator, VfxTextureCache textures)
+        /// <summary>shader: Shaders/Particle, asked for at draw time (ResourceLibrary's ShaderTypes.Particle in the app).</summary>
+        public ParticleRenderItem(ParticleSimulator simulator, VfxTextureCache textures, Func<Effect> shader)
         {
+            _shader = shader;
             _simulator = simulator;
             _textureCache = textures;
         }
@@ -49,7 +51,6 @@ namespace GameWorld.Core.Vfx
             if (renderingTechnique is not (RenderingTechnique.Normal or RenderingTechnique.Emissive))
                 return;
 
-            _effect ??= new BasicEffect(device) { TextureEnabled = true, VertexColorEnabled = true, LightingEnabled = false };
             if (_white == null)
             {
                 _white = new Texture2D(device, 1, 1);
@@ -67,12 +68,12 @@ namespace GameWorld.Core.Vfx
             var samplerState = device.SamplerStates[0];
             device.SamplerStates[0] = SamplerState.LinearClamp;
             foreach (var (settings, states, frame) in emitters)
-                DrawEmitter(device, _effect, parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, renderingTechnique == RenderingTechnique.Emissive);
+                DrawEmitter(device, _shader(), parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, renderingTechnique == RenderingTechnique.Emissive);
             device.BlendState = blendState;
             device.SamplerStates[0] = samplerState;
         }
 
-        public static void DrawEmitter(GraphicsDevice device, BasicEffect effect, CommonShaderParameters parameters, Matrix world,
+        public static void DrawEmitter(GraphicsDevice device, Effect effect, CommonShaderParameters parameters, Matrix world,
             CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null, bool glow = false)
         {
             (states, var scale) = Hdr(settings, states, glow);
@@ -80,11 +81,9 @@ namespace GameWorld.Core.Vfx
             if (vertices.Length == 0)
                 return;
 
-            effect.DiffuseColor = new Vector3(scale);
-            effect.World = world;
-            effect.View = parameters.View;
-            effect.Projection = parameters.Projection;
-            effect.Texture = texture;
+            effect.Parameters["WorldViewProjection"].SetValue(world * parameters.View * parameters.Projection);
+            effect.Parameters["Scale"].SetValue(scale);
+            effect.Parameters["Texture"].SetValue(texture);
             device.BlendState = BlendFor(settings);
             foreach (var pass in effect.CurrentTechnique.Passes)
             {
@@ -93,7 +92,7 @@ namespace GameWorld.Core.Vfx
             }
         }
 
-        // A vertex colour stops at 1 and BasicEffect's DiffuseColor does not: an HDR emitter's colours are divided by the
+        // A vertex colour stops at 1 and the shader's Scale does not: an HDR emitter's colours are divided by the
         // brightest of them and the draw multiplied back, so a colour of 4 lights a quarter-grey texel fully. Past 255 even
         // the faintest texel a byte holds saturates. glow: only what lies over 1, which the app's emissive pass blooms.
         static (IReadOnlyList<ParticleState>, float) Hdr(EmitterSettings s, IReadOnlyList<ParticleState> states, bool glow)
@@ -275,14 +274,12 @@ namespace GameWorld.Core.Vfx
 
         static Vector3 Centre(List<ParticleState> states) => states.Aggregate(Vector3.Zero, (sum, x) => sum + x.Position) / states.Count;
 
-        // The textures belong to the VfxTextureCache, which outlives this item.
+        // The textures belong to the VfxTextureCache, which outlives this item, and the shader to whoever supplied it.
         public void Dispose()
         {
             // Nulled, so a frame drawn after a dispose builds them again rather than drawing with disposed ones.
             _white?.Dispose();
             _white = null;
-            _effect?.Dispose();
-            _effect = null;
             IsDisposed = true;
         }
     }

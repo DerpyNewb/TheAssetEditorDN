@@ -34,6 +34,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         private readonly ILogger _logger = Logging.Create<MetaDataBuilder>();
         private readonly ComplexMeshLoader _complexMeshLoader;
         private readonly RenderEngineComponent _resourceLibrary;
+        private readonly ResourceLibrary _shaders;
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
         private readonly IPackFileService _packFileService;
         private readonly VfxTextureCache _vfxTextures;
@@ -49,8 +50,10 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         public MetaDataBuilder(ComplexMeshLoader complexMeshLoader,
             RenderEngineComponent resourceLibrary,
             ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper,
-            IPackFileService packFileService)
+            IPackFileService packFileService,
+            ResourceLibrary shaders)
         {
+            _shaders = shaders;
             _complexMeshLoader = complexMeshLoader;
             _resourceLibrary = resourceLibrary;
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
@@ -414,7 +417,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var simulator = new ParticleSimulator(settings, StableSeed(effect), t => offset * boneAt(MainTime(t)), spawnEnd,
                 message => LogOnce($"EFFECT {effect.VfxName}, {message}"));
             var particles = root.AddObject(new VfxEffectNode("Vfx:" + effect.VfxName,
-                new ParticleRenderItem(simulator, _vfxTextures)));
+                new ParticleRenderItem(simulator, _vfxTextures, () => _shaders.GetStaticEffect(ShaderTypes.Particle))));
 
             var instance = new VfxEffectInstance(node, boneAt, startTime, particles, simulator, loop);
             instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
