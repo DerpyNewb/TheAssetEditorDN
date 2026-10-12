@@ -1,4 +1,5 @@
-﻿using Editors.AnimationMeta.SuperView.Visualisation.Instances;
+﻿using System.Reflection;
+using Editors.AnimationMeta.SuperView.Visualisation.Instances;
 using Editors.AnimationMeta.SuperView.Visualisation.Rules;
 using Editors.Shared.Core.Common;
 using GameWorld.Core.Animation;
@@ -46,6 +47,15 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         readonly Dictionary<(string Name, int Seed), VfxResolveResult> _resolved = [];
         readonly Dictionary<float, Matrix[]> _bones = [];
         (AnimationClip? Clip, GameSkeleton? Skeleton) _bonesOf;
+
+        // A slider in the meta panel rebuilds on every step, and building every effect and prop again still took 220 ms of
+        // each on that Taurus. One whose tag values, colour, vfx toggle, clip and skeleton are as they were, and which is still
+        // in the scene, is kept as built; the caller cleans up only what Create no longer returns.
+        record KeptAs(string Values, bool Picked, bool ShowVfx, AnimationClip? Clip, GameSkeleton? Skeleton);
+        record Kept(KeptAs As, ISceneNode Node, IMetaDataInstance Instance);
+        Dictionary<ParsedMetadataAttribute, Kept> _kept = new(ReferenceEqualityComparer.Instance);
+        Dictionary<ParsedMetadataAttribute, Kept> _previous = new(ReferenceEqualityComparer.Instance);
+        static readonly Dictionary<Type, PropertyInfo[]> s_tagValues = [];
 
         private static Color s_color = Color.Black;
         private static Color s_selectedColor = Color.Red;
@@ -102,6 +112,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             // An effect resolves through its file's references too, so any changed vfx file may change any of them.
             _resolved.Clear();
             _bones.Clear();
+            _kept.Clear();
             foreach (var path in paths)
             {
                 _vfxTextures.Forget(path);
@@ -113,8 +124,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             ParsedMetadataFile? metaData, ParsedMetadataAttribute? selectedMetaDataAttribute,
             SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment)
         {
-            // Clear all
             var output = new List<IMetaDataInstance>();
+            (_previous, _kept) = (_kept, _previous);
+            _kept.Clear();
 
             // Apply persistent meta data, if no disable is given.
             var usePersistent = metaData == null || metaData.GetItemsOfType<DisablePersistant_v10>().Count == 0;
@@ -185,7 +197,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             if (file == null)
                 return output;
 
-            output.AddRange(file.GetItemsOfType<IAnimatedPropMeta>().Select(x => CreateAnimatedProp(x, root, skeleton, selectedAttribute, rootPlayer)).Where(x => x != null));
+            output.AddRange(file.GetItemsOfType<IAnimatedPropMeta>().Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateAnimatedProp(x, root, skeleton, selectedAttribute, rootPlayer))).Where(x => x != null));
 
             output.AddRange(file.GetItemsOfType<ImpactPosition_v10>().Select(meteDataItem => CreateStaticLocator(meteDataItem, root, meteDataItem.Position, "ImpactPos", selectedAttribute)));
 
@@ -196,7 +208,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             output.AddRange(file.GetItemsOfType<SplashAttack_v10>().Select(meteDataItem => CreateSplashAttack(meteDataItem, root, $"SplashAttack_{Math.Round(meteDataItem.EndTime, 2)}", 0.1f, selectedAttribute)));
 
             if (includeEffects)
-                output.AddRange(file.GetItemsOfType<IEffectMeta>().Select(x => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent)));
+                output.AddRange(file.GetItemsOfType<IEffectMeta>().Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent))));
 
             foreach (var meteDataItem in file.GetItemsOfType<DockEquipment>())
                 CreateEquipmentDock(meteDataItem, fragment, skeleton, rootPlayer);
@@ -495,6 +507,26 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             for (var i = 0; i < bones.Length; i++)
                 bones[i] = frame.GetSkeletonAnimatedWorld(skeleton, i);
             return _bones[t] = bones;
+        }
+
+        IMetaDataInstance? Keep(ParsedMetadataAttribute tag, ParsedMetadataAttribute? picked, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, Func<IMetaDataInstance?> build)
+        {
+            var type = tag.GetType();
+            if (!s_tagValues.TryGetValue(type, out var values))
+                s_tagValues[type] = values = type.GetProperties().Where(x => x.GetCustomAttribute<MetaDataTagAttribute>() != null).ToArray();
+            var keptAs = new KeptAs(string.Join("\u001f", values.Select(x => x.GetValue(tag))), tag == picked, ShowVfx, rootPlayer.AnimationClip, skeleton.Skeleton);
+            if (_previous.TryGetValue(tag, out var kept) && kept.As == keptAs && root.Children.Contains(kept.Node))
+            {
+                _kept[tag] = kept;
+                return kept.Instance;
+            }
+
+            // What a build adds to the scene starts with the node its instance cleans up.
+            var before = root.Children.Count;
+            var instance = build();
+            if (instance != null && root.Children.Count > before)
+                _kept[tag] = new Kept(keptAs, root.Children[before], instance);
+            return instance;
         }
 
         VfxResolveResult Resolve(IEffectMeta effect)

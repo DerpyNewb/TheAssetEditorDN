@@ -1,5 +1,6 @@
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.SuperView;
+using Editors.AnimationMeta.SuperView.Visualisation.Instances;
 using Editors.Shared.Core.Common.BaseControl;
 using Microsoft.Xna.Framework;
 using Shared.Core.Commands;
@@ -107,6 +108,24 @@ namespace Test.AnimationMeta
             AddAndSelect(prop);
 
             Assert.That(_superView.SceneObjects[0].Data.MetaDataItems, Has.Count.EqualTo(drawnBefore + 1));
+        }
+
+        // A slider step on one tag rebuilds SuperView: the animated prop, whose tag did not change, stays as it was built, and
+        // in the scene once.
+        [Test]
+        public void AnAttributeChange_KeepsWhatTheOtherTagsBuilt()
+        {
+            var data = _superView.SceneObjects[0].Data;
+            var props = data.MetaDataItems.OfType<AnimatedPropInstance>().ToList();
+            Assert.That(props, Is.Not.Empty, "the test pack's animated prop is not drawn");
+
+            _runner.GetRequiredServiceInCurrentEditorScope<Shared.Core.Events.IEventHub>().Publish(new MetaDataAttributeChangedEvent());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(data.MetaDataItems, Is.SupersetOf(props), "the unchanged prop was built again");
+                Assert.That(data.MainNode.Children.Count(x => x.Name == "Animated_prop"), Is.EqualTo(props.Count), "props in the scene");
+            });
         }
     }
 }

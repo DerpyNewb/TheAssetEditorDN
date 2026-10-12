@@ -185,11 +185,13 @@ namespace Test.AnimationMeta
         }
 
         // ...and samples the bone afresh when the animation changes: rebuilt on a clip that holds the fx bone at (0, 1, 5), the
-        // smoke rides there, not where the first clip had the bone at the same times.
-        [Test]
-        public void Rebuild_AfterTheClipChanges_RidesTheNewClip()
+        // smoke rides there, not where the first clip had the bone at the same times; and an untracked effect, which keeps where
+        // its bone was at the start, takes that from the new clip too.
+        [TestCase(true)]
+        [TestCase(false)]
+        public void Rebuild_AfterTheClipChanges_RidesTheNewClip(bool tracking)
         {
-            var tag = Meta(Tag("test_smoke"));
+            var tag = Meta(Tag("test_smoke", tracking: tracking));
             ((VfxEffectInstance)Build(null, tag).Single()).Update(1.5f);
             var held = new AnimationClip { PlayTimeInSec = 2 };
             for (var frame = 0; frame <= 20; frame++)
@@ -205,6 +207,54 @@ namespace Test.AnimationMeta
             var instance = (VfxEffectInstance)Build(null, tag).Single();
             instance.Update(1.5f);
             Assert.That(States(instance).Max(x => Vector3.Distance(x.Position, new Vector3(0, 1, 5))), Is.LessThan(0.01f));
+        }
+
+        // A slider in the meta panel rebuilds on every step: the effect whose tag did not change keeps what was built for it,
+        // particles and all, and only the one that changed is built again.
+        [Test]
+        public void Rebuild_KeepsTheEffectsWhoseTagsDidNotChange()
+        {
+            var still = Tag("test_smoke");
+            var moved = Tag("test_smoke", start: 0.2f);
+            var meta = Meta(still, moved);
+            var first = Build(null, meta);
+            first[0].Update(1.5f);
+            moved.Position = new Vector3(0, 0, 1);
+            var second = Build(null, meta);
+            Assert.Multiple(() =>
+            {
+                Assert.That(second[0], Is.SameAs(first[0]), "the unchanged effect was built again");
+                Assert.That(States((VfxEffectInstance)second[0]), Has.Count.EqualTo(30).Within(1), "and lost its particles");
+                Assert.That(second[1], Is.Not.SameAs(first[1]), "the moved effect was kept");
+            });
+        }
+
+        // ...but anything that changes what an effect draws builds it again: its colour when it is picked in the list, the
+        // vfx toggle, another skeleton, or the caller having cleaned it up out of the scene (as a mesh change does).
+        [TestCase("picked")]
+        [TestCase("vfx off")]
+        [TestCase("cleaned up")]
+        [TestCase("skeleton swapped")]
+        public void Rebuild_BuildsAnEffectAgain_When(string change)
+        {
+            var tag = Tag("test_smoke");
+            var meta = Meta(tag);
+            var first = Build(null, meta).Single();
+            ParsedMetadataAttribute? picked = null;
+            if (change == "picked")
+                picked = tag;
+            if (change == "vfx off")
+                _builder.ShowVfx = false;
+            if (change == "cleaned up")
+                first.CleanUp();
+            if (change == "skeleton swapped")
+                _skeleton = new Provider(new GameSkeleton(SkeletonFile(), _player));
+            var second = _builder.Create(null, meta, picked, _root, _skeleton, _player, null!).Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That(second, Is.Not.SameAs(first));
+                Assert.That(_root.Children.Count(x => x.Name == "Effect:test_smoke"), Is.EqualTo(change == "cleaned up" ? 1 : 2));
+            });
         }
 
         [Test]

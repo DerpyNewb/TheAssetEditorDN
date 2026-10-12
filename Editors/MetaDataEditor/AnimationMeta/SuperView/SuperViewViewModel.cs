@@ -133,11 +133,10 @@ namespace Editors.AnimationMeta.SuperView
 
         void RecreateMetaDataInformation()
         {
+            // The builder keeps what an unchanged tag built, so only what it no longer returns is cleaned up.
+            var old = SceneObjects.SelectMany(x => x.Data.MetaDataItems).ToList();
             foreach (var item in SceneObjects)
             {
-                foreach (var t in item.Data.MetaDataItems)
-                    t.CleanUp();
-
                 item.Data.MetaDataItems.Clear();
                 item.Data.Player.AnimationRules.Clear();
             }
@@ -146,6 +145,8 @@ namespace Editors.AnimationMeta.SuperView
             var meta = MetaEditor.ParsedFile;
 
             _asset.Data.MetaDataItems = _metaDataFactory.Create(persist, meta, MetaEditor.SelectedAttribute, _asset.Data.MainNode, _asset.Data, _asset.Data.Player, _asset.FragAndSlotSelection.FragmentList.SelectedItem);
+            foreach (var t in old.Except(_asset.Data.MetaDataItems))
+                t.CleanUp();
             _asset.Data.Player.Refresh();
         }
 
