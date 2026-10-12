@@ -80,6 +80,13 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void RenderSizeLimiter_IsRead()
+        {
+            var limiter = """<modifier fragment="vs_rendersize_limiter"><property name="pixelsize_limit" type="float" value="3.0"/></modifier>""";
+            Assert.That(Read(Emitter("sparks"), SparksChain.Replace("</quality>", limiter + "</quality>")).Single().MinPixels, Is.EqualTo(3f));
+        }
+
+        [Test]
         public void CullDistances_AreRead()
         {
             var e = Read(Emitter("sparks", """<property name="CullDistances" quality="0" x="0.00" y="0.00" z="700.00" w="800.00"/><property name="ParticleCullDistances" quality="0" x="2.00" y="5.00" z="400.00" w="450.00"/>"""), SparksChain).Single();

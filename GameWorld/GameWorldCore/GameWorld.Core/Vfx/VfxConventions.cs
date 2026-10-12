@@ -80,6 +80,16 @@ namespace GameWorld.Core.Vfx
             return near * far;
         }
 
+        /// <summary>vs_rendersize_limiter (985 vanilla chains, nearly all small embers, sparks and droplets): pixelsize_limit is
+        /// read as the fewest pixels a particle is drawn across, so a far spark stays visible, rather than a size below which it
+        /// is culled. Returns what its size is multiplied by; pixelScale is the pixels a metre covers a metre from the camera.</summary>
+        public static float MinPixelGrowth(float size, float distance, float pixelScale, float minPixels)
+        {
+            if (minPixels <= 0 || pixelScale <= 0 || size <= 0)
+                return 1;
+            return Math.Max(1, minPixels / (size / Math.Max(distance, 1e-3f) * pixelScale));
+        }
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 

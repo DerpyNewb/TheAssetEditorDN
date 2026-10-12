@@ -142,6 +142,18 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // vs_rendersize_limiter: a 10 cm spark 100 m away covers a tenth of a pixel where a metre at a metre is 100 pixels; a
+        // 2 pixel limit grows it to 2 m across, and without one it stays as it is.
+        [TestCase(0f, 0.1f)]
+        [TestCase(2f, 2f)]
+        public void RenderSizeLimiter_KeepsAFarParticleThisManyPixelsAcross(float minPixels, float across)
+        {
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity) with { Position = new Vector3(0, 0, 100), PixelScale = 100 };
+            var spark = RedHalfAlpha with { Size = new Vector2(0.1f, 0.1f) };
+            var xs = ParticleRenderItem.Quads(new EmitterSettings { MinPixels = minPixels }, camera, [spark]).Select(v => v.Position.X).ToList();
+            Assert.That(xs.Max() - xs.Min(), Is.EqualTo(across).Within(1e-3));
+        }
+
         [Test]
         public void UvRect_AtlasCellThenFlipbookCell()
         {

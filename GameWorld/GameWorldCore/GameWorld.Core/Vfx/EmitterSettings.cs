@@ -65,6 +65,8 @@ namespace GameWorld.Core.Vfx
         /// <summary>CullDistances and ParticleCullDistances, metres from the camera: fade in over x..y, out over z..w.</summary>
         public Vector4 EmitterCull { get; set; } = NoCull;
         public Vector4 ParticleCull { get; set; } = NoCull;
+        /// <summary>vs_rendersize_limiter pixelsize_limit: the fewest pixels a particle is drawn across.</summary>
+        public float MinPixels { get; set; }
         static readonly Vector4 NoCull = new(0, 0, float.MaxValue, float.MaxValue);
 
         // A particle's start
@@ -239,6 +241,7 @@ namespace GameWorld.Core.Vfx
                 NotDrawn(s, "the chain has no ps_texture, so nothing is drawn: in vanilla only sound carriers lack one");
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;
             s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);
+            s.MinPixels = Number(chain.Find("vs_rendersize_limiter"), "pixelsize_limit", 0);
             var flip = chain.Find("vs_flip_uv");
             s.FlipU = Number(flip, "flip_u", 0);
             s.FlipV = Number(flip, "flip_v", 0);

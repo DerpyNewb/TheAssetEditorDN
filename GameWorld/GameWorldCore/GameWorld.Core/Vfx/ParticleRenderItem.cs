@@ -28,16 +28,18 @@ namespace GameWorld.Core.Vfx
             _textureCache = textures;
         }
 
-        /// <summary>The view's position and axes, moved into the effect's model space.</summary>
-        public readonly record struct CameraAxes(Vector3 Position, Vector3 Right, Vector3 Up, Vector3 Forward)
+        /// <summary>The view's position and axes, moved into the effect's model space. PixelScale: the pixels one metre covers
+        /// one metre from the camera, 0 when the view's height is not known.</summary>
+        public readonly record struct CameraAxes(Vector3 Position, Vector3 Right, Vector3 Up, Vector3 Forward, float PixelScale = 0)
         {
-            public static CameraAxes From(CommonShaderParameters parameters, Matrix world)
+            public static CameraAxes From(CommonShaderParameters parameters, Matrix world, int viewportHeight = 0)
             {
                 var toModel = Matrix.Invert(world);
                 var v = parameters.View;
                 Vector3 Axis(Vector3 axis) => Vector3.Normalize(Vector3.TransformNormal(axis, toModel));
                 return new CameraAxes(Vector3.Transform(parameters.CameraPosition, toModel),
-                    Axis(new Vector3(v.M11, v.M21, v.M31)), Axis(new Vector3(v.M12, v.M22, v.M32)), Axis(-new Vector3(v.M13, v.M23, v.M33)));
+                    Axis(new Vector3(v.M11, v.M21, v.M31)), Axis(new Vector3(v.M12, v.M22, v.M32)), Axis(-new Vector3(v.M13, v.M23, v.M33)),
+                    viewportHeight * parameters.Projection.M22 / 2);
             }
         }
 
@@ -53,7 +55,7 @@ namespace GameWorld.Core.Vfx
                 _white.SetData(new[] { Color.White });
             }
 
-            var camera = CameraAxes.From(parameters, World);
+            var camera = CameraAxes.From(parameters, World, device.Viewport.Height);
             // ponytail: emitters are sorted back to front within one effect, not against other effects.
             var emitters = _simulator.Emitters.Where(x => x.Particles.Count != 0)
                 .Select(x => (x.Settings, States: ParticleSimulator.States(x).ToList(), Frame: x.World))
@@ -144,6 +146,8 @@ namespace GameWorld.Core.Vfx
         {
             var (across, up, height) = Axes(s, camera, p, frame);
             var width = p.Size.X;
+            var grow = VfxConventions.MinPixelGrowth(Math.Min(width, height), Vector3.Distance(camera.Position, p.Position), camera.PixelScale, s.MinPixels);
+            (width, height) = (width * grow, height * grow);
             var colour = VertexColour(s, p.Colour, Faded(s, camera, p, fade));
             var uv = UvRect(s, p.Cell);
             VertexPositionColorTexture Corner(float x, float y)
