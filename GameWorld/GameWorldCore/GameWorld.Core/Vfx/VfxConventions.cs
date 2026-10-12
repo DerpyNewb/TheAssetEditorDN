@@ -48,8 +48,19 @@ namespace GameWorld.Core.Vfx
 
         /// <summary>SpawnInheritedSpeed is a plain share of the emitter's velocity (332 of its 1,385 vanilla emitters carry 0.5,
         /// nearly all lie in 0..1), given to world-space particles only: a local-space particle already rides with its emitter.
-        /// SpawnInheritedDirectionBlend (146 emitters) is not read.</summary>
+        /// </summary>
         public static Vector3 Inherited(Vector3 emitterVelocity, float share) => emitterVelocity * share;
+
+        /// <summary>SpawnInheritedDirectionBlend (146 vanilla emitters, 0.5 or 1 on 100 of them): a particle's spawn direction
+        /// turned that share of the way toward the way its emitter is moving, keeping its length. Read as a blend, so held to
+        /// 0..1 (three emitters say 200, one -0.1); a still emitter changes nothing. Not measured in game.</summary>
+        public static Vector3 InheritDirection(Vector3 direction, Vector3 motion, float blend)
+        {
+            if (blend <= 0 || motion.LengthSquared() < 1e-12f)
+                return direction;
+            var turned = Vector3.Lerp(Vector3.Normalize(direction), Vector3.Normalize(motion), Math.Min(blend, 1));
+            return turned.LengthSquared() < 1e-12f ? direction : Vector3.Normalize(turned) * direction.Length();
+        }
 
         /// <summary>The preview's terrain is flat ground at y = 0 in the effect's space. ParticlesSpawnOnTerrain (1,503 vanilla
         /// emitters) drops the spawn point onto it. ParticlesFollowTerrain (1,073) is read as holding a particle's height above

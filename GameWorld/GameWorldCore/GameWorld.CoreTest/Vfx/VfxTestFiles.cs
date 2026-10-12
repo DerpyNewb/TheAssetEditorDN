@@ -10,11 +10,11 @@ namespace GameWorld.Core.Test.Vfx
     // elements), in an in-memory pack under vfx/.
     static class VfxTestFiles
     {
-        public static byte[] Xml(string emitters = "", string chains = "", string references = "", string stacks = "") =>
+        public static byte[] Xml(string emitters = "", string chains = "", string references = "", string stacks = "", string root = "") =>
         [
             .. Encoding.Unicode.GetPreamble(),
             .. Encoding.Unicode.GetBytes(
-                $"""<shader_library file="fx/particle_vfx_library.hlsl"/><vfx revision="2" construction_type="1" enable_in_ted="false"><emitters>{emitters}</emitters><behaviour_chains>{chains}</behaviour_chains><effect_render_stacks>{stacks}</effect_render_stacks></vfx><vfx_references>{references}</vfx_references><!-- EDITOR DATA--><editor_data></editor_data>"""),
+                $"""<shader_library file="fx/particle_vfx_library.hlsl"/><vfx revision="2" construction_type="1" enable_in_ted="false"{root}><emitters>{emitters}</emitters><behaviour_chains>{chains}</behaviour_chains><effect_render_stacks>{stacks}</effect_render_stacks></vfx><vfx_references>{references}</vfx_references><!-- EDITOR DATA--><editor_data></editor_data>"""),
         ];
 
         public static string Emitter(string id, string properties = "") =>

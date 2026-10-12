@@ -64,6 +64,9 @@ namespace Shared.GameFormats.Vfx
         /// <summary>Render stack ids with enable_trail_mode on: their emitter's particles are drawn as one strip.</summary>
         public HashSet<string> TrailModes { get; } = [];
         public List<VfxReference> References { get; } = [];
+        /// <summary>The vfx element's ref_spawn_speed: 30 on 10 flamethrower and acid effects and 15 on one; null when -1, as on
+        /// the other 7,459, or absent.</summary>
+        public float? RefSpawnSpeed { get; private set; }
 
         public static VfxFile Parse(byte[] bytes, int tier = 0)
         {
@@ -75,6 +78,8 @@ namespace Shared.GameFormats.Vfx
 
             var file = new VfxFile();
             var vfx = root.Element("vfx");
+            if (vfx != null && Num(vfx, "ref_spawn_speed", -1) is var refSpawnSpeed && refSpawnSpeed != -1)
+                file.RefSpawnSpeed = refSpawnSpeed;
 
             foreach (var emitter in vfx?.Element("emitters")?.Elements("emitter") ?? [])
             {

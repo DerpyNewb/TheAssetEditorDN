@@ -95,6 +95,29 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // SpawnInheritedDirectionBlend is read, so it reports nothing. Wind is not simulated, so WindVarianceFactor says so on its
+        // own (453 vanilla emitters set it with no EffectedByWindFactor). ref_spawn_speed, on the <vfx> element of 11 flamethrower
+        // and acid effects, is not read, and says so; -1, on the other 7,459, is unset.
+        [Test]
+        public void DirectionBlendIsRead_AndWindVarianceAndRefSpawnSpeedSaySo()
+        {
+            var properties = """<property name="SpawnInheritedDirectionBlend" quality="0" value="0.50"/><property name="WindVarianceFactor" quality="0" value="0.30"/>""";
+            var chain = SmokeChain.Replace("\"smoke\"", "\"e\"");
+            var flame = ReadFile(Xml(emitters: Emitter("e", properties), chains: chain, root: " ref_spawn_speed=\"30.00\""));
+            var plain = ReadFile(Xml(emitters: Emitter("e"), chains: chain, root: " ref_spawn_speed=\"-1.00\""));
+            Assert.Multiple(() =>
+            {
+                Assert.That(flame.InheritedDirectionBlend, Is.EqualTo(0.5f));
+                Assert.That(flame.Skipped, Has.None.Contains("SpawnInheritedDirectionBlend"));
+                Assert.That(flame.Skipped, Has.One.Contains("wind"));
+                Assert.That(flame.Skipped, Has.One.Contains("ref_spawn_speed 30"));
+                Assert.That(plain.Skipped, Has.None.Contains("ref_spawn_speed"));
+            });
+        }
+
+        static EmitterSettings ReadFile(byte[] file) =>
+            EmitterSettings.From(new VfxResolver(Pack(("fx.xml", file))).Resolve("fx", new Random(1)).Emitters.Single());
+
         // A DISTORTION chain names only a normal map; that is what it draws with.
         [Test]
         public void DistortionStack_DrawsWithItsNormalMap()

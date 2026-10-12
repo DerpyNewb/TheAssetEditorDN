@@ -162,9 +162,10 @@ namespace GameWorld.Core.Vfx
                     continue;
 
                 var limit = Math.Min(s.MaxParticles, ParticleCap);
-                var carried = s.Space == SimulationSpace.World && dt > 0 ? VfxConventions.Inherited((world.Translation - from) / dt, s.InheritedSpeed) : Vector3.Zero;
+                var moving = dt > 0 ? (world.Translation - from) / dt : Vector3.Zero;
+                var carried = s.Space == SimulationSpace.World ? VfxConventions.Inherited(moving, s.InheritedSpeed) : Vector3.Zero;
                 if (s.SpawnSpacing > 0)
-                    SpawnAlong(e, age, world, from, dt, limit, carried);
+                    SpawnAlong(e, age, world, from, dt, limit, carried, moving);
 
                 var rate = s.Rate?.Evaluate(0, VfxConventions.EmitterTime(age, e.Life, s.LoopRate), e.RRate) ?? 0;
                 e.Accumulator += Math.Max(0, rate) * e.RateScale * dt;
@@ -178,7 +179,7 @@ namespace GameWorld.Core.Vfx
                 var tries = (int)Math.Min(due, limit);
                 var tried = 0;
                 for (; tried < tries && e.Particles.Count < limit; tried++)
-                    Spawn(e, age, world, carried);
+                    Spawn(e, age, world, carried, moving);
                 LogCap(e, due, tried, limit);
             }
             _steps++;
@@ -194,7 +195,7 @@ namespace GameWorld.Core.Vfx
 
         // SpawnSpacing: one particle per that many metres the emitter moved this step, laid back along the step's path
         // and aged and moved by the part of the step since it passed there, so a fast emitter leaves them evenly spaced.
-        void SpawnAlong(EmitterRuntime e, float age, Matrix world, Vector3 from, float dt, int limit, Vector3 carried)
+        void SpawnAlong(EmitterRuntime e, float age, Matrix world, Vector3 from, float dt, int limit, Vector3 carried, Vector3 moving)
         {
             var spacing = e.Settings.SpawnSpacing;
             var to = world.Translation;
@@ -212,7 +213,7 @@ namespace GameWorld.Core.Vfx
                 var at = world;
                 at.Translation = Vector3.Lerp(to, from, back);
                 var count = e.Particles.Count;
-                Spawn(e, age, at, carried);
+                Spawn(e, age, at, carried, moving);
                 if (e.Particles.Count <= count)
                     continue;
                 var p = e.Particles[^1];
@@ -233,8 +234,9 @@ namespace GameWorld.Core.Vfx
             return VfxConventions.Rotation(orientation) * Matrix.CreateTranslation(position) * s.ReferenceTransform * effectWorld;
         }
 
-        // carried: the share of the emitter's own velocity a world-space particle starts with (SpawnInheritedSpeed).
-        static void Spawn(EmitterRuntime e, float age, Matrix world, Vector3 carried)
+        // carried: the share of the emitter's own velocity a world-space particle starts with (SpawnInheritedSpeed). moving: that
+        // velocity, in the effect's space.
+        static void Spawn(EmitterRuntime e, float age, Matrix world, Vector3 carried, Vector3 moving)
         {
             var s = e.Settings;
             var random = e.Random;
@@ -262,6 +264,8 @@ namespace GameWorld.Core.Vfx
 
             // Which way, and how fast.
             var direction = VfxConventions.Direction(MathHelper.Lerp(s.SpawnAngle.X, s.SpawnAngle.Y, Next()), Draw(s.Spread));
+            if (s.InheritedDirectionBlend > 0 && moving != Vector3.Zero)
+                direction = VfxConventions.InheritDirection(direction, Vector3.TransformNormal(moving, Matrix.Invert(world)), s.InheritedDirectionBlend);
             var velocity = direction * (s.InitialSpeed?.Evaluate(0, VfxConventions.EmitterTime(age, e.Life, s.LoopSpeed), Next()) ?? 0);
 
             var scale = Next();

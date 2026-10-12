@@ -13,7 +13,7 @@ namespace GameWorld.Core.Vfx
     /// names one. VectorField: the volume its VectorFieldStrId names, if that is in the packs and reads.</summary>
     public record ResolvedEmitter(VfxEmitter Emitter, VfxBehaviourChain? Chain, string? SceneViewType, string File,
         Matrix ReferenceTransform, float StartOffset, float SpeedMultiplier, bool InfiniteLife, VfxEmitterOverride Override, bool TrailMode = false,
-        string? MaterialTexture = null, VfxVectorField? VectorField = null);
+        string? MaterialTexture = null, VfxVectorField? VectorField = null, float? RefSpawnSpeed = null);
 
     public record VfxResolveResult(bool Found, List<ResolvedEmitter> Emitters, List<string> Problems);
 
@@ -132,7 +132,7 @@ namespace GameWorld.Core.Vfx
                 file.SceneViewTypes.TryGetValue(emitter.Id, out var sceneView);
                 var material = chain?.Find("ps_custom_shader")?.Properties.GetValueOrDefault("material")?.Attributes.GetValueOrDefault("path");
                 result.Emitters.Add(new ResolvedEmitter(emitter, chain, sceneView, name, transform, startOffset, speed, infinite, o, file.TrailModes.Contains(emitter.Id),
-                    ColourTexture(material), VectorField(emitter.Properties.GetValueOrDefault("VectorFieldStrId")?.Value)));
+                    ColourTexture(material), VectorField(emitter.Properties.GetValueOrDefault("VectorFieldStrId")?.Value), file.RefSpawnSpeed));
             }
 
             foreach (var reference in file.References)

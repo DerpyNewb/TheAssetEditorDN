@@ -157,6 +157,24 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(velocities.Max(v => Vector3.Distance(v, new Vector3(expected, 0, 0))), Is.LessThan(1e-3f));
         }
 
+        // SpawnInheritedDirectionBlend turns a particle's spawn direction that share of the way toward the way its emitter is
+        // moving: straight up, half way toward +X, is 45 degrees, in every space. A still emitter changes nothing.
+        [TestCase(SimulationSpace.World)]
+        [TestCase(SimulationSpace.LocalPositionOnly)]
+        [TestCase(SimulationSpace.LocalPositionRotation)]
+        public void InheritedDirectionBlend_TurnsTheSpawnTowardTheEmittersMotion(SimulationSpace space)
+        {
+            var s = Steady(x => { x.Space = space; x.InitialSpeed = C(1); x.Spread = (90, 90); x.InheritedDirectionBlend = 0.5f; });
+            var moving = Run(s, 1, t => Matrix.CreateTranslation(10 * t, 0, 0)).Emitters[0].Particles.Select(p => p.Velocity).ToList();
+            var still = Run(s, 1).Emitters[0].Particles.Select(p => p.Velocity).ToList();
+            Assert.That(moving, Is.Not.Empty);
+            Assert.Multiple(() =>
+            {
+                Assert.That(moving.Max(v => Vector3.Distance(v, Vector3.Normalize(new Vector3(1, 1, 0)))), Is.LessThan(1e-3f), "half way to +X");
+                Assert.That(still.Max(v => Vector3.Distance(v, Vector3.UnitY)), Is.LessThan(1e-3f), "still");
+            });
+        }
+
         // ParticlesSpawnOnTerrain: the preview's terrain is the flat ground, y = 0 in the effect's space, whatever space
         // the particle lives in.
         [TestCase(SimulationSpace.World)]

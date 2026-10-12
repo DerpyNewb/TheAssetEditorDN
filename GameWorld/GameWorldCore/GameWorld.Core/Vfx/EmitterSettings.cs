@@ -51,6 +51,8 @@ namespace GameWorld.Core.Vfx
         public bool SkipPositionUpdate { get; set; }
         /// <summary>SpawnInheritedSpeed: the share of the emitter's own velocity a particle starts with.</summary>
         public float InheritedSpeed { get; set; }
+        /// <summary>SpawnInheritedDirectionBlend: VfxConventions.InheritDirection.</summary>
+        public float InheritedDirectionBlend { get; set; }
         /// <summary>ParticlesSpawnOnTerrain: particles start on the ground.</summary>
         public bool SpawnOnTerrain { get; set; }
         /// <summary>EnableCollisions, with CollisionBouncingFactor and CollisionDampingFactor drawn per particle.</summary>
@@ -260,9 +262,12 @@ namespace GameWorld.Core.Vfx
                 s.FieldPosition = ParseCurve(s, P("VectorFieldPosition"));
                 s.FieldOrientation = ParseCurve(s, P("VectorFieldOrientation"));
             }
-            if (Number("EffectedByWindFactor", 0) != 0)
+            if (Number("EffectedByWindFactor", 0) != 0 || Number("WindVarianceFactor", 0) != 0)
                 s.Skipped.Add("wind is not simulated in step 1");
             s.InheritedSpeed = Number("SpawnInheritedSpeed", 0);
+            s.InheritedDirectionBlend = Number("SpawnInheritedDirectionBlend", 0);
+            if (resolved.RefSpawnSpeed is { } refSpawnSpeed)
+                s.Skipped.Add(FormattableString.Invariant($"its file's ref_spawn_speed {refSpawnSpeed} is not read"));
             s.SpawnOnTerrain = Flag("ParticlesSpawnOnTerrain");
             s.Collisions = Flag("EnableCollisions");
             s.Bounce = Range("CollisionBouncingFactor", (0, 0));
@@ -270,8 +275,6 @@ namespace GameWorld.Core.Vfx
             Vector4 Cull(string name, Vector4 fallback) => P(name) is { } p ? new Vector4(p.Number("x"), p.Number("y"), p.Number("z"), p.Number("w")) : fallback;
             s.EmitterCull = Cull("CullDistances", s.EmitterCull);
             s.ParticleCull = Cull("ParticleCullDistances", s.ParticleCull);
-            if (Number("SpawnInheritedDirectionBlend", 0) != 0)
-                s.Skipped.Add("SpawnInheritedDirectionBlend is not read in step 1");
             if (Range("SpreadArc", (0, 0)) != (0, 0))
                 s.Skipped.Add("SpreadArc is not read in step 1");
 
