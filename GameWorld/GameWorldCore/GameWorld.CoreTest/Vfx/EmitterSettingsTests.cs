@@ -123,11 +123,13 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(blood.Skipped, Has.One.Matches<string>(x => x.Contains("ps_custom_shader") && x.Contains("wh3_blood_spurt_01")));
         }
 
+        // The five vanilla drawn chains with no ps_texture all belong to emitters named "sound": they carry a sound and
+        // show nothing, where a white quad each was drawn.
         [Test]
-        public void ChainWithoutATexture_DrawsWhite_AndSaysSo()
+        public void ChainWithoutATexture_IsNotDrawn_AndSaysSo()
         {
             var plain = Read(Emitter("smoke"), SmokeWithout("")).Single();
-            Assert.That((plain.Draws, plain.Texture), Is.EqualTo((true, (string?)null)));
+            Assert.That(plain.Draws, Is.False);
             Assert.That(plain.Skipped, Has.One.Matches<string>(x => x.Contains("ps_texture")));
         }
 

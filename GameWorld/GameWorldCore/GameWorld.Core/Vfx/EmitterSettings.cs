@@ -224,7 +224,7 @@ namespace GameWorld.Core.Vfx
             if (texture == null && chain.Find("ps_custom_shader") is { } custom)
                 NotDrawn(s, $"fragment ps_custom_shader draws through {custom.Properties.GetValueOrDefault("material")?.Attributes.GetValueOrDefault("path")}, which step 1 does not read");
             else if (texture == null && s.Draws)
-                s.Skipped.Add("the chain has no ps_texture, so it is drawn white");
+                NotDrawn(s, "the chain has no ps_texture, so nothing is drawn: in vanilla only sound carriers lack one");
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;
             s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);
             s.Alpha = ParseCurve(s, chain.Find("vs_vertex_alpha")?.Properties.GetValueOrDefault("curve_alpha"));
