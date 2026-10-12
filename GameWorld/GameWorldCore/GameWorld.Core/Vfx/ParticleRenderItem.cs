@@ -86,7 +86,9 @@ namespace GameWorld.Core.Vfx
             {
                 // A haze bends what is drawn behind it by now, this effect's own particles included.
                 var scene = !glow && settings.Distortion ? CopyScene(device) : null;
-                DrawEmitter(device, _shader(), parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, glow, scene);
+                // A normal map that is not in the packs leaves the quad flat, not tilted by a white texel.
+                var normalMap = settings.Lit && settings.NormalMap != null ? _textureCache.Load(device, settings.NormalMap) : null;
+                DrawEmitter(device, _shader(), parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, glow, scene, normalMap);
             }
             device.BlendState = blendState;
             device.SamplerStates[0] = samplerState;
@@ -102,7 +104,7 @@ namespace GameWorld.Core.Vfx
 
         public static void DrawEmitter(GraphicsDevice device, Effect effect, CommonShaderParameters parameters, Matrix world,
             CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null, bool glow = false,
-            Texture2D? scene = null)
+            Texture2D? scene = null, Texture2D? normalMap = null)
         {
             // A distortion bends what is drawn already, and adds no light to bloom.
             if (settings.Distortion && (glow || scene == null))
@@ -130,6 +132,9 @@ namespace GameWorld.Core.Vfx
                 effect.Parameters["Scattering"].SetValue(new Vector4(l.Small, l.Large, l.Directionality, l.Emissive));
                 effect.Parameters["AverageSize"].SetValue(l.AverageSize);
             }
+            effect.Parameters["UseNormalMap"].SetValue(settings.Lit && normalMap != null ? 1f : 0f);
+            if (settings.Lit && normalMap != null)
+                effect.Parameters["NormalMap"].SetValue(normalMap);
             effect.Parameters["Scale"].SetValue(scale);
             effect.Parameters["Texture"].SetValue(texture);
             effect.Parameters["Premultiplied"].SetValue(settings.Premultiplied ? 1f : 0f);

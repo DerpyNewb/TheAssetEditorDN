@@ -170,6 +170,33 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.X, Is.EqualTo(0).Within(0.01));
         }
 
+        // ps_normal shapes that light. CA's ps_main reads a DXT5nm texel, x in alpha and y in green, each half a step up, y down
+        // the texture. The sun high and the texel tilted up; the sun to the right and the texel tilted right; and the same quad
+        // mirrored left to right, which tilts it left, away from the sun.
+        [TestCase(-MathHelper.PiOver2, 0f, 128, 51, false)]
+        [TestCase(0f, MathHelper.PiOver2, 204, 128, false)]
+        [TestCase(0f, MathHelper.PiOver2, 204, 128, true)]
+        public void NormalMap_ShapesTheLight(float pitch, float turn, int alpha, int green, bool mirrored)
+        {
+            var lighting = new ParticleLighting(0.8f, 0, 0.4f, 0, 0.8f);
+            var view = View with { DirLightRotationRadians_X = pitch, DirLightRotationRadians_Y = turn };
+            using var normals = new Texture2D(_device, 1, 1);
+            normals.SetData(new[] { new Color(0, green, 0, alpha) });
+            var camera = ParticleRenderItem.CameraAxes.From(view, Matrix.Identity);
+            var quad = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(128 / 255f), 1, 0, 0, FlipU: mirrored);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, view, Matrix.Identity, camera,
+                new EmitterSettings { Lighting = lighting }, _white, [quad], normalMap: normals));
+
+            var (x, y) = (2 * (alpha / 255f + 0.001961f) - 1, 2 * (green / 255f + 0.001961f) - 1);
+            var tangent = Vector3.Normalize(new Vector3(x, y, MathF.Sqrt(Math.Max(0, 1 - x * x - y * y))));
+            // Across the quad is u, which the mirror turns round; down it is v.
+            var normal = Vector3.Normalize(tangent.X * (mirrored ? -Vector3.UnitX : Vector3.UnitX) - tangent.Y * Vector3.UnitY + tangent.Z * Vector3.UnitZ);
+            var toSun = Vector3.Normalize(Vector3.TransformNormal(Vector3.Normalize(new Vector3(0.1f, 0.1f, 1)), Matrix.CreateRotationY(turn) * Matrix.CreateRotationX(pitch)));
+            var sun = 20000 * 3 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2);
+            float Seen(Vector3 n) => Encode(Math.Clamp(Uncharted2(128 / 255f * CaLight(lighting, 10, n, toSun, Vector3.UnitZ, sun)), 0, 1));
+            Assert.That(pixel.X, Is.EqualTo(Seen(normal)).Within(0.01), $"flat {Seen(Vector3.UnitZ)}");
+        }
+
         // CA's ps_main lighting (fx/particle_vfx_main in shaders.pack, disassembled): sunlight scattered through the particle,
         // Rayleigh's phase for small_particles and Henyey-Greenstein's, with (1 - g)^2 over it, for large_particles at
         // g = directionality, weighted by each, over light let through, exp(-(small + large) x average_size x size x (1 - N.L) / 2);

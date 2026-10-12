@@ -62,6 +62,16 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // ps_normal: the chain's ps_texture normal map shapes its lighting. Without ps_normal the map is not read, as in CA's ps_main.
+        [Test]
+        public void NormalMap_IsReadWhereTheChainHasPsNormal()
+        {
+            var mapped = SmokeChain.Replace("""<property name="pre_multiplied_alpha" """, """<texture_property name="normal" type="file" path="vfx\textures\smoke_n.dds"/><property name="pre_multiplied_alpha" """);
+            var withNormal = Read(Emitter("smoke"), mapped.Replace("</quality>", """<modifier fragment="ps_normal"/></quality>""")).Single();
+            var without = Read(Emitter("smoke"), mapped).Single();
+            Assert.That((withNormal.NormalMap, without.NormalMap), Is.EqualTo((@"vfx\textures\smoke_n.dds", (string?)null)));
+        }
+
         [Test]
         public void SparksChain_IsAStretchedAdditiveAtlasCell()
         {

@@ -85,6 +85,13 @@ samplerCUBE AmbientSampler = sampler_state
 	MagFilter = Linear;
 	MipFilter = Linear;
 };
+// ps_normal: the chain's normal map, which shapes that light, and whether there is one.
+float UseNormalMap = 0;
+Texture2D NormalMap;
+sampler2D NormalSampler = sampler_state
+{
+	Texture = <NormalMap>;
+};
 
 struct VertexShaderInput
 {
@@ -135,6 +142,33 @@ float3 Facing(float3 worldPosition)
 {
 	float3 n = normalize(cross(ddx(worldPosition), ddy(worldPosition)));
 	return dot(n, CameraBack) < 0 ? -n : n;
+}
+
+// ps_normal, as CA's ps_main reads a DXT5nm texel: x in alpha and y in green, each half a step up, z what is left.
+float3 TangentNormal(float2 uv)
+{
+	float2 xy = (tex2D(NormalSampler, uv).ag + 0.001961) * 2 - 1;
+	return float3(xy, sqrt(max(1 - dot(xy, xy), 0)));
+}
+
+// The normal the light meets: the quad's plane, or with ps_normal its map's, x along the texture's u and y along its v (down).
+// The u and v ways come off the screen derivatives (a cotangent frame), so a mirrored or turned texture turns its normals with it.
+float3 Normal(VertexShaderOutput input)
+{
+	float3 n = Facing(input.WorldPosition);
+	if (UseNormalMap <= 0)
+		return n;
+	float3 t = lerp(TangentNormal(input.Uv), TangentNormal(input.Extra.xy), input.Extra.z);
+	float3 dp1 = ddx(input.WorldPosition);
+	float3 dp2 = ddy(input.WorldPosition);
+	float2 duv1 = ddx(input.Uv);
+	float2 duv2 = ddy(input.Uv);
+	float3 across = cross(dp2, n);
+	float3 down = cross(n, dp1);
+	float s = sign(dot(n, cross(dp1, dp2)));
+	float3 u = normalize(across * duv1.x + down * duv2.x) * s;
+	float3 v = normalize(across * duv1.y + down * duv2.y) * s;
+	return normalize(t.x * u + t.y * v + t.z * n);
 }
 
 // ps_lighting, as CA's ps_main computes it for a particle of this width with this normal: sunlight scattered through it,
@@ -218,7 +252,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	if (Lit > 0)
 	{
 		float3 albedo = (UseGradient > 0 ? rgb : saturate(Linear(rgb))) * input.Colour.rgb;
-		rgb = Gamma(saturate(Uncharted2ToneMapping(albedo * ParticleLight(Facing(input.WorldPosition), input.Size.x))));
+		rgb = Gamma(saturate(Uncharted2ToneMapping(albedo * ParticleLight(Normal(input), input.Size.x))));
 		a *= input.Colour.a;
 		return float4(Premultiplied > 0 ? rgb * a : rgb, a);
 	}
