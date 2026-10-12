@@ -15,6 +15,10 @@ namespace GameWorld.Core.Rendering
         Vector3 LightColour,
         float ViewportHeight = 0,
         float ViewportWidth = 0
-        );
+        )
+    {
+        /// <summary>Multiplies the model's colour and is its alpha: a rigid particle's colour off its chain. White and opaque by default.</summary>
+        public Vector4 ModelColour { get; init; } = Vector4.One;
+    }
 
 }

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -455,6 +455,29 @@ namespace Test.VfxEditor
             Assert.That(DrawEffect(runner, DepthStencilState.Default).Count(x => x != Xna.Color.Transparent), Is.GreaterThan(100), string.Join("; ", preview.Lines));
         }
 
+        // A rigid particle's model takes its chain's colour and alpha, as a quad does (vs_colour and vs_vertex_alpha are on 1,643
+        // and 2,209 of vanilla's 2,924 rigid chains): Karl Franz in red at half alpha hides half of what is behind him, one layer
+        // deep, and draws no green or blue.
+        [Test]
+        public void A_rigid_model_takes_its_particles_colour_and_alpha()
+        {
+            const string Key = "linear,linear,-0.05,0.0,0.05,0.0,0";
+            var chain = "<behaviour_chain id=\"rigid\"><quality value=\"0\">"
+                + $"<modifier fragment=\"vs_colour\"><property name=\"curve_colour\" type=\"curve\">one,0,0;0.0,1.0,{Key}|none,0,0;0.0,0.0,{Key}:r,0;0,0|g,0;1,1|b,0;1,1</property></modifier>"
+                + $"<modifier fragment=\"vs_vertex_alpha\"><property name=\"curve_alpha\" type=\"curve\">half,0,0;0.0,0.5,{Key}:alpha,0;0,0</property></modifier>"
+                + "</quality></behaviour_chain>";
+            var (runner, preview) = ShowRigidModel(chain);
+            var drawn = DrawEffect(runner, DepthStencilState.DepthRead).Where(x => x.A > 0).ToList();
+            Assert.That(drawn, Has.Count.GreaterThan(100), string.Join("; ", preview.Lines));
+            Assert.Multiple(() =>
+            {
+                Assert.That(drawn.Max(x => Math.Max(x.G, x.B)), Is.LessThan(8), "red");
+                // Pieces of the model laid on one another at one depth (38 of 547 pixels here) both pass the depth test.
+                Assert.That(drawn.Count(x => Math.Abs(x.A - 128) <= 2), Is.GreaterThan(drawn.Count * 9 / 10),
+                    "half, one layer: " + string.Join(", ", drawn.GroupBy(x => x.A).Select(g => $"{g.Key} x{g.Count()}")));
+            });
+        }
+
         // The engine draws effects reading depth without writing it, so a model that does not write its own draws its far side
         // over its near one. It draws the same under the engine's state as under a plain depth test.
         [Test]
@@ -527,7 +550,7 @@ namespace Test.VfxEditor
         }
 
         // Karl Franz's model on one continuous_rigid particle, half a second in.
-        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel()
+        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel(string chains = "")
         {
             var (runner, _, preview) = OpenWithAGuideModelOffered();
             const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
@@ -538,7 +561,7 @@ namespace Test.VfxEditor
                 + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
                 + "<property_rigid_data name=\"RigidData\" quality=\"0\"><rigid_entry><ModelFile value=\"" + KarlFranz + "\"/><PivotPoint x=\"0.50\" y=\"0.50\" z=\"0.50\"/><AnimFile value=\"\"/><AnimSpeed value=\"1.00\"/></rigid_entry></property_rigid_data>"
                 + "\r\n\t\t</emitter>";
-            preview.Show("rigid", Fixtures.Utf16(Fixtures.Effect(emitters: emitter, chains: "", stacks: "", references: "")), 0);
+            preview.Show("rigid", Fixtures.Utf16(Fixtures.Effect(emitters: emitter, chains: chains, stacks: "", references: "")), 0);
             preview.SetTime(0.5f);
             return (runner, preview);
         }

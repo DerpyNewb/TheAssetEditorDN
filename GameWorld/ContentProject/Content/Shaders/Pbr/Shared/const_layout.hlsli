@@ -23,6 +23,9 @@ float light0_ambientFactor = 1;
 
 float3 TintColour = float3(1, 1, 1);
 
+// A rigid particle's colour and alpha off its chain; white and opaque for everything else.
+float4 ModelColour = float4(1, 1, 1, 1);
+
 // Textures
 Texture2D<float4> DiffuseTexture;
 Texture2D<float4> SpecularTexture;

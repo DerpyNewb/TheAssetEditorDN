@@ -88,7 +88,7 @@ float4 mainPS(in PixelInputType input, bool bIsFrontFace : SV_IsFrontFace) : SV_
     float3 ldr_linear_col = saturate(tone_map_linear_hdr_pixel_value(hdr_linear_col*exposure));        
     
 	//  Return gamma corrected value...
-    return float4( _gamma(ldr_linear_col), 1.0f);
+    return float4( _gamma(ldr_linear_col * ModelColour.rgb), ModelColour.a);
 }
 
 

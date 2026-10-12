@@ -329,12 +329,13 @@ namespace GameWorld.Core.Vfx
         public static BlendState BlendFor(GraphicsDevice device, EmitterSettings s) =>
             s.Distortion || (s.Premultiplied && !s.Light) ? BlendState.AlphaBlend : Straight(device)[s.Light || s.AdditiveMul >= 0.5f ? 1 : 0];
 
-        // Laid over, then added. One pair per device: MonoGame binds a state to the first device it is set on.
+        // Laid over, added, and depth only. One set per device: MonoGame binds a state to the first device it is set on.
         static readonly ConditionalWeakTable<GraphicsDevice, BlendState[]> s_straight = new();
         static BlendState[] Straight(GraphicsDevice device) => s_straight.GetValue(device, _ =>
         [
             new BlendState { ColorSourceBlend = Blend.SourceAlpha, ColorDestinationBlend = Blend.InverseSourceAlpha, AlphaSourceBlend = Blend.One, AlphaDestinationBlend = Blend.InverseSourceAlpha },
             new BlendState { ColorSourceBlend = Blend.SourceAlpha, ColorDestinationBlend = Blend.One, AlphaSourceBlend = Blend.Zero, AlphaDestinationBlend = Blend.One },
+            new BlendState { ColorWriteChannels = ColorWriteChannels.None },
         ]);
 
         /// <summary>Loads a chain's texture from the loaded packs. Missing or undecodable: null (drawn white) and one log line.</summary>
@@ -369,8 +370,17 @@ namespace GameWorld.Core.Vfx
                 var entry = s.Rigid[Math.Clamp(p.Model, 0, s.Rigid.Count - 1)];
                 var model = _meshes.Get(entry.ModelFile);
                 var matrix = VfxConventions.RigidMatrix(model.Box, entry.Pivot, p.Size.X, new Vector3(p.TurnXy, p.Angle), p.Position) * World;
-                foreach (var (geometry, material, local) in model.Meshes)
-                    new GeometryRenderItem(geometry, material, local * matrix).Draw(device, parameters, technique);
+                var tinted = parameters with { ModelColour = new Vector4(p.Colour, p.Alpha) };
+                // A see-through model shows its nearest faces once: its depth first, then its colour laid over where it is nearest.
+                (BlendState, DepthStencilState)[] passes = p.Alpha < 1
+                    ? [(Straight(device)[2], DepthStencilState.Default), (Straight(device)[0], DepthStencilState.DepthRead)]
+                    : [(BlendState.Opaque, DepthStencilState.Default)];
+                foreach (var (blend, depth) in passes)
+                {
+                    (device.BlendState, device.DepthStencilState) = (blend, depth);
+                    foreach (var (geometry, material, local) in model.Meshes)
+                        new GeometryRenderItem(geometry, material, local * matrix).Draw(device, tinted, technique);
+                }
             }
             device.BlendState = blendState;
             device.DepthStencilState = depthState;

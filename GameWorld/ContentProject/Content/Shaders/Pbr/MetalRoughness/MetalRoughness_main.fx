@@ -109,7 +109,7 @@ float4 DefaultPixelShader(in PixelInputType input, bool bIsFrontFace : SV_IsFron
     // Combine all colours
     float3 color = ldr_linear_col + emissiveColour;	
     
-    return float4(_gamma(color), 1.0f);
+    return float4(_gamma(color * ModelColour.rgb), ModelColour.a);
 }
 
 float4 EmissiveLayerPixelShader(in PixelInputType input, bool bIsFrontFace : SV_IsFrontFace) : SV_TARGET0
@@ -121,7 +121,7 @@ float4 EmissiveLayerPixelShader(in PixelInputType input, bool bIsFrontFace : SV_
     if (UseAlpha == 1)
         alpha_test(material.diffuse.a);
    
-    return float4(emissiveColour, 1);
+    return float4(emissiveColour * ModelColour.rgb, ModelColour.a);
 }
 
 technique BasicColorDrawing
