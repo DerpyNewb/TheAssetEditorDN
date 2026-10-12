@@ -164,6 +164,16 @@ namespace Editors.VfxEditor.Preview
             }
         }
 
+        /// <summary>Files changed in a pack: let go of the textures and models loaded from them, so the next draw loads the new ones.</summary>
+        public void Forget(IEnumerable<string> paths)
+        {
+            foreach (var path in paths)
+            {
+                _textures.Forget(path);
+                _meshes.Forget(path);
+            }
+        }
+
         public void Dispose()
         {
             Clear();

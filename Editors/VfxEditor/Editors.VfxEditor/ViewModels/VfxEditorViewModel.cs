@@ -16,6 +16,7 @@ using Serilog;
 using Shared.Core.Commands;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
@@ -36,6 +37,7 @@ namespace Editors.VfxEditor.ViewModels
         readonly IPackFileService _packFileService;
         readonly IUiCommandFactory _commands;
         readonly IStandardDialogs _dialogs;
+        readonly IGlobalEventHub _globalEventHub;
         readonly Dictionary<string, ImageSource?> _thumbnails = new(StringComparer.OrdinalIgnoreCase);
         VfxVocabulary? _vocabulary;
         readonly VfxPreviewComponent _preview;
@@ -44,8 +46,12 @@ namespace Editors.VfxEditor.ViewModels
         int _shownLines;
 
         public VfxEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs, IUiCommandFactory commands,
-            IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService, VfxPreviewComponent preview, GridComponent grid)
+            IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService, VfxPreviewComponent preview, GridComponent grid,
+            IGlobalEventHub globalEventHub)
         {
+            _globalEventHub = globalEventHub;
+            globalEventHub.Register<PackFileContainerFilesAddedEvent>(this, x => OnPackFilesChanged(x.AddedFiles));
+            globalEventHub.Register<PackFileContainerFilesUpdatedEvent>(this, x => OnPackFilesChanged(x.ChangedFiles));
             _grid = grid;
             _packFileService = packFileService;
             _commands = commands;
@@ -771,6 +777,24 @@ namespace Editors.VfxEditor.ViewModels
             _previewTimer.Start();
         }
 
+        // A texture, model or animation the effect may draw, or an effect it references, changed in a pack (replaced, exported
+        // over, saved): let go of what the rows and the preview decoded and show the new one, without the tab being reopened.
+        void OnPackFilesChanged(List<PackFile> files)
+        {
+            // Any pack: SaveFile names the pack being edited even for a file that lives in another.
+            var paths = files.Select(x => _packFileService.GetFullPath(x))
+                .Where(x => x.StartsWith("vfx", StringComparison.OrdinalIgnoreCase) || s_reloaded.Any(e => x.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            if (paths.Count == 0)
+                return;
+            _thumbnails.Clear();
+            _preview.Forget(paths);
+            RefreshRows();
+            RefreshPreview();
+        }
+
+        static readonly string[] s_reloaded = [".dds", ".rigid_model_v2", ".wsmodel", ".material", ".anim"];
+
         void RefreshPreview()
         {
             if (_session.Document == null)
@@ -856,6 +880,7 @@ namespace Editors.VfxEditor.ViewModels
         public void Dispose()
         {
             _previewTimer.Stop();
+            _globalEventHub.UnRegister(this);
             _preview.TimeChanged -= OnPreviewTimeChanged;
             if (_session.Document != null)
                 _session.Document.Changed -= OnDocumentChanged;

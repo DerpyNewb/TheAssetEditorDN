@@ -410,6 +410,46 @@ namespace Test.VfxEditor
             Assert.That(runner.ServiceProvider.GetRequiredService<IEditorManager>().GetAllEditors().OfType<IFileEditor>().Select(e => e.CurrentFile), Does.Contain(material));
         }
 
+        // A texture replaced in a pack while the tab is open (an export over it, a save) shows at once: the row's thumbnail and
+        // the preview both let go of what they had decoded from it.
+        [Test]
+        public void A_replaced_texture_shows_without_reopening_the_tab()
+        {
+            const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
+            var emitter = "\r\n\t\t<emitter type=\"continuous_mesh\" id=\"e1\">"
+                + "<property name=\"InfiniteLife\" quality=\"0\" value=\"true\"/>"
+                + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>"
+                + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
+                + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
+                + "\r\n\t\t</emitter>";
+            var chain = "<behaviour_chain id=\"e1\"><quality value=\"0\"><modifier fragment=\"ps_texture\"><texture_property name=\"diffuse\" type=\"file\" path=\"vfx/a.dds\"/></modifier></quality></behaviour_chain>";
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Effect(emitters: emitter, chains: chain, references: "")))),
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("a.dds", Fixtures.Dds(4, 2, 255, 0, 0, 255)))]);
+            runner.CreateOutputPack();
+            var editor = Open(runner);
+            var preview = runner.GetRequiredServiceInCurrentEditorScope<VfxPreviewComponent>();
+            editor.SelectedNode = editor.Tree[1].Children[0].Children[0].Children.First(n => n.Fragment == "ps_texture");
+            PropertyRow Row() => editor.Rows.Single(r => r.Label == "diffuse path");
+            Xna.Color Drawn()
+            {
+                preview.SetTime(0.5f);
+                return DrawEffect(runner, DepthStencilState.Default).Where(x => x.A > 0).GroupBy(x => x).OrderByDescending(g => g.Count()).First().Key;
+            }
+            Assert.That((Row().Thumbnail as BitmapSource)?.PixelWidth, Is.EqualTo(4));
+            Assert.That(Drawn().R, Is.GreaterThan(200), "red first");
+
+            runner.PackFileService.SaveFile(runner.PackFileService.FindFile(@"vfx\a.dds")!, Fixtures.Dds(8, 8, 0, 255, 0, 255));
+            Assert.Multiple(() =>
+            {
+                Assert.That((Row().Thumbnail as BitmapSource)?.PixelWidth, Is.EqualTo(8), "thumbnail");
+                var drawn = Drawn();
+                Assert.That((drawn.R, drawn.G), Is.EqualTo((0, 255)).Using<(byte, byte), (int, int)>((a, b) => Math.Abs(a.Item1 - b.Item1) < 40 && Math.Abs(a.Item2 - b.Item2) < 40), "preview");
+            });
+        }
+
         // The curve graph's points reach the screen: a binding that cannot convert them only logs, and draws an empty box.
         [Test, Apartment(ApartmentState.STA)]
         public void A_curve_row_draws_its_graph()
