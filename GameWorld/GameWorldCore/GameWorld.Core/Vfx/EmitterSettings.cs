@@ -172,7 +172,7 @@ namespace GameWorld.Core.Vfx
             s.StartTime = Range("StartTime", (0, 0));
             s.LifeTime = Range("LifeTime", (1, 1));
             s.EmitterLifeBias = (o.EmitterLifetimeBiasMin, o.EmitterLifetimeBiasMax);
-            s.InfiniteLife = resolved.InfiniteLife || Flag("InfiniteLife");
+            s.InfiniteLife = resolved.InfiniteLife && Flag("InfiniteLife");
             s.Space = P("ParticleSimulationSpace")?.Value switch
             {
                 "LOCAL_SPACE_POSITION_ROTATION" => SimulationSpace.LocalPositionRotation,

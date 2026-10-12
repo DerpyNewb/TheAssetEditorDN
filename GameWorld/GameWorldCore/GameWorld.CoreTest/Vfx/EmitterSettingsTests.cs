@@ -31,6 +31,19 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // A reference's infinite_life="false" ends what it reaches, however deep: wh3_main_lib_lightsource's eight lights are
+        // all infinite, and explosions reference it with false. "true" makes nothing infinite: 659 impact and explosion
+        // references say it over emitters that all end.
+        [Test]
+        public void ReferenceInfiniteLife_EndsWhatItReaches_AndMakesNothingInfinite()
+        {
+            var lib = Xml(emitters: Emitter("lit") + """<emitter type="continuous_mesh" id="flash"></emitter>""");
+            var mid = Xml(references: Reference("lib", infinite: true));
+            var fx = Xml(references: Reference("lib", infinite: false) + Reference("lib", infinite: true) + Reference("mid", infinite: false));
+            var settings = new VfxResolver(Pack(("lib.xml", lib), ("mid.xml", mid), ("fx.xml", fx))).Resolve("fx", new Random(1)).Emitters.Select(EmitterSettings.From);
+            Assert.That(settings.Select(x => x.InfiniteLife), Is.EqualTo(new[] { false, false, true, false, false, false }));
+        }
+
         [Test]
         public void SparksChain_IsAStretchedAdditiveAtlasCell()
         {

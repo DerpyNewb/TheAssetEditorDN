@@ -6,9 +6,11 @@ using Shared.GameFormats.Vfx;
 
 namespace GameWorld.Core.Vfx
 {
-    /// <summary>An enabled emitter of an effect, with what every reference on the way to it said. MaterialTexture: the colour
-    /// texture its ps_custom_shader material names, if the material is in the packs and names one. VectorField: the volume
-    /// its VectorFieldStrId names, if that is in the packs and reads.</summary>
+    /// <summary>An enabled emitter of an effect, with what every reference on the way to it said. InfiniteLife: no reference on
+    /// the way says infinite_life="false", which ends an emitter that is infinite on its own (wh3_main_lib_lightsource's lights,
+    /// under an explosion); "true" makes nothing infinite, 659 impact and explosion references saying it over emitters that
+    /// all end. MaterialTexture: the colour texture its ps_custom_shader material names, if the material is in the packs and
+    /// names one. VectorField: the volume its VectorFieldStrId names, if that is in the packs and reads.</summary>
     public record ResolvedEmitter(VfxEmitter Emitter, VfxBehaviourChain? Chain, string? SceneViewType, string File,
         Matrix ReferenceTransform, float StartOffset, float SpeedMultiplier, bool InfiniteLife, VfxEmitterOverride Override, bool TrailMode = false,
         string? MaterialTexture = null, VfxVectorField? VectorField = null);
@@ -49,7 +51,7 @@ namespace GameWorld.Core.Vfx
             if (top == null)
                 return result;
 
-            Collect(vfxName.Trim(), top, Matrix.Identity, 0, 1, false, new Dictionary<string, VfxEmitterOverride>(), [Key(vfxName)], random, result, []);
+            Collect(vfxName.Trim(), top, Matrix.Identity, 0, 1, true, new Dictionary<string, VfxEmitterOverride>(), [Key(vfxName)], random, result, []);
             return result with { Found = true };
         }
 
@@ -160,7 +162,7 @@ namespace GameWorld.Core.Vfx
                 var below = new HashSet<string>();
                 stack.Add(key);
                 Collect(reference.Target, target, local * transform, startOffset + start, speed * reference.SimulationSpeed,
-                    infinite || reference.InfiniteLife, overrides, stack, random, result, below);
+                    infinite && reference.InfiniteLife, overrides, stack, random, result, below);
                 stack.Remove(key);
                 seen.UnionWith(below);
                 foreach (var missing in reference.Overrides.Keys.Where(x => !below.Contains(x)))
