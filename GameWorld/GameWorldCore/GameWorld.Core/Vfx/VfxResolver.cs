@@ -13,7 +13,10 @@ namespace GameWorld.Core.Vfx
     /// names one. VectorField: the volume its VectorFieldStrId names, if that is in the packs and reads.</summary>
     public record ResolvedEmitter(VfxEmitter Emitter, VfxBehaviourChain? Chain, string? SceneViewType, string File,
         Matrix ReferenceTransform, float StartOffset, float SpeedMultiplier, bool InfiniteLife, VfxEmitterOverride Override, bool TrailMode = false,
-        string? MaterialTexture = null, VfxVectorField? VectorField = null, float? RefSpawnSpeed = null);
+        string? MaterialTexture = null, VfxVectorField? VectorField = null, float? RefSpawnSpeed = null, IReadOnlyList<ResolvedEvent>? Events = null);
+
+    /// <summary>A particle event with its effect resolved as a top-level one is.</summary>
+    public record ResolvedEvent(VfxParticleEvent Event, IReadOnlyList<ResolvedEmitter> Emitters);
 
     public record VfxResolveResult(bool Found, List<ResolvedEmitter> Emitters, List<string> Problems);
 
@@ -28,6 +31,9 @@ namespace GameWorld.Core.Vfx
         private readonly IReadOnlyDictionary<string, byte[]> _unsaved;
         private readonly int _tier;
         private readonly Dictionary<string, VfxVectorField?> _fields = [];
+        // Particle event effects, resolved once per Resolve: every emitter of an effect and of each effect it reaches would
+        // otherwise resolve the same ones again, level on level. Null while one is being resolved, so reaching it then is a cycle.
+        private readonly Dictionary<string, IReadOnlyList<ResolvedEmitter>?> _eventEffects = [];
 
         /// <param name="unsaved">Bytes by Key(name) read in place of the pack's copy: an editor's unsaved file.</param>
         /// <param name="tier">The quality tier read, 0 (Ultra) by default.</param>
@@ -47,6 +53,7 @@ namespace GameWorld.Core.Vfx
         public VfxResolveResult Resolve(string vfxName, Random random)
         {
             var result = new VfxResolveResult(false, [], []);
+            _eventEffects.Clear();
             var top = Load(vfxName, result.Problems);
             if (top == null)
                 return result;
@@ -118,6 +125,36 @@ namespace GameWorld.Core.Vfx
             return _fields[path.ToLowerInvariant()] = field;
         }
 
+        // A particle event's effect, resolved as a top-level one is; one already on the way here is a cycle, and not followed.
+        List<ResolvedEvent> Events(string name, VfxEmitter emitter, HashSet<string> stack, Random random, VfxResolveResult result)
+        {
+            var events = new List<ResolvedEvent>();
+            foreach (var particleEvent in emitter.Events ?? [])
+            {
+                var key = Key(particleEvent.Effect);
+                var known = _eventEffects.TryGetValue(key, out var resolved);
+                if (stack.Contains(key) || known && resolved == null)
+                {
+                    result.Problems.Add($"{name}: particle event cycle through {particleEvent.Effect}, skipped");
+                    continue;
+                }
+                if (!known)
+                {
+                    _eventEffects[key] = null;
+                    var target = Load(particleEvent.Effect, result.Problems);
+                    if (target == null)
+                        result.Problems.Add($"{name}: particle event effect {PathOf(particleEvent.Effect)} not found, skipped");
+                    var child = new VfxResolveResult(true, [], result.Problems);
+                    if (target != null)
+                        Collect(particleEvent.Effect.Trim(), target, Matrix.Identity, 0, 1, true, new Dictionary<string, VfxEmitterOverride>(), [.. stack, key], random, child, []);
+                    _eventEffects[key] = resolved = child.Emitters;
+                }
+                if (resolved!.Count > 0)
+                    events.Add(new ResolvedEvent(particleEvent, resolved));
+            }
+            return events;
+        }
+
         void Collect(string name, VfxFile file, Matrix transform, float startOffset, float speed, bool infinite,
             IReadOnlyDictionary<string, VfxEmitterOverride> outer, HashSet<string> stack, Random random, VfxResolveResult result, HashSet<string> seen)
         {
@@ -132,7 +169,8 @@ namespace GameWorld.Core.Vfx
                 file.SceneViewTypes.TryGetValue(emitter.Id, out var sceneView);
                 var material = chain?.Find("ps_custom_shader")?.Properties.GetValueOrDefault("material")?.Attributes.GetValueOrDefault("path");
                 result.Emitters.Add(new ResolvedEmitter(emitter, chain, sceneView, name, transform, startOffset, speed, infinite, o, file.TrailModes.Contains(emitter.Id),
-                    ColourTexture(material), VectorField(emitter.Properties.GetValueOrDefault("VectorFieldStrId")?.Value), file.RefSpawnSpeed));
+                    ColourTexture(material), VectorField(emitter.Properties.GetValueOrDefault("VectorFieldStrId")?.Value), file.RefSpawnSpeed,
+                    Events(name, emitter, stack, random, result)));
             }
 
             foreach (var reference in file.References)

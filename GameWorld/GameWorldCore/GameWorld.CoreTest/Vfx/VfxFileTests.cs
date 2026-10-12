@@ -33,6 +33,16 @@ namespace GameWorld.Core.Test.Vfx
             }));
         }
 
+        // property_event: OnParticleSpawn and OnParticleDeath name an effect and what of the particle it follows; one naming none
+        // ("" on 80 vanilla events) starts nothing.
+        [Test]
+        public void Particle_events_name_an_effect_and_what_it_follows()
+        {
+            var events = """<property_event name="OnParticleSpawn" quality="0" vfx_name="trail" track_position="true" track_scale="false" track_colour="true" track_alpha="false" track_lifetime="true" spawn_event_time_offset="-0.30" track_orientation_mode="orientation_by_velocity"/><property_event name="OnParticleDeath" quality="0" vfx_name="" death_event_time_offset="0.00"/>""";
+            var emitter = VfxFile.Parse(VfxTestFiles.Xml(emitters: VfxTestFiles.Emitter("e", events))).Emitters[0];
+            Assert.That(emitter.Events, Is.EqualTo(new[] { new VfxParticleEvent(false, "trail", true, false, true, false, true, VfxEventTurn.Velocity, -0.3f) }));
+        }
+
         // No vanilla chain lacks a value="0" block; one a modder wrote without it draws nothing at Ultra in game.
         [Test]
         public void Ultra_reads_no_other_tiers_block()

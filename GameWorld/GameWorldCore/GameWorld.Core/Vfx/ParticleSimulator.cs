@@ -25,6 +25,8 @@ namespace GameWorld.Core.Vfx
         // Drawn only for a rigid emitter: its model, and its turn and spin about X and Y.
         public int Model;
         public Vector2 TurnXy, SpinXy;
+        // Its number in its emitter, in spawn order: what a particle event's effect follows it by.
+        public int Id;
     }
 
     /// <summary>A particle as drawn now, in the effect's model space.</summary>
@@ -49,6 +51,27 @@ namespace GameWorld.Core.Vfx
         // SpawnSpacing: where the emitter was at the last step, and the metres moved since the last particle.
         internal Vector3 LastPosition;
         internal float Travelled;
+
+        /// <summary>A particle event's emitter: its particle's colour and alpha (track_colour, track_alpha). White otherwise.</summary>
+        public Vector4 Tint { get; internal set; } = Vector4.One;
+        // Particle events: the ids given out and the first not yet started, the particles that died this step, and the event
+        // effects running.
+        internal int NextId, Started;
+        internal readonly List<Particle> Dead = [];
+        internal readonly List<ChildEffect> Children = [];
+        internal bool ChildCapLogged;
+    }
+
+    /// <summary>One particle's copy of a particle event's effect: a simulation of its own, placed at Frame in the parent's space.</summary>
+    sealed class ChildEffect(ParticleEvent particleEvent, int parent, float born, Matrix frame)
+    {
+        public ParticleEvent Event { get; } = particleEvent;
+        /// <summary>The particle's id; -1 once it has died, and for a death event.</summary>
+        public int Parent { get; set; } = parent;
+        /// <summary>The parent's time at which the child's clock reads 0.</summary>
+        public float Born { get; } = born;
+        public Matrix Frame { get; set; } = frame;
+        public ParticleSimulator Simulator { get; set; } = null!;
     }
 
     /// <summary>
@@ -65,13 +88,26 @@ namespace GameWorld.Core.Vfx
         private readonly List<EmitterSettings> _settings;
         private readonly int _seed;
         private readonly Func<float, Matrix> _effectWorldAt;
-        private readonly float _spawnEnd;
+        private float _spawnEnd;
         private readonly Action<string>? _log;
         private readonly List<EmitterRuntime> _emitters = [];
         private float _origin;
         private int _steps;
 
         public IReadOnlyList<EmitterRuntime> Emitters => _emitters;
+
+        /// <summary>A particle event's effects running on one emitter at most; one per particle is a whole simulation.</summary>
+        public const int ChildCap = 64;
+
+        /// <summary>The emitters and, after them, every particle event effect's emitters, theirs included.</summary>
+        public IEnumerable<EmitterRuntime> AllEmitters => _emitters.Concat(_emitters.SelectMany(e => e.Children.SelectMany(c => c.Simulator.AllEmitters)));
+
+        /// <summary>Nothing alive and nothing more to come: every emitter past its life or its spawn end, with no events running.</summary>
+        internal bool Spent => _emitters.All(e => e.Particles.Count == 0 && e.Children.Count == 0
+            && (Time > _spawnEnd || !e.Settings.InfiniteLife && (Time - e.Start) * e.Settings.SpeedMultiplier > e.Life));
+
+        /// <summary>Stops spawning at an effect time (track_lifetime: the particle a child effect follows has died).</summary>
+        internal void EndSpawning(float time) => _spawnEnd = Math.Min(_spawnEnd, time);
 
         /// <summary>Effect time simulated so far; below 0 while an emitter pre-warms.</summary>
         public float Time => _origin + _steps * Step;
@@ -182,7 +218,96 @@ namespace GameWorld.Core.Vfx
                     Spawn(e, age, world, carried, moving);
                 LogCap(e, due, tried, limit);
             }
+            foreach (var e in _emitters.Where(x => x.Settings.Events.Count > 0))
+                StepEvents(e, end, EmitterWorld(e, end, effectWorld));
             _steps++;
+        }
+
+        // Particle events: an effect started for each particle born or died this step, then each running one moved to its particle
+        // and run to now. One whose particle has gone and that has nothing left to draw is dropped.
+        void StepEvents(EmitterRuntime e, float end, Matrix world)
+        {
+            var events = e.Settings.Events;
+            foreach (var p in e.Particles.Where(x => x.Id >= e.Started))
+                foreach (var spawn in events.Where(x => !x.OnDeath))
+                    Start(e, spawn, p.Id, end - p.Age, State(e, p, world));
+            e.Started = e.NextId;
+            foreach (var p in e.Dead)
+            {
+                foreach (var child in e.Children.Where(x => x.Parent == p.Id))
+                {
+                    child.Parent = -1;
+                    if (child.Event.TrackLifetime)
+                        child.Simulator.EndSpawning(end - child.Born);
+                }
+                foreach (var death in events.Where(x => x.OnDeath))
+                    Start(e, death, -1, end, State(e, p, world));
+            }
+            e.Dead.Clear();
+
+            foreach (var child in e.Children)
+            {
+                var ev = child.Event;
+                if (child.Parent >= 0 && (ev.TrackPosition || ev.TrackColour || ev.TrackAlpha) && Find(e.Particles, child.Parent) is { } p)
+                {
+                    var state = State(e, p, world);
+                    if (ev.TrackPosition)
+                        child.Frame = Frame(ev, state);
+                    Tint(child, state);
+                }
+                child.Simulator.AdvanceTo(end - child.Born);
+            }
+            e.Children.RemoveAll(x => x.Parent < 0 && x.Simulator.Spent);
+        }
+
+        void Start(EmitterRuntime e, ParticleEvent particleEvent, int parent, float at, ParticleState p)
+        {
+            if (e.Children.Count >= ChildCap)
+            {
+                if (!e.ChildCapLogged)
+                    _log?.Invoke($"emitter {e.Settings.Name}: {ChildCap} particle event effects running, the rest are not started");
+                e.ChildCapLogged = true;
+                return;
+            }
+            var child = new ChildEffect(particleEvent, parent, at + particleEvent.Offset, Frame(particleEvent, p));
+            child.Simulator = new ParticleSimulator(particleEvent.Emitters, e.Random.Next(), _ => child.Frame, log: _log);
+            Tint(child, p);
+            e.Children.Add(child);
+        }
+
+        // Where a child effect sits in its parent's space: at its particle, scaled by its size (track_scale), turned by its
+        // heading or its own turn (track_orientation_mode).
+        static Matrix Frame(ParticleEvent particleEvent, ParticleState p)
+        {
+            var turn = particleEvent.Turn switch
+            {
+                VfxEventTurn.Velocity when p.Velocity.LengthSquared() > 1e-12f => VfxConventions.UpTo(Vector3.Normalize(p.Velocity)),
+                VfxEventTurn.Particle => Matrix.CreateRotationX(p.TurnXy.X) * Matrix.CreateRotationY(p.TurnXy.Y) * Matrix.CreateRotationZ(p.Angle),
+                _ => Matrix.Identity,
+            };
+            return (particleEvent.TrackScale ? Matrix.CreateScale(p.Size.X) : Matrix.Identity) * turn * Matrix.CreateTranslation(p.Position);
+        }
+
+        static void Tint(ChildEffect child, ParticleState p)
+        {
+            var tint = new Vector4(child.Event.TrackColour ? p.Colour : Vector3.One, child.Event.TrackAlpha ? p.Alpha : 1);
+            foreach (var e in child.Simulator.Emitters)
+                e.Tint = tint;
+        }
+
+        // Particles stay in spawn order, so in id order.
+        static Particle? Find(List<Particle> particles, int id)
+        {
+            var (low, high) = (0, particles.Count - 1);
+            while (low <= high)
+            {
+                var middle = (low + high) / 2;
+                var at = particles[middle].Id;
+                if (at == id)
+                    return particles[middle];
+                (low, high) = at < id ? (middle + 1, high) : (low, middle - 1);
+            }
+            return null;
         }
 
         void LogCap(EmitterRuntime e, float due, int spawned, int limit)
@@ -314,6 +439,7 @@ namespace GameWorld.Core.Vfx
                 p.SpinXy = s.SpinSignXy * Draw2(s.SpinXy) * (MathF.PI / 180);
                 p.Model = Math.Min((int)(Next() * s.Rigid.Count), s.Rigid.Count - 1);
             }
+            p.Id = e.NextId++;
             e.Particles.Add(p);
         }
 
@@ -328,6 +454,8 @@ namespace GameWorld.Core.Vfx
                 p.Age += dt;
                 if (p.Age >= p.Life)
                 {
+                    if (s.Events.Count > 0)
+                        e.Dead.Add(p);
                     e.Particles.RemoveAt(i);
                     continue;
                 }
@@ -413,23 +541,22 @@ namespace GameWorld.Core.Vfx
         }
 
         /// <summary>An emitter's live particles as drawn now, in the effect's model space.</summary>
-        public static IEnumerable<ParticleState> States(EmitterRuntime e)
+        public static IEnumerable<ParticleState> States(EmitterRuntime e) => e.Particles.Select(p => State(e, p, e.World));
+
+        // One particle as drawn, given its emitter's matrix; a particle event's emitter takes its particle's tint on top.
+        static ParticleState State(EmitterRuntime e, Particle p, Matrix world)
         {
             var s = e.Settings;
-            var world = e.World;
             var scale = new Vector3(world.M11, world.M12, world.M13).Length();
-            foreach (var p in e.Particles)
-            {
-                var v = p.Age / p.Life;
-                var (position, velocity) = ToEffect(s.Space, world, p.Position, p.Velocity);
-                var size = p.Size * scale * (s.Scale == null ? Vector2.One : new Vector2(s.Scale.Evaluate(0, v, p.RScale, 1), s.Scale.Evaluate(1, v, p.RScale, 1)));
-                var colour = Vector(s.Colour, v, p.RColour, 1) * new Vector3(p.Tint.X, p.Tint.Y, p.Tint.Z)
-                    * VfxConventions.Hdr(s.Colour?.Evaluate(3, v, p.RColour, 1) ?? 1, s.EmissiveMul);
-                var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W;
-                var (cell, next, blend) = s.Animated ? VfxConventions.FlipbookFrame(s.CellsX * s.CellsY, v, p.Age, p.Loops, s.FixedSpeed, s.FlipbookLoop) : (s.RandomCell ? p.Cell : s.Cell, 0, 0f);
-                yield return new ParticleState(position, velocity, size, p.Angle, colour, alpha, s.Stretch?.Evaluate(0, v, p.RStretch) ?? 0, cell, p.FlipU, p.FlipV, next, s.CellBlend ? blend : 0,
-                    s.AlphaCrush?.Evaluate(0, v, p.RAlpha) ?? 0, p.TurnXy, p.Model, p.Age);
-            }
+            var v = p.Age / p.Life;
+            var (position, velocity) = ToEffect(s.Space, world, p.Position, p.Velocity);
+            var size = p.Size * scale * (s.Scale == null ? Vector2.One : new Vector2(s.Scale.Evaluate(0, v, p.RScale, 1), s.Scale.Evaluate(1, v, p.RScale, 1)));
+            var colour = Vector(s.Colour, v, p.RColour, 1) * new Vector3(p.Tint.X, p.Tint.Y, p.Tint.Z) * new Vector3(e.Tint.X, e.Tint.Y, e.Tint.Z)
+                * VfxConventions.Hdr(s.Colour?.Evaluate(3, v, p.RColour, 1) ?? 1, s.EmissiveMul);
+            var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W * e.Tint.W;
+            var (cell, next, blend) = s.Animated ? VfxConventions.FlipbookFrame(s.CellsX * s.CellsY, v, p.Age, p.Loops, s.FixedSpeed, s.FlipbookLoop) : (s.RandomCell ? p.Cell : s.Cell, 0, 0f);
+            return new ParticleState(position, velocity, size, p.Angle, colour, alpha, s.Stretch?.Evaluate(0, v, p.RStretch) ?? 0, cell, p.FlipU, p.FlipV, next, s.CellBlend ? blend : 0,
+                s.AlphaCrush?.Evaluate(0, v, p.RAlpha) ?? 0, p.TurnXy, p.Model, p.Age);
         }
 
         static Vector3 Vector(VfxCurve? curve, float t, float random, float fallback = 0) => curve == null

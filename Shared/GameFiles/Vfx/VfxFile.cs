@@ -29,8 +29,18 @@ namespace Shared.GameFormats.Vfx
     /// <summary>One model a continuous_rigid emitter's particles may be: RigidData's rigid_entry.</summary>
     public record VfxRigidEntry(string ModelFile, Vector3 Pivot, string? AnimFile, float AnimSpeed = 1);
 
-    /// <summary>Rigid: RigidData's models, a continuous_rigid emitter's; null or empty for any other.</summary>
-    public record VfxEmitter(string Id, string Type, IReadOnlyDictionary<string, VfxProperty> Properties, IReadOnlyList<VfxRigidEntry>? Rigid = null);
+    /// <summary>How a particle event's effect turns with its particle: track_orientation_mode disabled or unset, orientation (the
+    /// particle's own turn), or orientation_by_velocity.</summary>
+    public enum VfxEventTurn { None, Particle, Velocity }
+
+    /// <summary>property_event OnParticleSpawn or OnParticleDeath (689 and 61 vanilla events that name an effect): the effect a
+    /// particle starts at its birth or its death, what of the particle it follows, and the event's time offset in seconds.</summary>
+    public record VfxParticleEvent(bool OnDeath, string Effect, bool TrackPosition, bool TrackScale, bool TrackColour, bool TrackAlpha,
+        bool TrackLifetime, VfxEventTurn Turn, float Offset);
+
+    /// <summary>Rigid: RigidData's models, a continuous_rigid emitter's; null or empty for any other. Events: its particle events.</summary>
+    public record VfxEmitter(string Id, string Type, IReadOnlyDictionary<string, VfxProperty> Properties, IReadOnlyList<VfxRigidEntry>? Rigid = null,
+        IReadOnlyList<VfxParticleEvent>? Events = null);
 
     public record VfxModifier(string Fragment, IReadOnlyDictionary<string, VfxProperty> Properties, IReadOnlyDictionary<string, string> Textures);
 
@@ -84,7 +94,7 @@ namespace Shared.GameFormats.Vfx
             foreach (var emitter in vfx?.Element("emitters")?.Elements("emitter") ?? [])
             {
                 var properties = Properties(emitter.Elements().Where(x => x.Name.LocalName is "property" or "ranged_property"), tier);
-                file.Emitters.Add(new VfxEmitter((string?)emitter.Attribute("id") ?? "", (string?)emitter.Attribute("type") ?? "", properties, Rigid(emitter, tier)));
+                file.Emitters.Add(new VfxEmitter((string?)emitter.Attribute("id") ?? "", (string?)emitter.Attribute("type") ?? "", properties, Rigid(emitter, tier), Events(emitter, tier)));
             }
 
             foreach (var chain in vfx?.Element("behaviour_chains")?.Elements("behaviour_chain") ?? [])
@@ -159,6 +169,24 @@ namespace Shared.GameFormats.Vfx
                 output[name] = property;
             return output;
         }
+
+        // property_event at the asked tier, else its base; one naming no effect ("" or "0") starts nothing.
+        static List<VfxParticleEvent> Events(XElement emitter, int tier) => Properties(emitter.Elements("property_event"), tier).Values
+            .Where(x => x.Name is "OnParticleSpawn" or "OnParticleDeath" && x.Attributes.GetValueOrDefault("vfx_name") is { Length: > 0 } name && name != "0")
+            .Select(x =>
+            {
+                bool Flag(string attribute) => x.Attributes.GetValueOrDefault(attribute) == "true";
+                var death = x.Name == "OnParticleDeath";
+                var turn = x.Attributes.GetValueOrDefault("track_orientation_mode") switch
+                {
+                    "orientation_by_velocity" => VfxEventTurn.Velocity,
+                    "orientation" => VfxEventTurn.Particle,
+                    _ => VfxEventTurn.None,
+                };
+                return new VfxParticleEvent(death, x.Attributes["vfx_name"], Flag("track_position"), Flag("track_scale"), Flag("track_colour"), Flag("track_alpha"),
+                    Flag("track_lifetime"), turn, x.Number(death ? "death_event_time_offset" : "spawn_event_time_offset"));
+            })
+            .ToList();
 
         // RigidData written at the asked tier, else its base.
         static List<VfxRigidEntry> Rigid(XElement emitter, int tier)

@@ -62,6 +62,17 @@ namespace GameWorld.Core.Vfx
             return turned.LengthSquared() < 1e-12f ? direction : Vector3.Normalize(turned) * direction.Length();
         }
 
+        /// <summary>The turn that takes +Y, the way a vfx emitter fires (SpawnSpread 90 is straight up), to a direction: how
+        /// orientation_by_velocity (442 vanilla particle events) is read. Not measured in game.</summary>
+        public static Matrix UpTo(Vector3 direction)
+        {
+            var axis = Vector3.Cross(Vector3.Up, direction);
+            var cos = Math.Clamp(Vector3.Dot(Vector3.Up, direction), -1, 1);
+            if (axis.LengthSquared() < 1e-12f)
+                return cos > 0 ? Matrix.Identity : Matrix.CreateRotationX(MathF.PI);
+            return Matrix.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.Acos(cos));
+        }
+
         /// <summary>The preview's terrain is flat ground at y = 0 in the effect's space. ParticlesSpawnOnTerrain (1,503 vanilla
         /// emitters) drops the spawn point onto it. ParticlesFollowTerrain (1,073) is read as holding a particle's height above
         /// the ground as it moves, which on flat ground changes nothing; pinning it to the ground is the other reading.</summary>

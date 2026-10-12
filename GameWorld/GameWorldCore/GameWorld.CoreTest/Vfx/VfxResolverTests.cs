@@ -54,6 +54,24 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(result!.Problems, Has.One.Matches<string>(x => x.Contains("gone.xml")));
         }
 
+        // A particle event's effect resolves as a top-level one would, into the event. One missing says so, and one already on
+        // the way to it (an effect whose particles start itself) is not followed again.
+        [Test]
+        public void ParticleEvents_ResolveTheirEffects_AndAreNotFollowedRoundACycle()
+        {
+            var events = """<property_event name="OnParticleDeath" quality="0" vfx_name="boom" death_event_time_offset="0.00"/><property_event name="OnParticleSpawn" quality="0" vfx_name="fx" track_position="true" spawn_event_time_offset="0.00"/>""";
+            var pack = Pack(("fx.xml", Xml(emitters: Emitter("e", events))), ("boom.xml", Xml(emitters: Emitter("b"))));
+            var result = Resolve(pack, "fx");
+            var e = result.Emitters.Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That(e.Events!.Select(x => (x.Event.Effect, x.Emitters.Select(c => c.Emitter.Id).Single())), Is.EqualTo(new[] { ("boom", "b") }));
+                Assert.That(result.Problems, Has.One.Matches<string>(x => x.Contains("cycle") && x.Contains("fx")));
+            });
+            var missing = Resolve(Pack(("fx.xml", Xml(emitters: Emitter("e", events.Replace("boom", "gone"))))), "fx");
+            Assert.That(missing.Problems, Has.One.Matches<string>(x => x.Contains("gone.xml")));
+        }
+
         [Test]
         public void ReferenceCycle_IsSkippedAndReported_NotFollowedForever()
         {

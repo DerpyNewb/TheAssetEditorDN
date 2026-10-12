@@ -7,6 +7,11 @@ namespace GameWorld.Core.Vfx
 
     public enum QuadOrientation { CameraFacing, VelocityAligned, Horizontal, Vertical, LocalHorizontal, LocalVertical }
 
+    /// <summary>A particle event's effect, ready to run: a copy per particle, started at its birth or its death plus Offset seconds,
+    /// following what of the particle the flags say (ParticleSimulator).</summary>
+    public record ParticleEvent(bool OnDeath, IReadOnlyList<EmitterSettings> Emitters, bool TrackPosition = false, bool TrackScale = false,
+        bool TrackColour = false, bool TrackAlpha = false, bool TrackLifetime = false, VfxEventTurn Turn = VfxEventTurn.None, float Offset = 0);
+
     /// <summary>
     /// One emitter, read into what ParticleSimulator and ParticleRenderItem use. Its setters let a test
     /// build one directly; From reads one out of a resolved emitter, and lists in Skipped what step 1
@@ -53,6 +58,8 @@ namespace GameWorld.Core.Vfx
         public float InheritedSpeed { get; set; }
         /// <summary>SpawnInheritedDirectionBlend: VfxConventions.InheritDirection.</summary>
         public float InheritedDirectionBlend { get; set; }
+        /// <summary>OnParticleSpawn and OnParticleDeath: the effects each particle starts at its birth and its death.</summary>
+        public IReadOnlyList<ParticleEvent> Events { get; set; } = [];
         /// <summary>ParticlesSpawnOnTerrain: particles start on the ground.</summary>
         public bool SpawnOnTerrain { get; set; }
         /// <summary>EnableCollisions, with CollisionBouncingFactor and CollisionDampingFactor drawn per particle.</summary>
@@ -266,6 +273,10 @@ namespace GameWorld.Core.Vfx
                 s.Skipped.Add("wind is not simulated in step 1");
             s.InheritedSpeed = Number("SpawnInheritedSpeed", 0);
             s.InheritedDirectionBlend = Number("SpawnInheritedDirectionBlend", 0);
+            s.Events = (resolved.Events ?? []).Where(x => x.Emitters.Count > 0)
+                .Select(x => new ParticleEvent(x.Event.OnDeath, x.Emitters.Select(From).ToList(), x.Event.TrackPosition, x.Event.TrackScale,
+                    x.Event.TrackColour, x.Event.TrackAlpha, x.Event.TrackLifetime, x.Event.Turn, x.Event.Offset))
+                .ToList();
             if (resolved.RefSpawnSpeed is { } refSpawnSpeed)
                 s.Skipped.Add(FormattableString.Invariant($"its file's ref_spawn_speed {refSpawnSpeed} is not read"));
             s.SpawnOnTerrain = Flag("ParticlesSpawnOnTerrain");

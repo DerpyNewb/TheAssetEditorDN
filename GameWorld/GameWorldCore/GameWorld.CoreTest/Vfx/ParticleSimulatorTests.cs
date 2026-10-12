@@ -175,6 +175,68 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        static List<EmitterRuntime> Children(ParticleSimulator simulator) => simulator.AllEmitters.Where(x => x.Settings.Name == "child").ToList();
+
+        // OnParticleSpawn: each particle starts its own copy of the event's effect, which follows it (track_position): a still
+        // child emitter's newest particle, a step old, is where its parent is now.
+        [Test]
+        public void SpawnEvent_StartsAChildEffectThatFollowsItsParticle()
+        {
+            var child = Steady(x => { x.Name = "child"; x.Rate = C(60); });
+            var parent = Steady(x => { x.MaxParticles = 1; x.InitialSpeed = C(1); x.Spread = (90, 90); x.Events = [new ParticleEvent(false, [child], TrackPosition: true)]; });
+            var simulator = Run(parent, 1);
+            var children = Children(simulator);
+            var at = ParticleSimulator.States(simulator.Emitters[0]).Single().Position.Y;
+            Assert.That(children, Has.Count.EqualTo(1));
+            Assert.That(at, Is.GreaterThan(0.5f), "the parent rose");
+            Assert.That(ParticleSimulator.States(children[0]).Last().Position.Y, Is.EqualTo(at).Within(0.03));
+        }
+
+        // OnParticleDeath: a particle that dies starts the event's effect where it died, 1 m up after half a second at 2 m/s.
+        [Test]
+        public void DeathEvent_StartsTheChildEffectWhereTheParticleDied()
+        {
+            var child = Steady(x => x.Name = "child");
+            var parent = Steady(x => { x.MaxParticles = 1; x.ParticleLife = C(0.5f); x.InitialSpeed = C(2); x.Spread = (90, 90); x.Events = [new ParticleEvent(true, [child])]; });
+            var children = Children(Run(parent, 1, spawnEnd: 0.1f));
+            Assert.That(children, Has.Count.EqualTo(1));
+            Assert.That(ParticleSimulator.States(children[0]).Select(p => p.Position.Y), Is.Not.Empty.And.All.EqualTo(1).Within(0.05));
+        }
+
+        // track_lifetime: when its particle dies the child effect stops spawning and ends with its own particles; without it,
+        // an infinite child goes on.
+        [TestCase(true, 0)]
+        [TestCase(false, 1)]
+        public void TrackLifetime_EndsTheChildWithItsParticle(bool track, int left)
+        {
+            var child = Steady(x => { x.Name = "child"; x.ParticleLife = C(0.2f); });
+            var parent = Steady(x => { x.MaxParticles = 1; x.ParticleLife = C(0.5f); x.Events = [new ParticleEvent(false, [child], TrackLifetime: track)]; });
+            Assert.That(Children(Run(parent, 1, spawnEnd: 0.1f)).Count(x => x.Particles.Count > 0), Is.EqualTo(left));
+        }
+
+        // track_colour and track_alpha: the child's particles take their parent's colour and alpha.
+        [TestCase(true, 0f, 0.5f)]
+        [TestCase(false, 1f, 1f)]
+        public void TrackColourAndAlpha_TintTheChildByItsParticle(bool track, float green, float alpha)
+        {
+            var child = Steady(x => x.Name = "child");
+            var parent = Steady(x => { x.MaxParticles = 1; x.Colour = C(1, 0, 0); x.InitialAlpha = C(0.5f); x.Events = [new ParticleEvent(false, [child], TrackColour: track, TrackAlpha: track)]; });
+            var state = ParticleSimulator.States(Children(Run(parent, 1)).Single()).Last();
+            Assert.That((state.Colour.Y, state.Alpha), Is.EqualTo((green, alpha)));
+        }
+
+        // A child effect per particle is a whole simulation: past 64 live on one emitter the rest do not start, and the preview
+        // says so once.
+        [Test]
+        public void ChildEffects_AreCappedPerEmitter_AndSaySo()
+        {
+            var log = new List<string>();
+            var child = Steady(x => x.Name = "child");
+            var parent = Steady(x => { x.Rate = C(600); x.Events = [new ParticleEvent(false, [child])]; });
+            var children = Children(Run(parent, 1, log: log.Add));
+            Assert.That((children.Count, log.Count(x => x.Contains("64"))), Is.EqualTo((64, 1)));
+        }
+
         // ParticlesSpawnOnTerrain: the preview's terrain is the flat ground, y = 0 in the effect's space, whatever space
         // the particle lives in.
         [TestCase(SimulationSpace.World)]

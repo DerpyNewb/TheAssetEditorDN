@@ -450,6 +450,36 @@ namespace Test.VfxEditor
             });
         }
 
+        // OnParticleDeath starts its effect where each particle dies, and the preview draws it: red particles rise and die a
+        // metre up, where green ones go on.
+        [Test]
+        public void A_particles_death_effect_is_drawn()
+        {
+            const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
+            static string Emitter(string id, string lifetime, string speed, string events) => "\r\n\t\t<emitter type=\"continuous_mesh\" id=\"" + id + "\">"
+                + "<property name=\"InfiniteLife\" quality=\"0\" value=\"true\"/>"
+                + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>"
+                + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
+                + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, lifetime) + "</property>"
+                + "<property name=\"ParticleInitialSpeed\" quality=\"0\">" + string.Format(Constant, speed) + "</property>"
+                + events + "\r\n\t\t</emitter>";
+            static string Chain(string id, string texture) => "<behaviour_chain id=\"" + id + "\"><quality value=\"0\"><modifier fragment=\"ps_texture\"><texture_property name=\"diffuse\" type=\"file\" path=\"" + texture + "\"/></modifier></quality></behaviour_chain>";
+            var death = "<property_event name=\"OnParticleDeath\" quality=\"0\" vfx_name=\"boom\" death_event_time_offset=\"0.00\"/>";
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Effect(emitters: Emitter("e1", "0.5", "2.0", death), chains: Chain("e1", "vfx/red.dds"), references: "")))),
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("boom.xml", Fixtures.Utf16(Fixtures.Effect(emitters: Emitter("b", "100.0", "0.0", ""), chains: Chain("b", "vfx/green.dds"), stacks: "", references: "")))),
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("red.dds", Fixtures.Dds(4, 4, 255, 0, 0, 255))),
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("green.dds", Fixtures.Dds(4, 4, 0, 255, 0, 255)))]);
+            runner.CreateOutputPack();
+            Open(runner);
+            var preview = runner.GetRequiredServiceInCurrentEditorScope<VfxPreviewComponent>();
+            preview.SetTime(1.5f);
+            var drawn = DrawEffect(runner, DepthStencilState.Default);
+            Assert.That(drawn.Count(x => x.G > 200 && x.R < 60), Is.GreaterThan(20), string.Join("; ", preview.Lines));
+        }
+
         // The curve graph's points reach the screen: a binding that cannot convert them only logs, and draws an empty box.
         [Test, Apartment(ApartmentState.STA)]
         public void A_curve_row_draws_its_graph()

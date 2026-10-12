@@ -66,7 +66,7 @@ namespace GameWorld.Core.Vfx
 
             var camera = CameraAxes.From(parameters, World, device.Viewport.Height);
             // ponytail: emitters are sorted back to front within one effect, not against other effects.
-            var emitters = _simulator.Emitters.Where(x => x.Particles.Count != 0)
+            var emitters = _simulator.AllEmitters.Where(x => x.Particles.Count != 0)
                 .Select(x => (x.Settings, States: ParticleSimulator.States(x).ToList(), Frame: x.World))
                 .OrderByDescending(x => Vector3.DistanceSquared(Centre(x.States), camera.Position))
                 .ToList();
