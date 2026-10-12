@@ -61,6 +61,15 @@ namespace GameWorld.Core.Vfx
             return new Vector3(velocity.X * keep, -velocity.Y * bounce, velocity.Z * keep);
         }
 
+        /// <summary>vs_flip_uv: flip_u and flip_v are each a particle's chance of a mirrored texture (0.5 in 4,217 and 3,413 of
+        /// 4,736 vanilla chains; above 1 is always), and uv_orientation a quarter turn of it (28 chains), the turn first. Returns
+        /// the texture coordinate, 0..1 with v down, at a quad corner given x right and y up, 0..1.</summary>
+        public static (float U, float V) QuadUv(float x, float y, bool flipU, bool flipV, int turn)
+        {
+            var (u, v) = turn switch { 1 => (y, x), -1 => (1 - y, 1 - x), _ => (x, 1 - y) };
+            return (flipU ? 1 - u : u, flipV ? 1 - v : v);
+        }
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 

@@ -98,6 +98,18 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.X, Is.EqualTo(red).Within(0.02));
         }
 
+        // The quad's bottom-left corner: a mirrored particle samples the texture's right edge there, and a quarter turn
+        // counter-clockwise brings the texture's top-left corner down to it.
+        [Test]
+        public void Quads_MirrorAndTurnTheTexture()
+        {
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            Vector2 BottomLeft(EmitterSettings s, bool flipU) => ParticleRenderItem.Quads(s, camera, [RedHalfAlpha with { FlipU = flipU }])[0].TextureCoordinate;
+            Assert.That(BottomLeft(new EmitterSettings(), false), Is.EqualTo(new Vector2(0, 1)));
+            Assert.That(BottomLeft(new EmitterSettings(), true), Is.EqualTo(new Vector2(1, 1)));
+            Assert.That(BottomLeft(new EmitterSettings { UvTurn = 1 }, false), Is.EqualTo(new Vector2(0, 0)));
+        }
+
         [Test]
         public void UvRect_AtlasCellThenFlipbookCell()
         {

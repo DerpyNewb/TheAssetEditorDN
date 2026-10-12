@@ -196,6 +196,15 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(states.All(p => Vector3.Distance(p.Velocity, bounced) < 1e-3f || Vector3.Distance(p.Velocity, falling) < 1e-3f), Is.True);
         }
 
+        // vs_flip_uv: each particle's texture is mirrored with the chain's chance, per axis.
+        [Test]
+        public void FlipUv_MirrorsParticlesByChance()
+        {
+            var states = States(Run(Steady(x => { x.FlipU = 1; x.FlipV = 0.5f; }), 10));
+            Assert.That(states.All(p => p.FlipU), Is.True);
+            Assert.That(states.Count(p => p.FlipV), Is.InRange(states.Count / 4, states.Count * 3 / 4));
+        }
+
         [Test]
         public void SpawnSpacing_StandingStill_SpawnsOnlyByRate()
         {

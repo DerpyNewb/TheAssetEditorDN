@@ -88,7 +88,7 @@ namespace GameWorld.Core.Vfx
             }
         }
 
-        static VertexPositionColorTexture[] Quads(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states)
+        public static VertexPositionColorTexture[] Quads(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states)
         {
             var vertices = new VertexPositionColorTexture[states.Count * 6];
             var n = 0;
@@ -136,10 +136,11 @@ namespace GameWorld.Core.Vfx
             var width = p.Size.X;
             var colour = VertexColour(s, p.Colour, p.Alpha);
             var uv = UvRect(s, p.Cell);
-            VertexPositionColorTexture Corner(float x, float y) => new(
-                p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height),
-                colour,
-                new Vector2(uv.X + x * uv.Z, uv.Y + (1 - y) * uv.W));
+            VertexPositionColorTexture Corner(float x, float y)
+            {
+                var (u, v) = VfxConventions.QuadUv(x, y, p.FlipU, p.FlipV, s.UvTurn);
+                return new(p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height), colour, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W));
+            }
 
             vertices[n++] = Corner(0, 0);
             vertices[n++] = Corner(1, 0);

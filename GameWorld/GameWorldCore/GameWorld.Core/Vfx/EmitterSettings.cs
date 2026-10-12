@@ -57,6 +57,11 @@ namespace GameWorld.Core.Vfx
         public bool Collisions { get; set; }
         public (float Min, float Max) Bounce { get; set; }
         public (float Min, float Max) Damping { get; set; }
+        /// <summary>vs_flip_uv: the chance a particle's texture is mirrored left to right, and top to bottom.</summary>
+        public float FlipU { get; set; }
+        public float FlipV { get; set; }
+        /// <summary>vs_flip_uv uv_orientation: a quarter turn of the texture, 1 counter-clockwise, -1 clockwise.</summary>
+        public int UvTurn { get; set; }
 
         // A particle's start
         public VfxCurve? InitialSpeed { get; set; }
@@ -227,6 +232,10 @@ namespace GameWorld.Core.Vfx
                 NotDrawn(s, "the chain has no ps_texture, so nothing is drawn: in vanilla only sound carriers lack one");
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;
             s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);
+            var flip = chain.Find("vs_flip_uv");
+            s.FlipU = Number(flip, "flip_u", 0);
+            s.FlipV = Number(flip, "flip_v", 0);
+            s.UvTurn = flip?.Properties.GetValueOrDefault("uv_orientation")?.Value switch { "90_degrees_ccw" => 1, "90_degrees_cw" => -1, _ => 0 };
             s.Alpha = ParseCurve(s, chain.Find("vs_vertex_alpha")?.Properties.GetValueOrDefault("curve_alpha"));
             s.Colour = ParseCurve(s, chain.Find("vs_colour")?.Properties.GetValueOrDefault("curve_colour"));
 

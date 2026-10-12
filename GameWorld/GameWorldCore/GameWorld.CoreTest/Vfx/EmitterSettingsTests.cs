@@ -63,6 +63,14 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void FlipUv_IsRead()
+        {
+            var flip = """<modifier fragment="vs_flip_uv"><property name="flip_u" type="float" value="0.5"/><property name="flip_v" type="float" value="1.0"/><property name="uv_orientation" type="list" value="90_degrees_cw"/></modifier>""";
+            var sparks = Read(Emitter("sparks"), SparksChain.Replace("</quality>", flip + "</quality>")).Single();
+            Assert.That((sparks.FlipU, sparks.FlipV, sparks.UvTurn), Is.EqualTo((0.5f, 1f, -1)));
+        }
+
+        [Test]
         public void SkipParticlePositionUpdate_IsRead()
         {
             var head = Read(Emitter("sparks", """<property name="SkipParticlePositionUpdate" quality="0" value="true"/>"""), SparksChain).Single();

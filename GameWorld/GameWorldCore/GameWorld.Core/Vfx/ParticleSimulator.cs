@@ -21,10 +21,11 @@ namespace GameWorld.Core.Vfx
         public float RScale, RDeceleration, RSpinDeceleration, RForce, RAlpha, RColour, RStretch;
         // Drawn only when the emitter collides, so an emitter that does not keeps its random sequence.
         public float Bounce, Damping;
+        public bool FlipU, FlipV;
     }
 
     /// <summary>A particle as drawn now, in the effect's model space.</summary>
-    public readonly record struct ParticleState(Vector3 Position, Vector3 Velocity, Vector2 Size, float Angle, Vector3 Colour, float Alpha, float Stretch, int Cell);
+    public readonly record struct ParticleState(Vector3 Position, Vector3 Velocity, Vector2 Size, float Angle, Vector3 Colour, float Alpha, float Stretch, int Cell, bool FlipU = false, bool FlipV = false);
 
     public class EmitterRuntime
     {
@@ -292,6 +293,10 @@ namespace GameWorld.Core.Vfx
                 p.Bounce = Draw(s.Bounce);
                 p.Damping = Draw(s.Damping);
             }
+            if (s.FlipU > 0)
+                p.FlipU = Next() < s.FlipU;
+            if (s.FlipV > 0)
+                p.FlipV = Next() < s.FlipV;
             e.Particles.Add(p);
         }
 
@@ -367,7 +372,7 @@ namespace GameWorld.Core.Vfx
                 var colour = Vector(s.Colour, v, p.RColour, 1) * new Vector3(p.Tint.X, p.Tint.Y, p.Tint.Z);
                 var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W;
                 var cell = s.Animated ? VfxConventions.FlipbookCell(s.CellsX * s.CellsY, v, p.Age, p.Loops, s.FixedSpeed, s.FlipbookLoop) : s.RandomCell ? p.Cell : s.Cell;
-                yield return new ParticleState(position, velocity, size, p.Angle, colour, alpha, s.Stretch?.Evaluate(0, v, p.RStretch) ?? 0, cell);
+                yield return new ParticleState(position, velocity, size, p.Angle, colour, alpha, s.Stretch?.Evaluate(0, v, p.RStretch) ?? 0, cell, p.FlipU, p.FlipV);
             }
         }
 
