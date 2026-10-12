@@ -19,6 +19,8 @@ namespace GameWorld.Core.Vfx
         private readonly VfxTextureCache _textureCache;
         private readonly Func<Effect> _shader;
         private Texture2D? _white;
+        private RenderTarget2D? _scene;
+        private SpriteBatch? _batch;
 
         public Matrix World { get; set; } = Matrix.Identity;
         public bool IsDisposed { get; private set; }
@@ -64,18 +66,24 @@ namespace GameWorld.Core.Vfx
                 .OrderByDescending(x => Vector3.DistanceSquared(Centre(x.States), camera.Position))
                 .ToList();
 
+            var glow = renderingTechnique == RenderingTechnique.Emissive;
+            var scene = !glow && emitters.Any(x => x.Settings.Distortion) ? CopyScene(device) : null;
             var blendState = device.BlendState;
             var samplerState = device.SamplerStates[0];
             device.SamplerStates[0] = SamplerState.LinearClamp;
             foreach (var (settings, states, frame) in emitters)
-                DrawEmitter(device, _shader(), parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, renderingTechnique == RenderingTechnique.Emissive);
+                DrawEmitter(device, _shader(), parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, glow, scene);
             device.BlendState = blendState;
             device.SamplerStates[0] = samplerState;
         }
 
         public static void DrawEmitter(GraphicsDevice device, Effect effect, CommonShaderParameters parameters, Matrix world,
-            CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null, bool glow = false)
+            CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null, bool glow = false,
+            Texture2D? scene = null)
         {
+            // A distortion bends what is drawn already, and adds no light to bloom.
+            if (settings.Distortion && (glow || scene == null))
+                return;
             (states, var scale) = Hdr(settings, states, glow);
             var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
@@ -89,7 +97,14 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["UseGradient"].SetValue(settings.Gradient != null ? 1f : 0f);
             effect.Parameters["GradientMapsAlpha"].SetValue(settings.GradientMapsAlpha ? 1f : 0f);
             effect.Parameters["GradientRamp"].SetValue(Ramp(settings));
-            device.BlendState = BlendFor(settings);
+            effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : "ParticleDrawing"];
+            if (settings.Distortion)
+            {
+                effect.Parameters["Scene"].SetValue(scene);
+                effect.Parameters["InverseSceneSize"].SetValue(new Vector2(1f / scene!.Width, 1f / scene.Height));
+                effect.Parameters["Reach"].SetValue(new Vector2(parameters.Projection.M11, parameters.Projection.M22) * (VfxConventions.DistortionMetres / 2));
+            }
+            device.BlendState = settings.Distortion ? BlendState.AlphaBlend : BlendFor(settings);
             foreach (var pass in effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
@@ -308,6 +323,27 @@ namespace GameWorld.Core.Vfx
             }
         };
 
+        // DISTORTION samples what is drawn already, so the bound target is copied first, once a frame. Null on the back buffer.
+        Texture2D? CopyScene(GraphicsDevice device)
+        {
+            if (device.GetRenderTargets() is not [{ RenderTarget: RenderTarget2D target }, ..])
+                return null;
+            if (_scene == null || _scene.Width != target.Width || _scene.Height != target.Height)
+            {
+                _scene?.Dispose();
+                _scene = new RenderTarget2D(device, target.Width, target.Height, false, SurfaceFormat.Color, DepthFormat.None);
+            }
+            _batch ??= new SpriteBatch(device);
+            var (viewport, depth, raster) = (device.Viewport, device.DepthStencilState, device.RasterizerState);
+            device.SetRenderTarget(_scene);
+            _batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            _batch.Draw(target, Vector2.Zero, Color.White);
+            _batch.End();
+            device.SetRenderTarget(target);
+            (device.Viewport, device.DepthStencilState, device.RasterizerState) = (viewport, depth, raster);
+            return _scene;
+        }
+
         Texture2D TextureFor(GraphicsDevice device, string? path) =>
             string.IsNullOrEmpty(path) ? _white! : _textureCache.Load(device, path) ?? _white!;
 
@@ -319,6 +355,10 @@ namespace GameWorld.Core.Vfx
             // Nulled, so a frame drawn after a dispose builds them again rather than drawing with disposed ones.
             _white?.Dispose();
             _white = null;
+            _scene?.Dispose();
+            _scene = null;
+            _batch?.Dispose();
+            _batch = null;
             IsDisposed = true;
         }
     }

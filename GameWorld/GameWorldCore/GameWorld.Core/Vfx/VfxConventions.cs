@@ -119,6 +119,11 @@ namespace GameWorld.Core.Vfx
         /// particle and a centimetre clear of the grid, turned by the particle's angle.</summary>
         public static Vector3 Decal(Vector3 worldPosition) => new(worldPosition.X, 0.01f, worldPosition.Z);
 
+        /// <summary>DISTORTION (685 vanilla emitters) draws no colour: its ps_texture names only a normal map, and its alpha curve
+        /// fades it. The preview shifts the scene behind the quad by the map's red and green (0.5 still, green up) times the alpha,
+        /// a full reading moving it this many metres at the quad's distance. The game's scale is not measured.</summary>
+        public const float DistortionMetres = 0.25f;
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 

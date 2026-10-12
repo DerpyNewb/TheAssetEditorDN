@@ -116,6 +116,8 @@ namespace GameWorld.Core.Vfx
         public bool CellBlend { get; set; }
         /// <summary>The stack draws onto what lies under it (DEFERRED_DECAL, DEFERRED_DECAL_EMISSIVE, SEA_OVERLAY).</summary>
         public bool Decal { get; set; }
+        /// <summary>The stack is DISTORTION: the chain's normal map shifts the scene behind it.</summary>
+        public bool Distortion { get; set; }
         /// <summary>ps_alpha_crush: a particle's crush level over its life, and whether it cuts sharp.</summary>
         public VfxCurve? AlphaCrush { get; set; }
         public bool CrushSharp { get; set; }
@@ -212,6 +214,8 @@ namespace GameWorld.Core.Vfx
                 NotDrawn(s, $"emitter type {resolved.Emitter.Type} is not drawn in step 1");
             if (resolved.SceneViewType is "DEFERRED_DECAL" or "DEFERRED_DECAL_EMISSIVE" or "SEA_OVERLAY")
                 s.Decal = true;
+            else if (resolved.SceneViewType == "DISTORTION")
+                s.Distortion = true;
             else if (resolved.SceneViewType is not (null or "FULLRES_DEFERRED_ALPHA" or "HALFRES_DEFERRED_ALPHA"))
                 NotDrawn(s, $"scene_view_type {resolved.SceneViewType} is not drawn in step 1");
             if (Flag("AllowEmitFromMesh"))
@@ -252,7 +256,13 @@ namespace GameWorld.Core.Vfx
 
             var texture = chain.Find("ps_texture");
             s.Texture = texture?.Textures.GetValueOrDefault("diffuse") is { Length: > 0 } path ? path : null;
-            if (texture == null && chain.Find("ps_custom_shader") is { } custom)
+            if (s.Distortion)
+            {
+                s.Texture = texture?.Textures.GetValueOrDefault("normal") is { Length: > 0 } normal ? normal : null;
+                if (s.Texture == null)
+                    NotDrawn(s, "its DISTORTION chain names no normal map, so it has nothing to shift the scene by");
+            }
+            else if (texture == null && chain.Find("ps_custom_shader") is { } custom)
             {
                 var material = custom.Properties.GetValueOrDefault("material")?.Attributes.GetValueOrDefault("path");
                 s.Texture = materialTexture;

@@ -27,6 +27,21 @@ sampler2D TextureSampler = sampler_state
 	Texture = <Texture>;
 };
 
+// DISTORTION: the scene drawn so far, copied, its texel size, and how far a full normal shifts it at 1 m, in texture units
+// across and down (VfxConventions.DistortionMetres through the projection).
+Texture2D Scene;
+sampler2D SceneSampler = sampler_state
+{
+	Texture = <Scene>;
+	AddressU = Clamp;
+	AddressV = Clamp;
+	MinFilter = Linear;
+	MagFilter = Linear;
+	MipFilter = Point;
+};
+float2 InverseSceneSize;
+float2 Reach;
+
 struct VertexShaderInput
 {
 	float4 Position : POSITION0;
@@ -87,11 +102,48 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	return float4(Premultiplied > 0 ? rgb * a : rgb, a) * input.Colour;
 }
 
+struct DistortionOutput
+{
+	float4 Position : SV_POSITION;
+	float4 Colour : COLOR0;
+	float2 Uv : TEXCOORD0;
+	float Depth : TEXCOORD1;
+};
+
+DistortionOutput DistortionVS(in VertexShaderInput input)
+{
+	DistortionOutput output;
+	output.Position = mul(input.Position, WorldViewProjection);
+	output.Colour = input.Colour;
+	output.Uv = input.Uv;
+	output.Depth = output.Position.w;
+	return output;
+}
+
+// The normal map's red and green, 0.5 still and green up, shift the scene behind the quad, faded by the particle's alpha.
+float4 DistortionPS(DistortionOutput input) : COLOR
+{
+	float2 bend = tex2D(TextureSampler, input.Uv).rg * 2 - 1;
+	float a = input.Colour.a;
+	float2 offset = float2(bend.x, -bend.y) * a * Reach / max(input.Depth, 0.01);
+	float3 scene = tex2D(SceneSampler, input.Position.xy * InverseSceneSize + offset).rgb;
+	return float4(scene * a, a);
+}
+
 technique ParticleDrawing
 {
 	pass P0
 	{
 		VertexShader = compile VS_SHADERMODEL MainVS();
 		PixelShader = compile PS_SHADERMODEL MainPS();
+	}
+};
+
+technique Distortion
+{
+	pass P0
+	{
+		VertexShader = compile VS_SHADERMODEL DistortionVS();
+		PixelShader = compile PS_SHADERMODEL DistortionPS();
 	}
 };

@@ -57,7 +57,8 @@ namespace GameWorld.Core.Test.Vfx
         // Draws onto mid grey and returns one pixel from the middle.
         Vector4 Render(Action draw)
         {
-            using var target = new RenderTarget2D(_device, 4, 4, false, SurfaceFormat.Color, DepthFormat.None);
+            // Preserved as the app's are: a distortion copies the target and draws on, and a discarded one comes back cleared.
+            using var target = new RenderTarget2D(_device, 4, 4, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
             _device.SetRenderTarget(target);
             _device.Clear(new Color(128, 128, 128, 255));
             _device.DepthStencilState = DepthStencilState.None;
@@ -208,6 +209,33 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // DISTORTION draws the scene behind it shifted by its normal map. A red-and-blue split seen from 1 m: a full +x normal
+        // brings the blue half under the pixel, a flat one leaves it red.
+        [TestCase(255, 0f, 1f)]
+        [TestCase(128, 1f, 0f)]
+        public void Distortion_ShiftsTheSceneBehind(int normalX, float red, float blue)
+        {
+            var close = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 0, 1), Vector3.Zero, Vector3.Up),
+                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 0, 1), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+            var normal = new Texture2D(_device, 1, 1);
+            normal.SetData(new[] { new Color(normalX, 128, 255, 255) });
+            using var split = new Texture2D(_device, 4, 1);
+            split.SetData(new[] { Color.Red, Color.Red, Color.Blue, Color.Blue });
+            using var batch = new SpriteBatch(_device);
+            using var cache = new VfxTextureCache((_, _) => normal);
+            using var item = new ParticleRenderItem(OneParticle("normal", distortion: true), cache, () => Shader);
+            var pixel = Render(() =>
+            {
+                batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp);
+                batch.Draw(split, new Rectangle(0, 0, 4, 4), Color.White);
+                batch.End();
+                _device.DepthStencilState = DepthStencilState.None;
+                _device.RasterizerState = RasterizerState.CullNone;
+                item.Draw(_device, close, RenderingTechnique.Normal);
+            });
+            Assert.That(new[] { pixel.X, pixel.Z }, Is.EqualTo(new[] { red, blue }).Within(0.05));
+        }
+
         // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with
         // the texture cell running from the newest (its top, as a velocity-aligned quad's head) to the oldest.
         [Test]
@@ -299,12 +327,12 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         // One particle 10 m across at the origin, filling the view.
-        static ParticleSimulator OneParticle(string? texture, Vector4? tint = null)
+        static ParticleSimulator OneParticle(string? texture, Vector4? tint = null, bool distortion = false)
         {
             var settings = new EmitterSettings
             {
                 Name = "test", InfiniteLife = true, Rate = VfxCurve.Constant(60), MaxParticles = 1, ParticleLife = VfxCurve.Constant(100),
-                InitialScale = VfxCurve.Constant(10, 10, 10), Texture = texture, TintMin = tint ?? Vector4.One, TintMax = tint ?? Vector4.One,
+                InitialScale = VfxCurve.Constant(10, 10, 10), Texture = texture, TintMin = tint ?? Vector4.One, TintMax = tint ?? Vector4.One, Distortion = distortion,
             };
             var simulator = new ParticleSimulator([settings], 1, _ => Matrix.Identity);
             simulator.AdvanceTo(0.5f);

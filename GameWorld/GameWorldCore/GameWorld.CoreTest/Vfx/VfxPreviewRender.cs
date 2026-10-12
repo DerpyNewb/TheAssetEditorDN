@@ -41,7 +41,7 @@ namespace GameWorld.Core.Test.Vfx
             using var content = ParticleRenderItemTests.Content(service);
             var shader = content.Load<Effect>("Shaders/Particle");
             var textures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(runner.PackFileService, log.Add));
-            using var target = new RenderTarget2D(device, 512, 512, false, SurfaceFormat.Color, DepthFormat.Depth24);
+            using var target = new RenderTarget2D(device, 512, 512, false, SurfaceFormat.Color, DepthFormat.Depth24, 0, RenderTargetUsage.PreserveContents);
             using var lines = new BasicEffect(device) { VertexColorEnabled = true };
             var lookAt = new Vector3(0, 1, 0);
             var views = new (string Name, Vector3 Eye, Vector3 Up)[]

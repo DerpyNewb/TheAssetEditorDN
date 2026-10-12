@@ -54,6 +54,15 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(ripple.Skipped, Has.One.Matches<string>(x => x.Contains("DISTORTION")));
         }
 
+        // A DISTORTION chain names only a normal map; that is what it draws with.
+        [Test]
+        public void DistortionStack_DrawsWithItsNormalMap()
+        {
+            var ripple = Read(Emitter("ripple"), SmokeChain.Replace("\"smoke\"", "\"ripple\"").Replace("""path="vfx\textures\smoke_dense_loop_diffuse.dds"/>""", """path=""/><texture_property name="normal" type="file" path="vfx\textures\shockwave_normal.dds"/>"""),
+                """<effect_render_stack id="ripple"><property name="scene_view_type" quality="0" value="DISTORTION"/></effect_render_stack>""").Single();
+            Assert.That((ripple.Draws, ripple.Distortion, ripple.Texture), Is.EqualTo((true, true, @"vfx\textures\shockwave_normal.dds")));
+        }
+
         [TestCase("DEFERRED_DECAL")]
         [TestCase("DEFERRED_DECAL_EMISSIVE")]
         [TestCase("SEA_OVERLAY")]
