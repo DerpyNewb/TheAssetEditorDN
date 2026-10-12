@@ -1,6 +1,7 @@
 using System.IO;
 using Editors.AnimationMeta.SuperView;
 using GameWorld.Core.SceneNodes;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using Shared.Core.Commands;
 using Shared.Core.PackFiles;
@@ -167,6 +168,65 @@ namespace Test.AnimationMeta
             before = data.MetaDataItems;
             _runner.PackFileService.SaveFile(_runner.PackFileService.FindFile(path, pack)!, [2]);
             Assert.That(data.MetaDataItems, rebuilds ? Is.Not.SameAs(before) : Is.SameAs(before), "on save");
+        }
+
+        // The panel opens the Kitbash editor's render settings, the light that lights the models and lit smoke, and takes a
+        // screenshot, as the VFX editor's preview bar does.
+        [Test, Apartment(ApartmentState.STA)]
+        public void ThePanelOffersTheRenderSettingsAndAScreenshot()
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            // The panel's one app-level resource, which the test has no App.xaml to give it.
+            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+            app.Resources["InvBoolToHiddenConverter"] = new System.Windows.Controls.BooleanToVisibilityConverter();
+            var view = new EditorView { DataContext = superView };
+            view.Measure(new System.Windows.Size(500, 900));
+            view.Arrange(new System.Windows.Rect(0, 0, 500, 900));
+            view.UpdateLayout();
+            var commands = Descendants(view).OfType<System.Windows.Controls.Button>().Select(x => x.Command).ToList();
+            Assert.That(commands, Does.Contain(superView.OpenRenderSettingsCommand).And.Contain(superView.TakeScreenshotCommand));
+        }
+
+        // A screenshot is the next frame at twice the view's size, named after the file, saved where PhotoStudio saves its own.
+        [Test]
+        public void AScreenshotSavesTheNextFrameAtTwiceItsSize()
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var folder = Path.Combine(Path.GetTempPath(), "superview_shots_" + Guid.NewGuid().ToString("N"));
+            (superView.ScreenshotFolder, superView.OpenScreenshotFolder) = (folder, false);
+            try
+            {
+                superView.TakeScreenshotCommand.Execute(null);
+                var engine = _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.Rendering.RenderEngineComponent>();
+                var device = _runner.ServiceProvider.GetRequiredService<GameWorld.Core.WpfWindow.IWpfGame>().GraphicsDevice;
+                using var target = new Microsoft.Xna.Framework.Graphics.RenderTarget2D(device, 64, 48, false,
+                    Microsoft.Xna.Framework.Graphics.SurfaceFormat.Color, Microsoft.Xna.Framework.Graphics.DepthFormat.Depth24);
+                device.SetRenderTarget(target);
+                engine.Draw(new GameTime());
+                device.SetRenderTarget(null);
+                var shot = Directory.GetFiles(folder, "*.png").Single();
+                var frame = System.Windows.Media.Imaging.BitmapDecoder.Create(new Uri(shot), System.Windows.Media.Imaging.BitmapCreateOptions.None,
+                    System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+                Assert.That((Path.GetFileName(shot).StartsWith("skv_throt_"), frame.PixelWidth, frame.PixelHeight), Is.EqualTo((true, 128, 96)));
+            }
+            finally
+            {
+                if (Directory.Exists(folder))
+                    Directory.Delete(folder, true);
+            }
+        }
+
+        static IEnumerable<System.Windows.DependencyObject> Descendants(System.Windows.DependencyObject parent)
+        {
+            for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                yield return child;
+                foreach (var descendant in Descendants(child))
+                    yield return descendant;
+            }
         }
     }
 }
