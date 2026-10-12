@@ -151,6 +151,8 @@ namespace Editors.VfxEditor.Preview
         {
             if (_packFileService.FindFile(path) is not { } file)
                 return null;
+            foreach (var shader in VfxMeshCache.CustomShaders(_packFileService, path))
+                _lines.Add($"rigid model {path} names {shader}, one of CA's own shaders the preview cannot run: drawn as a plain lit mesh");
             try
             {
                 return _meshLoader.Load(file, new AnimationPlayer(), onlyLoadRootNode: true, onlyLoadFirstMesh: false);

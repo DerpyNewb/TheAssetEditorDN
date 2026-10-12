@@ -6,7 +6,9 @@ using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
 using Shared.Core.PackFiles;
 using Shared.GameFormats.Animation;
+using Shared.Core.PackFiles.Models;
 using Shared.GameFormats.RigidModel;
+using Shared.GameFormats.WsModel;
 
 namespace GameWorld.Core.Vfx
 {
@@ -91,6 +93,25 @@ namespace GameWorld.Core.Vfx
             {
                 _log?.Invoke($"rigid model animation {anim} does not play on skeleton {skeletonName}: {e.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>The custom shaders (VfxConventions.IsCustomShader) a wsmodel's materials name: the preview draws those meshes
+        /// plain and lit. Empty for any other model, and for a wsmodel that does not read, whose load says so.</summary>
+        public static IReadOnlyList<string> CustomShaders(IPackFileService packFileService, string path)
+        {
+            if (!path.EndsWith(".wsmodel", StringComparison.OrdinalIgnoreCase) || packFileService.FindFile(path) is not { } file)
+                return [];
+            try
+            {
+                return new WsModelFile(file).MaterialList
+                    .Select(x => packFileService.FindFile(x.MaterialPath)).OfType<PackFile>()
+                    .Select(x => new WsModelMaterialFile(x).ShaderPath)
+                    .Where(VfxConventions.IsCustomShader).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            }
+            catch (Exception)
+            {
+                return [];
             }
         }
 

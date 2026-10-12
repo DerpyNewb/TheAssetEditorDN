@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System.Text.RegularExpressions;
+using Microsoft.Xna.Framework;
 
 namespace GameWorld.Core.Vfx
 {
@@ -133,6 +134,14 @@ namespace GameWorld.Core.Vfx
         public static Matrix RigidMatrix(BoundingBox box, Vector3 pivot, float scale, Vector3 turn, Matrix frame, Vector3 position) =>
             Matrix.CreateTranslation(-(box.Min + pivot * (box.Max - box.Min))) * Matrix.CreateScale(scale)
             * Matrix.CreateRotationX(turn.X) * Matrix.CreateRotationY(turn.Y) * Matrix.CreateRotationZ(turn.Z) * frame * Matrix.CreateTranslation(position);
+
+        static readonly Regex s_standardShader = new(@"^shaders/(system/)?(weighted\d*|rigid)_(character|default|standard)(_\d+)?(_alpha|_emissive)?\.xml\.shader$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>A material's shader that the preview's PBR materials do not stand in for: any but CA's character, default and
+        /// standard ones. Most of vanilla's rigid VFX models name one (the dissolves, panners and unlit vortices, Tidecall's water),
+        /// and the preview cannot run it.</summary>
+        public static bool IsCustomShader(string shader) => shader.Length > 0 && !s_standardShader.IsMatch(shader.Replace('\\', '/'));
 
         /// <summary>How far through its AnimFile a rigid particle is: played at AnimSpeed from its birth, looping, since most of
         /// vanilla's 118 animated entries are run cycles, idles and tentacles. Read as a playback rate; not measured in game.</summary>

@@ -296,6 +296,21 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(Vector3.Distance(Vector3.Transform(new Vector3(2, 0, 1), framed), new Vector3(10, 3, 0)), Is.LessThan(1e-4), "then turned by its emitter's frame");
         }
 
+        // The preview's PBR materials stand in for CA's character and rigid shaders; the rest (Tidecall's water, the dissolves,
+        // the unlit vortices: most of vanilla's rigid VFX models) are CA's own, which it cannot run.
+        [TestCase("shaders/wh2_vfx_cst_tidecall.xml.shader", true)]
+        [TestCase("shaders/wh3_vfx_rigid_emissive_dissolve.xml.shader", true)]
+        [TestCase("shaders/campaign_vortex_unlit.xml.shader", true)]
+        [TestCase("shaders/weighted4_character_alpha.xml.shader", false)]
+        [TestCase("shaders/weighted2_character_emissive.xml.shader", false)]
+        [TestCase("shaders/rigid_character.xml.shader", false)]
+        [TestCase("shaders/rigid_default.xml.shader", false)]
+        [TestCase("shaders/weighted2_default.xml.shader", false)]
+        [TestCase("SHADERS/System/Weighted_Standard_4.xml.shader", false)]
+        [TestCase("", false)]
+        public void IsCustomShader_IsAnyButTheCharacterAndRigidOnes(string shader, bool custom) =>
+            Assert.That(VfxConventions.IsCustomShader(shader), Is.EqualTo(custom));
+
         // A rigid particle's AnimFile plays at AnimSpeed from the particle's birth and loops: most of vanilla's 118 are run
         // cycles, idles and tentacles. A clip with no length holds its first frame.
         [TestCase(0.5f, 2f, 4f, 0.25f)]

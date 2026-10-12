@@ -77,6 +77,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 LogOnce($"rigid model {path} is not in the loaded packs");
                 return null;
             }
+            foreach (var shader in VfxMeshCache.CustomShaders(_packFileService, path))
+                LogOnce($"rigid model {path} names {shader}, one of CA's own shaders the preview cannot run: drawn as a plain lit mesh");
             try
             {
                 return _complexMeshLoader.Load(file, new AnimationPlayer(), onlyLoadRootNode: true, onlyLoadFirstMesh: false);

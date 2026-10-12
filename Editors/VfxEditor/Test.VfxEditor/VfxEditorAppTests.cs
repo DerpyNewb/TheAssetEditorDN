@@ -503,6 +503,26 @@ namespace Test.VfxEditor
             });
         }
 
+        // A rigid model whose material names one of CA's VFX shaders draws as a plain lit mesh, and the preview says which
+        // shader it could not run: the grey slabs of Tidecall's waves are wh2_vfx_cst_tidecall's water.
+        [Test]
+        public void A_rigid_model_on_a_custom_shader_says_so()
+        {
+            var (runner, preview) = ShowRigidModel(model: @"vfx\models\wave.wsmodel", before: runner =>
+            {
+                var pack = runner.CreateEmptyPackFile("models", false);
+                runner.PackFileService.AddFilesToPack(pack,
+                [
+                    new NewPackFileEntry(@"vfx\models", PackFile.CreateFromBytes("wave.wsmodel", System.Text.Encoding.UTF8.GetBytes(
+                        $"<model version=\"1\"><geometry>{KarlFranz}</geometry><materials><material part_index=\"0\" lod_index=\"0\">vfx/models/wave.material</material></materials></model>"))),
+                    new NewPackFileEntry(@"vfx\models", PackFile.CreateFromBytes("wave.material", System.Text.Encoding.UTF8.GetBytes(
+                        "<material><name>wave</name><shader>shaders/wh2_vfx_cst_tidecall.xml.shader</shader><textures></textures><params></params></material>"))),
+                ]);
+            });
+            DrawEffect(runner, DepthStencilState.Default);
+            Assert.That(preview.Lines, Has.One.Contains("wh2_vfx_cst_tidecall"), string.Join("; ", preview.Lines));
+        }
+
         // A rigid particle plays its AnimFile (118 vanilla entries): Karl Franz on the test pack's stand idle drops his arms from
         // the bind pose, so he draws narrower.
         [Test]
@@ -591,16 +611,18 @@ namespace Test.VfxEditor
         }
 
         // Karl Franz's model on one continuous_rigid particle, half a second in.
-        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel(string chains = "", string properties = "", string anim = "")
+        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel(string chains = "", string properties = "", string anim = "", string model = KarlFranz,
+            Action<AssetEditorTestRunner>? before = null)
         {
             var (runner, _, preview) = OpenWithAGuideModelOffered();
+            before?.Invoke(runner);
             const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
             var emitter = "\r\n\t\t<emitter type=\"continuous_rigid\" id=\"rigid\">"
                 + "<property name=\"InfiniteLife\" quality=\"0\" value=\"true\"/>"
                 + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>" + properties
                 + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
                 + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
-                + "<property_rigid_data name=\"RigidData\" quality=\"0\"><rigid_entry><ModelFile value=\"" + KarlFranz + "\"/><PivotPoint x=\"0.50\" y=\"0.50\" z=\"0.50\"/><AnimFile value=\"" + anim + "\"/><AnimSpeed value=\"1.00\"/></rigid_entry></property_rigid_data>"
+                + "<property_rigid_data name=\"RigidData\" quality=\"0\"><rigid_entry><ModelFile value=\"" + model + "\"/><PivotPoint x=\"0.50\" y=\"0.50\" z=\"0.50\"/><AnimFile value=\"" + anim + "\"/><AnimSpeed value=\"1.00\"/></rigid_entry></property_rigid_data>"
                 + "\r\n\t\t</emitter>";
             preview.Show("rigid", Fixtures.Utf16(Fixtures.Effect(emitters: emitter, chains: chains, stacks: "", references: "")), 0);
             preview.SetTime(0.5f);
