@@ -42,6 +42,9 @@ namespace GameWorld.Core.Components.Rendering
 
         RenderTarget2D _normalRenderTarget;
         RenderTarget2D _emissiveRenderTarget;
+        // The glow is light, added whole whatever alpha the glow pass left: weighed by alpha it dropped a premultiplied additive
+        // particle's glow, which carries none, and a bloom with alpha hid the background behind it.
+        readonly BlendState _addLight = new() { ColorSourceBlend = Blend.One, ColorDestinationBlend = Blend.One, AlphaSourceBlend = Blend.Zero, AlphaDestinationBlend = Blend.One };
         RenderTarget2D _screenRenderTarget;
 
         public SpriteBatch CommonSpriteBatch { get; private set; }
@@ -197,7 +200,7 @@ namespace GameWorld.Core.Components.Rendering
                 if (bloomRenderTarget != null)
                 {
                     device.SetRenderTarget(_screenRenderTarget);
-                    spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Additive);
+                    spriteBatch.Begin(SpriteSortMode.Deferred, _addLight);
                     spriteBatch.Draw(bloomRenderTarget, new Rectangle(0, 0, _screenRenderTarget.Width, _screenRenderTarget.Height), Color.White);
                     spriteBatch.End();
                 }
@@ -316,6 +319,7 @@ namespace GameWorld.Core.Components.Rendering
             CommonSpriteBatch = _graphicsResourceCreator.DisposeTracked(CommonSpriteBatch);
 
             _bloomFilter.Dispose();
+            _addLight.Dispose();
             _normalRenderTarget = _graphicsResourceCreator.DisposeTracked(_normalRenderTarget);
             _emissiveRenderTarget = _graphicsResourceCreator.DisposeTracked(_emissiveRenderTarget);
             _screenRenderTarget = _graphicsResourceCreator.DisposeTracked(_screenRenderTarget);

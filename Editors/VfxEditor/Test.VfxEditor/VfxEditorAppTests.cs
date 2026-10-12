@@ -487,6 +487,45 @@ namespace Test.VfxEditor
             public void Draw(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique technique) => drawn.Add(technique);
         }
 
+        // The glow pass is light, added whatever its alpha: a premultiplied additive particle draws its glow with none, and a
+        // bloom weighed by alpha dropped it; with alpha, a bloom hid the background behind it.
+        [Test]
+        public void The_glow_is_added_whatever_its_alpha()
+        {
+            var (runner, _, _) = OpenWithAGuideModelOffered();
+            var engine = runner.GetRequiredServiceInCurrentEditorScope<RenderEngineComponent>();
+            var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
+            double Frame(Xna.Color? glow)
+            {
+                using var target = new RenderTarget2D(device, 64, 64, false, SurfaceFormat.Color, DepthFormat.Depth24);
+                device.SetRenderTarget(target);
+                if (glow is { } colour)
+                    engine.AddRenderItem(RenderBuckedId.Transparent, new Glow(colour));
+                engine.Draw(new Xna.GameTime());
+                engine.Update(new Xna.GameTime());
+                device.SetRenderTarget(null);
+                var pixels = new Xna.Color[64 * 64];
+                target.GetData(pixels);
+                return pixels.Average(p => p.R + p.G + p.B);
+            }
+            var (plain, unweighted, weighted) = (Frame(null), Frame(new Xna.Color(230, 230, 230, 0)), Frame(new Xna.Color(230, 230, 230, 255)));
+            Assert.Multiple(() =>
+            {
+                Assert.That(unweighted, Is.GreaterThan(plain + 30), "the glow brightens the picture");
+                Assert.That(weighted, Is.EqualTo(unweighted).Within(1), "and its alpha changes nothing");
+            });
+        }
+
+        // Fills the glow pass with one colour, as a particle's glow covering the frame would.
+        sealed class Glow(Xna.Color colour) : IRenderItem
+        {
+            public void Draw(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique technique)
+            {
+                if (technique == RenderingTechnique.Emissive)
+                    device.Clear(colour);
+            }
+        }
+
         // Karl Franz's model on one continuous_rigid particle, half a second in.
         static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel()
         {
