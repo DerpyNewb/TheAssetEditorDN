@@ -15,12 +15,20 @@ namespace Editors.VfxEditor.Vocabulary
         readonly Dictionary<(string Property, string Attribute), Dictionary<string, int>?> _values = [];
         readonly Dictionary<string, Dictionary<string, (int Count, List<string> Children)>> _shapes = [];
         readonly SortedSet<string> _effects = new(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, (int Elements, Dictionary<string, int> Names)> _presence = [];
 
         public IReadOnlyList<string> EffectNames { get; private set; } = [];
         public IReadOnlyList<string> Fragments { get; private set; } = [];
 
         public IReadOnlyList<string> PropertyNames(string context) =>
             _forms.TryGetValue(context, out var names) ? names.Keys.Order(StringComparer.Ordinal).ToList() : [];
+
+        /// <summary>The names at least half of vanilla's elements in a context carry, most common first: an emitter's tier-0
+        /// properties ("emitter:&lt;type&gt;"), its chain's block-0 fragments ("chain:&lt;type&gt;"), its render stack's
+        /// properties ("stack:&lt;type&gt;"). What a new emitter starts with.</summary>
+        public IReadOnlyList<string> Usual(string context) => _presence.TryGetValue(context, out var presence)
+            ? presence.Names.Where(x => x.Value * 2 >= presence.Elements).OrderByDescending(x => x.Value).Select(x => x.Key).ToList()
+            : [];
 
         public string? PropertyTemplate(string context, string name) =>
             _forms.GetValueOrDefault(context)?.GetValueOrDefault(name)?.MaxBy(x => x.Value).Key;
@@ -60,7 +68,17 @@ namespace Editors.VfxEditor.Vocabulary
             if (EffectName(path) is { } name)
                 _effects.Add(name);
             foreach (var emitter in document.Section("emitters")?.ChildrenNamed("emitter") ?? [])
-                AddProperties(document, "emitter:" + emitter.Attr("type"), emitter.Children.Where(c => TierEdits.TierOf(c) == 0));
+            {
+                var type = emitter.Attr("type");
+                var properties = emitter.Children.Where(c => TierEdits.TierOf(c) == 0).ToList();
+                AddProperties(document, "emitter:" + type, properties);
+                Count("emitter:" + type, properties.Select(p => p.Attr("name")));
+                var id = emitter.Attr("id") ?? "";
+                if (document.ById("behaviour_chains", id) is { } chain && TierEdits.Block(chain, 0) is { } block)
+                    Count("chain:" + type, block.ChildrenNamed("modifier").Select(m => m.Attr("fragment")));
+                if (document.ById("effect_render_stacks", id) is { } stack)
+                    Count("stack:" + type, stack.Children.Where(c => TierEdits.TierOf(c) == 0).Select(p => p.Attr("name")));
+            }
             foreach (var stack in document.Section("effect_render_stacks")?.Children ?? [])
                 AddProperties(document, "stack", stack.Children.Where(c => TierEdits.TierOf(c) == 0));
             foreach (var chain in document.Section("behaviour_chains")?.Children ?? [])
@@ -78,6 +96,14 @@ namespace Editors.VfxEditor.Vocabulary
                     shapes[key] = shapes.TryGetValue(key, out var shape) ? (shape.Count + 1, shape.Children) : (1, properties.Select(document.RawOf).ToList());
                 }
             }
+        }
+
+        void Count(string context, IEnumerable<string?> names)
+        {
+            var (elements, counts) = _presence.TryGetValue(context, out var presence) ? presence : (0, new Dictionary<string, int>());
+            foreach (var name in names.OfType<string>().Distinct())
+                counts[name] = counts.GetValueOrDefault(name) + 1;
+            _presence[context] = (elements + 1, counts);
         }
 
         void AddProperties(VfxDocument document, string context, IEnumerable<SpanElement> properties)

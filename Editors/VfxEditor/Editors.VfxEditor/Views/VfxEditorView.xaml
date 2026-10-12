@@ -60,6 +60,7 @@
 
     <DockPanel>
         <ToolBar DockPanel.Dock="Top">
+            <Button Content="New" Command="{Binding NewFileCommand}" ToolTip="A new effect with nothing in it yet. Save asks where it goes."/>
             <Button Content="Open" Command="{Binding OpenFileCommand}" ToolTip="Pick a vfx\*.xml from the loaded packs"/>
             <Separator/>
             <Button Content="Save" Command="{Binding SaveFileCommand}" ToolTip="Ctrl+S: into the editable pack, at this file's path"/>
@@ -129,6 +130,12 @@
                             <TextBlock Text="Type" VerticalAlignment="Center" Margin="0,0,6,0"/>
                             <ComboBox ItemsSource="{Binding EmitterTypes}" SelectedItem="{Binding EmitterType}" Width="160"
                                       ToolTip="continuous_mesh draws quads; continuous_rigid draws models. Vanilla uses no other type."/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsEmittersNode, Converter={StaticResource BoolToVis}}">
+                            <TextBox Text="{Binding NewEmitterId, UpdateSourceTrigger=PropertyChanged}" Width="160"/>
+                            <ComboBox ItemsSource="{Binding EmitterTypes}" SelectedItem="{Binding NewEmitterType}" Width="140" Margin="4,0,0,0"/>
+                            <Button Content="New emitter" Command="{Binding NewEmitterCommand}" Margin="4,0,0,0" Padding="6,0"
+                                    ToolTip="An emitter, its behaviour chain at every tier and its render stack, with what at least half of vanilla's emitters of this type carry"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsReferencesNode, Converter={StaticResource BoolToVis}}">
                             <ComboBox IsEditable="True" ItemsSource="{Binding EffectChoices}" Text="{Binding NewReferenceTarget, UpdateSourceTrigger=PropertyChanged}" Width="260">

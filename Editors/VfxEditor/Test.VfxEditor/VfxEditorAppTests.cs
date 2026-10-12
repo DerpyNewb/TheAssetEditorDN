@@ -331,6 +331,33 @@ namespace Test.VfxEditor
             Assert.That(ListHeight(), Is.GreaterThan(10));
         }
 
+        // New starts an unsaved effect; New emitter on its Emitters node gives it an emitter with what vanilla's usually carry
+        // (here, the one vanilla file in the packs); Save asks where, as Save As does.
+        [Test]
+        public void A_new_effect_gets_a_usual_emitter_and_saves_where_it_is_told()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            source.IsCaPackFile = true;   // the vocabulary reads CA's packs
+            var output = runner.CreateOutputPack();
+            var editor = Open(runner, path: null);
+
+            editor.NewFileCommand.Execute(null);
+            Assert.That((editor.IsLoaded, editor.HasUnsavedChanges, editor.CurrentFile), Is.EqualTo((true, true, (PackFile?)null)));
+            editor.SelectedNode = editor.Tree[1];
+            editor.NewEmitterId = "puff";
+            editor.NewEmitterCommand.Execute(null);
+            var puff = editor.Tree[1].Children.Single();
+            Assert.That(puff.Label, Is.EqualTo("puff (continuous_mesh)"));
+            Assert.That(puff.Children[0].Children.Select(n => n.Label), Is.EqualTo(new[] { "ps_texture", "vs_colour" }));
+
+            runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>())).Returns(new SaveDialogResult(true, null, @"vfx\my_puff.xml"));
+            Assert.That(editor.Save(), Is.True);
+            Assert.That(runner.PackFileService.FindFile(@"vfx\my_puff.xml", output), Is.Not.Null);
+            Assert.That(editor.CurrentFile?.Name, Is.EqualTo("my_puff.xml"));
+        }
+
         // The two parts of the file that are not the effect: the shader library its attributes edit, and Terry's list of
         // components, shown and kept in step by the edits rather than edited.
         [Test]

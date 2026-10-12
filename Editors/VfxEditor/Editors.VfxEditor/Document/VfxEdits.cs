@@ -114,10 +114,15 @@ namespace Editors.VfxEditor.Document
 
         static void CheckNewId(VfxDocument document, string id, string newId)
         {
-            if (string.IsNullOrWhiteSpace(newId) || newId != newId.Trim())
-                throw new ArgumentException("an id cannot be empty or start or end with a space");
             if (document.ById("emitters", id) == null)
                 throw new ArgumentException($"there is no emitter {id}");
+            CheckFreeId(document, newId);
+        }
+
+        static void CheckFreeId(VfxDocument document, string newId)
+        {
+            if (string.IsNullOrWhiteSpace(newId) || newId != newId.Trim())
+                throw new ArgumentException("an id cannot be empty or start or end with a space");
             if (s_emitterSections.Any(s => document.ById(s, newId) != null) || Component(document, newId) != null)
                 throw new ArgumentException($"{newId} is already an id in this file");
         }
@@ -125,6 +130,32 @@ namespace Editors.VfxEditor.Document
         public static Splice SetEmitterType(VfxDocument document, string id, string type) => EmitterTypes.Contains(type)
             ? document.SetAttribute(document.ById("emitters", id) ?? throw new ArgumentException($"there is no emitter {id}"), "type", type)
             : throw new ArgumentException($"{type} is not an emitter type vanilla uses: {string.Join(" or ", EmitterTypes)}");
+
+        /// <summary>A new emitter with these properties, a behaviour chain holding these modifiers at all three tiers, a render
+        /// stack with these properties, and its editor component.</summary>
+        public static List<Splice> AddEmitter(VfxDocument document, string id, string type, IReadOnlyList<string> properties,
+            IReadOnlyList<(string Fragment, IReadOnlyList<string> Properties)> modifiers, IReadOnlyList<string> stackProperties)
+        {
+            CheckFreeId(document, id);
+            if (!EmitterTypes.Contains(type))
+                throw new ArgumentException($"{type} is not an emitter type vanilla uses: {string.Join(" or ", EmitterTypes)}");
+            var (emitters, chains, stacks) = (Required(document, "emitters"), Required(document, "behaviour_chains"), Required(document, "effect_render_stacks"));
+            var name = XmlText.EscapeAttribute(id, '"');
+            var chainBreak = document.ChildBreak(chains);
+            var blockBreak = chainBreak.Length > 0 ? chainBreak + "\t" : "";
+            var modifierBreak = blockBreak.Length > 0 ? blockBreak + "\t" : "";
+            var block = modifiers.Select(m => VfxDocument.Wrap($"<modifier fragment=\"{XmlText.EscapeAttribute(m.Fragment, '"')}\">", m.Properties, "</modifier>", modifierBreak)).ToList();
+            var blocks = new[] { 0, 1, 2 }.Select(t => VfxDocument.Wrap($"<quality value=\"{t}\">", block, "</quality>", blockBreak)).ToList();
+            var splices = new List<Splice>
+            {
+                document.InsertInto(emitters, VfxDocument.Wrap($"<emitter type=\"{type}\" id=\"{name}\">", properties, "</emitter>", document.ChildBreak(emitters))),
+                document.InsertInto(chains, VfxDocument.Wrap($"<behaviour_chain id=\"{name}\">", blocks, "</behaviour_chain>", chainBreak)),
+                document.InsertInto(stacks, VfxDocument.Wrap($"<effect_render_stack id=\"{name}\">", stackProperties, "</effect_render_stack>", document.ChildBreak(stacks))),
+            };
+            if (Components(document) is { } components)
+                splices.Add(document.InsertInto(components, ComponentXml(id)));
+            return splices;
+        }
 
         public static List<Splice> RemoveEmitter(VfxDocument document, string id) =>
             s_emitterSections.Select(s => document.ById(s, id)).Append(Component(document, id)).OfType<SpanElement>().Select(document.Remove).ToList();

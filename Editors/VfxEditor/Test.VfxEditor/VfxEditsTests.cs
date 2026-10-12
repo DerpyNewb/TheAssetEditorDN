@@ -108,6 +108,24 @@ namespace Test.VfxEditor
         }
 
         [Test]
+        public void A_new_emitter_has_its_chain_at_every_tier_its_stack_and_its_editor_component()
+        {
+            var d = Fixtures.Document(Fixtures.WithComponents);
+            d.Apply(VfxEdits.AddEmitter(d, "n1", "continuous_mesh", ["<property name=\"Z\" quality=\"0\" value=\"1\"/>"],
+                [("ps_texture", ["<texture_property name=\"diffuse\" path=\"vfx/b.dds\"/>"])],
+                ["<property name=\"scene_view_type\" quality=\"0\" value=\"FULLRES_DEFERRED_ALPHA\"/>"]));
+            var emitter = d.ById("emitters", "n1")!;
+            Assert.That((emitter.Attr("type"), emitter.Children.Single().Attr("name")), Is.EqualTo(("continuous_mesh", "Z")));
+            var chain = d.ById("behaviour_chains", "n1")!;
+            Assert.That(new[] { 0, 1, 2 }.Select(t => TierEdits.Modifier(TierEdits.Block(chain, t)!, "ps_texture", 0) != null), Is.All.True);
+            Assert.That(d.ById("effect_render_stacks", "n1")!.Children.Single().Attr("name"), Is.EqualTo("scene_view_type"));
+            Assert.That(Fixtures.Components(d), Is.EqualTo(new[] { "e1", "xref", "n1" }));
+            Assert.That(d.Text, Does.Contain("\r\n\t\t<behaviour_chain id=\"n1\">\r\n\t\t\t<quality value=\"0\">\r\n\t\t\t\t<modifier fragment=\"ps_texture\">\r\n\t\t\t\t\t<texture_property"));
+            Assert.Throws<ArgumentException>(() => VfxEdits.AddEmitter(d, "n1", "continuous_mesh", [], [], []));
+            Assert.Throws<ArgumentException>(() => VfxEdits.AddEmitter(d, "n2", "burst", [], [], []));
+        }
+
+        [Test]
         public void An_emitter_type_is_one_of_vanillas_two()
         {
             var d = Fixtures.Document();

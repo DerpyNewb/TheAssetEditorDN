@@ -24,7 +24,7 @@ namespace Editors.VfxEditor.ViewModels
     public sealed partial class VfxEditorViewModel : ObservableObject, IEditorInterface, IFileEditor, ISaveableEditor, IDisposable
     {
         static readonly string[] s_nodeFlags = [nameof(IsEmitterNode), nameof(IsChainNode), nameof(IsModifierNode), nameof(IsReferencesNode),
-            nameof(IsReferenceNode), nameof(IsOverrideNode), nameof(CanAddProperty), nameof(IsBlockMissing), nameof(EmitterType)];
+            nameof(IsReferenceNode), nameof(IsOverrideNode), nameof(CanAddProperty), nameof(IsBlockMissing), nameof(EmitterType), nameof(IsEmittersNode)];
 
         readonly ILogger _logger = Logging.Create<VfxEditorViewModel>();
         readonly VfxFileSession _session;
@@ -116,6 +116,7 @@ namespace Editors.VfxEditor.ViewModels
         public bool HasLoadError => LoadError != null;
         public bool IsLoaded => LoadError == null;
         public bool IsEmitterNode => SelectedNode?.Kind == NodeKind.Emitter;
+        public bool IsEmittersNode => SelectedNode?.Kind == NodeKind.Emitters;
         public bool IsChainNode => SelectedNode?.Kind == NodeKind.Chain;
         public bool IsModifierNode => SelectedNode?.Kind == NodeKind.Modifier;
         public bool IsReferencesNode => SelectedNode?.Kind == NodeKind.References;
@@ -130,7 +131,14 @@ namespace Editors.VfxEditor.ViewModels
             if (_session.Document != null)
                 _session.Document.Changed -= OnDocumentChanged;
             _session.Load(file);
-            DisplayName = file.Name;
+            Opened(file.Name);
+            if (_session.Document != null)
+                Status = $"{_session.EffectName} ({_session.Document.Encoding})";
+        }
+
+        void Opened(string name)
+        {
+            DisplayName = name;
             LoadError = _session.LoadError;
             OnPropertyChanged(nameof(CurrentFile));
             OnPropertyChanged(nameof(HasUnsavedChanges));
@@ -140,7 +148,6 @@ namespace Editors.VfxEditor.ViewModels
                 return;
             _session.Document.Changed += OnDocumentChanged;
             RebuildTree();
-            Status = $"{_session.EffectName} ({_session.Document.Encoding})";
             RefreshPreview();
         }
 
@@ -510,6 +517,41 @@ namespace Editors.VfxEditor.ViewModels
                 if (value != null && value != EmitterType && SelectedNode is { Kind: NodeKind.Emitter } node)
                     Edit(document => [VfxEdits.SetEmitterType(document, document.At(node.Path).Attr("id") ?? "", value)]);
             }
+        }
+
+        [ObservableProperty] string _newEmitterType = VfxEdits.EmitterTypes[0];
+
+        /// <summary>An emitter, chain and render stack with what at least half of vanilla's emitters of the type carry, each
+        /// written the way vanilla most often writes it.</summary>
+        [RelayCommand]
+        void NewEmitter()
+        {
+            if (_vocabulary is not { } vocabulary)
+            {
+                Status = "The vanilla effects are still being read; a new emitter is made from them";
+                return;
+            }
+            var (id, type) = (NewEmitterId, NewEmitterType);
+            var context = "emitter:" + type;
+            var properties = vocabulary.Usual(context).Select(n => vocabulary.PropertyTemplate(context, n)).OfType<string>().ToList();
+            var modifiers = vocabulary.Usual("chain:" + type).Select(f => (f, vocabulary.ModifierTemplate(f))).ToList();
+            var stack = vocabulary.Usual("stack:" + type).Select(n => vocabulary.PropertyTemplate("stack", n)).OfType<string>().ToList();
+            if (Edit(document => VfxEdits.AddEmitter(document, id, type, properties, modifiers, stack))
+                && All(Tree).FirstOrDefault(n => n.Key == "emitter:" + id) is { } added)
+                (added.IsSelected, SelectedNode) = (true, added);
+        }
+
+        [RelayCommand]
+        void NewFile()
+        {
+            FlushPendingEdits?.Invoke();
+            if (HasUnsavedChanges && _dialogs.ShowYesNoBox($"{DisplayName} has edits that are not saved. Start a new effect and lose them?", "Unsaved edits") != ShowMessageBoxResult.OK)
+                return;
+            if (_session.Document != null)
+                _session.Document.Changed -= OnDocumentChanged;
+            _session.New();
+            Opened("New effect");
+            Status = "A new effect: pick Emitters to add one. Save asks where it goes.";
         }
 
         [RelayCommand]

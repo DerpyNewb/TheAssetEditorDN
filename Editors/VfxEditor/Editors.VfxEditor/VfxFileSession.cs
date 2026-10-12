@@ -45,6 +45,22 @@ namespace Editors.VfxEditor
             }
         }
 
+        /// <summary>Vanilla's layout of an effect with nothing in it, as Terry writes one.</summary>
+        const string EmptyEffect = "<shader_library file=\"fx/particle_vfx_library.hlsl\"/><vfx revision=\"2\" construction_type=\"2\" enable_in_ted=\"false\" camera_following=\"false\" ref_spawn_speed=\"-1.00\">\r\n" +
+            "\t<!-- EMITTERS-->\r\n\t<emitters></emitters>\r\n\t<!-- BEHAVIOUR_CHAINS-->\r\n\t<behaviour_chains></behaviour_chains>\r\n" +
+            "\t<!-- EFFECT RENDER STACKS-->\r\n\t<effect_render_stacks></effect_render_stacks>\r\n" +
+            "</vfx><vfx_references></vfx_references><!-- EDITOR DATA--><editor_data>\r\n\t<effect_components></effect_components>\r\n</editor_data>";
+
+        /// <summary>A new effect with no file yet, in UTF-16 as CA's are. Save asks where it goes.</summary>
+        public void New()
+        {
+            File = null;
+            LoadError = null;
+            Document = VfxDocument.Load([0xFF, 0xFE, .. Encoding.Unicode.GetBytes(EmptyEffect)]);
+            Document.Changed += () => HasUnsavedChanges = true;
+            HasUnsavedChanges = true;
+        }
+
         /// <summary>The name an EFFECT tag or a reference uses for this file: its path under vfx\ without ".xml".</summary>
         public string EffectName
         {
@@ -57,7 +73,7 @@ namespace Editors.VfxEditor
             }
         }
 
-        public bool Save() => Store(fileSaveService.Save(packFileService.GetFullPath(File!), Document!.Save(), prompOnConflict: false));
+        public bool Save() => File == null ? SaveAs() : Store(fileSaveService.Save(packFileService.GetFullPath(File), Document!.Save(), prompOnConflict: false));
 
         public bool SaveAs() => Store(fileSaveService.SaveAs(".xml", Document!.Save()));
 
