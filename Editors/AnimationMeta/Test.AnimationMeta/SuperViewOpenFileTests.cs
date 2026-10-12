@@ -233,6 +233,66 @@ namespace Test.AnimationMeta
             }
         }
 
+        // Faction colours tint the parts the mask texture marks, as in game, so picking them in the render settings shows on the
+        // model. The material that WH3 models load with had no tint, and the colours reached nothing.
+        [Test]
+        public void FactionColoursTintTheMaskedParts()
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var store = _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.Rendering.SceneRenderParametersStore>();
+
+            // Throt has no faction-coloured parts, as legendary characters do not: his masks' colour channels are empty. Every
+            // mesh takes a white mask instead, so all of it is faction coloured.
+            var white = System.Windows.Media.Imaging.BitmapSource.Create(4, 4, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null,
+                Enumerable.Repeat((byte)255, 4 * 4 * 4).ToArray(), 16);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(white));
+            using var png = new MemoryStream();
+            encoder.Save(png);
+            _runner.PackFileService.AddFilesToPack(_runner.CreateOutputPack(), [new NewPackFileEntry("test", PackFile.CreateFromBytes("white_mask.png", png.ToArray()))]);
+            static IEnumerable<GameWorld.Core.SceneNodes.ISceneNode> Every(GameWorld.Core.SceneNodes.ISceneNode node) => node.Children.SelectMany(x => Every(x).Prepend(x));
+            var meshes = Every(_runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.SceneManager>().RootNode).OfType<GameWorld.Core.SceneNodes.Rmv2MeshNode>().ToList();
+            foreach (var mask in meshes.Select(x => x.Material.GetCapability<GameWorld.Core.Rendering.Materials.Capabilities.MetalRoughCapability>().Mask))
+                (mask.TexturePath, mask.UseTexture) = (@"test\white_mask.png", true);
+
+            // Each material WH3 models load with, alone: Throt's head takes the default one and his body the emissive one.
+            var tinted = new Dictionary<GameWorld.Core.Rendering.Materials.Shaders.CapabilityMaterialsEnum, int>();
+            foreach (var type in meshes.Select(x => x.Material.Type).Distinct())
+            {
+                foreach (var mesh in meshes)
+                    mesh.IsVisible = mesh.Material.Type == type;
+                (store.FactionColour0, store.FactionColour1, store.FactionColour2) = (Vector3.UnitY, Vector3.UnitY, Vector3.UnitY);
+                var green = RenderFrame();
+                (store.FactionColour0, store.FactionColour1, store.FactionColour2) = (Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitZ);
+                var blue = RenderFrame();
+                tinted[type] = green.Zip(blue).Count(x => Math.Abs(x.First.G - x.Second.G) + Math.Abs(x.First.B - x.Second.B) > 16);
+            }
+            Assert.That(tinted.Keys, Is.EquivalentTo(new[] { GameWorld.Core.Rendering.Materials.Shaders.CapabilityMaterialsEnum.MetalRoughPbr_Default, GameWorld.Core.Rendering.Materials.Shaders.CapabilityMaterialsEnum.MetalRoughPbr_Emissive }));
+            Assert.That(tinted.Values, Is.All.GreaterThan(100), string.Join(", ", tinted));
+        }
+
+        // One frame of the editor's scene, the model framed from the front, as the app draws it.
+        Microsoft.Xna.Framework.Color[] RenderFrame()
+        {
+            var device = _runner.ServiceProvider.GetRequiredService<GameWorld.Core.WpfWindow.IWpfGame>().GraphicsDevice;
+            _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.Rendering.ArcBallCamera>().ViewMatrixOverride =
+                Matrix.CreateLookAt(new Vector3(0, 1.2f, 4), new Vector3(0, 1, 0), Vector3.Up);
+            var components = _runner.GetRequiredServiceInCurrentEditorScope<IEnumerable<IGameComponent>>().ToList();
+            using var target = new Microsoft.Xna.Framework.Graphics.RenderTarget2D(device, 256, 192, false,
+                Microsoft.Xna.Framework.Graphics.SurfaceFormat.Color, Microsoft.Xna.Framework.Graphics.DepthFormat.Depth24);
+            var time = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1 / 60.0));
+            device.SetRenderTarget(target);
+            foreach (var component in components.OfType<IUpdateable>().OrderBy(x => x.UpdateOrder))
+                component.Update(time);
+            foreach (var component in components.OfType<IDrawable>().OrderBy(x => x.DrawOrder))
+                component.Draw(time);
+            device.SetRenderTarget(null);
+            var pixels = new Microsoft.Xna.Framework.Color[target.Width * target.Height];
+            target.GetData(pixels);
+            return pixels;
+        }
+
         static IEnumerable<System.Windows.DependencyObject> Descendants(System.Windows.DependencyObject parent)
         {
             for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
