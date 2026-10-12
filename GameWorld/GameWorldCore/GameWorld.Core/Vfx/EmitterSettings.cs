@@ -275,6 +275,10 @@ namespace GameWorld.Core.Vfx
                 s.Skipped.Add("SpreadArc is not read in step 1");
 
             ReadChain(s, resolved.Chain, resolved.MaterialTexture);
+            // A decal paints the ground's colour, not light, so its texture is laid over by its alpha whatever the chain says:
+            // wh3_dlc20_kho_crack_01, flagged premultiplied, bleeds brown into its clear texels.
+            if (resolved.SceneViewType == "DEFERRED_DECAL")
+                s.Premultiplied = false;
             return s;
         }
 

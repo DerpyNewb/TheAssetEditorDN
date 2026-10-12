@@ -58,6 +58,18 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // A DEFERRED_DECAL paints the ground's colour, so it is laid over by its alpha whatever pre_multiplied_alpha says:
+        // wh3_dlc20_kho_crack_01, flagged premultiplied, bleeds brown into its clear texels and drew a brown square. An
+        // emissive decal is light, and keeps the flag.
+        [TestCase("DEFERRED_DECAL", false)]
+        [TestCase("DEFERRED_DECAL_EMISSIVE", true)]
+        public void DecalStack_PaintsTheGround_ByItsAlpha(string view, bool premultiplied)
+        {
+            var decal = Read(Emitter("decal"), SmokeChain.Replace("\"smoke\"", "\"decal\""),
+                $"""<effect_render_stack id="decal"><property name="scene_view_type" quality="0" value="{view}"/></effect_render_stack>""").Single();
+            Assert.That((decal.Decal, decal.Premultiplied), Is.EqualTo((true, premultiplied)));
+        }
+
         [Test]
         public void DistortionStack_IsNotDrawn_AndSaysWhy()
         {
