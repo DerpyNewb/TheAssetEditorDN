@@ -620,7 +620,8 @@ namespace Test.VfxEditor
             Assert.That(plain.Zip(engines).Count(x => x.First != x.Second), Is.Zero);
         }
 
-        // The engine draws effects in its glow pass as well as its colour pass, so what lies over 1 blooms.
+        // The engine draws effects in its glow pass as well as its colour pass, so what lies over 1 blooms; first, in its depth
+        // pass, which only a rigid model draws in.
         [Test]
         public void The_engine_draws_effects_in_its_glow_pass()
         {
@@ -633,7 +634,7 @@ namespace Test.VfxEditor
             engine.AddRenderItem(RenderBuckedId.Transparent, new Recorder(drawn));
             engine.Draw(new Xna.GameTime());
             device.SetRenderTarget(null);
-            Assert.That(drawn, Is.EqualTo(new[] { RenderingTechnique.Normal, RenderingTechnique.Emissive }));
+            Assert.That(drawn, Is.EqualTo(new[] { RenderingTechnique.Depth, RenderingTechnique.Normal, RenderingTechnique.Emissive }));
         }
 
         // A DEFERRED_DYNAMIC_LIGHT particle lights the solid scene, not only the ground its pool lies on: the engine hands the
@@ -688,6 +689,40 @@ namespace Test.VfxEditor
             {
                 Assert.That(lit.R, Is.GreaterThan(dark.R + 20), string.Join("; ", preview.Lines));
                 Assert.That(lit.G, Is.EqualTo(dark.G).Within(1));
+            });
+        }
+
+        // Soft particles fade against the solid scene, so with particles to draw the engine first draws its view depth: Karl Franz's
+        // pixels hold about how far he is in front of the camera, the rest the largest float. With no particles it draws none.
+        [Test]
+        public void The_engine_draws_the_scenes_depth_for_soft_particles()
+        {
+            var (runner, _) = ShowRigidModel();
+            var engine = runner.GetRequiredServiceInCurrentEditorScope<RenderEngineComponent>();
+            var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
+            var (withParticles, without) = (new List<CommonShaderParameters>(), new List<CommonShaderParameters>());
+            using var target = new RenderTarget2D(device, 64, 64, false, SurfaceFormat.Color, DepthFormat.Depth24);
+            device.SetRenderTarget(target);
+            engine.AddRenderItem(RenderBuckedId.Transparent, runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode.Children.OfType<VfxEffectNode>().Single().RenderItem);
+            engine.AddRenderItem(RenderBuckedId.Transparent, new Witness(withParticles));
+            engine.Draw(new Xna.GameTime());
+            engine.Update(new Xna.GameTime());
+            engine.AddRenderItem(RenderBuckedId.Normal, new Witness(without));
+            engine.Draw(new Xna.GameTime());
+            device.SetRenderTarget(null);
+
+            var parameters = withParticles.Last();
+            var depth = parameters.SceneDepth!;
+            var values = new float[depth.Width * depth.Height];
+            depth.GetData(values);
+            var karl = values.Where(x => x < 1000).ToList();
+            var origin = -Xna.Vector3.Transform(Vector3.Zero, parameters.View).Z;
+            Assert.Multiple(() =>
+            {
+                Assert.That(karl, Has.Count.GreaterThan(20));
+                Assert.That(karl.Average(), Is.EqualTo(origin).Within(0.6f));
+                Assert.That(values, Has.Some.EqualTo(float.MaxValue));
+                Assert.That(without.Last().SceneDepth, Is.Null);
             });
         }
 

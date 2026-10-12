@@ -55,7 +55,7 @@ namespace GameWorld.Core.Vfx
 
         public void Draw(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique renderingTechnique)
         {
-            if (renderingTechnique is not (RenderingTechnique.Normal or RenderingTechnique.Emissive))
+            if (renderingTechnique is not (RenderingTechnique.Normal or RenderingTechnique.Emissive or RenderingTechnique.Depth))
                 return;
 
             if (_white == null)
@@ -74,6 +74,9 @@ namespace GameWorld.Core.Vfx
             // Rigid models first: they are opaque, and write the depth the particles are drawn against.
             foreach (var (settings, states, frame) in emitters.Where(x => x.Settings.Rigid.Count > 0))
                 DrawRigid(device, parameters, renderingTechnique, settings, states, frame);
+            // The scene's depth, which soft particles fade against, holds the models alone.
+            if (renderingTechnique == RenderingTechnique.Depth)
+                return;
 
             var glow = renderingTechnique == RenderingTechnique.Emissive;
             var blendState = device.BlendState;
@@ -118,6 +121,16 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["GradientMapsAlpha"].SetValue(settings.GradientMapsAlpha ? 1f : 0f);
             effect.Parameters["GradientRamp"].SetValue(Ramp(settings));
             effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : settings.Light ? "Light" : "ParticleDrawing"];
+            // ps_soft_edge against the solid scene's depth, when the engine drew it; a decal or a light lies on the ground instead.
+            var depth = settings.SoftEdge > 0 && !settings.Decal && !settings.Light ? parameters.SceneDepth : null;
+            effect.Parameters["UseSceneDepth"].SetValue(depth != null ? 1f : 0f);
+            if (depth != null)
+            {
+                effect.Parameters["SceneDepth"].SetValue(depth);
+                effect.Parameters["InverseDepthSize"].SetValue(new Vector2(1f / depth.Width, 1f / depth.Height));
+                effect.Parameters["SoftFactor"].SetValue(settings.SoftEdge);
+                effect.Parameters["SoftStrength"].SetValue(settings.SoftStrength);
+            }
             if (settings.Distortion)
             {
                 effect.Parameters["Scene"].SetValue(scene);
@@ -393,7 +406,7 @@ namespace GameWorld.Core.Vfx
                 var matrix = VfxConventions.RigidMatrix(model.Box, entry.Pivot, p.Size.X, new Vector3(p.TurnXy, p.Angle), turn, p.Position) * World;
                 var tinted = parameters with { ModelColour = new Vector4(p.Colour, p.Alpha) };
                 // A see-through model shows its nearest faces once: its depth first, then its colour laid over where it is nearest.
-                (BlendState, DepthStencilState)[] passes = p.Alpha < 1
+                (BlendState, DepthStencilState)[] passes = p.Alpha < 1 && technique != RenderingTechnique.Depth
                     ? [(Straight(device)[2], DepthStencilState.Default), (Straight(device)[0], DepthStencilState.DepthRead)]
                     : [(BlendState.Opaque, DepthStencilState.Default)];
                 foreach (var (blend, depth) in passes)

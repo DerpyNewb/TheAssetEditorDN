@@ -126,8 +126,9 @@ namespace GameWorld.Core.Vfx
 
         /// <summary>ps_soft_edge (6,893 vanilla chains): a particle fades in over soft_factor metres of view ray in front of what
         /// lies behind it (1.5 in 1,684 chains, 1 in 1,489, 0.2 to 5), scale_strength (1 in 6,610) read as the fade's exponent.
-        /// The preview has nothing to measure against but its ground, world y = 0: the gap is how far the ray from the camera
-        /// through a quad corner runs on before it reaches the ground, and a corner under the ground is hidden, as terrain hides it.</summary>
+        /// Here against the preview's ground, world y = 0: the gap is how far the ray from the camera through a quad corner runs on
+        /// before it reaches the ground, and a corner under the ground is hidden, as terrain hides it. Against the solid scene,
+        /// Shaders/Particle fades each pixel by its view depth in front of the depth the engine draws first.</summary>
         public static float SoftEdge(Vector3 corner, Vector3 camera, float softFactor, float strength)
         {
             if (softFactor <= 0)

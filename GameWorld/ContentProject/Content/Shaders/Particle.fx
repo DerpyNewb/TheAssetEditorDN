@@ -42,6 +42,23 @@ sampler2D SceneSampler = sampler_state
 float2 InverseSceneSize;
 float2 Reach;
 
+// ps_soft_edge against the solid scene: its view depth per pixel, drawn by the engine before the particles, that texture's
+// texel size, and the emitter's soft_factor and scale_strength. UseSceneDepth is 0 when there is none to fade against.
+Texture2D SceneDepth;
+sampler2D SceneDepthSampler = sampler_state
+{
+	Texture = <SceneDepth>;
+	AddressU = Clamp;
+	AddressV = Clamp;
+	MinFilter = Point;
+	MagFilter = Point;
+	MipFilter = Point;
+};
+float2 InverseDepthSize;
+float UseSceneDepth = 0;
+float SoftFactor = 1;
+float SoftStrength = 1;
+
 struct VertexShaderInput
 {
 	float4 Position : POSITION0;
@@ -57,6 +74,8 @@ struct VertexShaderOutput
 	float4 Colour : COLOR0;
 	float2 Uv : TEXCOORD0;
 	float4 Extra : TEXCOORD1;
+	// The view depth, for ps_soft_edge.
+	float Depth : TEXCOORD2;
 };
 
 float4 Ramp(float t)
@@ -73,6 +92,7 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 	output.Colour = input.Colour * float4(Scale, Scale, Scale, 1);
 	output.Uv = input.Uv;
 	output.Extra = input.Extra;
+	output.Depth = output.Position.w;
 	return output;
 }
 
@@ -98,6 +118,11 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	// one stretches what is left back over 0..1, so the texture thins from its faint edges in.
 	float crush = input.Extra.w;
 	a = CrushSharp > 0 ? (a > crush ? a : 0) : saturate((a - crush) / max(1 - crush, 0.0001));
+
+	// ps_soft_edge: fades in over soft_factor metres of view depth in front of the solid scene, as VfxConventions.SoftEdge fades
+	// it in front of the ground.
+	if (UseSceneDepth > 0)
+		a *= pow(saturate((tex2D(SceneDepthSampler, input.Position.xy * InverseDepthSize).r - input.Depth) / SoftFactor), SoftStrength);
 
 	return float4(Premultiplied > 0 ? rgb * a : rgb, a) * input.Colour;
 }

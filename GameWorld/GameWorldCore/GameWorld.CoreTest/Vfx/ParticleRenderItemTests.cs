@@ -177,6 +177,23 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // ps_soft_edge against the solid scene, when the engine has drawn its depth: a white quad 5 m from the camera, well above the
+        // ground, with the scene 0.5 m behind it is half faded at a 1 m soft_factor, and with it 2 m behind not at all.
+        [TestCase(5.5f, 0.5f)]
+        [TestCase(7f, 1f)]
+        public void SoftEdges_FadeIntoTheSolidScene(float sceneDepth, float white)
+        {
+            using var depth = new Texture2D(_device, 4, 4, false, SurfaceFormat.Single);
+            depth.SetData(Enumerable.Repeat(sceneDepth, 16).ToArray());
+            var level = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 10, 5), new Vector3(0, 10, 0), Vector3.Up),
+                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 10, 5), new Vector3(0, 10, 0), 0, 0, 0, 1, [], Vector3.One) { SceneDepth = depth };
+            var camera = ParticleRenderItem.CameraAxes.From(level, Matrix.Identity);
+            var quad = new ParticleState(new Vector3(0, 10, 0), Vector3.Zero, new Vector2(10, 10), 0, Vector3.One, 1, 0, 0);
+            var settings = new EmitterSettings { Premultiplied = false, SoftEdge = 1 };
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, level, Matrix.Identity, camera, settings, _white, [quad]), Color.Black);
+            Assert.That(pixel.X, Is.EqualTo(white).Within(0.02));
+        }
+
         // cell_blend: half way from a red cell to a blue one draws both at half.
         [TestCase(0f, 1f, 0f)]
         [TestCase(0.5f, 0.5f, 0.5f)]

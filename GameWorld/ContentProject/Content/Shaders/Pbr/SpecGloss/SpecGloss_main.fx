@@ -102,6 +102,23 @@ float4 mainPS(in PixelInputType input, bool bIsFrontFace : SV_IsFrontFace) : SV_
 }
 
 
+// RenderingTechnique.Depth: the view depth the VFX preview's soft particles fade against, cut where the texture is cut.
+float4 DepthPixelShader(in PixelInputType input) : SV_TARGET0
+{
+    if (UseAlpha == 1)
+        alpha_test(GetMaterial(input).diffuse.a);
+    return float4(-mul(float4(input.worldPosition, 1), View).z, 0, 0, 1);
+}
+
+technique DepthDrawing
+{
+    pass P0
+    {
+        VertexShader = compile vs_5_0 MainVertexShader();
+        PixelShader = compile ps_5_0 DepthPixelShader();
+    }
+};
+
 technique BasicColorDrawing
 {
     pass P0

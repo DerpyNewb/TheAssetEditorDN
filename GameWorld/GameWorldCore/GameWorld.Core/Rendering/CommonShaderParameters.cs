@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace GameWorld.Core.Rendering
 {
@@ -25,6 +26,9 @@ namespace GameWorld.Core.Rendering
         public IReadOnlyList<PointLight> PointLights { get; init; } = [];
 
         public const int MaxPointLights = 16;
+
+        /// <summary>The solid scene's view depth per pixel, which soft particles fade against; null when the engine drew none.</summary>
+        public Texture2D? SceneDepth { get; init; }
     }
 
     /// <summary>A light particle in the world: where it is, how far it reaches and its colour. Shaders/Pbr light a model with it as

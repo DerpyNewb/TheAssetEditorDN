@@ -47,6 +47,7 @@ namespace GameWorld.Core.Components.Rendering
         // particle's glow, which carries none, and a bloom with alpha hid the background behind it.
         readonly BlendState _addLight = new() { ColorSourceBlend = Blend.One, ColorDestinationBlend = Blend.One, AlphaSourceBlend = Blend.Zero, AlphaDestinationBlend = Blend.One };
         RenderTarget2D _screenRenderTarget;
+        RenderTarget2D? _depthRenderTarget;
 
         public SpriteBatch CommonSpriteBatch { get; private set; }
         public SpriteFont DefaultFont { get; private set; }
@@ -175,6 +176,10 @@ namespace GameWorld.Core.Components.Rendering
 
             // Configure render targets
             var backBufferRenderTarget = device.GetRenderTargets()[0].RenderTarget as RenderTarget2D;
+            // Soft particles fade where they meet the solid scene, so with particles to draw, the scene's view depth is drawn first
+            // into a texture they read. It draws the solid scene a second time, so a frame with no particles skips it.
+            if (_renderItems[RenderBuckedId.Transparent].Count != 0)
+                commonShaderParameters = commonShaderParameters with { SceneDepth = DrawSceneDepth(device, commonShaderParameters) };
             device.SetRenderTarget(_normalRenderTarget);
             device.Clear(Color.Transparent);
 
@@ -261,15 +266,37 @@ namespace GameWorld.Core.Components.Rendering
             spriteBatch.End();
         }
 
-        void Render3DObjects(CommonShaderParameters commonShaderParameters, RenderingTechnique renderingTechnique, bool drawLines)
+        RenderTarget2D DrawSceneDepth(GraphicsDevice device, CommonShaderParameters parameters)
         {
-            var device = _deviceResolverComponent.Device;
+            var (width, height) = (_normalRenderTarget.Width, _normalRenderTarget.Height);
+            if (_depthRenderTarget == null || _depthRenderTarget.Width != width || _depthRenderTarget.Height != height)
+            {
+                _graphicsResourceCreator.DisposeTracked(_depthRenderTarget);
+                _depthRenderTarget = _graphicsResourceCreator.CreateRenderTarget2D(width, height, false, SurfaceFormat.Single, DepthFormat.Depth24, 0, RenderTargetUsage.DiscardContents);
+            }
+            device.SetRenderTarget(_depthRenderTarget);
+            device.Clear(ClearOptions.Target | ClearOptions.DepthBuffer, new Vector4(float.MaxValue), 1, 0);
+            SetSquareViewport(device);
+            (device.BlendState, device.DepthStencilState, device.RasterizerState) = (BlendState.Opaque, DepthStencilState.Default, _rasterStates[RasterizerStateEnum.Normal]);
+            foreach (var item in _renderItems[RenderBuckedId.Normal].Concat(_renderItems[RenderBuckedId.Transparent]))
+                item.Draw(device, parameters, RenderingTechnique.Depth);
+            return _depthRenderTarget;
+        }
 
+        void SetSquareViewport(GraphicsDevice device)
+        {
             if (SquareViewport)
             {
                 var size = Math.Min(device.Viewport.Width, device.Viewport.Height);
                 device.Viewport = new Viewport((device.Viewport.Width - size) / 2, (device.Viewport.Height - size) / 2, size, size);
             }
+        }
+
+        void Render3DObjects(CommonShaderParameters commonShaderParameters, RenderingTechnique renderingTechnique, bool drawLines)
+        {
+            var device = _deviceResolverComponent.Device;
+
+            SetSquareViewport(device);
 
             device.RasterizerState = _rasterStates[RasterizerStateEnum.Normal];
 
@@ -330,6 +357,7 @@ namespace GameWorld.Core.Components.Rendering
             _normalRenderTarget = _graphicsResourceCreator.DisposeTracked(_normalRenderTarget);
             _emissiveRenderTarget = _graphicsResourceCreator.DisposeTracked(_emissiveRenderTarget);
             _screenRenderTarget = _graphicsResourceCreator.DisposeTracked(_screenRenderTarget);
+            _depthRenderTarget = _graphicsResourceCreator.DisposeTracked(_depthRenderTarget);
             _whiteTexture = _graphicsResourceCreator.DisposeTracked(_whiteTexture);
 
             _renderLines.Clear();
