@@ -3,12 +3,14 @@
 namespace GameWorld.Core.Vfx
 {
     /// <summary>
-    /// Every reading of the vfx format that is a guess rather than a measurement, so calibrating against
-    /// Terry (CA's battle map editor) changes this file and nothing else. docs/VFX.md lists each one.
-    /// Two more readings live in the structure of ParticleSimulator rather than in a value here: forces
-    /// are accelerations in the particle's own space (the emitter's axes for LOCAL_SPACE_POSITION_ROTATION,
-    /// world axes otherwise), and a quad's size is ParticleInitialScale x ParticleScale as its full
-    /// width and height.
+    /// The readings of the vfx format that are guesses rather than measurements, so calibrating against
+    /// Terry (CA's battle map editor) changes them here. docs/VFX.md section 4 lists each one, and the
+    /// rest, which live where they are used: the crush, gradient and light-pool readings in
+    /// Shaders/Particle.fx, the vector field in ParticleSimulator.Field, the rigid draw in
+    /// ParticleRenderItem.DrawRigid, the persistent clock in SuperView's VfxEffectInstance.EffectTime, and
+    /// two in ParticleSimulator's structure: forces are accelerations in the particle's own space (the
+    /// emitter's axes for LOCAL_SPACE_POSITION_ROTATION, world axes otherwise), and a quad's size is
+    /// ParticleInitialScale x ParticleScale as its full width and height.
     /// </summary>
     public static class VfxConventions
     {
