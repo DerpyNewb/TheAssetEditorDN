@@ -18,6 +18,28 @@ namespace Shared.UiTest.BaseDialogs.PackFileTree
             return vm;
         }
 
+        // The game's packs hold folders of thousands of files (fxc 11,400, vfx 7,500), and the Browse dialog filters every one:
+        // a folder costs in proportion to its files, not to their square, as a scan of the folder for each file made it. Ten
+        // times the files take under thirty times as long.
+        [Test]
+        public void Filter_ABigFolder_CostsInProportionToItsFiles()
+        {
+            double Filter(int count)
+            {
+                TearDown();
+                Setup();
+                AddPackFiles("big", "c:\\big.pack", Enumerable.Range(0, count).Select(i => $"vfx\\fx_{i}.dds").ToArray());
+                var vm = CreateBrowser();
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                vm.Filter.SetExtensions([".dds"]);
+                return clock.Elapsed.TotalMilliseconds;
+            }
+            Filter(500);
+            var small = Filter(2_000);
+            var big = Filter(20_000);
+            Assert.That(big, Is.LessThan(small * 30), $"2,000 files took {small:0} ms, 20,000 took {big:0} ms");
+        }
+
         [Test]
         public void Filter_MatchingFilesVisible_NonMatchingHidden()
         {

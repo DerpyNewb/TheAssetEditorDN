@@ -165,14 +165,16 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
             if (matchingFiles.Count == 0)
                 return;
 
-            // Build the visible tree directly from paths — no container calls
+            // Build the visible tree directly from paths — no container calls. A folder's children are looked up by name, built
+            // once per folder: a scan of them per file was quadratic in the folder, and the game's fxc folder holds 11,400 files.
+            var lookup = new Dictionary<(TreeNode, NodeType), Dictionary<string, TreeNode>>();
             foreach (var (path, _) in matchingFiles)
             {
-                MarkPathVisibleFromData(rootNode, path);
+                MarkPathVisibleFromData(rootNode, path, lookup);
             }
         }
 
-        private void MarkPathVisibleFromData(TreeNode rootNode, string filePath)
+        private static void MarkPathVisibleFromData(TreeNode rootNode, string filePath, Dictionary<(TreeNode, NodeType), Dictionary<string, TreeNode>> lookup)
         {
             var current = rootNode;
             var segments = filePath.Split('\\', StringSplitOptions.RemoveEmptyEntries);
@@ -180,10 +182,7 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
 
             for (var i = 0; i < segments.Length - 1; i++)
             {
-                var segmentName = segments[i];
-                var child = current.Children.FirstOrDefault(
-                    c => c.Name.Equals(segmentName, StringComparison.OrdinalIgnoreCase) && c.NodeType == NodeType.Directory);
-
+                var child = ChildNamed(current, segments[i], NodeType.Directory, lookup);
                 if (child == null)
                     return;
 
@@ -191,15 +190,26 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
                 current = child;
             }
 
-            var fileName = segments[^1];
-            var fileNode = current.Children.FirstOrDefault(
-                c => c.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase)
-                    && c.NodeType == NodeType.File);
-
+            var fileNode = ChildNamed(current, segments[^1], NodeType.File, lookup);
             if (fileNode == null)
                 return;
 
             fileNode.IsVisible = true;
+        }
+
+        private static TreeNode? ChildNamed(TreeNode parent, string name, NodeType type, Dictionary<(TreeNode, NodeType), Dictionary<string, TreeNode>> lookup)
+        {
+            if (!lookup.TryGetValue((parent, type), out var byName))
+            {
+                byName = new Dictionary<string, TreeNode>(StringComparer.OrdinalIgnoreCase);
+                foreach (var child in parent.Children)
+                {
+                    if (child.NodeType == type)
+                        byName.TryAdd(child.Name, child);
+                }
+                lookup[(parent, type)] = byName;
+            }
+            return byName.GetValueOrDefault(name);
         }
 
         private static void SetVisibilityRecursive(TreeNode node, bool visible)
