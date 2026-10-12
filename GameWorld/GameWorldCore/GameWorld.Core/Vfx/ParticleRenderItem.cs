@@ -152,38 +152,49 @@ namespace GameWorld.Core.Vfx
         }
 
         /// <summary>enable_trail_mode: the particles, oldest first, joined into one camera-facing strip as wide as each. The
-        /// newest particle's texture cell runs along it, its top (a velocity-aligned quad's head) at the newest.</summary>
+        /// newest particle's texture cell runs along it, its top (a velocity-aligned quad's head) at the newest, mirrored and turned
+        /// as that particle's quad would be; each point grows to the fewest pixels across and fades into the ground as a quad does.</summary>
         public static VfxVertex[] Ribbon(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states, Matrix? frame = null)
         {
             if (states.Count < 2)
                 return [];
-            var uv = UvRect(s, states[^1].Cell);
+            var newest = states[^1];
+            var uv = UvRect(s, newest.Cell);
             var fade = EmitterFade(s, camera, frame);
+            var toWorld = camera.ToWorld ?? Matrix.Identity;
+            var eye = Vector3.Transform(camera.Position, toWorld);
             var last = states.Count - 1;
-            var edges = new (Vector3 Left, Vector3 Right, Color Colour, float T, float Crush)[states.Count];
+            var edges = new (Vector3 Left, Vector3 Right, Vector3 Colour, float Alpha, float T, float Crush)[states.Count];
             for (var i = 0; i <= last; i++)
             {
                 var p = states[i];
                 var along = states[Math.Min(i + 1, last)].Position - states[Math.Max(i - 1, 0)].Position;
                 var side = Vector3.Cross(along, camera.Position - p.Position);
-                side = side.LengthSquared() > 1e-12f ? Vector3.Normalize(side) * (p.Size.X / 2) : Vector3.Zero;
-                edges[i] = (p.Position - side, p.Position + side, VertexColour(s, p.Colour, Faded(s, camera, p, fade)), 1 - i / (float)last, p.Crush);
+                var width = p.Size.X * VfxConventions.MinPixelGrowth(p.Size.X, Vector3.Distance(camera.Position, p.Position), camera.PixelScale, s.MinPixels);
+                side = side.LengthSquared() > 1e-12f ? Vector3.Normalize(side) * (width / 2) : Vector3.Zero;
+                edges[i] = (p.Position - side, p.Position + side, p.Colour, Faded(s, camera, p, fade), 1 - i / (float)last, p.Crush);
             }
 
-            var (next, blend) = (UvRect(s, states[^1].NextCell), states[^1].CellBlend);
-            VfxVertex Vertex(Vector3 position, Color colour, float across, float t, float crush) =>
-                new(position, colour, new Vector2(uv.X + across * uv.Z, uv.Y + t * uv.W), new Vector4(next.X + across * next.Z, next.Y + t * next.W, blend, crush));
+            var (next, blend) = (UvRect(s, newest.NextCell), newest.CellBlend);
+            // across is the quad's x; the head, at the newest, is its top.
+            VfxVertex Vertex(Vector3 position, Vector3 colour, float alpha, float across, float t, float crush)
+            {
+                var (u, v) = VfxConventions.QuadUv(across, 1 - t, newest.FlipU, newest.FlipV, s.UvTurn);
+                if (s.SoftEdge > 0 && !s.Decal)
+                    alpha *= VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength);
+                return new(position, VertexColour(s, colour, alpha), new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, blend, crush));
+            }
             var vertices = new VfxVertex[last * 6];
             var n = 0;
             for (var i = 0; i < last; i++)
             {
                 var (a, b) = (edges[i], edges[i + 1]);
-                vertices[n++] = Vertex(a.Left, a.Colour, 0, a.T, a.Crush);
-                vertices[n++] = Vertex(a.Right, a.Colour, 1, a.T, a.Crush);
-                vertices[n++] = Vertex(b.Right, b.Colour, 1, b.T, b.Crush);
-                vertices[n++] = Vertex(a.Left, a.Colour, 0, a.T, a.Crush);
-                vertices[n++] = Vertex(b.Right, b.Colour, 1, b.T, b.Crush);
-                vertices[n++] = Vertex(b.Left, b.Colour, 0, b.T, b.Crush);
+                vertices[n++] = Vertex(a.Left, a.Colour, a.Alpha, 0, a.T, a.Crush);
+                vertices[n++] = Vertex(a.Right, a.Colour, a.Alpha, 1, a.T, a.Crush);
+                vertices[n++] = Vertex(b.Right, b.Colour, b.Alpha, 1, b.T, b.Crush);
+                vertices[n++] = Vertex(a.Left, a.Colour, a.Alpha, 0, a.T, a.Crush);
+                vertices[n++] = Vertex(b.Right, b.Colour, b.Alpha, 1, b.T, b.Crush);
+                vertices[n++] = Vertex(b.Left, b.Colour, b.Alpha, 0, b.T, b.Crush);
             }
             return vertices;
         }

@@ -378,6 +378,30 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(vertices.All(v => v.Position.Z == 0), Is.True, "faces the camera on +Z");
         }
 
+        // A trail draws as its particles would as quads: mirrored by its newest particle's flip, grown to vs_rendersize_limiter's
+        // pixels across (2 m for a 10 cm strip 100 m away, where a metre at a metre is 100 pixels), and faded by ps_soft_edge where
+        // it runs into the ground (half, 0.5 m up under a camera looking down, with a 1 m soft_factor).
+        [Test]
+        public void Ribbon_FlipsGrowsAndSoftensLikeAQuad()
+        {
+            ParticleState At(float x, float y = 0, float width = 0.1f, bool flipU = false) =>
+                new(new Vector3(x, y, 0), Vector3.Zero, new Vector2(width), 0, Vector3.One, 1, 0, 0, FlipU: flipU);
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var far = camera with { Position = new Vector3(0, 0, 100), PixelScale = 100 };
+            var looking = new ParticleRenderItem.CameraAxes(new Vector3(0, 10, 0), Vector3.Right, Vector3.Forward, Vector3.Down);
+            var trail = new EmitterSettings { Trail = true, Premultiplied = false };
+            Assert.Multiple(() =>
+            {
+                Assert.That(ParticleRenderItem.Ribbon(trail, camera, [At(0), At(1)])[0].TextureCoordinate.X, Is.EqualTo(0f), "plain");
+                Assert.That(ParticleRenderItem.Ribbon(trail, camera, [At(0), At(1, flipU: true)])[0].TextureCoordinate.X, Is.EqualTo(1f), "mirrored");
+                var grown = ParticleRenderItem.Ribbon(new EmitterSettings { Trail = true, MinPixels = 2 }, far, [At(0), At(1)]);
+                Assert.That(grown.Max(v => MathF.Abs(v.Position.Y)), Is.EqualTo(1f).Within(1e-2), "grown");
+                var soft = ParticleRenderItem.Ribbon(new EmitterSettings { Trail = true, Premultiplied = false, SoftEdge = 1, SoftStrength = 1 }, looking,
+                    [At(0, 0.5f, 0.01f), At(1, 0.5f, 0.01f)]);
+                Assert.That(soft.Max(v => v.Color.A / 255f), Is.EqualTo(0.5f).Within(0.02), "softened");
+            });
+        }
+
         // Two particles off the sides of the view: as quads they leave its middle grey, as a trail the strip crosses it.
         [TestCase(false, 0.502f)]
         [TestCase(true, 1f)]
