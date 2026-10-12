@@ -48,6 +48,43 @@ namespace Test.VfxEditor
             Assert.That(curve.Channels[1].Keys[1][0], Is.EqualTo("0.5"));
         }
 
+        // A copy goes to the end, so no mapping index moves; a removal is refused while an output reads the channel, and moves
+        // the indices past it down.
+        [Test]
+        public void A_channel_is_copied_to_the_end_and_one_no_output_reads_is_removed()
+        {
+            var curve = CurveText.Parse(Text)!;
+            curve.AddChannel(0);
+            Assert.That(curve.Channels.Select(c => c.Name), Is.EqualTo(new[] { "x_min", "x_max", "x_min_copy" }));
+            Assert.That(curve.Channels[2].Keys, Is.EqualTo(curve.Channels[0].Keys).AsCollection.And.Not.SameAs(curve.Channels[0].Keys));
+            var refused = Assert.Throws<InvalidOperationException>(() => curve.RemoveChannel(1));
+            Assert.That(refused!.Message, Does.Contain("x reads x_max"));
+            curve.SetMapping("x,1;0,2");
+            curve.RemoveChannel(1);
+            Assert.That((curve.Channels.Count, curve.Mapping), Is.EqualTo((2, "x,1;0,1")));
+        }
+
+        [TestCase("x,1;0,1|y,0;1,1", true)]
+        [TestCase("x,1;0,2", false)]
+        [TestCase("x,2;0,1", false)]
+        [TestCase("x;0,1", false)]
+        [TestCase(",1;0,1", false)]
+        [TestCase("", false)]
+        public void A_mapping_names_channels_the_curve_has(string mapping, bool valid)
+        {
+            var curve = CurveText.Parse(Text)!;
+            if (valid)
+            {
+                curve.SetMapping(mapping);
+                Assert.That(curve.ToString(), Does.EndWith(":" + mapping + " "));
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => curve.SetMapping(mapping));
+                Assert.That(curve.Mapping, Is.EqualTo("x,1;0,1"));
+            }
+        }
+
         [TestCase(0, "0.25", true)]
         [TestCase(0, "abc", false)]
         [TestCase(1, "1e39", false)]

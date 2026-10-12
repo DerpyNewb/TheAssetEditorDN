@@ -372,6 +372,23 @@ namespace Test.VfxEditor
             Assert.That(editor.Rows.Select(r => (r.Label, r.Value)), Is.EqualTo(new[] { ("file", "fx/particle_vfx_library.hlsl") }));
         }
 
+        // The curve graph's points reach the screen: a binding that cannot convert them only logs, and draws an empty box.
+        [Test, Apartment(ApartmentState.STA)]
+        public void A_curve_row_draws_its_graph()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            var editor = Open(runner);
+            var view = new VfxEditorView { DataContext = editor };
+            editor.SelectedNode = editor.Tree[1].Children[0];
+            view.Measure(new Size(1600, 900));
+            view.Arrange(new Rect(0, 0, 1600, 900));
+            view.UpdateLayout();
+            var lines = Descendants(view).OfType<System.Windows.Shapes.Polyline>().ToList();
+            Assert.That(lines.Select(l => l.Points.Count), Is.EqualTo(new[] { 61, 61 }), "the Curve fixture's two channels");
+        }
+
         // Rename takes the id across the emitter's records and keeps its node picked; the type picker writes its type.
         [Test]
         public void An_emitter_is_renamed_and_retyped_from_its_node()

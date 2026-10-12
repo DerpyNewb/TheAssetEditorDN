@@ -16,6 +16,10 @@
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                     <TextBlock Text="Channel" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <ComboBox ItemsSource="{Binding Channels}" SelectedItem="{Binding SelectedChannel}" DisplayMemberPath="Name" MinWidth="110"/>
+                    <Button Content="Copy channel" Command="{Binding AddChannelCommand}" Margin="8,0,0,0" Padding="6,0"
+                            ToolTip="Copies the picked channel to the end of the list; point the mapping at it to use it"/>
+                    <Button Content="Remove channel" Command="{Binding RemoveChannelCommand}" Margin="4,0,0,0" Padding="6,0"
+                            ToolTip="Refused while the mapping reads the channel"/>
                     <Button Content="Add key" Command="{Binding AddKeyCommand}" Margin="8,0,0,0" Padding="6,0"
                             ToolTip="Copies the picked key to a time halfway to the next one"/>
                     <Button Content="Delete key" Command="{Binding DeleteKeyCommand}" Margin="4,0,0,0" Padding="6,0"/>
@@ -53,7 +57,26 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
-                <TextBlock Text="{Binding Mapping, StringFormat='Mapping (not edited here): {0}'}" Opacity="0.7" Margin="0,4,0,0"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <TextBlock Text="Mapping" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBox Text="{Binding Mapping}" MinWidth="220"
+                             ToolTip="output,random;min,max for each output, joined by |. min and max are channel numbers from 0; random 1 draws a point between them, 0 uses min."/>
+                </StackPanel>
+                <Border BorderBrush="#40808080" BorderThickness="1" Width="302" Height="82" HorizontalAlignment="Left" Margin="0,6,0,0">
+                    <ItemsControl ItemsSource="{Binding Lines}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Grid/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:CurveLine}">
+                                <Polyline Points="{Binding Points}" Stroke="{Binding Colour}" StrokeThickness="{Binding Thickness}" ToolTip="{Binding Name}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+                <TextBlock Text="{Binding Range, StringFormat='Over the particle or emitter life, 0 to 1; values {0}'}" Opacity="0.7" Margin="0,2,0,0"/>
             </StackPanel>
         </DataTemplate>
     </UserControl.Resources>
