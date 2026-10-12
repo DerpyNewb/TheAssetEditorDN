@@ -92,6 +92,44 @@ namespace Test.AnimationMeta
             Assert.That(splashAttack.EndPosition.X, Is.EqualTo(vectorValue));
         }
 
+        // A changed file shows red on its tab and asks before it closes, so every change counts until it is saved: an edited field,
+        // and an entry added, deleted or moved. A field's mark lived on its row, which every add, delete, move and paste rebuilds,
+        // so one of them forgot the edits before it, and the tab never heard that anything had changed.
+        [Test]
+        public void MetaDataEditor_EveryChangeIsUnsavedUntilSaved()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Throt.pack"), true);
+            var metaPackFile = runner.PackFileService.FindFile(@"animations/battle/humanoid17/throt_whip_catcher/attacks/hu17_whip_catcher_attack_05.anm.meta");
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<MetaDataEditorViewModel>(metaPackFile!, Shared.Core.ToolCreation.EditorEnums.Meta_Editor);
+            // What the tab reads each time it is told to look.
+            var said = new List<bool>();
+            editor.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(editor.HasUnsavedChanges)) said.Add(editor.HasUnsavedChanges); };
+            Assert.That(editor.HasUnsavedChanges, Is.False, "as loaded");
+
+            editor.Tags[4].Variables[3].ValueAsString = "customstr";
+            Assert.That(said, Is.EqualTo(new[] { true }), "a field edited");
+
+            editor.Tags[0].IsSelected = true;
+            editor.MoveDownActionCommand.Execute(null);
+            editor.MoveUpActionCommand.Execute(null);
+            Assert.That(editor.HasUnsavedChanges, Is.True, "the edit outlives the rows a move and its undoing rebuild");
+
+            editor.SaveActionCommand.Execute(null);
+            Assert.That(editor.HasUnsavedChanges, Is.False, "saved");
+
+            said.Clear();
+            (editor.Tags[4].Variables[7] as VectorAttributeViewModel)!.Value.X.Value = 120;
+            Assert.That(said, Is.Not.Empty.And.All.True, "a vector edited: " + string.Join(",", said));
+
+            editor.SaveActionCommand.Execute(null);
+            said.Clear();
+            editor.Tags.Last().IsSelected = true;
+            editor.DeleteActionCommand.Execute(null);
+            Assert.That(said, Is.Not.Empty.And.All.True, "an entry deleted");
+        }
+
         [Test]
         public void MetaDataEditor_DeleteAndSave()
         {

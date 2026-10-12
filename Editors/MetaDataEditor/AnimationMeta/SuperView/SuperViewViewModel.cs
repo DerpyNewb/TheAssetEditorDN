@@ -44,7 +44,24 @@ namespace Editors.AnimationMeta.SuperView
             {
                 PersistentMetaEditor.HasUnsavedChanges = value;
                 MetaEditor.HasUnsavedChanges = value;
-            } 
+            }
+        }
+
+        // The tab is red while either editor has unsaved changes, so it hears when either's change.
+        partial void OnPersistentMetaEditorChanged(MetaDataEditorViewModel? oldValue, MetaDataEditorViewModel newValue) => Follow(oldValue, newValue);
+        partial void OnMetaEditorChanged(MetaDataEditorViewModel? oldValue, MetaDataEditorViewModel newValue) => Follow(oldValue, newValue);
+
+        void Follow(MetaDataEditorViewModel? oldValue, MetaDataEditorViewModel newValue)
+        {
+            if (oldValue != null)
+                oldValue.PropertyChanged -= OnEditorPropertyChanged;
+            newValue.PropertyChanged += OnEditorPropertyChanged;
+        }
+
+        void OnEditorPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(HasUnsavedChanges))
+                OnPropertyChanged(nameof(HasUnsavedChanges));
         }
 
 

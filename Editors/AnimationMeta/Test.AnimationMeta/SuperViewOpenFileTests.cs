@@ -47,6 +47,24 @@ namespace Test.AnimationMeta
             Assert.That(superView.MetaEditor.Tags, Is.Not.Empty);
         }
 
+        // SuperView's tab goes red with its meta editors: an edited field says SuperView has unsaved changes, so its tab heard.
+        [Test]
+        public void VariantMesh_AnEditedTagMarksTheTabUnsaved()
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == @"animations/database/battle/bin/hu17_dlc16_throt.bin");
+            selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+            var said = new List<string?>();
+            superView.PropertyChanged += (_, e) => said.Add(e.PropertyName);
+            Assert.That(superView.HasUnsavedChanges, Is.False, "as loaded");
+
+            var field = superView.MetaEditor.Tags.SelectMany(x => x.Variables).First(x => !x.IsReadOnly && x.Scrub == Shared.Ui.Common.Behaviors.ScrubMode.Integer);
+            field.ValueAsString = (int.Parse(field.ValueAsString) + 1).ToString();
+            Assert.That((superView.HasUnsavedChanges, said.Contains(nameof(superView.HasUnsavedChanges))), Is.EqualTo((true, true)));
+        }
+
         // The meta props always play; the main model has to as well, or it stands in its bind pose
         // under them until the "Animation" toggle is found.
         [Test]

@@ -139,8 +139,8 @@ namespace Editors.AnimationMeta.Presentation
             value.Normalize();
 
             _property.SetValue(_target, value.ToVector4());
-            _eventHub.Publish(new MetaDataAttributeChangedEvent());
             IsModified = true;
+            _eventHub.Publish(new MetaDataAttributeChangedEvent());
         }
 
     }
@@ -164,8 +164,9 @@ namespace Editors.AnimationMeta.Presentation
         {
             var vector3 = Value.GetAsVector3();
             _property.SetValue(_target, vector3);
-            _eventHub.Publish(new MetaDataAttributeChangedEvent());
+            // Marked before it is said, so whoever hears it reads the change.
             IsModified = true;
+            _eventHub.Publish(new MetaDataAttributeChangedEvent());
         }
     }
 }
