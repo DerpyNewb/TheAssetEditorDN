@@ -145,6 +145,18 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(particles.Max(p => MathF.Abs(p.Position.Y - 2 * p.Age)), Is.LessThan(1e-3f));
         }
 
+        // SpawnInheritedSpeed hands a world-space particle that share of the emitter's velocity; a local-space one
+        // already moves with its emitter.
+        [TestCase(SimulationSpace.World, 5f)]
+        [TestCase(SimulationSpace.LocalPositionOnly, 0f)]
+        public void InheritedSpeed_IsAShareOfTheEmittersVelocity(SimulationSpace space, float expected)
+        {
+            var s = Steady(x => { x.Space = space; x.InheritedSpeed = 0.5f; });
+            var velocities = Run(s, 1, t => Matrix.CreateTranslation(10 * t, 0, 0)).Emitters[0].Particles.Select(p => p.Velocity).ToList();
+            Assert.That(velocities, Is.Not.Empty);
+            Assert.That(velocities.Max(v => Vector3.Distance(v, new Vector3(expected, 0, 0))), Is.LessThan(1e-3f));
+        }
+
         [Test]
         public void SpawnSpacing_StandingStill_SpawnsOnlyByRate()
         {

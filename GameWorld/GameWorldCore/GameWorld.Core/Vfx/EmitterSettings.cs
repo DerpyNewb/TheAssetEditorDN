@@ -49,6 +49,8 @@ namespace GameWorld.Core.Vfx
         public float SpawnSpacing { get; set; }
         /// <summary>SkipParticlePositionUpdate: particles stay where they spawned; their velocity still aligns and stretches them.</summary>
         public bool SkipPositionUpdate { get; set; }
+        /// <summary>SpawnInheritedSpeed: the share of the emitter's own velocity a particle starts with.</summary>
+        public float InheritedSpeed { get; set; }
 
         // A particle's start
         public VfxCurve? InitialSpeed { get; set; }
@@ -195,8 +197,9 @@ namespace GameWorld.Core.Vfx
                 s.Skipped.Add("the vector field is not simulated in step 1");
             if (Number("EffectedByWindFactor", 0) != 0)
                 s.Skipped.Add("wind is not simulated in step 1");
-            if (Number("SpawnInheritedSpeed", 0) != 0)
-                s.Skipped.Add("inherited speed is not simulated in step 1");
+            s.InheritedSpeed = Number("SpawnInheritedSpeed", 0);
+            if (Number("SpawnInheritedDirectionBlend", 0) != 0)
+                s.Skipped.Add("SpawnInheritedDirectionBlend is not read in step 1");
             if (Range("SpreadArc", (0, 0)) != (0, 0))
                 s.Skipped.Add("SpreadArc is not read in step 1");
 

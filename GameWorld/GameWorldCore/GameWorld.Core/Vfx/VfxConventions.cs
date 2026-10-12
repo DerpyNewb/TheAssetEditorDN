@@ -43,6 +43,11 @@ namespace GameWorld.Core.Vfx
         /// <summary>SpawnArc is the spawn ring's start and end angle in degrees, in the XZ plane; 0,0 is the whole ring.</summary>
         public static (float From, float To) RingArc(Vector2 spawnArc) => spawnArc == Vector2.Zero ? (0, 360) : (spawnArc.X, spawnArc.Y);
 
+        /// <summary>SpawnInheritedSpeed is a plain share of the emitter's velocity (332 of its 1,385 vanilla emitters carry 0.5,
+        /// nearly all lie in 0..1), given to world-space particles only: a local-space particle already rides with its emitter.
+        /// SpawnInheritedDirectionBlend (146 emitters) is not read.</summary>
+        public static Vector3 Inherited(Vector3 emitterVelocity, float share) => emitterVelocity * share;
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 
