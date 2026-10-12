@@ -5,7 +5,9 @@ using Microsoft.Xna.Framework;
 using Shared.Core.Commands;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
+using Shared.Core.PackFiles.Utility;
 using Shared.Core.ToolCreation;
+using Shared.GameFormats.AnimationPack;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
 
@@ -72,6 +74,46 @@ namespace Test.AnimationMeta
 
             Assert.That(data.Player.IsEnabled, Is.True, "the main model's player is off");
             Assert.That(later, Is.Not.EqualTo(start), "no bone moved in 400ms of the slot's animation");
+        }
+
+        // A skeleton with no battle animation table (Glottkin's only set is cam_lord_glt01_dlc29_ghurk.bin) still lists its
+        // campaign animation set, and a slot from it plays with the set's persistent meta. Its hand poses and docks take the
+        // battle slot names the meta's HandPose and DockEquipment tags look up.
+        [Test]
+        public void VariantMesh_ListsItsCampaignAnimationSet()
+        {
+            var battle = PackFileServiceUtility.GetAllAnimPacks(_runner.PackFileService)
+                .SelectMany(x => AnimationPackSerializer.Load(x, _runner.PackFileService).GetGenericAnimationSets())
+                .First(x => x.FullPath == @"animations/database/battle/bin/hu17_dlc16_throt.bin");
+            var attack = battle.Entries.First(x => x.SlotName == "ATTACK_5");
+            var persist = battle.Entries.First(x => x.SlotName == "PERSISTENT_METADATA_ALIVE");
+            var bin = new CampaignAnimationBin
+            {
+                Version = 3,
+                SkeletonName = battle.SkeletonName,
+                Status =
+                [
+                    new()
+                    {
+                        Name = "global",
+                        PersitantMetaData = [new() { Animation = "", Type = "global", AnimationMeta = persist.MetaFile, SoundMeta = "" }],
+                        Poses = [new() { Animation = attack.AnimationFile, Type = "global", AnimationMeta = "", SoundMeta = "", PoseId = 3 }],
+                        Docks = [new() { Animation = attack.AnimationFile, Type = "global", AnimationMeta = "", SoundMeta = "", Dock = "DOCK_EQPT_RHAND_2" }],
+                    },
+                    new() { Name = "status_battle", Action = [new() { Animation = attack.AnimationFile, Type = "global", Meta = attack.MetaFile, SoundMeta = "", ActionType = "battle_fatality", ActionId = 1 }] },
+                ],
+            };
+            var pack = _runner.CreateOutputPack();
+            _runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry(@"animations\campaign\database\bin", PackFile.CreateFromBytes("cam_throt.bin", CampaignAnimationBinLoader.Write(bin, "cam_throt")))]);
+
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == @"animations/campaign/database/bin/cam_throt.bin");
+            selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "status_battle/battle_fatality");
+            Assert.That(superView.MetaEditor.ParsedFile, Is.Not.Null);
+            Assert.That((selection.MetaDataName, selection.MetaDataPersistName), Is.EqualTo((attack.MetaFile, persist.MetaFile)));
+            Assert.That(selection.FragmentSlotList.PossibleValues.Select(x => x.SlotName), Is.SupersetOf(new[] { "HAND_POSE_GRIP", "DOCK_EQUIPMENT_RIGHT_HAND_2" }));
         }
 
         [Test]

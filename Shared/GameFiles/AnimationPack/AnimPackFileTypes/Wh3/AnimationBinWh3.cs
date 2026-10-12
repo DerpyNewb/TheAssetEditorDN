@@ -194,7 +194,7 @@ namespace Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3
 
         string IAnimationBinGenericFormat.FullPath => FileName;
 
-        AnimationPackFileDatabase IAnimationBinGenericFormat.PackFileReference => Parent;
+        AnimationPackFileDatabase? IAnimationBinGenericFormat.PackFileReference => Parent;
     }
 
     public class AnimationBinEntry

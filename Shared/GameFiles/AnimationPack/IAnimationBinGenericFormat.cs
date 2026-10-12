@@ -2,7 +2,8 @@
 {
     public interface IAnimationBinGenericFormat
     {
-        public AnimationPackFileDatabase PackFileReference { get; }
+        /// <summary>The animpack holding a battle set; null for a campaign set, which is a file of its own.</summary>
+        public AnimationPackFileDatabase? PackFileReference { get; }
         public string Name { get; }
         public string FullPath { get; }
         public string SkeletonName { get; }

@@ -1,7 +1,7 @@
 using System;
 using System.Globalization;
 using System.Windows.Data;
-using Editors.CampaignAnimationSetEditor.Services;
+using Shared.GameFormats.AnimationPack;
 
 namespace Editors.CampaignAnimationSetEditor.Views
 {

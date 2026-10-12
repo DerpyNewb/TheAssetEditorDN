@@ -423,6 +423,13 @@ namespace Shared.GameFormats.AnimationPack
             return outputFile;
         }
 
+        /// <summary>The skeleton a set is for, from its string table alone, so finding a skeleton's sets parses none of the others.</summary>
+        public static string ReadSkeletonName(ByteChunk data)
+        {
+            data.ReadInt32();
+            return ReadStrTable(new ByteChunk(data.Buffer, data.ReadInt32()))[1];
+        }
+
         public static byte[] Write(CampaignAnimationBin bin, string fileName)
         {
             var dataWriter = new ChuckWriter();

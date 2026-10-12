@@ -27,14 +27,7 @@ namespace Editors.CampaignAnimationSetEditor.Services
             "status_deploy",
         ];
 
-        static readonly (string BattleSlot, string CampaignDock)[] DockSlotMap =
-        [
-            ("DOCK_EQUIPMENT_RIGHT_HAND", "DOCK_EQPT_RHAND"),
-            ("DOCK_EQUIPMENT_LEFT_HAND", "DOCK_EQPT_LHAND"),
-            ("DOCK_EQUIPMENT_LEFT_WAIST", "DOCK_EQPT_LWAIST"),
-            ("DOCK_EQUIPMENT_RIGHT_WAIST", "DOCK_EQPT_RWAIST"),
-            ("DOCK_EQUIPMENT_BACK", "DOCK_EQPT_BACK"),
-        ];
+        static readonly (string BattleSlot, string CampaignDock)[] DockSlotMap = CampaignAnimationSet.DockSlots;
 
         // Cast-spell slots use a "_FLYING" suffix rather than the usual "FLY_" prefix, and have no
         // single canonical slot - only short/medium/long forward/up variants. Medium is preferred.

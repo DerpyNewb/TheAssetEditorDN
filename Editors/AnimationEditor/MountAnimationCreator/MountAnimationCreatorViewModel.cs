@@ -288,7 +288,7 @@ namespace AnimationEditor.MountAnimationCreator
         {
             if (animationSet != null)
             {
-                var animpackFileName = animationSet.PackFileReference.FileName;
+                var animpackFileName = animationSet.PackFileReference!.FileName;
                 _uiCommandFactory.Create<OpenEditorCommand>().ExecuteAsWindow(animpackFileName, 800, 900);
             }
         }
