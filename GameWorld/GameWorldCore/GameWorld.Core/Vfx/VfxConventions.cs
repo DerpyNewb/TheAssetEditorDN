@@ -114,6 +114,11 @@ namespace GameWorld.Core.Vfx
             return down <= 0 ? 1 : MathF.Pow(Math.Clamp(corner.Y / down / softFactor, 0, 1), strength);
         }
 
+        /// <summary>DEFERRED_DECAL (568 vanilla emitters), DEFERRED_DECAL_EMISSIVE (399) and SEA_OVERLAY (11) project onto what lies
+        /// under them, and none carries an orientation_mode. The preview lays each quad flat on its ground, world y = 0, under the
+        /// particle and a centimetre clear of the grid, turned by the particle's angle.</summary>
+        public static Vector3 Decal(Vector3 worldPosition) => new(worldPosition.X, 0.01f, worldPosition.Z);
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 

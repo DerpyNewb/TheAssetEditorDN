@@ -54,6 +54,17 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(ripple.Skipped, Has.One.Matches<string>(x => x.Contains("DISTORTION")));
         }
 
+        [TestCase("DEFERRED_DECAL")]
+        [TestCase("DEFERRED_DECAL_EMISSIVE")]
+        [TestCase("SEA_OVERLAY")]
+        public void GroundStacks_AreDrawnAsDecals(string view)
+        {
+            var scorch = Read(Emitter("smoke"), SmokeChain,
+                $"""<effect_render_stack id="smoke"><property name="scene_view_type" quality="0" value="{view}"/></effect_render_stack>""").Single();
+            Assert.That((scorch.Draws, scorch.Decal), Is.EqualTo((true, true)));
+            Assert.That(Read(Emitter("smoke"), SmokeChain).Single().Decal, Is.False);
+        }
+
         [TestCase("Vertically-oriented", QuadOrientation.Vertical)]
         [TestCase("Particle only rotating around local Y (horizontal)", QuadOrientation.LocalHorizontal)]
         [TestCase("Particle only rotating around local Y (vertical)", QuadOrientation.LocalVertical)]

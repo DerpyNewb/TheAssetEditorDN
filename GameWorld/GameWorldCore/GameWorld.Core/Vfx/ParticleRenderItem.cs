@@ -171,20 +171,22 @@ namespace GameWorld.Core.Vfx
 
         static int AddQuad(VfxVertex[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame, float fade)
         {
-            var (across, up, height) = Axes(s, camera, p, frame);
+            var toWorld = camera.ToWorld ?? Matrix.Identity;
+            if (s.Decal)
+                p = p with { Position = Vector3.Transform(VfxConventions.Decal(Vector3.Transform(p.Position, toWorld)), Matrix.Invert(toWorld)) };
+            var (across, up, height) = Axes(s, camera, p, frame, toWorld);
             var width = p.Size.X;
             var grow = VfxConventions.MinPixelGrowth(Math.Min(width, height), Vector3.Distance(camera.Position, p.Position), camera.PixelScale, s.MinPixels);
             (width, height) = (width * grow, height * grow);
             var alpha = Faded(s, camera, p, fade);
             var colour = VertexColour(s, p.Colour, alpha);
             var (uv, next) = (UvRect(s, p.Cell), UvRect(s, p.NextCell));
-            var toWorld = camera.ToWorld ?? Matrix.Identity;
             var eye = Vector3.Transform(camera.Position, toWorld);
             VfxVertex Corner(float x, float y)
             {
                 var (u, v) = VfxConventions.QuadUv(x, y, p.FlipU, p.FlipV, s.UvTurn);
                 var position = p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height);
-                var soft = s.SoftEdge > 0 ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength)) : colour;
+                var soft = s.SoftEdge > 0 && !s.Decal ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength)) : colour;
                 return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, p.Crush));
             }
 
@@ -199,9 +201,16 @@ namespace GameWorld.Core.Vfx
 
         // The quad's two edge directions and its height, per orientation_mode. frame: the emitter's matrix, whose axes the
         // two local-Y modes use. The three rare modes (29 vanilla chains) are readings of their names, not measurements.
-        static (Vector3 Across, Vector3 Up, float Height) Axes(EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame)
+        // toWorld: the effect's matrix, whose world a decal lies flat in.
+        static (Vector3 Across, Vector3 Up, float Height) Axes(EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame, Matrix toWorld)
         {
             var (sin, cos) = MathF.SinCos(p.Angle);
+            if (s.Decal)
+            {
+                var toModel = Matrix.Invert(toWorld);
+                Vector3 Flat(Vector3 axis) => Vector3.Normalize(Vector3.TransformNormal(axis, toModel));
+                return (Flat(new Vector3(cos, 0, -sin)), Flat(new Vector3(sin, 0, cos)), p.Size.Y);
+            }
             if (s.Orientation == QuadOrientation.Horizontal)
                 return (new Vector3(cos, 0, -sin), new Vector3(sin, 0, cos), p.Size.Y);
 

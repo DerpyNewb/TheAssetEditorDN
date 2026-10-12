@@ -114,6 +114,8 @@ namespace GameWorld.Core.Vfx
         public Vector2 Loops { get; set; } = Vector2.One;
         public bool FixedSpeed { get; set; }
         public bool CellBlend { get; set; }
+        /// <summary>The stack draws onto what lies under it (DEFERRED_DECAL, DEFERRED_DECAL_EMISSIVE, SEA_OVERLAY).</summary>
+        public bool Decal { get; set; }
         /// <summary>ps_alpha_crush: a particle's crush level over its life, and whether it cuts sharp.</summary>
         public VfxCurve? AlphaCrush { get; set; }
         public bool CrushSharp { get; set; }
@@ -208,7 +210,9 @@ namespace GameWorld.Core.Vfx
 
             if (resolved.Emitter.Type != "continuous_mesh")
                 NotDrawn(s, $"emitter type {resolved.Emitter.Type} is not drawn in step 1");
-            if (resolved.SceneViewType is not (null or "FULLRES_DEFERRED_ALPHA" or "HALFRES_DEFERRED_ALPHA"))
+            if (resolved.SceneViewType is "DEFERRED_DECAL" or "DEFERRED_DECAL_EMISSIVE" or "SEA_OVERLAY")
+                s.Decal = true;
+            else if (resolved.SceneViewType is not (null or "FULLRES_DEFERRED_ALPHA" or "HALFRES_DEFERRED_ALPHA"))
                 NotDrawn(s, $"scene_view_type {resolved.SceneViewType} is not drawn in step 1");
             if (Flag("AllowEmitFromMesh"))
                 s.Skipped.Add("emit from mesh is not simulated in step 1");

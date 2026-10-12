@@ -190,6 +190,24 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.EqualTo(new[] { 0.5f, 0f, 1f }).Within(0.03));
         }
 
+        // A decal lies flat on the world's ground under its particle, whatever its own orientation and however the effect is
+        // carried: here a camera-facing particle 2 m up in an effect lifted 1 m and tipped 90 degrees about X.
+        [Test]
+        public void Decal_LiesFlatOnTheGroundUnderItsParticle()
+        {
+            var effect = Matrix.CreateRotationX(MathHelper.PiOver2) * Matrix.CreateTranslation(3, 1, 0);
+            var camera = ParticleRenderItem.CameraAxes.From(View, effect);
+            var particle = new ParticleState(new Vector3(0, 2, 0), Vector3.Zero, new Vector2(2, 2), 0, Vector3.One, 1, 0, 0);
+            var corners = ParticleRenderItem.Quads(new EmitterSettings { Decal = true }, camera, [particle]).Select(v => Vector3.Transform(v.Position, effect)).ToList();
+            Assert.Multiple(() =>
+            {
+                Assert.That(corners.Select(c => c.Y), Is.All.EqualTo(0.01f).Within(1e-4), "on the ground");
+                var middle = corners.Aggregate(Vector3.Zero, (sum, c) => sum + c) / corners.Count;
+                Assert.That(new[] { middle.X, middle.Z }, Is.EqualTo(new[] { 3f, 2f }).Within(1e-4), "under the particle");
+                Assert.That(corners.Max(c => c.X) - corners.Min(c => c.X), Is.EqualTo(2).Within(1e-3), "as wide as it");
+            });
+        }
+
         // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with
         // the texture cell running from the newest (its top, as a velocity-aligned quad's head) to the oldest.
         [Test]
