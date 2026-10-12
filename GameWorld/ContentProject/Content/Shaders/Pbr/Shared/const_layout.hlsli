@@ -1,6 +1,8 @@
 ﻿#ifndef CONST_LAYOUT_HLSLI
 #define CONST_LAYOUT_HLSLI
 
+#include "light_falloff.hlsli"
+
 
 
 float4x4 World;
@@ -31,15 +33,14 @@ float4 PointLights[16];
 float4 PointLightColours[16];
 int PointLightCount = 0;
 
-// Light i's colour where it reaches position, falling off as its pool on the ground does, (1 - d^2/r^2)^2, and the way to it.
+// Light i's colour where it reaches position, falling off as its pool on the ground does (LightFalloff), and the way to it.
 // Each shader lights with it as it lights with the sun, on the sun's scale; the colours arrive already at CA's share of the
 // sun (VfxConventions.LightShare), so a particle of colour 1 and alpha 1 is a 24th of it.
 float3 PointLightAt(int i, float3 position, out float3 direction)
 {
     float3 to = PointLights[i].xyz - position;
     direction = normalize(to);
-    float fall = saturate(1 - dot(to, to) / max(PointLights[i].w * PointLights[i].w, 0.0001));
-    return PointLightColours[i].rgb * fall * fall;
+    return PointLightColours[i].rgb * LightFalloff(length(to) / max(PointLights[i].w, 0.0001));
 }
 
 // Textures

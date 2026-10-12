@@ -32,16 +32,7 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
             effect.Parameters["CameraPos"].SetValue(CameraPosition);
             effect.Parameters["Constant_LightColour"].SetValue(LightColour);
             effect.Parameters["ModelColour"]?.SetValue(ModelColour);
-            if (effect.Parameters["PointLightCount"] is { } count)
-            {
-                var lights = PointLights.Take(CommonShaderParameters.MaxPointLights).ToArray();
-                count.SetValue(lights.Length);
-                if (lights.Length > 0)
-                {
-                    effect.Parameters["PointLights"].SetValue(lights.Select(x => new Vector4(x.Position, x.Radius)).ToArray());
-                    effect.Parameters["PointLightColours"].SetValue(lights.Select(x => new Vector4(x.Colour, 1)).ToArray());
-                }
-            }
+            CommonShaderParameters.SetPointLights(effect, PointLights);
         }
 
         public void Assign(CommonShaderParameters parameters, Matrix modelMatrix)

@@ -94,12 +94,12 @@ namespace GameWorld.Core.Vfx
             device.SamplerStates[0] = samplerState;
         }
 
-        /// <summary>The light particles alive now, in the world: each reaches as far as its pool, half its size, in its colour times
+        /// <summary>The light particles alive now, in the world: each reaches as far as the particle is wide, as CA's does, in its colour times
         /// its alpha, on the models' sun scale at CA's share of it (VfxConventions.LightShare), as LightPS draws the pool.</summary>
         public IEnumerable<PointLight> Lights() => _simulator.AllEmitters.Where(x => x.Settings.Light).SelectMany(e =>
         {
             var brightness = VfxConventions.Blend(e.Settings.AdditiveMul).Brightness;
-            return ParticleSimulator.States(e).Select(p => new PointLight(Vector3.Transform(p.Position, World), p.Size.X / 2, p.Colour * p.Alpha * brightness * VfxConventions.LightShare));
+            return ParticleSimulator.States(e).Select(p => new PointLight(Vector3.Transform(p.Position, World), p.Size.X, p.Colour * p.Alpha * brightness * VfxConventions.LightShare));
         });
 
         public static void DrawEmitter(GraphicsDevice device, Effect effect, CommonShaderParameters parameters, Matrix world,
@@ -115,12 +115,13 @@ namespace GameWorld.Core.Vfx
             if (glow && settings.Lit)
                 states = states.Select(p => p with { Colour = Vector3.Zero }).ToList();
             // A light's pool is light on the ground, which blooms no more than a lit model does. Its alpha is how strong it is, past
-            // 1 (the Bale Taurus's leg lights are at 20), so it goes into the colour, which the Scale below carries past 1.
+            // 1 (the Bale Taurus's leg lights are at 20), so it goes into the colour, at CA's share of the sun as Lights() hands it
+            // the scene, and the Scale below carries it past 1.
             if (settings.Light)
             {
                 if (glow)
                     return;
-                states = states.Select(p => p with { Colour = p.Colour * p.Alpha, Alpha = 1 }).ToList();
+                states = states.Select(p => p with { Colour = p.Colour * p.Alpha * VfxConventions.LightShare, Alpha = 1 }).ToList();
             }
             (states, var scale) = Hdr(settings, states, glow);
             var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
@@ -154,7 +155,10 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["GradientRamp"].SetValue(Ramp(settings));
             effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : settings.Light ? "Light" : "ParticleDrawing"];
             if (settings.Light)
-                effect.Parameters["LightScale"].SetValue(VfxConventions.GroundAlbedo * SunStrength(parameters) * VfxConventions.LightShare);
+            {
+                effect.Parameters["LightScale"].SetValue(VfxConventions.GroundAlbedo * SunStrength(parameters));
+                CommonShaderParameters.SetPointLights(effect, parameters.PointLights);
+            }
             // ps_soft_edge against the solid scene's depth, when the engine drew it; a decal or a light lies on the ground instead.
             // The glow pass draws onto a target holding only the emissive models' depth, so there the scene's depth hides what lies
             // behind a plain model.
@@ -283,17 +287,22 @@ namespace GameWorld.Core.Vfx
         static int AddQuad(VfxVertex[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame, float fade)
         {
             var toWorld = camera.ToWorld ?? Matrix.Identity;
-            var lift = 0f;
+            var light = Vector4.Zero;
             if (s.Decal)
             {
                 var world = Vector3.Transform(p.Position, toWorld);
-                lift = world.Y;
+                light = new Vector4(world, p.Size.X);
                 p = p with { Position = Vector3.Transform(VfxConventions.Decal(world), Matrix.Invert(toWorld)) };
             }
             var (across, up, height) = Axes(s, camera, p, frame, toWorld);
             var width = p.Size.X;
             var grow = VfxConventions.MinPixelGrowth(Math.Min(width, height), Vector3.Distance(camera.Position, p.Position), camera.PixelScale, s.MinPixels);
             (width, height) = (width * grow, height * grow);
+            // A light reaches as far as the particle is wide (ps_main_deferred_dynamic_light's v4.x) all round the particle, whatever
+            // its height and pivot, so its pool is a square twice that wide about it.
+            if (s.Light)
+                (width, height) = (width * 2, width * 2);
+            var pivot = s.Light ? new Vector2(0.5f) : s.Pivot;
             var alpha = Faded(s, camera, p, fade);
             var colour = VertexColour(s, p.Colour, alpha);
             var (uv, next) = (UvRect(s, p.Cell), UvRect(s, p.NextCell));
@@ -301,10 +310,10 @@ namespace GameWorld.Core.Vfx
             VfxVertex Corner(float x, float y)
             {
                 var (u, v) = VfxConventions.QuadUv(x, y, p.FlipU, p.FlipV, s.UvTurn);
-                var position = p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height);
-                // A light's pool spans its diameter, the particle's size; Extra.x is its height over the ground in radii.
+                var position = p.Position + across * ((x - pivot.X) * width) + up * ((y - pivot.Y) * height);
+                // Extra is a light's place in the world and its reach.
                 if (s.Light)
-                    return new(position, colour, new Vector2(u, v), new Vector4(lift / (p.Size.X / 2), 0, 0, 0));
+                    return new(position, colour, new Vector2(u, v), light);
                 var soft = s.SoftEdge > 0 && !s.Decal ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength, Math.Min(width, height))) : colour;
                 return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, p.Crush), new Vector2(width, height));
             }

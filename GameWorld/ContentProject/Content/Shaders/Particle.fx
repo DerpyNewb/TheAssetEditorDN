@@ -12,6 +12,7 @@
 // is not a guess: it is CA's own ps_main (fx/particle_vfx_main in shaders.pack), disassembled.
 
 #include "Pbr/Helpers/tone_mapping.hlsli"
+#include "Pbr/Shared/light_falloff.hlsli"
 
 float4x4 WorldViewProjection;
 // The view depth comes off it, which a clip w gives only in perspective.
@@ -289,20 +290,34 @@ float4 DistortionPS(DistortionOutput input) : COLOR
 	return tex2D(SceneSampler, input.Position.xy * InverseSceneSize + offset) * a;
 }
 
-// DEFERRED_DYNAMIC_LIGHT, as the pool it casts on the ground: Uv spans the light's diameter and Extra.x is its height
-// over the ground in radii, so the falloff runs on the true distance from the light. The colour is the light's times its
-// alpha; LightScale brings it to the light a ground of VfxConventions.GroundAlbedo square to it takes, on the models' sun
-// scale, which goes to the screen through their tone map, so a pool reads as lit ground does and not as paint laid on.
+// DEFERRED_DYNAMIC_LIGHT, as the light it casts on the ground: the quad bounds its reach, and Extra is where the light is in
+// the world (xyz) and how far it reaches (w). Colours are the light's times its alpha at CA's share of the sun; LightScale
+// brings them to the light a ground of VfxConventions.GroundAlbedo takes, on the models' sun scale, which goes to the screen
+// through their tone map, so a pool reads as lit ground does and not as paint laid on. CA adds up every light reaching a
+// spot before its tone map, so each pool sums the scene's lights there (PointLights, the engine's list of this frame's
+// light particles), tone maps the sum and draws its own share of it: where pools overlap, the shares add up to that one sum.
+// ponytail: past CommonShaderParameters.MaxPointLights, a pool left off the list counts only itself; rank the list if a scene needs more.
 float LightScale = 0;
+float4 PointLights[16];
+float4 PointLightColours[16];
+int PointLightCount = 0;
+
+// A light of this colour at light.xyz, reaching light.w, on the ground at position.
+float3 OnGround(float4 light, float3 colour, float3 position)
+{
+	float3 to = light.xyz - position;
+	float d = length(to);
+	return colour * saturate(to.y / max(d, 0.0001)) * LightFalloff(d / max(light.w, 0.0001));
+}
 
 float4 LightPS(VertexShaderOutput input) : COLOR
 {
-	float2 planar = input.Uv * 2 - 1;
-	float reach = dot(planar, planar) + input.Extra.x * input.Extra.x;
-	float fall = saturate(1 - reach);
-	float facing = saturate(input.Extra.x / max(sqrt(reach), 0.0001));
-	float3 lit = input.Colour.rgb * LightScale * facing * fall * fall;
-	return float4(Gamma(saturate(Uncharted2ToneMapping(lit))), 1);
+	float3 own = OnGround(input.Extra, input.Colour.rgb, input.WorldPosition);
+	float3 all = 0;
+	for (int i = 0; i < PointLightCount; i++)
+		all += OnGround(PointLights[i], PointLightColours[i].rgb, input.WorldPosition);
+	all = max(all, own);
+	return float4(Gamma(saturate(Uncharted2ToneMapping(all * LightScale))) * own / max(all, 0.000001), 1);
 }
 
 technique ParticleDrawing

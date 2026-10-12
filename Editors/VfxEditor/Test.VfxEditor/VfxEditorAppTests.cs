@@ -681,7 +681,7 @@ namespace Test.VfxEditor
         }
 
         // A DEFERRED_DYNAMIC_LIGHT particle lights the solid scene, not only the ground its pool lies on: the engine hands the
-        // solid draws every light particle alive this frame, where it is, as wide as its pool, and as strong as CA's
+        // solid draws every light particle alive this frame, where it is, reaching as far as the particle is wide, and as strong as CA's
         // ps_main_deferred_dynamic_light makes it: its colour times its alpha times 2500, where the models' sun is 20000 x 3, so a
         // light of colour 1 is a 24th of the sun. A red light 1.5 m in front of Karl Franz, 6 m across.
         [Test]
@@ -715,12 +715,12 @@ namespace Test.VfxEditor
             Assert.Multiple(() =>
             {
                 Assert.That(lit.Position.Z, Is.EqualTo(1.5f).Within(0.01f), string.Join("; ", preview.Lines));
-                Assert.That(lit.Radius, Is.EqualTo(3f).Within(0.01f));
+                Assert.That(lit.Radius, Is.EqualTo(6f).Within(0.01f));
                 Assert.That((lit.Colour.X, lit.Colour.Y, lit.Colour.Z), Is.EqualTo((2500 / 60000f, 0f, 0f)));
             });
         }
 
-        // ...and a model takes that light: Karl Franz grows redder under a light four times red (light colours run past 1), by how
+        // ...and a model takes that light: Karl Franz grows redder under a light eight times red (light colours run past 1), by how
         // squarely each face meets it, and no greener.
         [Test]
         public void A_light_particle_lights_a_model()
@@ -728,11 +728,25 @@ namespace Test.VfxEditor
             var (runner, preview) = ShowRigidModel();
             static (double R, double G) Mean(Xna.Color[] frame) => (frame.Where(x => x.A > 0).Average(x => x.R), frame.Where(x => x.A > 0).Average(x => x.G));
             var dark = Mean(DrawEffect(runner, DepthStencilState.Default));
-            var lit = Mean(DrawEffect(runner, DepthStencilState.Default, [new PointLight(new Vector3(0, 0, 1.5f), 3, new Vector3(4, 0, 0))]));
+            var lit = Mean(DrawEffect(runner, DepthStencilState.Default, [new PointLight(new Vector3(0, 0, 1.5f), 3, new Vector3(8, 0, 0))]));
             Assert.Multiple(() =>
             {
                 Assert.That(lit.R, Is.GreaterThan(dark.R + 20), string.Join("; ", preview.Lines));
                 Assert.That(lit.G, Is.EqualTo(dark.G).Within(1));
+            });
+        }
+
+        // ...as far as its reach and no further: a strong light 20 m off lights him when it reaches 30 m and not when it reaches 15.
+        [Test]
+        public void A_light_lights_a_model_only_within_its_reach()
+        {
+            var (runner, _) = ShowRigidModel();
+            double Red(float reach) => DrawEffect(runner, DepthStencilState.Default, [new PointLight(new Vector3(0, 0, 20), reach, new Vector3(40, 0, 0))]).Where(x => x.A > 0).Average(x => x.R);
+            var dark = DrawEffect(runner, DepthStencilState.Default).Where(x => x.A > 0).Average(x => x.R);
+            Assert.Multiple(() =>
+            {
+                Assert.That(Red(15), Is.EqualTo(dark).Within(0.5));
+                Assert.That(Red(30), Is.GreaterThan(dark + 20));
             });
         }
 

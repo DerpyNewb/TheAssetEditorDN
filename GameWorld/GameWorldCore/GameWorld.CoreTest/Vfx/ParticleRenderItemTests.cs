@@ -429,12 +429,14 @@ namespace GameWorld.Core.Test.Vfx
 
         // A dynamic light lights the ground under it as CA's ps_main_deferred_dynamic_light does: its colour times its alpha, which
         // is not held to 1, times 2500, on the scale of the models' sun (20000 x 3 at intensity 1, both taking sin^2(0.5 deg)), on a
-        // mid-grey ground of albedo 0.18, through the models' tone map. A pool as wide as the particle, falling off with the
-        // distance from the light as (1 - (d/r)^2)^2. Over black, seen from above: a white light half its radius up lights the
-        // centre at 0.5625 of its strength, at alpha 1 and at the Bale Taurus's 20; one a radius up lights nothing.
+        // mid-grey ground of albedo 0.18, through the models' tone map. It reaches as far from the light as the particle is
+        // wide, falling off as (1 - d/r)^2, as CA's does with its smooth falloff. Over black, seen from above, a white light 40 m
+        // across: a quarter of its reach up it lights the centre at 0.5625 of its strength, at alpha 1 and at the Bale Taurus's
+        // 20; half its reach up, at 0.25; its reach up, not at all.
         [TestCase(10f, 1f, 0.5625f)]
         [TestCase(10f, 20f, 0.5625f)]
-        [TestCase(20f, 20f, 0f)]
+        [TestCase(20f, 20f, 0.25f)]
+        [TestCase(40f, 20f, 0f)]
         public void Light_LightsTheGroundUnderIt(float height, float alpha, float fall)
         {
             var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
@@ -443,6 +445,42 @@ namespace GameWorld.Core.Test.Vfx
             var light = new ParticleState(new Vector3(0, height, 0), Vector3.Zero, new Vector2(40, 40), 0, Vector3.One, alpha, 0, 0);
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, camera, new EmitterSettings { Decal = true, Light = true }, _white, [light]), Color.Black);
             var lit = 0.18f * alpha * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * fall;
+            Assert.That(pixel.X, Is.EqualTo(Encode(Math.Clamp(Uncharted2(lit), 0, 1))).Within(0.01), $"lit {lit}");
+        }
+
+        // A light reaches as far as its particle is wide all round it, whatever the particle's height and pivot. Over black, seen
+        // from above, a white light 40 m wide and 20 m up, 6 m off to one side: as flat as 4 m, or pivoted on its corner, it still
+        // lights the ground under the camera.
+        [TestCase(0f, 6f, 4f, 0.5f)]
+        [TestCase(6f, 0f, 40f, 0f)]
+        public void Light_ReachesAllRoundWhateverItsHeightAndPivot(float x, float z, float height, float pivot)
+        {
+            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
+                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+            var light = new ParticleState(new Vector3(x, 20, z), Vector3.Zero, new Vector2(40, height), 0, Vector3.One, 20, 0, 0);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity),
+                new EmitterSettings { Decal = true, Light = true, Pivot = new Vector2(pivot) }, _white, [light]), Color.Black);
+            var d = MathF.Sqrt(6 * 6 + 20 * 20);
+            var lit = 0.18f * 20 * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * MathF.Pow(1 - d / 40, 2) * (20 / d);
+            Assert.That(pixel.X, Is.EqualTo(Encode(Math.Clamp(Uncharted2(lit), 0, 1))).Within(0.01), $"lit {lit}");
+        }
+
+        // CA adds up every light reaching a spot of ground and tone maps the sum once; pools tone mapped one by one and added after
+        // ran the Bale Taurus's four overlapping leg lights to white. Over black, seen from above, white lights 40 m wide and 20 m up
+        // at alpha 20, which the engine also hands the scene (CommonShaderParameters.PointLights): four on one spot light it as one
+        // light four times as strong; one there and one 100 m off, out of reach, light it as the one alone.
+        [TestCase(4, 0)]
+        [TestCase(1, 1)]
+        public void Light_PoolsOnOneSpotAddUpBeforeTheToneMap(int overhead, int away)
+        {
+            var at = Enumerable.Repeat(new Vector3(0, 20, 0), overhead).Concat(Enumerable.Repeat(new Vector3(100, 20, 0), away)).ToList();
+            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
+                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One)
+            { PointLights = at.Select(x => new PointLight(x, 40, Vector3.One * 20 * VfxConventions.LightShare)).ToList() };
+            var lights = at.Select(x => new ParticleState(x, Vector3.Zero, new Vector2(40, 40), 0, Vector3.One, 20, 0, 0)).ToList();
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity),
+                new EmitterSettings { Decal = true, Light = true }, _white, lights), Color.Black);
+            var lit = overhead * 0.18f * 20 * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * 0.25f;
             Assert.That(pixel.X, Is.EqualTo(Encode(Math.Clamp(Uncharted2(lit), 0, 1))).Within(0.01), $"lit {lit}");
         }
 
