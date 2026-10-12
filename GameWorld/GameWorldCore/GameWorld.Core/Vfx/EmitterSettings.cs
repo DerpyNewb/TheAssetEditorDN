@@ -91,6 +91,8 @@ namespace GameWorld.Core.Vfx
         public VfxCurve?[] Forces { get; set; } = [];
         public VfxCurve? Alpha { get; set; }
         public VfxCurve? Colour { get; set; }
+        /// <summary>ps_emissive's emissive_mul; 1 without one.</summary>
+        public float EmissiveMul { get; set; } = 1;
         public VfxCurve? Stretch { get; set; }
 
         // Look
@@ -242,6 +244,7 @@ namespace GameWorld.Core.Vfx
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;
             s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);
             s.MinPixels = Number(chain.Find("vs_rendersize_limiter"), "pixelsize_limit", 0);
+            s.EmissiveMul = Number(chain.Find("ps_emissive"), "emissive_mul", 1);
             var flip = chain.Find("vs_flip_uv");
             s.FlipU = Number(flip, "flip_u", 0);
             s.FlipV = Number(flip, "flip_v", 0);

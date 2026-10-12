@@ -9,7 +9,8 @@ namespace GameWorld.Core.Vfx
 {
     /// <summary>
     /// Draws one effect's particles: a camera-built quad per particle, or one strip for a trail-mode emitter, one draw
-    /// per emitter, emitters and particles back to front, through MonoGame's BasicEffect, unlit (lighting is step 2).
+    /// per emitter, emitters and particles back to front, through MonoGame's BasicEffect, unlit (lighting is step 2). The
+    /// app's emissive pass gets what lies over 1 of each colour, and blooms it.
     /// Textures come from the editor's VfxTextureCache on first draw; a missing one draws white.
     /// </summary>
     public class ParticleRenderItem : IRenderItem, IDisposable
@@ -45,7 +46,7 @@ namespace GameWorld.Core.Vfx
 
         public void Draw(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique renderingTechnique)
         {
-            if (renderingTechnique != RenderingTechnique.Normal)
+            if (renderingTechnique is not (RenderingTechnique.Normal or RenderingTechnique.Emissive))
                 return;
 
             _effect ??= new BasicEffect(device) { TextureEnabled = true, VertexColorEnabled = true, LightingEnabled = false };
@@ -66,18 +67,20 @@ namespace GameWorld.Core.Vfx
             var samplerState = device.SamplerStates[0];
             device.SamplerStates[0] = SamplerState.LinearClamp;
             foreach (var (settings, states, frame) in emitters)
-                DrawEmitter(device, _effect, parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame);
+                DrawEmitter(device, _effect, parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, renderingTechnique == RenderingTechnique.Emissive);
             device.BlendState = blendState;
             device.SamplerStates[0] = samplerState;
         }
 
         public static void DrawEmitter(GraphicsDevice device, BasicEffect effect, CommonShaderParameters parameters, Matrix world,
-            CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null)
+            CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null, bool glow = false)
         {
+            (states, var scale) = Hdr(settings, states, glow);
             var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
                 return;
 
+            effect.DiffuseColor = new Vector3(scale);
             effect.World = world;
             effect.View = parameters.View;
             effect.Projection = parameters.Projection;
@@ -88,6 +91,19 @@ namespace GameWorld.Core.Vfx
                 pass.Apply();
                 device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertices.Length / 3);
             }
+        }
+
+        // A vertex colour stops at 1 and BasicEffect's DiffuseColor does not: an HDR emitter's colours are divided by the
+        // brightest of them and the draw multiplied back, so a colour of 4 lights a quarter-grey texel fully. Past 255 even
+        // the faintest texel a byte holds saturates. glow: only what lies over 1, which the app's emissive pass blooms.
+        static (IReadOnlyList<ParticleState>, float) Hdr(EmitterSettings s, IReadOnlyList<ParticleState> states, bool glow)
+        {
+            var brightness = VfxConventions.Blend(s.AdditiveMul).Brightness;
+            if (glow)
+                states = states.Select(p => p with { Colour = VfxConventions.Glow(p.Colour * brightness) / brightness }).ToList();
+            var top = states.Select(p => Math.Max(p.Colour.X, Math.Max(p.Colour.Y, p.Colour.Z)) * brightness).DefaultIfEmpty(1).Max();
+            var scale = Math.Clamp(top, 1, 255);
+            return scale > 1 ? (states.Select(p => p with { Colour = p.Colour / scale }).ToList(), scale) : (states, 1);
         }
 
         public static VertexPositionColorTexture[] Quads(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states, Matrix? frame = null)

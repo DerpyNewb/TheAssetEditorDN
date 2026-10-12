@@ -87,6 +87,14 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void Emissive_IsRead()
+        {
+            var emissive = """<modifier fragment="ps_emissive"><property name="emissive_mul" type="float" value="21.0"/></modifier>""";
+            Assert.That(Read(Emitter("sparks"), SparksChain.Replace("</quality>", emissive + "</quality>")).Single().EmissiveMul, Is.EqualTo(21f));
+            Assert.That(Read(Emitter("sparks"), SparksChain).Single().EmissiveMul, Is.EqualTo(1f), "no ps_emissive: the colour as it is");
+        }
+
+        [Test]
         public void CullDistances_AreRead()
         {
             var e = Read(Emitter("sparks", """<property name="CullDistances" quality="0" x="0.00" y="0.00" z="700.00" w="800.00"/><property name="ParticleCullDistances" quality="0" x="2.00" y="5.00" z="400.00" w="450.00"/>"""), SparksChain).Single();

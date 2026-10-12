@@ -205,6 +205,15 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(states.Count(p => p.FlipV), Is.InRange(states.Count / 4, states.Count * 3 / 4));
         }
 
+        // curve_colour's fourth output, brightness, and ps_emissive's emissive_mul both multiply the colour, past 1.
+        [Test]
+        public void Brightness_AndEmissive_MultiplyTheColour()
+        {
+            var curve = VfxCurve.Parse("half,1,1;0.0,0.5,linear,linear,0,0,0,0,0|four,1,1;0.0,4.0,linear,linear,0,0,0,0,0:r,0;0,0|g,0;0,0|b,0;0,0|brightness,0;1,1");
+            var states = States(Run(Steady(x => { x.Colour = curve; x.EmissiveMul = 3; }), 1));
+            Assert.That(states.Select(p => p.Colour).Distinct(), Is.EqualTo(new[] { new Vector3(6) }));
+        }
+
         [Test]
         public void SpawnSpacing_StandingStill_SpawnsOnlyByRate()
         {

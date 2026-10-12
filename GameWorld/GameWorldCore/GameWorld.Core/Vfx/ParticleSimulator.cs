@@ -369,7 +369,8 @@ namespace GameWorld.Core.Vfx
                 var v = p.Age / p.Life;
                 var (position, velocity) = ToEffect(s.Space, world, p.Position, p.Velocity);
                 var size = p.Size * scale * (s.Scale == null ? Vector2.One : new Vector2(s.Scale.Evaluate(0, v, p.RScale, 1), s.Scale.Evaluate(1, v, p.RScale, 1)));
-                var colour = Vector(s.Colour, v, p.RColour, 1) * new Vector3(p.Tint.X, p.Tint.Y, p.Tint.Z);
+                var colour = Vector(s.Colour, v, p.RColour, 1) * new Vector3(p.Tint.X, p.Tint.Y, p.Tint.Z)
+                    * VfxConventions.Hdr(s.Colour?.Evaluate(3, v, p.RColour, 1) ?? 1, s.EmissiveMul);
                 var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W;
                 var cell = s.Animated ? VfxConventions.FlipbookCell(s.CellsX * s.CellsY, v, p.Age, p.Loops, s.FixedSpeed, s.FlipbookLoop) : s.RandomCell ? p.Cell : s.Cell;
                 yield return new ParticleState(position, velocity, size, p.Angle, colour, alpha, s.Stretch?.Evaluate(0, v, p.RStretch) ?? 0, cell, p.FlipU, p.FlipV);

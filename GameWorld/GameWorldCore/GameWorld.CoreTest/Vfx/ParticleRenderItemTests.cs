@@ -73,6 +73,40 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // A colour of 4 lights a quarter-grey texel fully: a vertex colour alone stops at 1 and would leave it a quarter.
+        [Test]
+        public void HdrColour_IsNotClippedBeforeTheTexture()
+        {
+            using var quarter = new Texture2D(_device, 1, 1);
+            quarter.SetData(new[] { new Color(64, 64, 64, 255) });
+            using var effect = new BasicEffect(_device) { TextureEnabled = true, VertexColorEnabled = true };
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var bright = RedHalfAlpha with { Colour = new Vector3(4, 0, 0), Alpha = 1 };
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, new EmitterSettings(), quarter, [bright]));
+            Assert.That(pixel.X, Is.EqualTo(1).Within(0.02));
+        }
+
+        // The glow pass adds only what lies over 1, here onto mid grey: 1.25 leaves a quarter, 0.8 nothing.
+        [TestCase(1.25f, 0.752f)]
+        [TestCase(0.8f, 0.502f)]
+        public void GlowPass_DrawsWhatLiesOverOne(float colour, float red)
+        {
+            using var effect = new BasicEffect(_device) { TextureEnabled = true, VertexColorEnabled = true };
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var particle = RedHalfAlpha with { Colour = new Vector3(colour, 0, 0), Alpha = 1 };
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, new EmitterSettings { AdditiveMul = 1 }, _white, [particle], glow: true));
+            Assert.That(pixel.X, Is.EqualTo(red).Within(0.02));
+        }
+
+        // The app's emissive pass, which it blooms: an effect draws there too, a tint of 2 leaving white.
+        [Test]
+        public void TheEmissivePass_DrawsTheEffectsGlow()
+        {
+            using var item = new ParticleRenderItem(OneParticle(null, new Vector4(2, 2, 2, 1)), NoTextures());
+            var pixel = Render(() => item.Draw(_device, View, RenderingTechnique.Emissive));
+            Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.All.EqualTo(1).Within(0.02));
+        }
+
         // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with
         // the texture cell running from the newest (its top, as a velocity-aligned quad's head) to the oldest.
         [Test]
@@ -164,12 +198,12 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         // One particle 10 m across at the origin, filling the view.
-        static ParticleSimulator OneParticle(string? texture)
+        static ParticleSimulator OneParticle(string? texture, Vector4? tint = null)
         {
             var settings = new EmitterSettings
             {
                 Name = "test", InfiniteLife = true, Rate = VfxCurve.Constant(60), MaxParticles = 1, ParticleLife = VfxCurve.Constant(100),
-                InitialScale = VfxCurve.Constant(10, 10, 10), Texture = texture,
+                InitialScale = VfxCurve.Constant(10, 10, 10), Texture = texture, TintMin = tint ?? Vector4.One, TintMax = tint ?? Vector4.One,
             };
             var simulator = new ParticleSimulator([settings], 1, _ => Matrix.Identity);
             simulator.AdvanceTo(0.5f);

@@ -90,6 +90,15 @@ namespace GameWorld.Core.Vfx
             return Math.Max(1, minPixels / (size / Math.Max(distance, 1e-3f) * pixelScale));
         }
 
+        /// <summary>A particle's colour is HDR. curve_colour's fourth output, brightness, and ps_emissive's emissive_mul (556 vanilla
+        /// chains, 1 to 21 and past) are read as plain multipliers on the unlit colour; a negative brightness is 0. Brightness keys
+        /// are 1 in 10,338 places, 0 in 597 (286 of 13,353 curves fade to dark), and run past 50 to 5,000. How far the game's
+        /// exposure brings those values down is not measured: the preview draws them saturated and blooms what lies over 1.</summary>
+        public static float Hdr(float brightness, float emissiveMul) => Math.Max(0, brightness) * emissiveMul;
+
+        /// <summary>The part of a colour that glows, drawn into the app's bloom pass: what lies over 1.</summary>
+        public static Vector3 Glow(Vector3 colour) => Vector3.Max(colour - Vector3.One, Vector3.Zero);
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 
