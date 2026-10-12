@@ -79,6 +79,23 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((ripple.Draws, ripple.Distortion, ripple.Texture), Is.EqualTo((true, true, @"vfx\textures\shockwave_normal.dds")));
         }
 
+        // VectorFieldStrId names a volume in the packs: loaded, the field is simulated; missing, the preview says which.
+        [Test]
+        public void VectorField_IsLoaded_OrSaysWhyNot()
+        {
+            var properties = """<property name="VectorFieldStrId" quality="0" value="vfx/vectorfields/swirl.dds"/><property name="VectorFieldSize" quality="0">x_min,0,0;0.0,4.0,linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,4.0,linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1</property>""";
+            var pack = Pack(("fx.xml", Xml(emitters: Emitter("smoke", properties), chains: SmokeChain)), ("vectorfields/swirl.dds", Field(2, 2, 2, (_, _, _) => Vector3.UnitY)));
+            var loaded = new VfxResolver(pack).Resolve("fx", new Random(1)).Emitters.Select(EmitterSettings.From).Single();
+            var missing = Read(Emitter("smoke", properties), SmokeChain).Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That((loaded.Field?.Sample(Vector3.Zero), loaded.FieldSize?.Evaluate(0, 0, 0)), Is.EqualTo(((Vector3?)Vector3.UnitY, (float?)4)));
+                Assert.That(loaded.Skipped, Has.None.Matches<string>(x => x.Contains("vector field")));
+                Assert.That((missing.Draws, missing.Field), Is.EqualTo((true, (VfxVectorField?)null)));
+                Assert.That(missing.Skipped, Has.One.Matches<string>(x => x.Contains("vfx/vectorfields/swirl.dds")));
+            });
+        }
+
         // DEFERRED_DYNAMIC_LIGHT: the particle is a light (249 of the 357 chains carry no ps_texture), drawn as the pool it
         // casts on the ground; the guide model is not lit, and the preview says so.
         [Test]

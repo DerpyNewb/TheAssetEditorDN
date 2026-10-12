@@ -119,6 +119,12 @@ namespace GameWorld.Core.Vfx
         /// <summary>The stack is DISTORTION: the chain's normal map shifts the scene behind it.</summary>
         public bool Distortion { get; set; }
         public bool Light { get; set; }
+        public VfxVectorField? Field { get; set; }
+        public VfxCurve? FieldSize { get; set; }
+        public VfxCurve? FieldStrength { get; set; }
+        public VfxCurve? FieldTightness { get; set; }
+        public VfxCurve? FieldPosition { get; set; }
+        public VfxCurve? FieldOrientation { get; set; }
         /// <summary>continuous_rigid: the models a particle may be, and its orientation and spin about X and Y (Angle and Spin are Z).</summary>
         public IReadOnlyList<VfxRigidEntry> Rigid { get; set; } = [];
         public (Vector2 Min, Vector2 Max) TurnXy { get; set; }
@@ -242,8 +248,17 @@ namespace GameWorld.Core.Vfx
                 NotDrawn(s, $"scene_view_type {resolved.SceneViewType} is not drawn in step 1");
             if (Flag("AllowEmitFromMesh"))
                 s.Skipped.Add("emit from mesh is not simulated in step 1");
-            if (P("VectorFieldStrId")?.Value is { Length: > 0 })
-                s.Skipped.Add("the vector field is not simulated in step 1");
+            if (P("VectorFieldStrId")?.Value is { Length: > 0 } field)
+            {
+                s.Field = resolved.VectorField;
+                if (s.Field == null)
+                    s.Skipped.Add($"vector field {field} is not in the loaded packs or is not a half-float volume, so it is not simulated");
+                s.FieldSize = ParseCurve(s, P("VectorFieldSize"));
+                s.FieldStrength = ParseCurve(s, P("VectorFieldStrength"));
+                s.FieldTightness = ParseCurve(s, P("VectorFieldTightness"));
+                s.FieldPosition = ParseCurve(s, P("VectorFieldPosition"));
+                s.FieldOrientation = ParseCurve(s, P("VectorFieldOrientation"));
+            }
             if (Number("EffectedByWindFactor", 0) != 0)
                 s.Skipped.Add("wind is not simulated in step 1");
             s.InheritedSpeed = Number("SpawnInheritedSpeed", 0);

@@ -7,10 +7,11 @@ using Shared.GameFormats.Vfx;
 namespace GameWorld.Core.Vfx
 {
     /// <summary>An enabled emitter of an effect, with what every reference on the way to it said. MaterialTexture: the colour
-    /// texture its ps_custom_shader material names, if the material is in the packs and names one.</summary>
+    /// texture its ps_custom_shader material names, if the material is in the packs and names one. VectorField: the volume
+    /// its VectorFieldStrId names, if that is in the packs and reads.</summary>
     public record ResolvedEmitter(VfxEmitter Emitter, VfxBehaviourChain? Chain, string? SceneViewType, string File,
         Matrix ReferenceTransform, float StartOffset, float SpeedMultiplier, bool InfiniteLife, VfxEmitterOverride Override, bool TrailMode = false,
-        string? MaterialTexture = null);
+        string? MaterialTexture = null, VfxVectorField? VectorField = null);
 
     public record VfxResolveResult(bool Found, List<ResolvedEmitter> Emitters, List<string> Problems);
 
@@ -24,6 +25,7 @@ namespace GameWorld.Core.Vfx
         private readonly IPackFileService _packFileService;
         private readonly IReadOnlyDictionary<string, byte[]> _unsaved;
         private readonly int _tier;
+        private readonly Dictionary<string, VfxVectorField?> _fields = [];
 
         /// <param name="unsaved">Bytes by Key(name) read in place of the pack's copy: an editor's unsaved file.</param>
         /// <param name="tier">The quality tier read, 0 (Ultra) by default.</param>
@@ -95,6 +97,25 @@ namespace GameWorld.Core.Vfx
             }
         }
 
+        // One read per field per resolve: 1,205 vanilla emitters share the turbulence field.
+        VfxVectorField? VectorField(string? path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return null;
+            if (_fields.TryGetValue(path.ToLowerInvariant(), out var known))
+                return known;
+            VfxVectorField? field = null;
+            try
+            {
+                if (_packFileService.FindFile(path) is { } file)
+                    field = VfxVectorField.Read(file.DataSource.ReadData());
+            }
+            catch (Exception)   // a pack moved on disk: the emitter runs without its field, and says so
+            {
+            }
+            return _fields[path.ToLowerInvariant()] = field;
+        }
+
         void Collect(string name, VfxFile file, Matrix transform, float startOffset, float speed, bool infinite,
             IReadOnlyDictionary<string, VfxEmitterOverride> outer, HashSet<string> stack, Random random, VfxResolveResult result, HashSet<string> seen)
         {
@@ -109,7 +130,7 @@ namespace GameWorld.Core.Vfx
                 file.SceneViewTypes.TryGetValue(emitter.Id, out var sceneView);
                 var material = chain?.Find("ps_custom_shader")?.Properties.GetValueOrDefault("material")?.Attributes.GetValueOrDefault("path");
                 result.Emitters.Add(new ResolvedEmitter(emitter, chain, sceneView, name, transform, startOffset, speed, infinite, o, file.TrailModes.Contains(emitter.Id),
-                    ColourTexture(material)));
+                    ColourTexture(material), VectorField(emitter.Properties.GetValueOrDefault("VectorFieldStrId")?.Value)));
             }
 
             foreach (var reference in file.References)

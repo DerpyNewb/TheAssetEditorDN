@@ -227,6 +227,50 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // A vector field volume: x along a row, y down the rows, z through the slices, sampled between cell centres and
+        // repeating outside itself.
+        [Test]
+        public void VectorField_SamplesBetweenCellCentres_AndRepeats()
+        {
+            var field = VfxVectorField.Read(VfxTestFiles.Field(2, 2, 2, (x, y, z) => new Vector3(x, y * 2, z * 4)))!;
+            Assert.Multiple(() =>
+            {
+                Assert.That(field.Sample(new Vector3(0.75f, 0.25f, 0.75f)), Is.EqualTo(new Vector3(1, 0, 4)), "cell (1, 0, 1)");
+                Assert.That(field.Sample(new Vector3(0.5f, 0.75f, 0.25f)), Is.EqualTo(new Vector3(0.5f, 2, 0)), "half way along x");
+                Assert.That(field.Sample(new Vector3(1.75f, -0.25f, 0.75f)), Is.EqualTo(new Vector3(1, 2, 4)), "a volume over, either way");
+                Assert.That(VfxVectorField.Read(VfxTestFiles.Xml()), Is.Null, "not a field");
+            });
+        }
+
+        // VectorField*: where a particle is, the field times Strength pushes it (m/s2), turned by Orientation as an emitter
+        // is; Tightness pulls its velocity to that same vector.
+        [Test]
+        public void VectorField_PushesParticles_AndTightnessPullsTheirVelocity()
+        {
+            var field = VfxVectorField.Read(VfxTestFiles.Field(2, 2, 2, (_, _, _) => Vector3.UnitX))!;
+            EmitterSettings Fielded(float tightness) => Steady(x =>
+                (x.Field, x.FieldSize, x.FieldStrength, x.FieldTightness, x.FieldOrientation) = (field, C(4), C(2), C(tightness), C(0, 90, 0)));
+            var turned = Vector3.TransformNormal(Vector3.UnitX, VfxConventions.Rotation(new Vector3(0, 90, 0)));
+            var loose = Run(Fielded(0), 1).Emitters[0].Particles;
+            var tight = Run(Fielded(1), 1).Emitters[0].Particles;
+            Assert.Multiple(() =>
+            {
+                Assert.That(loose.Select(p => Vector3.Distance(p.Velocity, turned * 2 * p.Age)), Is.All.LessThan(1e-3));
+                Assert.That(tight.Where(p => p.Age > 0).Select(p => Vector3.Distance(p.Velocity, turned * 2)), Is.All.LessThan(1e-4));
+            });
+        }
+
+        // The field rides its emitter: Position moves it in the emitter's frame, so an emitter carried 11 m still finds its
+        // particles in the field's second half. Neither the offset nor the ride alone puts them there.
+        [Test]
+        public void VectorField_IsPlacedInTheEmittersFrame()
+        {
+            var field = VfxVectorField.Read(VfxTestFiles.Field(4, 1, 1, (x, _, _) => new Vector3(x >= 2 ? 1 : 0, 0, 0)))!;
+            var s = Steady(x => (x.Field, x.FieldSize, x.FieldStrength, x.FieldPosition) = (field, C(4), C(1), C(-0.5f, 0, 0)));
+            var particles = Run(s, 1, _ => Matrix.CreateTranslation(11, 0, 0)).Emitters[0].Particles;
+            Assert.That(particles.Select(p => p.Velocity.X - p.Age), Is.All.EqualTo(0).Within(1e-3));
+        }
+
         // ps_alpha_crush: each particle carries its crush level, off the curve over its life.
         [Test]
         public void AlphaCrush_IsCarriedByEachParticle()

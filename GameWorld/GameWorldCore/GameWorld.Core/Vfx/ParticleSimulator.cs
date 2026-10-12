@@ -149,9 +149,9 @@ namespace GameWorld.Core.Vfx
                 var s = e.Settings;
                 var dt = Step * s.SpeedMultiplier;
                 var world = EmitterWorld(e, end, effectWorld);
-                Move(e, dt, world);
-
                 var age = (end - e.Start) * s.SpeedMultiplier;
+                Move(e, dt, world, age);
+
                 var alive = age > 0 && (s.InfiniteLife || age <= e.Life);
                 var from = e.LastPosition;
                 e.LastPosition = world.Translation;
@@ -310,10 +310,11 @@ namespace GameWorld.Core.Vfx
             e.Particles.Add(p);
         }
 
-        // world: the emitter's matrix at the end of the step, which a collision is tested against.
-        static void Move(EmitterRuntime e, float dt, Matrix world)
+        // world: the emitter's matrix at the end of the step, which a collision is tested against and a vector field rides.
+        static void Move(EmitterRuntime e, float dt, Matrix world, float age)
         {
             var s = e.Settings;
+            var field = Field(e, world, age);
             for (var i = e.Particles.Count - 1; i >= 0; i--)
             {
                 var p = e.Particles[i];
@@ -328,10 +329,19 @@ namespace GameWorld.Core.Vfx
                 var force = Vector3.Zero;
                 foreach (var curve in s.Forces)
                     force += Vector(curve, v, p.RForce) * VfxConventions.ForceToMetres;
+                var push = Vector3.Zero;
+                if (field is var (volume, toParticles, toField, size))
+                {
+                    push = Vector3.TransformNormal(volume.Sample(Vector3.Transform(p.Position, toField) / size + new Vector3(0.5f)), toParticles)
+                        * (s.FieldStrength?.Evaluate(0, v, p.RForce) ?? 0);
+                    force += push;
+                }
                 // Exact for a constant force, so a path under one is the analytic path.
                 if (!s.SkipPositionUpdate)
                     p.Position += p.Velocity * dt + force * (dt * dt / 2);
                 p.Velocity = (p.Velocity + force * dt) * VfxConventions.Drag(s.Deceleration?.Evaluate(0, v, p.RDeceleration) ?? 0, dt);
+                if (field != null && s.FieldTightness?.Evaluate(0, v, p.RForce) is > 0 and var tightness)
+                    p.Velocity = Vector3.Lerp(p.Velocity, push, Math.Min(tightness, 1));
                 p.Angle += p.Spin * dt;
                 p.TurnXy += p.SpinXy * dt;
                 var spinDrag = VfxConventions.Drag(s.SpinDeceleration?.Evaluate(0, v, p.RSpinDeceleration) ?? 0, dt);
@@ -341,6 +351,30 @@ namespace GameWorld.Core.Vfx
                     Collide(s.Space, world, ref p);
                 e.Particles[i] = p;
             }
+        }
+
+        // VectorField*: read as Unreal's vector fields, whose .fga files CA's came from (one still carries the extension). The
+        // volume fills a cube of edge Size, centred at Position and turned by Orientation in the emitter's frame, all three
+        // along the emitter's life; it repeats outside itself. Where a particle is, the field times Strength pushes it (m/s2),
+        // and Tightness pulls its velocity to that same vector, both along the particle's life. Null when there is none, or
+        // Size is 0 (100 vanilla emitters). toParticles: the field's frame in the particles' space; toField: its inverse.
+        static (VfxVectorField Volume, Matrix ToParticles, Matrix ToField, float Size)? Field(EmitterRuntime e, Matrix world, float age)
+        {
+            var s = e.Settings;
+            if (s.Field == null)
+                return null;
+            var u = VfxConventions.EmitterTime(age, e.Life, false);
+            var size = s.FieldSize?.Evaluate(0, u, e.RTransform) ?? 0;
+            if (!(size > 0))
+                return null;
+            var frame = VfxConventions.Rotation(Vector(s.FieldOrientation, u, e.RTransform)) * Matrix.CreateTranslation(Vector(s.FieldPosition, u, e.RTransform));
+            var toParticles = s.Space switch
+            {
+                SimulationSpace.LocalPositionRotation => frame,
+                SimulationSpace.LocalPositionOnly => frame * world * Matrix.CreateTranslation(-world.Translation),
+                _ => frame * world,
+            };
+            return (s.Field, toParticles, Matrix.Invert(toParticles), size);
         }
 
         // EnableCollisions: the preview's one collider is the ground, y = 0 in the effect's space.
