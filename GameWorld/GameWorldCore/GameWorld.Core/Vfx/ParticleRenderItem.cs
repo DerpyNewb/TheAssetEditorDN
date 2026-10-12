@@ -72,7 +72,7 @@ namespace GameWorld.Core.Vfx
         public static void DrawEmitter(GraphicsDevice device, BasicEffect effect, CommonShaderParameters parameters, Matrix world,
             CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null)
         {
-            var vertices = settings.Trail ? Ribbon(settings, camera, states) : Quads(settings, camera, states, frame);
+            var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
                 return;
 
@@ -92,18 +92,20 @@ namespace GameWorld.Core.Vfx
         {
             var vertices = new VertexPositionColorTexture[states.Count * 6];
             var n = 0;
+            var fade = EmitterFade(s, camera, frame);
             foreach (var state in states.OrderByDescending(x => Vector3.DistanceSquared(x.Position, camera.Position)))
-                n = AddQuad(vertices, n, s, camera, state, frame ?? Matrix.Identity);
+                n = AddQuad(vertices, n, s, camera, state, frame ?? Matrix.Identity, fade);
             return vertices;
         }
 
         /// <summary>enable_trail_mode: the particles, oldest first, joined into one camera-facing strip as wide as each. The
         /// newest particle's texture cell runs along it, its top (a velocity-aligned quad's head) at the newest.</summary>
-        public static VertexPositionColorTexture[] Ribbon(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states)
+        public static VertexPositionColorTexture[] Ribbon(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states, Matrix? frame = null)
         {
             if (states.Count < 2)
                 return [];
             var uv = UvRect(s, states[^1].Cell);
+            var fade = EmitterFade(s, camera, frame);
             var last = states.Count - 1;
             var edges = new (Vector3 Left, Vector3 Right, Color Colour, float V)[states.Count];
             for (var i = 0; i <= last; i++)
@@ -112,7 +114,7 @@ namespace GameWorld.Core.Vfx
                 var along = states[Math.Min(i + 1, last)].Position - states[Math.Max(i - 1, 0)].Position;
                 var side = Vector3.Cross(along, camera.Position - p.Position);
                 side = side.LengthSquared() > 1e-12f ? Vector3.Normalize(side) * (p.Size.X / 2) : Vector3.Zero;
-                edges[i] = (p.Position - side, p.Position + side, VertexColour(s, p.Colour, p.Alpha), uv.Y + (1 - i / (float)last) * uv.W);
+                edges[i] = (p.Position - side, p.Position + side, VertexColour(s, p.Colour, Faded(s, camera, p, fade)), uv.Y + (1 - i / (float)last) * uv.W);
             }
 
             var vertices = new VertexPositionColorTexture[last * 6];
@@ -130,11 +132,19 @@ namespace GameWorld.Core.Vfx
             return vertices;
         }
 
-        static int AddQuad(VertexPositionColorTexture[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame)
+        // CullDistances: the whole emitter's fade, by the distance of its origin from the camera.
+        static float EmitterFade(EmitterSettings s, CameraAxes camera, Matrix? frame) =>
+            VfxConventions.CullFade(Vector3.Distance(camera.Position, (frame ?? Matrix.Identity).Translation), s.EmitterCull);
+
+        // A particle's alpha, faded with the emitter's and by its own distance from the camera (ParticleCullDistances).
+        static float Faded(EmitterSettings s, CameraAxes camera, ParticleState p, float emitterFade) =>
+            p.Alpha * emitterFade * VfxConventions.CullFade(Vector3.Distance(camera.Position, p.Position), s.ParticleCull);
+
+        static int AddQuad(VertexPositionColorTexture[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame, float fade)
         {
             var (across, up, height) = Axes(s, camera, p, frame);
             var width = p.Size.X;
-            var colour = VertexColour(s, p.Colour, p.Alpha);
+            var colour = VertexColour(s, p.Colour, Faded(s, camera, p, fade));
             var uv = UvRect(s, p.Cell);
             VertexPositionColorTexture Corner(float x, float y)
             {

@@ -70,6 +70,16 @@ namespace GameWorld.Core.Vfx
             return (flipU ? 1 - u : u, flipV ? 1 - v : v);
         }
 
+        /// <summary>CullDistances and ParticleCullDistances, metres from the camera: alpha fades in from x to y and out from z to
+        /// w, linearly; a band of no width is a hard edge. ParticleCullDistances sets a near band on 8,882 of 12,408 vanilla
+        /// emitters, so a close camera sees particles thin out around it.</summary>
+        public static float CullFade(float distance, Vector4 cull)
+        {
+            var near = cull.Y > cull.X ? Math.Clamp((distance - cull.X) / (cull.Y - cull.X), 0, 1) : distance >= cull.X ? 1 : 0;
+            var far = cull.W > cull.Z ? Math.Clamp((cull.W - distance) / (cull.W - cull.Z), 0, 1) : distance <= cull.W ? 1 : 0;
+            return near * far;
+        }
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 

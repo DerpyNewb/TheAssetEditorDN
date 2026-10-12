@@ -62,6 +62,10 @@ namespace GameWorld.Core.Vfx
         public float FlipV { get; set; }
         /// <summary>vs_flip_uv uv_orientation: a quarter turn of the texture, 1 counter-clockwise, -1 clockwise.</summary>
         public int UvTurn { get; set; }
+        /// <summary>CullDistances and ParticleCullDistances, metres from the camera: fade in over x..y, out over z..w.</summary>
+        public Vector4 EmitterCull { get; set; } = NoCull;
+        public Vector4 ParticleCull { get; set; } = NoCull;
+        static readonly Vector4 NoCull = new(0, 0, float.MaxValue, float.MaxValue);
 
         // A particle's start
         public VfxCurve? InitialSpeed { get; set; }
@@ -202,6 +206,9 @@ namespace GameWorld.Core.Vfx
             s.Collisions = Flag("EnableCollisions");
             s.Bounce = Range("CollisionBouncingFactor", (0, 0));
             s.Damping = Range("CollisionDampingFactor", (0, 0));
+            Vector4 Cull(string name, Vector4 fallback) => P(name) is { } p ? new Vector4(p.Number("x"), p.Number("y"), p.Number("z"), p.Number("w")) : fallback;
+            s.EmitterCull = Cull("CullDistances", s.EmitterCull);
+            s.ParticleCull = Cull("ParticleCullDistances", s.ParticleCull);
             if (Number("SpawnInheritedDirectionBlend", 0) != 0)
                 s.Skipped.Add("SpawnInheritedDirectionBlend is not read in step 1");
             if (Range("SpreadArc", (0, 0)) != (0, 0))

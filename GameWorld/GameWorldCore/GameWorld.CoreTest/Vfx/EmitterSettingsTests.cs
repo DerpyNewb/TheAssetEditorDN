@@ -80,6 +80,13 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void CullDistances_AreRead()
+        {
+            var e = Read(Emitter("sparks", """<property name="CullDistances" quality="0" x="0.00" y="0.00" z="700.00" w="800.00"/><property name="ParticleCullDistances" quality="0" x="2.00" y="5.00" z="400.00" w="450.00"/>"""), SparksChain).Single();
+            Assert.That((e.EmitterCull, e.ParticleCull), Is.EqualTo((new Vector4(0, 0, 700, 800), new Vector4(2, 5, 400, 450))));
+        }
+
+        [Test]
         public void SkipParticlePositionUpdate_IsRead()
         {
             var head = Read(Emitter("sparks", """<property name="SkipParticlePositionUpdate" quality="0" value="true"/>"""), SparksChain).Single();

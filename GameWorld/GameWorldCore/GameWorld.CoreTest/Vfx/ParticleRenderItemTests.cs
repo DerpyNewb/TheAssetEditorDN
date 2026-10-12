@@ -126,6 +126,22 @@ namespace GameWorld.Core.Test.Vfx
                 Assert.That(corners.Max(v => Axis(v, other)) - corners.Min(v => Axis(v, other)), Is.GreaterThan(9f), $"spans axis {other}");
         }
 
+        // ParticleCullDistances fades a particle in from x to y metres from the camera and out from z to w; CullDistances does
+        // the same to the whole emitter by its own distance. Seen from 3 m, the middle of a 2..4 band is half faded.
+        [Test]
+        public void CullDistances_FadeByDistanceFromTheCamera()
+        {
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity) with { Position = new Vector3(0, 0, 3) };
+            float Alpha(EmitterSettings s) => ParticleRenderItem.Quads(s, camera, [RedHalfAlpha])[0].Color.A / 255f;
+            Assert.Multiple(() =>
+            {
+                Assert.That(Alpha(new EmitterSettings { Premultiplied = false }), Is.EqualTo(0.5f).Within(0.01));
+                Assert.That(Alpha(new EmitterSettings { Premultiplied = false, ParticleCull = new Vector4(2, 4, 100, 200) }), Is.EqualTo(0.25f).Within(0.01));
+                Assert.That(Alpha(new EmitterSettings { Premultiplied = false, EmitterCull = new Vector4(0, 0, 1, 5) }), Is.EqualTo(0.25f).Within(0.01));
+                Assert.That(Alpha(new EmitterSettings { Premultiplied = false, ParticleCull = new Vector4(0, 0, 1, 2) }), Is.EqualTo(0f), "past the far distance");
+            });
+        }
+
         [Test]
         public void UvRect_AtlasCellThenFlipbookCell()
         {
