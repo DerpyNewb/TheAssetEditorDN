@@ -168,6 +168,8 @@ namespace Shared.Core.PackFiles.Models.Containers
             PackFileSettings.GameVersion = source.PackFileSettings.GameVersion;
 
             // Recreate _db so this instance can be queried after Save()
+            _filesByFolder = null;
+            _lastSearch = null;
             _db.Dispose();
             _db = new CacheDbContext(_dbOptions);
             _db.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
@@ -430,11 +432,18 @@ namespace Shared.Core.PackFiles.Models.Containers
             return entries.Select(e => (e.RelativePath, ToPackFile(e))).ToList();
         }
 
+        // The Browse dialog asks the same thing every time it opens, every .dds and .png, and reading the game's 89,000 of
+        // them took 0.6 s of every click. The last answer is kept until Save, and callers share it, so must not change it.
+        (string Key, List<(string Path, PackFile File)> Files)? _lastSearch;
+
         public List<(string Path, PackFile File)> SearchFiles(string? textFilter, IReadOnlyList<string>? extensions)
         {
-            List<CachedFileEntity> entries;
+            var key = (textFilter ?? "") + "\0" + string.Join("\0", extensions ?? []);
             lock (_dbLock)
             {
+                if (_lastSearch is { } last && last.Key == key)
+                    return last.Files;
+
                 IQueryable<CachedFileEntity> query = _db.Files;
 
                 if (extensions != null && extensions.Count > 0)
@@ -449,17 +458,24 @@ namespace Shared.Core.PackFiles.Models.Containers
                     query = query.Where(f => EF.Functions.Like(f.FileName, pattern));
                 }
 
-                entries = query.OrderBy(f => f.RelativePath).ToList();
+                var files = query.OrderBy(f => f.RelativePath).ToList().Select(e => (e.RelativePath, ToPackFile(e))).ToList();
+                _lastSearch = (key, files);
+                return files;
             }
-
-            return entries.Select(e => (e.RelativePath, ToPackFile(e))).ToList();
         }
+
+        // Every Browse dialog builds its tree from this, and listing the game's 750,000 files took 1.3 s of every click. The
+        // cache cannot change but by Save, which drops it. Callers share the one listing, so must not change it.
+        SortedDictionary<string, List<string>>? _filesByFolder;
 
         public SortedDictionary<string, List<string>> GetAllFilesByFolder()
         {
             var time = Stopwatch.StartNew();
             lock (_dbLock)
             {
+                if (_filesByFolder != null)
+                    return _filesByFolder;
+
                 var rows = _db.Files
                     .Select(f => new { f.FolderPath, f.FileName })
                     .ToList();
@@ -473,7 +489,7 @@ namespace Shared.Core.PackFiles.Models.Containers
                 }
 
                 _logger.Here().Information("Getting all files from cached container took {ElapsedMilliseconds} ms", time.ElapsedMilliseconds);
-                return sorted;
+                return _filesByFolder = sorted;
             }
         }
 
