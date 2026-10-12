@@ -128,10 +128,22 @@ namespace GameWorld.Core.Vfx
 
         /// <summary>continuous_rigid (2,925 vanilla emitters): each particle is a model, a wsmodel in 2,745 of 2,936 RigidData
         /// entries. PivotPoint is read as a share of the model's box (0.5, 0.5, 0.5 in 2,701 entries: its middle) put on the
-        /// particle; the particle's width scales it evenly, and it turns about X, then Y, then Z (radians), as references do.</summary>
-        public static Matrix RigidMatrix(BoundingBox box, Vector3 pivot, float scale, Vector3 turn, Vector3 position) =>
+        /// particle; the particle's width scales it evenly, and it turns about X, then Y, then Z (radians), as references do,
+        /// then by its emitter's frame (RigidFrame).</summary>
+        public static Matrix RigidMatrix(BoundingBox box, Vector3 pivot, float scale, Vector3 turn, Matrix frame, Vector3 position) =>
             Matrix.CreateTranslation(-(box.Min + pivot * (box.Max - box.Min))) * Matrix.CreateScale(scale)
-            * Matrix.CreateRotationX(turn.X) * Matrix.CreateRotationY(turn.Y) * Matrix.CreateRotationZ(turn.Z) * Matrix.CreateTranslation(position);
+            * Matrix.CreateRotationX(turn.X) * Matrix.CreateRotationY(turn.Y) * Matrix.CreateRotationZ(turn.Z) * frame * Matrix.CreateTranslation(position);
+
+        /// <summary>The turn a rigid particle takes from its emitter's matrix, without its place or scale: ParticleRelativeSpawnOrientation
+        /// is RELATIVE_TO_VFX_UP_AXIS or unset on 2,853 of vanilla's 2,924 rigid emitters. RELATIVE_TO_TERRAIN_NORMAL (71) stands the
+        /// model on the ground, the preview's flat one, so it keeps only the emitter's heading.</summary>
+        public static Matrix RigidFrame(Matrix frame, bool onTerrain)
+        {
+            var forward = onTerrain ? new Vector3(frame.Forward.X, 0, frame.Forward.Z) : frame.Forward;
+            if (forward.LengthSquared() < 1e-12f)
+                return Matrix.Identity;
+            return Matrix.CreateWorld(Vector3.Zero, Vector3.Normalize(forward), onTerrain ? Vector3.Up : Vector3.Normalize(frame.Up));
+        }
 
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;

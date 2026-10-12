@@ -478,6 +478,31 @@ namespace Test.VfxEditor
             });
         }
 
+        // A rigid particle turns with its emitter (ParticleRelativeSpawnOrientation is RELATIVE_TO_VFX_UP_AXIS or unset on 2,853
+        // of vanilla's 2,924 rigid emitters): Karl Franz on an emitter rolled 90 degrees lies on his side. RELATIVE_TO_TERRAIN_NORMAL
+        // stands him on the flat ground, upright.
+        [Test]
+        public void A_rigid_model_turns_with_its_emitter()
+        {
+            const string Key = "linear,linear,-0.05,0.0,0.05,0.0,0";
+            var rolled = $"<property name=\"EmitterOrientation\" quality=\"0\">ninety,0,0;0.0,90.0,{Key}|none,0,0;0.0,0.0,{Key}:x,0;1,1|y,0;1,1|z,0;0,0</property>";
+            const string OnTerrain = "<property name=\"ParticleRelativeSpawnOrientation\" quality=\"0\" value=\"RELATIVE_TO_TERRAIN_NORMAL\"/>";
+            static (int Wide, int High) Extent(Xna.Color[] frame)
+            {
+                var drawn = Enumerable.Range(0, frame.Length).Where(i => frame[i].A > 0).ToList();
+                return (drawn.Max(i => i % 64) - drawn.Min(i => i % 64), drawn.Max(i => i / 64) - drawn.Min(i => i / 64));
+            }
+            var upright = Extent(DrawEffect(ShowRigidModel().Item1, DepthStencilState.Default));
+            var lying = Extent(DrawEffect(ShowRigidModel(properties: rolled).Item1, DepthStencilState.Default));
+            var standing = Extent(DrawEffect(ShowRigidModel(properties: rolled + OnTerrain).Item1, DepthStencilState.Default));
+            Assert.Multiple(() =>
+            {
+                Assert.That(upright.High, Is.GreaterThan(upright.Wide), "upright");
+                Assert.That(lying.Wide, Is.GreaterThan(lying.High), "rolled");
+                Assert.That(standing.High, Is.GreaterThan(standing.Wide), "on the ground");
+            });
+        }
+
         // The engine draws effects reading depth without writing it, so a model that does not write its own draws its far side
         // over its near one. It draws the same under the engine's state as under a plain depth test.
         [Test]
@@ -550,13 +575,13 @@ namespace Test.VfxEditor
         }
 
         // Karl Franz's model on one continuous_rigid particle, half a second in.
-        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel(string chains = "")
+        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel(string chains = "", string properties = "")
         {
             var (runner, _, preview) = OpenWithAGuideModelOffered();
             const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
             var emitter = "\r\n\t\t<emitter type=\"continuous_rigid\" id=\"rigid\">"
                 + "<property name=\"InfiniteLife\" quality=\"0\" value=\"true\"/>"
-                + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>"
+                + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>" + properties
                 + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
                 + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
                 + "<property_rigid_data name=\"RigidData\" quality=\"0\"><rigid_entry><ModelFile value=\"" + KarlFranz + "\"/><PivotPoint x=\"0.50\" y=\"0.50\" z=\"0.50\"/><AnimFile value=\"\"/><AnimSpeed value=\"1.00\"/></rigid_entry></property_rigid_data>"

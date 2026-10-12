@@ -289,9 +289,27 @@ namespace GameWorld.Core.Test.Vfx
         public void RigidMatrix_PutsThePivotOnTheParticle()
         {
             var box = new BoundingBox(Vector3.Zero, new Vector3(2, 4, 2));
-            var m = VfxConventions.RigidMatrix(box, new Vector3(0.5f, 0, 0.5f), 3, new Vector3(0, MathHelper.PiOver2, 0), new Vector3(10, 0, 0));
+            var m = VfxConventions.RigidMatrix(box, new Vector3(0.5f, 0, 0.5f), 3, new Vector3(0, MathHelper.PiOver2, 0), Matrix.Identity, new Vector3(10, 0, 0));
             Assert.That(Vector3.Distance(Vector3.Transform(new Vector3(1, 0, 1), m), new Vector3(10, 0, 0)), Is.LessThan(1e-4), "the pivot");
             Assert.That(Vector3.Distance(Vector3.Transform(new Vector3(2, 0, 1), m), new Vector3(10, 0, -3)), Is.LessThan(1e-4), "+X a metre off, scaled 3, turned to -Z");
+            var framed = VfxConventions.RigidMatrix(box, new Vector3(0.5f, 0, 0.5f), 3, new Vector3(0, MathHelper.PiOver2, 0), Matrix.CreateRotationX(MathHelper.PiOver2), new Vector3(10, 0, 0));
+            Assert.That(Vector3.Distance(Vector3.Transform(new Vector3(2, 0, 1), framed), new Vector3(10, 3, 0)), Is.LessThan(1e-4), "then turned by its emitter's frame");
+        }
+
+        // A rigid particle takes its emitter's turn, without its place or scale; one RELATIVE_TO_TERRAIN_NORMAL stands on the
+        // preview's flat ground, so it keeps only the emitter's heading.
+        [Test]
+        public void RigidFrame_TurnsWithTheEmitter_AndOnTheGroundKeepsOnlyItsHeading()
+        {
+            var frame = Matrix.CreateScale(2) * Matrix.CreateRotationX(MathHelper.PiOver4) * Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateTranslation(5, 6, 7);
+            var turned = VfxConventions.RigidFrame(frame, onTerrain: false);
+            var heading = VfxConventions.RigidFrame(frame, onTerrain: true);
+            Assert.Multiple(() =>
+            {
+                Assert.That(Vector3.Distance(Vector3.Transform(Vector3.UnitY, turned), Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitY, frame))), Is.LessThan(1e-4), "turned");
+                Assert.That(Vector3.Distance(Vector3.Transform(Vector3.UnitY, heading), Vector3.UnitY), Is.LessThan(1e-4), "upright");
+                Assert.That(Vector3.Distance(Vector3.Transform(Vector3.UnitX, heading), -Vector3.UnitZ), Is.LessThan(1e-4), "heading");
+            });
         }
 
         // Each model is loaded once per editor, a miss included; one that loads with no meshes draws nothing.

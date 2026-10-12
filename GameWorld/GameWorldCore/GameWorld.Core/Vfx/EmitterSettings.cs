@@ -127,6 +127,8 @@ namespace GameWorld.Core.Vfx
         public VfxCurve? FieldOrientation { get; set; }
         /// <summary>continuous_rigid: the models a particle may be, and its orientation and spin about X and Y (Angle and Spin are Z).</summary>
         public IReadOnlyList<VfxRigidEntry> Rigid { get; set; } = [];
+        /// <summary>ParticleRelativeSpawnOrientation RELATIVE_TO_TERRAIN_NORMAL: the model stands on the ground (VfxConventions.RigidFrame).</summary>
+        public bool RigidOnTerrain { get; set; }
         public (Vector2 Min, Vector2 Max) TurnXy { get; set; }
         public (Vector2 Min, Vector2 Max) SpinXy { get; set; }
         public Vector2 SpinSignXy { get; set; } = Vector2.One;
@@ -228,6 +230,7 @@ namespace GameWorld.Core.Vfx
             if (resolved.Emitter.Type == "continuous_rigid")
             {
                 s.Rigid = resolved.Emitter.Rigid ?? [];
+                s.RigidOnTerrain = P("ParticleRelativeSpawnOrientation")?.Value == "RELATIVE_TO_TERRAIN_NORMAL";
                 if (s.Rigid.Count == 0)
                     NotDrawn(s, "its RigidData names no model, so there is nothing to draw");
                 foreach (var anim in s.Rigid.Select(x => x.AnimFile).OfType<string>().Distinct())

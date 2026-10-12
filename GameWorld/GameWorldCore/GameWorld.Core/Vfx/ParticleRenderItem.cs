@@ -72,8 +72,8 @@ namespace GameWorld.Core.Vfx
                 .ToList();
 
             // Rigid models first: they are opaque, and write the depth the particles are drawn against.
-            foreach (var (settings, states, _) in emitters.Where(x => x.Settings.Rigid.Count > 0))
-                DrawRigid(device, parameters, renderingTechnique, settings, states);
+            foreach (var (settings, states, frame) in emitters.Where(x => x.Settings.Rigid.Count > 0))
+                DrawRigid(device, parameters, renderingTechnique, settings, states, frame);
 
             var glow = renderingTechnique == RenderingTechnique.Emissive;
             var blendState = device.BlendState;
@@ -357,7 +357,7 @@ namespace GameWorld.Core.Vfx
 
         // continuous_rigid: each particle draws its model's LOD 0 through the model's own materials, opaque. The chain's colour
         // and alpha are not applied to it.
-        void DrawRigid(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique technique, EmitterSettings s, IReadOnlyList<ParticleState> states)
+        void DrawRigid(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique technique, EmitterSettings s, IReadOnlyList<ParticleState> states, Matrix frame)
         {
             if (_meshes == null)
                 return;
@@ -365,11 +365,12 @@ namespace GameWorld.Core.Vfx
             var (blendState, depthState) = (device.BlendState, device.DepthStencilState);
             device.BlendState = BlendState.Opaque;
             device.DepthStencilState = DepthStencilState.Default;
+            var turn = VfxConventions.RigidFrame(frame, s.RigidOnTerrain);
             foreach (var p in states)
             {
                 var entry = s.Rigid[Math.Clamp(p.Model, 0, s.Rigid.Count - 1)];
                 var model = _meshes.Get(entry.ModelFile);
-                var matrix = VfxConventions.RigidMatrix(model.Box, entry.Pivot, p.Size.X, new Vector3(p.TurnXy, p.Angle), p.Position) * World;
+                var matrix = VfxConventions.RigidMatrix(model.Box, entry.Pivot, p.Size.X, new Vector3(p.TurnXy, p.Angle), turn, p.Position) * World;
                 var tinted = parameters with { ModelColour = new Vector4(p.Colour, p.Alpha) };
                 // A see-through model shows its nearest faces once: its depth first, then its colour laid over where it is nearest.
                 (BlendState, DepthStencilState)[] passes = p.Alpha < 1
