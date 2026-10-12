@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -317,6 +318,47 @@ namespace Test.VfxEditor
             Assert.That((editor.ShowGrid, grid.ShowGrid), Is.EqualTo((true, true)));
             editor.ShowGrid = false;
             Assert.That(grid.ShowGrid, Is.False);
+        }
+
+        // The bar under the viewport opens the Kitbash editor's render settings, whose light lit particles take too, and takes a
+        // screenshot, as the Kitbash editor's PhotoStudio does.
+        [Test, Apartment(ApartmentState.STA)]
+        public void The_preview_bar_offers_the_render_settings_and_a_screenshot()
+        {
+            var (_, editor, _) = OpenWithAGuideModelOffered();
+            var view = new VfxEditorView { DataContext = editor };
+            view.Measure(new Size(1600, 900));
+            view.Arrange(new Rect(0, 0, 1600, 900));
+            view.UpdateLayout();
+            var commands = Descendants(view).OfType<Button>().Select(x => x.Command).ToList();
+            Assert.That(commands, Does.Contain(editor.OpenRenderSettingsCommand).And.Contain(editor.TakeScreenshotCommand));
+        }
+
+        // A screenshot is the next frame at twice the view's size, named after the effect, saved where PhotoStudio saves its own.
+        [Test]
+        public void A_screenshot_saves_the_next_frame_at_twice_its_size()
+        {
+            var (runner, editor, _) = OpenWithAGuideModelOffered();
+            var folder = Path.Combine(Path.GetTempPath(), "vfx_shots_" + Guid.NewGuid().ToString("N"));
+            (editor.ScreenshotFolder, editor.OpenScreenshotFolder) = (folder, false);
+            try
+            {
+                editor.TakeScreenshotCommand.Execute(null);
+                var engine = runner.GetRequiredServiceInCurrentEditorScope<RenderEngineComponent>();
+                var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
+                using var target = new RenderTarget2D(device, 64, 48, false, SurfaceFormat.Color, DepthFormat.Depth24);
+                device.SetRenderTarget(target);
+                engine.Draw(new Xna.GameTime());
+                device.SetRenderTarget(null);
+                var shot = Directory.GetFiles(folder, "*.png").Single();
+                var frame = BitmapDecoder.Create(new Uri(shot), BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0];
+                Assert.That((Path.GetFileName(shot).StartsWith("fx_"), frame.PixelWidth, frame.PixelHeight), Is.EqualTo((true, 128, 96)));
+            }
+            finally
+            {
+                if (Directory.Exists(folder))
+                    Directory.Delete(folder, true);
+            }
         }
 
         // The list under the viewport takes no room while the preview has nothing to say, and some once it does.

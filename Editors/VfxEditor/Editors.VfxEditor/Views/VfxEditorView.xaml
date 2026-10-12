@@ -272,6 +272,10 @@
                                 ToolTip="A .rigid_model_v2 from the loaded packs to stand where the effect is, as a guide. The preview only; nothing is written to the file."/>
                         <TextBlock Text="{Binding ModelName}" Margin="6,0" VerticalAlignment="Center"/>
                         <Button Content="Clear" Command="{Binding ClearModelCommand}" Padding="6,0"/>
+                        <Button Content="Lighting..." Command="{Binding OpenRenderSettingsCommand}" Margin="10,0,0,0" Padding="6,0"
+                                ToolTip="The Kitbash editor's render settings: the light's intensity, colour and turn, which lit smoke takes as the models do, and the grid"/>
+                        <Button Content="Screenshot" Command="{Binding TakeScreenshotCommand}" Margin="4,0,0,0" Padding="6,0"
+                                ToolTip="Saves the next frame at twice the view's size where the Kitbash editor's PhotoStudio saves its screenshots, and opens that folder"/>
                     </WrapPanel>
                     <ListBox Grid.Row="3" ItemsSource="{Binding PreviewLines}" MaxHeight="110" ToolTip="What the preview could not find, and what it leaves out"
                              Visibility="{Binding HasItems, RelativeSource={RelativeSource Self}, Converter={StaticResource BoolToVis}}"/>

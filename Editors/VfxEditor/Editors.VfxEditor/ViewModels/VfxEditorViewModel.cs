@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -10,11 +11,14 @@ using Editors.VfxEditor.Preview;
 using Editors.VfxEditor.Vocabulary;
 using GameWorld.Core.Components;
 using GameWorld.Core.Components.Grid;
+using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Utility;
+using GameWorld.Core.Utility.RenderSettingsDialog;
 using GameWorld.Core.WpfWindow;
 using Serilog;
 using Shared.Core.Commands;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
@@ -42,13 +46,17 @@ namespace Editors.VfxEditor.ViewModels
         VfxVocabulary? _vocabulary;
         readonly VfxPreviewComponent _preview;
         readonly GridComponent _grid;
+        readonly RenderEngineComponent _renderEngine;
+        readonly SceneRenderParametersStore _sceneParameters;
         readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
         int _shownLines;
 
         public VfxEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs, IUiCommandFactory commands,
             IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService, VfxPreviewComponent preview, GridComponent grid,
-            IGlobalEventHub globalEventHub)
+            IGlobalEventHub globalEventHub, RenderEngineComponent renderEngine, SceneRenderParametersStore sceneParameters)
         {
+            _renderEngine = renderEngine;
+            _sceneParameters = sceneParameters;
             _globalEventHub = globalEventHub;
             globalEventHub.Register<PackFileContainerFilesAddedEvent>(this, x => OnPackFilesChanged(x.AddedFiles));
             globalEventHub.Register<PackFileContainerFilesUpdatedEvent>(this, x => OnPackFilesChanged(x.ChangedFiles));
@@ -745,6 +753,24 @@ namespace Editors.VfxEditor.ViewModels
         }
 
         public bool ShowGrid { get => _grid.ShowGrid; set { _grid.ShowGrid = value; OnPropertyChanged(); } }
+
+        /// <summary>Where a screenshot goes, and whether that folder opens after.</summary>
+        internal string ScreenshotFolder { get; set; } = Path.Combine(DirectoryHelper.ApplicationDirectory, "PhotoStudio", "Screenshots");
+        internal bool OpenScreenshotFolder { get; set; } = true;
+
+        /// <summary>The Kitbash editor's render settings: the light's intensity, colour and turn, which lit particles take as the
+        /// models do, and the grid.</summary>
+        [RelayCommand]
+        void OpenRenderSettings()
+        {
+            new RenderSettingsWindow(_renderEngine, _sceneParameters, _grid) { Owner = System.Windows.Application.Current.MainWindow }.ShowDialog();
+            OnPropertyChanged(nameof(ShowGrid));
+        }
+
+        /// <summary>The next frame at twice the view's size, as PhotoStudio takes one, named after the effect.</summary>
+        [RelayCommand]
+        void TakeScreenshot() => _renderEngine.SaveNextFrame(new SaveRenderImageSettings(
+            Path.GetFileNameWithoutExtension(_session.File?.Name ?? "vfx"), OpenScreenshotFolder, false, 2, ScreenshotFolder));
 
         public bool StaticView { get => _preview.StaticView; set { _preview.StaticView = value; OnPropertyChanged(); _preview.SetTime(_preview.Time); } }
 
