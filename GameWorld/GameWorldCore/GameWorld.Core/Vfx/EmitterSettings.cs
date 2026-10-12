@@ -113,6 +113,7 @@ namespace GameWorld.Core.Vfx
         public bool FlipbookLoop { get; set; } = true;
         public Vector2 Loops { get; set; } = Vector2.One;
         public bool FixedSpeed { get; set; }
+        public bool CellBlend { get; set; }
         public int Cell { get; set; }
         public bool RandomCell { get; set; }
         public int AtlasX { get; set; } = 1;
@@ -292,6 +293,7 @@ namespace GameWorld.Core.Vfx
                 s.FlipbookLoop = Flag(animated, "loop");
                 s.Loops = animated.Properties.GetValueOrDefault("no_loops")?.Float2(Vector2.One) ?? Vector2.One;
                 s.FixedSpeed = animated.Properties.GetValueOrDefault("time_mode")?.Value == "fixed_animation_speed";
+                s.CellBlend = Flag(animated, "cell_blend");
             }
             else if (cells != null)
             {

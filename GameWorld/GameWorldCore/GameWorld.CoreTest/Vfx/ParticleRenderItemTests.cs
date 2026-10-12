@@ -143,6 +143,23 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // cell_blend: half way from a red cell to a blue one draws both at half.
+        [TestCase(0f, 1f, 0f)]
+        [TestCase(0.5f, 0.5f, 0.5f)]
+        public void CellBlend_MixesTheCellWithTheNext(float blend, float red, float blue)
+        {
+            using var strip = new Texture2D(_device, 2, 1);
+            strip.SetData(new[] { new Color(255, 0, 0, 255), new Color(0, 0, 255, 255) });
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var particle = RedHalfAlpha with { Colour = Vector3.One, Alpha = 1, Cell = 0, NextCell = 1, CellBlend = blend };
+            var pixel = Render(() =>
+            {
+                _device.SamplerStates[0] = SamplerState.PointClamp;
+                ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera, new EmitterSettings { CellsX = 2 }, strip, [particle]);
+            });
+            Assert.That((pixel.X, pixel.Z), Is.EqualTo((red, blue)).Using<(float, float)>((a, b) => Math.Abs(a.Item1 - b.Item1) < 0.02f && Math.Abs(a.Item2 - b.Item2) < 0.02f));
+        }
+
         // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with
         // the texture cell running from the newest (its top, as a velocity-aligned quad's head) to the oldest.
         [Test]

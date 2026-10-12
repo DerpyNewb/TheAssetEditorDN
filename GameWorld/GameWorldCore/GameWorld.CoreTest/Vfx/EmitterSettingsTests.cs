@@ -87,6 +87,14 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void CellBlend_IsRead()
+        {
+            var blended = SmokeChain.Replace("<property name=\"loop\" type=\"bool\" value=\"true\"/>", "<property name=\"loop\" type=\"bool\" value=\"true\"/><property name=\"cell_blend\" type=\"bool\" value=\"true\"/>");
+            Assert.That(Read(Emitter("smoke"), blended).Single().CellBlend, Is.True);
+            Assert.That(Read(Emitter("smoke"), SmokeChain).Single().CellBlend, Is.False);
+        }
+
+        [Test]
         public void SoftEdge_IsRead()
         {
             var soft = """<modifier fragment="ps_soft_edge"><property name="soft_factor" type="float" value="1.5"/><property name="scale_strength" type="float" value="2.0"/></modifier>""";

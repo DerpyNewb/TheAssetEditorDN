@@ -145,12 +145,16 @@ namespace GameWorld.Core.Vfx
         public static float Stretch(float speed, float multiplier, float cap) => Math.Clamp(1 + speed * multiplier, 1, cap > 0 ? cap : float.MaxValue);
 
         /// <summary>vs_animated_texture: no_loops is how many times the strip plays over a particle's life
-        /// (using_particle_lifetime) or per second (fixed_animation_speed); without loop it holds the last cell.</summary>
-        public static int FlipbookCell(int cells, float lifeFraction, float ageSeconds, float loops, bool fixedSpeed, bool loop)
+        /// (using_particle_lifetime) or per second (fixed_animation_speed); without loop it holds the last cell. cell_blend (4,408
+        /// of 4,935 vanilla flipbooks) mixes each cell into the next by how far the particle is between them; the next after the
+        /// last is the first when the strip loops, the last again when it holds.</summary>
+        public static (int Cell, int Next, float Blend) FlipbookFrame(int cells, float lifeFraction, float ageSeconds, float loops, bool fixedSpeed, bool loop)
         {
             var f = (fixedSpeed ? ageSeconds : lifeFraction) * loops;
             f = loop ? f - MathF.Floor(f) : Math.Clamp(f, 0, 0.9999f);
-            return Math.Min((int)(f * cells), cells - 1);
+            var position = f * cells;
+            var cell = Math.Min((int)position, cells - 1);
+            return (cell, loop ? (cell + 1) % cells : Math.Min(cell + 1, cells - 1), Math.Clamp(position - cell, 0, 1));
         }
     }
 }

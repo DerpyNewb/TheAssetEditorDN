@@ -292,6 +292,18 @@ namespace GameWorld.Core.Test.Vfx
         [TestCase(0.75f, 0f, 2f, false, false, 63, Description = "no loop: holds the last cell")]
         [TestCase(0.75f, 0f, 2f, false, true, 32, Description = "loop: wraps")]
         public void FlipbookCell_OfSixtyFour(float lifeFraction, float age, float loops, bool fixedSpeed, bool loop, int expected) =>
-            Assert.That(VfxConventions.FlipbookCell(64, lifeFraction, age, loops, fixedSpeed, loop), Is.EqualTo(expected));
+            Assert.That(VfxConventions.FlipbookFrame(64, lifeFraction, age, loops, fixedSpeed, loop).Cell, Is.EqualTo(expected));
+
+        // cell_blend: a quarter of the way through cell 2 of 4 is a quarter of the way to cell 3; the last cell runs into the
+        // first when the strip loops and into itself when it holds.
+        [TestCase(0.5625f, true, 2, 3, 0.25f)]
+        [TestCase(0.875f, true, 3, 0, 0.5f)]
+        [TestCase(0.875f, false, 3, 3, 0.5f)]
+        public void FlipbookFrame_BlendsIntoTheNextCell(float lifeFraction, bool loop, int cell, int next, float blend)
+        {
+            var frame = VfxConventions.FlipbookFrame(4, lifeFraction, 0, 1, false, loop);
+            Assert.That((frame.Cell, frame.Next), Is.EqualTo((cell, next)));
+            Assert.That(frame.Blend, Is.EqualTo(blend).Within(1e-4));
+        }
     }
 }

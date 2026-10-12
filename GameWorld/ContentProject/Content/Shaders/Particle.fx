@@ -25,6 +25,8 @@ struct VertexShaderInput
 	float4 Position : POSITION0;
 	float4 Colour : COLOR0;
 	float2 Uv : TEXCOORD0;
+	// The next flipbook cell's texture coordinate (xy) and how far to blend into it (z).
+	float4 Extra : TEXCOORD1;
 };
 
 struct VertexShaderOutput
@@ -32,6 +34,7 @@ struct VertexShaderOutput
 	float4 Position : SV_POSITION;
 	float4 Colour : COLOR0;
 	float2 Uv : TEXCOORD0;
+	float4 Extra : TEXCOORD1;
 };
 
 VertexShaderOutput MainVS(in VertexShaderInput input)
@@ -40,12 +43,15 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 	output.Position = mul(input.Position, WorldViewProjection);
 	output.Colour = input.Colour * float4(Scale, Scale, Scale, 1);
 	output.Uv = input.Uv;
+	output.Extra = input.Extra;
 	return output;
 }
 
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
-	return tex2D(TextureSampler, input.Uv) * input.Colour;
+	// vs_animated_texture cell_blend: this cell mixed into the next (VfxConventions.FlipbookFrame).
+	float4 texel = lerp(tex2D(TextureSampler, input.Uv), tex2D(TextureSampler, input.Extra.xy), input.Extra.z);
+	return texel * input.Colour;
 }
 
 technique ParticleDrawing
