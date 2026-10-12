@@ -345,8 +345,10 @@ namespace GameWorld.Core.Vfx
         {
             if (_meshes == null)
                 return;
-            var blendState = device.BlendState;
+            // The engine draws effects reading depth without writing it; a model writes its own, or its far side draws over its near one.
+            var (blendState, depthState) = (device.BlendState, device.DepthStencilState);
             device.BlendState = BlendState.Opaque;
+            device.DepthStencilState = DepthStencilState.Default;
             foreach (var p in states)
             {
                 var entry = s.Rigid[Math.Clamp(p.Model, 0, s.Rigid.Count - 1)];
@@ -356,6 +358,7 @@ namespace GameWorld.Core.Vfx
                     new GeometryRenderItem(geometry, material, local * matrix).Draw(device, parameters, technique);
             }
             device.BlendState = blendState;
+            device.DepthStencilState = depthState;
         }
 
         // DISTORTION samples what is drawn already, so the bound target is copied first, once a frame. Null on the back buffer.

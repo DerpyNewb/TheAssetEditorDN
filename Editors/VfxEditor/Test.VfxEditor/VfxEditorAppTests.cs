@@ -451,6 +451,24 @@ namespace Test.VfxEditor
         [Test]
         public void A_rigid_particle_draws_its_model()
         {
+            var (runner, preview) = ShowRigidModel();
+            Assert.That(DrawEffect(runner, DepthStencilState.Default).Count(x => x != Xna.Color.Transparent), Is.GreaterThan(100), string.Join("; ", preview.Lines));
+        }
+
+        // The engine draws effects reading depth without writing it, so a model that does not write its own draws its far side
+        // over its near one. It draws the same under the engine's state as under a plain depth test.
+        [Test]
+        public void A_rigid_model_writes_its_own_depth()
+        {
+            var (runner, _) = ShowRigidModel();
+            var plain = DrawEffect(runner, DepthStencilState.Default);
+            var engines = DrawEffect(runner, DepthStencilState.DepthRead);
+            Assert.That(plain.Zip(engines).Count(x => x.First != x.Second), Is.Zero);
+        }
+
+        // Karl Franz's model on one continuous_rigid particle, half a second in.
+        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel()
+        {
             var (runner, _, preview) = OpenWithAGuideModelOffered();
             const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
             var emitter = "\r\n\t\t<emitter type=\"continuous_rigid\" id=\"rigid\">"
@@ -462,7 +480,12 @@ namespace Test.VfxEditor
                 + "\r\n\t\t</emitter>";
             preview.Show("rigid", Fixtures.Utf16(Fixtures.Effect(emitters: emitter, chains: "", stacks: "", references: "")), 0);
             preview.SetTime(0.5f);
+            return (runner, preview);
+        }
 
+        // The preview's effect drawn from 4 m into a 64x64 frame, both faces, under the depth state the caller leaves.
+        static Xna.Color[] DrawEffect(AssetEditorTestRunner runner, DepthStencilState depth)
+        {
             var item = runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode.Children.OfType<VfxEffectNode>().Single().RenderItem;
             var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
             var eye = new Vector3(0, 0, 4);
@@ -471,13 +494,13 @@ namespace Test.VfxEditor
             using var target = new RenderTarget2D(device, 64, 64, false, SurfaceFormat.Color, DepthFormat.Depth24, 0, RenderTargetUsage.PreserveContents);
             device.SetRenderTarget(target);
             device.Clear(Xna.Color.Transparent);
-            device.DepthStencilState = DepthStencilState.Default;
+            device.DepthStencilState = depth;
             device.RasterizerState = RasterizerState.CullNone;
             item.Draw(device, camera, RenderingTechnique.Normal);
             device.SetRenderTarget(null);
             var pixels = new Xna.Color[64 * 64];
             target.GetData(pixels);
-            Assert.That(pixels.Count(x => x != Xna.Color.Transparent), Is.GreaterThan(100), string.Join("; ", preview.Lines));
+            return pixels;
         }
 
         const string KarlFranz = @"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2";
