@@ -160,6 +160,36 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((pixel.X, pixel.Z), Is.EqualTo((red, blue)).Using<(float, float)>((a, b) => Math.Abs(a.Item1 - b.Item1) < 0.02f && Math.Abs(a.Item2 - b.Item2) < 0.02f));
         }
 
+        // ps_alpha_crush on a texel of alpha 0.75 over mid grey: a soft crush of 0.5 leaves half of it, a sharp one of 0.8
+        // cuts it away and one of 0.5 leaves it whole.
+        [TestCase(false, 0f, 0.875f)]
+        [TestCase(false, 0.5f, 0.751f)]
+        [TestCase(true, 0.8f, 0.502f)]
+        [TestCase(true, 0.5f, 0.875f)]
+        public void AlphaCrush_ThinsTheTexture(bool sharp, float crush, float grey)
+        {
+            using var faint = new Texture2D(_device, 1, 1);
+            faint.SetData(new[] { new Color(191, 191, 191, 191) });
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var particle = RedHalfAlpha with { Colour = Vector3.One, Alpha = 1, Crush = crush };
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera, new EmitterSettings { CrushSharp = sharp }, faint, [particle]));
+            Assert.That(pixel.X, Is.EqualTo(grey).Within(0.02));
+        }
+
+        // ps_gradient: a half-grey texel picks the colour half way along the strip, here red rising 0 to 1, no green, full blue.
+        [Test]
+        public void Gradient_ColoursTheTextureByItsValue()
+        {
+            using var grey = new Texture2D(_device, 1, 1);
+            grey.SetData(new[] { new Color(128, 128, 128, 255) });
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var ramp = VfxCurve.Parse("up,1,0;0.0,0.0,linear,linear,0,0,0,0,0;1.0,1.0,linear,linear,0,0,0,0,0|none,1,0;0.0,0.0,linear,linear,0,0,0,0,0|full,1,0;0.0,1.0,linear,linear,0,0,0,0,0:r,0;0,0|g,0;1,1|b,0;2,2");
+            var settings = new EmitterSettings { Gradient = ramp, GradientAlpha = VfxCurve.Constant(1) };
+            var particle = RedHalfAlpha with { Colour = Vector3.One, Alpha = 1 };
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera, settings, grey, [particle]));
+            Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.EqualTo(new[] { 0.5f, 0f, 1f }).Within(0.03));
+        }
+
         // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with
         // the texture cell running from the newest (its top, as a velocity-aligned quad's head) to the oldest.
         [Test]

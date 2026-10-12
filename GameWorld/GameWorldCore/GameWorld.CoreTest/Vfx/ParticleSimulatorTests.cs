@@ -205,6 +205,14 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(states.Count(p => p.FlipV), Is.InRange(states.Count / 4, states.Count * 3 / 4));
         }
 
+        // ps_alpha_crush: each particle carries its crush level, off the curve over its life.
+        [Test]
+        public void AlphaCrush_IsCarriedByEachParticle()
+        {
+            var states = States(Run(Steady(x => x.AlphaCrush = C(0.3f)), 1));
+            Assert.That(states.Select(p => p.Crush).Distinct(), Is.EqualTo(new[] { 0.3f }));
+        }
+
         // curve_colour's fourth output, brightness, and ps_emissive's emissive_mul both multiply the colour, past 1.
         [Test]
         public void Brightness_AndEmissive_MultiplyTheColour()

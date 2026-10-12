@@ -84,6 +84,11 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["WorldViewProjection"].SetValue(world * parameters.View * parameters.Projection);
             effect.Parameters["Scale"].SetValue(scale);
             effect.Parameters["Texture"].SetValue(texture);
+            effect.Parameters["Premultiplied"].SetValue(settings.Premultiplied ? 1f : 0f);
+            effect.Parameters["CrushSharp"].SetValue(settings.CrushSharp ? 1f : 0f);
+            effect.Parameters["UseGradient"].SetValue(settings.Gradient != null ? 1f : 0f);
+            effect.Parameters["GradientMapsAlpha"].SetValue(settings.GradientMapsAlpha ? 1f : 0f);
+            effect.Parameters["GradientRamp"].SetValue(Ramp(settings));
             device.BlendState = BlendFor(settings);
             foreach (var pass in effect.CurrentTechnique.Passes)
             {
@@ -105,6 +110,10 @@ namespace GameWorld.Core.Vfx
             return scale > 1 ? (states.Select(p => p with { Colour = p.Colour / scale }).ToList(), scale) : (states, 1);
         }
 
+        // ps_gradient's strip at the 16 points the shader interpolates between: rgb off curve_colour, alpha off curve_alpha.
+        static Vector4[] Ramp(EmitterSettings s) => Enumerable.Range(0, 16).Select(i => i / 15f).Select(t => s.Gradient == null ? Vector4.One
+            : new Vector4(s.Gradient.Evaluate(0, t, 0, 1), s.Gradient.Evaluate(1, t, 0, 1), s.Gradient.Evaluate(2, t, 0, 1), s.GradientAlpha?.Evaluate(0, t, 0, 1) ?? 1)).ToArray();
+
         public static VfxVertex[] Quads(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states, Matrix? frame = null)
         {
             var vertices = new VfxVertex[states.Count * 6];
@@ -124,30 +133,30 @@ namespace GameWorld.Core.Vfx
             var uv = UvRect(s, states[^1].Cell);
             var fade = EmitterFade(s, camera, frame);
             var last = states.Count - 1;
-            var edges = new (Vector3 Left, Vector3 Right, Color Colour, float T)[states.Count];
+            var edges = new (Vector3 Left, Vector3 Right, Color Colour, float T, float Crush)[states.Count];
             for (var i = 0; i <= last; i++)
             {
                 var p = states[i];
                 var along = states[Math.Min(i + 1, last)].Position - states[Math.Max(i - 1, 0)].Position;
                 var side = Vector3.Cross(along, camera.Position - p.Position);
                 side = side.LengthSquared() > 1e-12f ? Vector3.Normalize(side) * (p.Size.X / 2) : Vector3.Zero;
-                edges[i] = (p.Position - side, p.Position + side, VertexColour(s, p.Colour, Faded(s, camera, p, fade)), 1 - i / (float)last);
+                edges[i] = (p.Position - side, p.Position + side, VertexColour(s, p.Colour, Faded(s, camera, p, fade)), 1 - i / (float)last, p.Crush);
             }
 
             var (next, blend) = (UvRect(s, states[^1].NextCell), states[^1].CellBlend);
-            VfxVertex Vertex(Vector3 position, Color colour, float across, float t) =>
-                new(position, colour, new Vector2(uv.X + across * uv.Z, uv.Y + t * uv.W), new Vector4(next.X + across * next.Z, next.Y + t * next.W, blend, 0));
+            VfxVertex Vertex(Vector3 position, Color colour, float across, float t, float crush) =>
+                new(position, colour, new Vector2(uv.X + across * uv.Z, uv.Y + t * uv.W), new Vector4(next.X + across * next.Z, next.Y + t * next.W, blend, crush));
             var vertices = new VfxVertex[last * 6];
             var n = 0;
             for (var i = 0; i < last; i++)
             {
                 var (a, b) = (edges[i], edges[i + 1]);
-                vertices[n++] = Vertex(a.Left, a.Colour, 0, a.T);
-                vertices[n++] = Vertex(a.Right, a.Colour, 1, a.T);
-                vertices[n++] = Vertex(b.Right, b.Colour, 1, b.T);
-                vertices[n++] = Vertex(a.Left, a.Colour, 0, a.T);
-                vertices[n++] = Vertex(b.Right, b.Colour, 1, b.T);
-                vertices[n++] = Vertex(b.Left, b.Colour, 0, b.T);
+                vertices[n++] = Vertex(a.Left, a.Colour, 0, a.T, a.Crush);
+                vertices[n++] = Vertex(a.Right, a.Colour, 1, a.T, a.Crush);
+                vertices[n++] = Vertex(b.Right, b.Colour, 1, b.T, b.Crush);
+                vertices[n++] = Vertex(a.Left, a.Colour, 0, a.T, a.Crush);
+                vertices[n++] = Vertex(b.Right, b.Colour, 1, b.T, b.Crush);
+                vertices[n++] = Vertex(b.Left, b.Colour, 0, b.T, b.Crush);
             }
             return vertices;
         }
@@ -176,7 +185,7 @@ namespace GameWorld.Core.Vfx
                 var (u, v) = VfxConventions.QuadUv(x, y, p.FlipU, p.FlipV, s.UvTurn);
                 var position = p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height);
                 var soft = s.SoftEdge > 0 ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength)) : colour;
-                return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, 0));
+                return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, p.Crush));
             }
 
             vertices[n++] = Corner(0, 0);
@@ -225,8 +234,8 @@ namespace GameWorld.Core.Vfx
             return (camera.Right * cos + camera.Up * sin, camera.Up * cos - camera.Right * sin, p.Size.Y);
         }
 
-        /// <summary>A particle vertex for Shaders/Particle. Extra: the next flipbook cell's texture coordinate (xy) and how far
-        /// to blend into it (z).</summary>
+        /// <summary>A particle vertex for Shaders/Particle. Extra: the next flipbook cell's texture coordinate (xy), how far to
+        /// blend into it (z), and the particle's alpha crush level (w).</summary>
         public struct VfxVertex(Vector3 position, Color color, Vector2 textureCoordinate, Vector4 extra) : IVertexType
         {
             public Vector3 Position = position;

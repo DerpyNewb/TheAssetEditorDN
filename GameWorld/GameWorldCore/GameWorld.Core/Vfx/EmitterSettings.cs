@@ -114,6 +114,13 @@ namespace GameWorld.Core.Vfx
         public Vector2 Loops { get; set; } = Vector2.One;
         public bool FixedSpeed { get; set; }
         public bool CellBlend { get; set; }
+        /// <summary>ps_alpha_crush: a particle's crush level over its life, and whether it cuts sharp.</summary>
+        public VfxCurve? AlphaCrush { get; set; }
+        public bool CrushSharp { get; set; }
+        /// <summary>ps_gradient: the colour and alpha strips a texel's value picks from, and alpha_mapping.</summary>
+        public VfxCurve? Gradient { get; set; }
+        public VfxCurve? GradientAlpha { get; set; }
+        public bool GradientMapsAlpha { get; set; }
         public int Cell { get; set; }
         public bool RandomCell { get; set; }
         public int AtlasX { get; set; } = 1;
@@ -249,6 +256,13 @@ namespace GameWorld.Core.Vfx
             s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);
             s.MinPixels = Number(chain.Find("vs_rendersize_limiter"), "pixelsize_limit", 0);
             s.EmissiveMul = Number(chain.Find("ps_emissive"), "emissive_mul", 1);
+            var crush = chain.Find("ps_alpha_crush");
+            s.AlphaCrush = ParseCurve(s, crush?.Properties.GetValueOrDefault("curve_alpha_crush"));
+            s.CrushSharp = Flag(crush, "sharp_transition");
+            var gradient = chain.Find("ps_gradient");
+            s.Gradient = ParseCurve(s, gradient?.Properties.GetValueOrDefault("curve_colour"));
+            s.GradientAlpha = ParseCurve(s, gradient?.Properties.GetValueOrDefault("curve_alpha"));
+            s.GradientMapsAlpha = Flag(gradient, "alpha_mapping");
             var soft = chain.Find("ps_soft_edge");
             s.SoftEdge = Number(soft, "soft_factor", 0);
             s.SoftStrength = Number(soft, "scale_strength", 1);

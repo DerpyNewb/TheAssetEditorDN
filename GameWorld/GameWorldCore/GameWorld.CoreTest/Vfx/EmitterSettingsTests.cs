@@ -87,6 +87,21 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void AlphaCrush_AndGradient_AreRead()
+        {
+            var crush = """<modifier fragment="ps_alpha_crush"><property name="sharp_transition" type="bool" value="true"/><property name="curve_alpha_crush" type="curve">progress_min,8388608,0;0.0,0.25,linear,linear,-0.05,0.0,0.05,0.0,0:progress,0;0,0</property></modifier>""";
+            var gradient = """<modifier fragment="ps_gradient"><property name="curve_colour" type="curve">r_min,16711680,0;0.0,0.5,linear,linear,-0.05,0.0,0.05,0.0,0:r,0;0,0|g,0;0,0|b,0;0,0</property><property name="curve_alpha" type="curve">alpha_min,8388608,0;0.0,1.0,linear,linear,-0.05,0.0,0.05,0.0,0:alpha,0;0,0</property><property name="alpha_mapping" type="bool" value="true"/></modifier>""";
+            var e = Read(Emitter("sparks"), SparksChain.Replace("</quality>", crush + gradient + "</quality>")).Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That((e.CrushSharp, e.AlphaCrush?.Evaluate(0, 0.5f, 0)), Is.EqualTo((true, (float?)0.25f)));
+                Assert.That((e.Gradient?.Evaluate(1, 0.5f, 0), e.GradientAlpha?.Evaluate(0, 0.5f, 0), e.GradientMapsAlpha), Is.EqualTo(((float?)0.5f, (float?)1f, true)));
+            });
+            var plain = Read(Emitter("sparks"), SparksChain).Single();
+            Assert.That(new object?[] { plain.AlphaCrush, plain.Gradient }, Is.All.Null);
+        }
+
+        [Test]
         public void CellBlend_IsRead()
         {
             var blended = SmokeChain.Replace("<property name=\"loop\" type=\"bool\" value=\"true\"/>", "<property name=\"loop\" type=\"bool\" value=\"true\"/><property name=\"cell_blend\" type=\"bool\" value=\"true\"/>");
