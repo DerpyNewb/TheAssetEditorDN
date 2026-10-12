@@ -11,6 +11,8 @@
 // is a guess, listed in docs/VFX.md beside VfxConventions' own; ParticleRenderItemTests draw each one on the GPU.
 
 float4x4 WorldViewProjection;
+// The view depth comes off it, which a clip w gives only in perspective.
+float4x4 WorldView;
 // A vertex colour stops at 1: an HDR emitter's colours arrive divided by Scale and are multiplied back here.
 float Scale = 1;
 float Premultiplied = 1;
@@ -44,6 +46,7 @@ float2 Reach;
 
 // ps_soft_edge against the solid scene: its view depth per pixel, drawn by the engine before the particles, that texture's
 // texel size, and the emitter's soft_factor and scale_strength. UseSceneDepth is 0 when there is none to fade against.
+// Occlude: the glow pass, whose target holds only the emissive models' depth, so the scene's depth hides what lies behind it.
 Texture2D SceneDepth;
 sampler2D SceneDepthSampler = sampler_state
 {
@@ -56,6 +59,7 @@ sampler2D SceneDepthSampler = sampler_state
 };
 float2 InverseDepthSize;
 float UseSceneDepth = 0;
+float Occlude = 0;
 float SoftFactor = 1;
 float SoftStrength = 1;
 
@@ -92,7 +96,7 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 	output.Colour = input.Colour * float4(Scale, Scale, Scale, 1);
 	output.Uv = input.Uv;
 	output.Extra = input.Extra;
-	output.Depth = output.Position.w;
+	output.Depth = -mul(input.Position, WorldView).z;
 	return output;
 }
 
@@ -120,9 +124,15 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	a = CrushSharp > 0 ? (a > crush ? a : 0) : saturate((a - crush) / max(1 - crush, 0.0001));
 
 	// ps_soft_edge: fades in over soft_factor metres of view depth in front of the solid scene, as VfxConventions.SoftEdge fades
-	// it in front of the ground.
-	if (UseSceneDepth > 0)
-		a *= pow(saturate((tex2D(SceneDepthSampler, input.Position.xy * InverseDepthSize).r - input.Depth) / SoftFactor), SoftStrength);
+	// it in front of the ground; a strength of 0 fades nothing, as there (pow(0, 0) is not a number here).
+	if (UseSceneDepth > 0 || Occlude > 0)
+	{
+		float scene = tex2D(SceneDepthSampler, input.Position.xy * InverseDepthSize).r;
+		if (UseSceneDepth > 0)
+			a *= pow(max(saturate((scene - input.Depth) / SoftFactor), 0.000001), SoftStrength);
+		if (Occlude > 0 && scene < input.Depth)
+			a = 0;
+	}
 
 	return float4(Premultiplied > 0 ? rgb * a : rgb, a) * input.Colour;
 }

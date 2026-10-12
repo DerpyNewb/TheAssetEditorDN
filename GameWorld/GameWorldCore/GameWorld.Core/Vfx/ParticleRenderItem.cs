@@ -113,6 +113,7 @@ namespace GameWorld.Core.Vfx
                 return;
 
             effect.Parameters["WorldViewProjection"].SetValue(world * parameters.View * parameters.Projection);
+            effect.Parameters["WorldView"].SetValue(world * parameters.View);
             effect.Parameters["Scale"].SetValue(scale);
             effect.Parameters["Texture"].SetValue(texture);
             effect.Parameters["Premultiplied"].SetValue(settings.Premultiplied ? 1f : 0f);
@@ -122,11 +123,16 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["GradientRamp"].SetValue(Ramp(settings));
             effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : settings.Light ? "Light" : "ParticleDrawing"];
             // ps_soft_edge against the solid scene's depth, when the engine drew it; a decal or a light lies on the ground instead.
-            var depth = settings.SoftEdge > 0 && !settings.Decal && !settings.Light ? parameters.SceneDepth : null;
-            effect.Parameters["UseSceneDepth"].SetValue(depth != null ? 1f : 0f);
-            if (depth != null)
+            // The glow pass draws onto a target holding only the emissive models' depth, so there the scene's depth hides what lies
+            // behind a plain model.
+            var depth = parameters.SceneDepth;
+            var soft = depth != null && settings.SoftEdge > 0 && !settings.Decal && !settings.Light;
+            var occlude = depth != null && glow;
+            effect.Parameters["UseSceneDepth"].SetValue(soft ? 1f : 0f);
+            effect.Parameters["Occlude"].SetValue(occlude ? 1f : 0f);
+            if (soft || occlude)
             {
-                effect.Parameters["SceneDepth"].SetValue(depth);
+                effect.Parameters["SceneDepth"].SetValue(depth!);
                 effect.Parameters["InverseDepthSize"].SetValue(new Vector2(1f / depth.Width, 1f / depth.Height));
                 effect.Parameters["SoftFactor"].SetValue(settings.SoftEdge);
                 effect.Parameters["SoftStrength"].SetValue(settings.SoftStrength);

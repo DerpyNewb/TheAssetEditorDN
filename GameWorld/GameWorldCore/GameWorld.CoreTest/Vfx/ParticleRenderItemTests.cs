@@ -178,21 +178,44 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         // ps_soft_edge against the solid scene, when the engine has drawn its depth: a white quad 5 m from the camera, well above the
-        // ground, with the scene 0.5 m behind it is half faded at a 1 m soft_factor, and with it 2 m behind not at all.
-        [TestCase(5.5f, 0.5f)]
-        [TestCase(7f, 1f)]
-        public void SoftEdges_FadeIntoTheSolidScene(float sceneDepth, float white)
+        // ground, with the scene 0.5 m behind it is half faded at a 1 m soft_factor, and with it 2 m behind not at all; the same
+        // through the app's orthographic view. A scale_strength of 0 (33 vanilla chains) fades nothing, as on the ground.
+        [TestCase(5.5f, 1f, false, 0.5f)]
+        [TestCase(7f, 1f, false, 1f)]
+        [TestCase(5.5f, 1f, true, 0.5f)]
+        [TestCase(4f, 0f, false, 1f)]
+        public void SoftEdges_FadeIntoTheSolidScene(float sceneDepth, float strength, bool orthographic, float white)
         {
             using var depth = new Texture2D(_device, 4, 4, false, SurfaceFormat.Single);
             depth.SetData(Enumerable.Repeat(sceneDepth, 16).ToArray());
-            var level = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 10, 5), new Vector3(0, 10, 0), Vector3.Up),
-                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 10, 5), new Vector3(0, 10, 0), 0, 0, 0, 1, [], Vector3.One) { SceneDepth = depth };
+            var level = Level(depth, orthographic);
             var camera = ParticleRenderItem.CameraAxes.From(level, Matrix.Identity);
             var quad = new ParticleState(new Vector3(0, 10, 0), Vector3.Zero, new Vector2(10, 10), 0, Vector3.One, 1, 0, 0);
-            var settings = new EmitterSettings { Premultiplied = false, SoftEdge = 1 };
+            var settings = new EmitterSettings { Premultiplied = false, SoftEdge = 1, SoftStrength = strength };
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, level, Matrix.Identity, camera, settings, _white, [quad]), Color.Black);
             Assert.That(pixel.X, Is.EqualTo(white).Within(0.02));
         }
+
+        // The glow pass draws onto a target holding only the emissive models' depth, so the scene's depth hides a particle's glow
+        // behind a plain model: a glowing quad 5 m away adds nothing behind a model 3 m away, and its glow in front of one at 7 m.
+        [TestCase(3f, false)]
+        [TestCase(7f, true)]
+        public void GlowPass_IsHiddenBehindTheSolidScene(float sceneDepth, bool glows)
+        {
+            using var depth = new Texture2D(_device, 4, 4, false, SurfaceFormat.Single);
+            depth.SetData(Enumerable.Repeat(sceneDepth, 16).ToArray());
+            var level = Level(depth, false);
+            var camera = ParticleRenderItem.CameraAxes.From(level, Matrix.Identity);
+            var quad = new ParticleState(new Vector3(0, 10, 0), Vector3.Zero, new Vector2(10, 10), 0, new Vector3(4, 0, 0), 1, 0, 0);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, level, Matrix.Identity, camera, new EmitterSettings { Premultiplied = false }, _white, [quad], glow: true), Color.Black);
+            Assert.That(pixel.X > 0.5f, Is.EqualTo(glows), $"red {pixel.X}");
+        }
+
+        // Looking level along -Z at a point 10 m up from 5 m away, in perspective or the app's orthographic view, over a scene depth.
+        static CommonShaderParameters Level(Texture2D depth, bool orthographic) =>
+            new(Matrix.CreateLookAt(new Vector3(0, 10, 5), new Vector3(0, 10, 0), Vector3.Up),
+                orthographic ? Matrix.CreateOrthographic(12, 12, 0.1f, 100) : Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100),
+                new Vector3(0, 10, 5), new Vector3(0, 10, 0), 0, 0, 0, 1, [], Vector3.One) { SceneDepth = depth };
 
         // cell_blend: half way from a red cell to a blue one draws both at half.
         [TestCase(0f, 1f, 0f)]
