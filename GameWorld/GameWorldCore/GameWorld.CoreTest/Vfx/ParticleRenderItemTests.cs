@@ -119,6 +119,84 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.X, Is.EqualTo(0.216).Within(0.01));
         }
 
+        // ps_lighting on a chain blended by alpha, against CA's ps_main transcribed below: smoke_heavy's settings lit from the
+        // front, vanilla's defaults lit from behind, no particles to scatter (no sun at all), half emissive, and a scene light at
+        // double strength. No ambient cube is bound, so the sky adds nothing. The 10 m quad faces the camera.
+        [TestCase(0.8f, 0f, 0.4f, 0f, 0.8f, 0.04f, 0f, 1f)]
+        [TestCase(0.1f, 0.5f, 0.4f, 0f, 0.6f, 0.5f, MathHelper.Pi, 1f)]
+        [TestCase(0f, 0f, 0.4f, 0f, 0.6f, 0.5f, 0f, 1f)]
+        [TestCase(0.8f, 0f, 0.4f, 0.5f, 0.8f, 0.2f, 0f, 1f)]
+        [TestCase(0.8f, 0f, 0.4f, 0f, 0.8f, 0.04f, 0f, 2f)]
+        public void Lighting_LightsASmokeQuadAsCaDoes(float small, float large, float directionality, float emissive, float averageSize, float colour, float turn, float intensity)
+        {
+            var lighting = new ParticleLighting(small, large, directionality, emissive, averageSize);
+            var view = View with { DirLightRotationRadians_Y = turn, LightIntensityMult = intensity };
+            var camera = ParticleRenderItem.CameraAxes.From(view, Matrix.Identity);
+            var quad = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(colour), 1, 0, 0);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, view, Matrix.Identity, camera, new EmitterSettings { Lighting = lighting }, _white, [quad]));
+
+            var toSun = Vector3.Normalize(Vector3.TransformNormal(Vector3.Normalize(new Vector3(0.1f, 0.1f, 1)), Matrix.CreateRotationY(turn)));
+            var sun = 20000 * 3 * intensity * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2);
+            var stored = new Color(new Vector4(colour, colour, colour, 1)).R / 255f;
+            var expected = Encode(Math.Clamp(Uncharted2(stored * CaLight(lighting, 10, Vector3.UnitZ, toSun, Vector3.UnitZ, sun)), 0, 1));
+            Assert.That(pixel.X, Is.EqualTo(expected).Within(0.01), $"lit {pixel.X}, unlit {colour}");
+        }
+
+        // The sky's light, through the ambient cube the models use, at its 0.261: no sun here, as no particles scatter it.
+        [Test]
+        public void Lighting_TheSkyLightsASmokeQuad()
+        {
+            using var sky = new TextureCube(_device, 1, false, SurfaceFormat.Color);
+            foreach (var face in Enum.GetValues<CubeMapFace>())
+                sky.SetData(face, new[] { new Color(128, 128, 128, 255) });
+            var effect = Shader;
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var quad = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, Vector3.One, 1, 0, 0);
+            effect.Parameters["AmbientCube"].SetValue(sky);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera,
+                new EmitterSettings { Lighting = new ParticleLighting(0, 0, 0.4f, 0, 0.6f) }, _white, [quad]));
+            effect.Parameters["AmbientCube"].SetValue((TextureCube?)null);
+            Assert.That(pixel.X, Is.EqualTo(Encode(Uncharted2(128 / 255f * 0.261f))).Within(0.01));
+        }
+
+        // A lit particle's colour is light, as a model's is, and blooms no more than a model's does.
+        [Test]
+        public void Lighting_ALitQuadAddsNothingToTheGlowPass()
+        {
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var quad = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(4), 1, 0, 0);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera,
+                new EmitterSettings { Lighting = new ParticleLighting(0.8f, 0, 0.4f, 10, 0.8f) }, _white, [quad], glow: true), Color.Black);
+            Assert.That(pixel.X, Is.EqualTo(0).Within(0.01));
+        }
+
+        // CA's ps_main lighting (fx/particle_vfx_main in shaders.pack, disassembled): sunlight scattered through the particle,
+        // Rayleigh's phase for small_particles and Henyey-Greenstein's, with (1 - g)^2 over it, for large_particles at
+        // g = directionality, weighted by each, over light let through, exp(-(small + large) x average_size x size x (1 - N.L) / 2);
+        // drawn toward emissive by its own amount. sun: the light a face square to the sun takes. c is the cosine between the
+        // way the sunlight travels and the camera's axis toward the camera. No particles is 0 / 0, which the GPU saturates to 0.
+        static float CaLight(ParticleLighting l, float size, Vector3 normal, Vector3 toSun, Vector3 toCamera, float sun)
+        {
+            var c = Vector3.Dot(-toSun, toCamera);
+            var sigma = l.Small + l.Large;
+            var through = MathF.Exp(-sigma * l.AverageSize * size * (1 - Vector3.Dot(normal, toSun)) * 0.5f);
+            var g = l.Directionality;
+            var rayleigh = 0.059683f * (1 + c * c);
+            var henyey = (1 - g) * (1 - g) * 0.079577f / MathF.Pow(1 + g * g - 2 * g * c, 1.5f);
+            var lit = ((l.Small * rayleigh + l.Large * henyey) / sigma) * (1 - through) + through;
+            lit = float.IsNaN(lit) ? 0 : Math.Clamp(lit, 0, 1);
+            return MathHelper.Lerp(lit * sun, l.Emissive, Math.Clamp(l.Emissive, 0, 1));
+        }
+
+        // Shaders/Pbr's tone map and sRGB encoding, through which a model's lit colour reaches the screen.
+        static float Uncharted2(float x)
+        {
+            static float F(float v) => (v * (0.15f * v + 0.05f) + 0.004f) / (v * (0.15f * v + 0.5f) + 0.06f) - 0.02f / 0.3f;
+            return F(x * 2) / F(11.2f);
+        }
+
+        static float Encode(float x) => x <= 0.0031308f ? 12.92f * x : 1.055f * MathF.Pow(x, 1 / 2.4f) - 0.055f;
+
         // A light's pool and a heat haze hide nothing over nothing: the pool's unlit corners and a haze with no scene behind
         // it blacked out the background.
         [Test]

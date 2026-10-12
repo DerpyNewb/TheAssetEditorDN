@@ -7,6 +7,10 @@ namespace GameWorld.Core.Vfx
 
     public enum QuadOrientation { CameraFacing, VelocityAligned, Horizontal, Vertical, LocalHorizontal, LocalVertical }
 
+    /// <summary>ps_lighting: how much sunlight small (Rayleigh) and large (Henyey-Greenstein) particles scatter, the large ones'
+    /// directionality (g), how far the light is drawn toward emissive, and the average size the light crosses.</summary>
+    public record ParticleLighting(float Small, float Large, float Directionality, float Emissive, float AverageSize);
+
     /// <summary>A particle event's effect, ready to run: a copy per particle, started at its birth or its death plus Offset seconds,
     /// following what of the particle the flags say (ParticleSimulator).</summary>
     public record ParticleEvent(bool OnDeath, IReadOnlyList<EmitterSettings> Emitters, bool TrackPosition = false, bool TrackScale = false,
@@ -111,6 +115,11 @@ namespace GameWorld.Core.Vfx
         public string? Texture { get; set; }
         public bool Premultiplied { get; set; } = true;
         public float AdditiveMul { get; set; }
+        /// <summary>ps_lighting's settings; null without one.</summary>
+        public ParticleLighting? Lighting { get; set; }
+        /// <summary>Drawn lit: ps_lighting on a chain blended by alpha that lies over the scene. An additive chain stays unlit, as the
+        /// preview's additive reading (VfxConventions.Blend) is not CA's, and a decal paints what lies under it.</summary>
+        public bool Lit => Lighting != null && AdditiveMul == 0 && !Decal && !Light && !Distortion;
         public Vector2 Pivot { get; set; } = new(0.5f, 0.5f);
         public QuadOrientation Orientation { get; set; }
         /// <summary>enable_trail_mode on the render stack: the particles drawn as one strip, not a quad each.</summary>
@@ -330,7 +339,12 @@ namespace GameWorld.Core.Vfx
             else if (texture == null && s.Draws && s.Rigid.Count == 0 && !s.Light)
                 NotDrawn(s, "the chain has no ps_texture, so nothing is drawn: in vanilla only sound carriers lack one");
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;
-            s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);
+            var lighting = chain.Find("ps_lighting");
+            s.AdditiveMul = Number(lighting, "additive_blend_mul", 0);
+            // Missing settings take the defaults fx/particle_vfx_library.hlsl gives them.
+            if (lighting != null)
+                s.Lighting = new ParticleLighting(Number(lighting, "small_particles", 0.1f), Number(lighting, "large_particles", 0.5f),
+                    Number(lighting, "directionality", 0.4f), Number(lighting, "emissive", 0), Number(lighting, "average_size", 0.6f));
             s.MinPixels = Number(chain.Find("vs_rendersize_limiter"), "pixelsize_limit", 0);
             s.EmissiveMul = Number(chain.Find("ps_emissive"), "emissive_mul", 1);
             var crush = chain.Find("ps_alpha_crush");

@@ -11,6 +11,7 @@ using GameWorld.Core.Components.Grid;
 using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Rendering;
 using GameWorld.Core.SceneNodes;
+using GameWorld.Core.Services;
 using GameWorld.Core.Vfx;
 using GameWorld.Core.WpfWindow;
 using Microsoft.Xna.Framework.Graphics;
@@ -724,6 +725,31 @@ namespace Test.VfxEditor
                 Assert.That(values, Has.Some.EqualTo(float.MaxValue));
                 Assert.That(without.Last().SceneDepth, Is.Null);
             });
+        }
+
+        // A lit smoke particle takes the sky's light off the cube the app lights its models with: with no particles to scatter the
+        // sun, all a white quad shows is that sky, which nothing bound would leave black.
+        [Test]
+        public void The_app_lights_smoke_with_the_sky_its_models_have()
+        {
+            var (runner, _, _) = OpenWithAGuideModelOffered();
+            var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
+            var shader = runner.ServiceProvider.GetRequiredService<ResourceLibrary>().GetStaticEffect(ShaderTypes.Particle);
+            var view = new CommonShaderParameters(Xna.Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up),
+                Xna.Matrix.CreatePerspectiveFieldOfView(Xna.MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 0, 5), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+            using var white = new Texture2D(device, 1, 1);
+            white.SetData(new[] { Xna.Color.White });
+            using var target = new RenderTarget2D(device, 4, 4, false, SurfaceFormat.Color, DepthFormat.None);
+            device.SetRenderTarget(target);
+            device.Clear(Xna.Color.Black);
+            (device.DepthStencilState, device.RasterizerState) = (DepthStencilState.None, RasterizerState.CullNone);
+            var quad = new ParticleState(Vector3.Zero, Vector3.Zero, new Xna.Vector2(10, 10), 0, Vector3.One, 1, 0, 0);
+            ParticleRenderItem.DrawEmitter(device, shader, view, Xna.Matrix.Identity, ParticleRenderItem.CameraAxes.From(view, Xna.Matrix.Identity),
+                new EmitterSettings { Lighting = new ParticleLighting(0, 0, 0.4f, 0, 0.6f) }, white, [quad]);
+            device.SetRenderTarget(null);
+            var pixels = new Xna.Color[16];
+            target.GetData(pixels);
+            Assert.That(pixels[5].R, Is.GreaterThan(40));
         }
 
         sealed class Witness(List<CommonShaderParameters> seen) : IRenderItem

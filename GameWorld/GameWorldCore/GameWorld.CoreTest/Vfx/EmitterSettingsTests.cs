@@ -44,6 +44,24 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(settings.Select(x => x.InfiniteLife), Is.EqualTo(new[] { false, false, true, false, false, false }));
         }
 
+        // ps_lighting's five settings, as smoke_heavy (wh_main_lib_fire_smoke) sets them. A chain blended by alpha draws lit; an
+        // additive one and a decal do not, since the preview's additive reading is not CA's (docs/VFX.md section 4).
+        [Test]
+        public void Lighting_IsReadOffPsLighting_AndOnlyAnAlphaBlendedChainIsLit()
+        {
+            var chain = SmokeChain.Replace("""value="0.0"/></modifier><modifier fragment="vs_translation">""",
+                """value="0.0"/><property name="small_particles" type="float" value="0.8"/><property name="large_particles" type="float" value="0.0"/><property name="directionality" type="float" value="0.4"/><property name="emissive" type="float" value="0.0"/><property name="average_size" type="float" value="0.8"/></modifier><modifier fragment="vs_translation">""");
+            var smoke = Read(Emitter("smoke"), chain).Single();
+            var sparks = Read(Emitter("sparks"), SparksChain).Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That(smoke.Lighting, Is.EqualTo(new ParticleLighting(0.8f, 0, 0.4f, 0, 0.8f)));
+                Assert.That(smoke.Lit, Is.True);
+                Assert.That((sparks.Lighting != null, sparks.Lit), Is.EqualTo((true, false)));
+                Assert.That(new EmitterSettings { Lighting = smoke.Lighting, Decal = true }.Lit, Is.False);
+            });
+        }
+
         [Test]
         public void SparksChain_IsAStretchedAdditiveAtlasCell()
         {

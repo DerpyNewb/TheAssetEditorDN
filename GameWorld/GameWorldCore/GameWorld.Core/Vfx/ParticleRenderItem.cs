@@ -107,6 +107,9 @@ namespace GameWorld.Core.Vfx
             // A distortion bends what is drawn already, and adds no light to bloom.
             if (settings.Distortion && (glow || scene == null))
                 return;
+            // A lit particle's colour is light the sun and sky put on it, as a model's is, and blooms no more than a model's does.
+            if (glow && settings.Lit)
+                return;
             (states, var scale) = Hdr(settings, states, glow);
             var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
@@ -114,6 +117,19 @@ namespace GameWorld.Core.Vfx
 
             effect.Parameters["WorldViewProjection"].SetValue(world * parameters.View * parameters.Projection);
             effect.Parameters["WorldView"].SetValue(world * parameters.View);
+            effect.Parameters["World"].SetValue(world);
+            effect.Parameters["Lit"].SetValue(settings.Lit ? 1f : 0f);
+            if (settings.Lit)
+            {
+                var (toSun, sun, sky) = Sun(parameters);
+                var l = settings.Lighting!;
+                effect.Parameters["SunDirection"].SetValue(toSun);
+                effect.Parameters["SunColour"].SetValue(sun);
+                effect.Parameters["AmbientColour"].SetValue(sky);
+                effect.Parameters["CameraBack"].SetValue(Vector3.Normalize(new Vector3(parameters.View.M13, parameters.View.M23, parameters.View.M33)));
+                effect.Parameters["Scattering"].SetValue(new Vector4(l.Small, l.Large, l.Directionality, l.Emissive));
+                effect.Parameters["AverageSize"].SetValue(l.AverageSize);
+            }
             effect.Parameters["Scale"].SetValue(scale);
             effect.Parameters["Texture"].SetValue(texture);
             effect.Parameters["Premultiplied"].SetValue(settings.Premultiplied ? 1f : 0f);
@@ -149,6 +165,17 @@ namespace GameWorld.Core.Vfx
                 pass.Apply();
                 device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertices.Length / 3);
             }
+        }
+
+        /// <summary>The sun as Shaders/Pbr light a model with it: the way to it, turned as the scene's light is; the light a face square
+        /// to it takes, get_sun_colour() x unchartedSunFactor over the part of the sky a 1 degree sun covers, sin^2(0.5 deg), which is
+        /// CA's own 0.000076 in ps_lighting; and the scale cube_ambient puts on the ambient cube. The light colour is over both.</summary>
+        public static (Vector3 ToSun, Vector3 Sun, Vector3 Sky) Sun(CommonShaderParameters p)
+        {
+            var turn = Matrix.CreateRotationY(p.DirLightRotationRadians_Y) * Matrix.CreateRotationX(p.DirLightRotationRadians_X);
+            var toSun = Vector3.Normalize(Vector3.TransformNormal(Vector3.Normalize(new Vector3(0.1f, 0.1f, 1)), turn));
+            var sky = MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2);
+            return (toSun, p.LightColour * (20000 * 3 * p.LightIntensityMult * sky), p.LightColour * (0.261f * p.LightIntensityMult));
         }
 
         // A vertex colour stops at 1 and the shader's Scale does not: an HDR emitter's colours are divided by the
@@ -191,7 +218,7 @@ namespace GameWorld.Core.Vfx
             var toWorld = camera.ToWorld ?? Matrix.Identity;
             var eye = Vector3.Transform(camera.Position, toWorld);
             var last = states.Count - 1;
-            var edges = new (Vector3 Left, Vector3 Right, Vector3 Colour, float Alpha, float T, float Crush)[states.Count];
+            var edges = new (Vector3 Left, Vector3 Right, Vector3 Colour, float Alpha, float T, float Crush, float Width)[states.Count];
             for (var i = 0; i <= last; i++)
             {
                 var p = states[i];
@@ -199,29 +226,29 @@ namespace GameWorld.Core.Vfx
                 var side = Vector3.Cross(along, camera.Position - p.Position);
                 var width = p.Size.X * VfxConventions.MinPixelGrowth(p.Size.X, Vector3.Distance(camera.Position, p.Position), camera.PixelScale, s.MinPixels);
                 side = side.LengthSquared() > 1e-12f ? Vector3.Normalize(side) * (width / 2) : Vector3.Zero;
-                edges[i] = (p.Position - side, p.Position + side, p.Colour, Faded(s, camera, p, fade), 1 - i / (float)last, p.Crush);
+                edges[i] = (p.Position - side, p.Position + side, p.Colour, Faded(s, camera, p, fade), 1 - i / (float)last, p.Crush, width);
             }
 
             var (next, blend) = (UvRect(s, newest.NextCell), newest.CellBlend);
             // across is the quad's x; the head, at the newest, is its top.
-            VfxVertex Vertex(Vector3 position, Vector3 colour, float alpha, float across, float t, float crush)
+            VfxVertex Vertex(Vector3 position, Vector3 colour, float alpha, float across, float t, float crush, float width)
             {
                 var (u, v) = VfxConventions.QuadUv(across, 1 - t, newest.FlipU, newest.FlipV, s.UvTurn);
                 if (s.SoftEdge > 0 && !s.Decal)
                     alpha *= VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength);
-                return new(position, VertexColour(s, colour, alpha), new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, blend, crush));
+                return new(position, VertexColour(s, colour, alpha), new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, blend, crush), new Vector2(width));
             }
             var vertices = new VfxVertex[last * 6];
             var n = 0;
             for (var i = 0; i < last; i++)
             {
                 var (a, b) = (edges[i], edges[i + 1]);
-                vertices[n++] = Vertex(a.Left, a.Colour, a.Alpha, 0, a.T, a.Crush);
-                vertices[n++] = Vertex(a.Right, a.Colour, a.Alpha, 1, a.T, a.Crush);
-                vertices[n++] = Vertex(b.Right, b.Colour, b.Alpha, 1, b.T, b.Crush);
-                vertices[n++] = Vertex(a.Left, a.Colour, a.Alpha, 0, a.T, a.Crush);
-                vertices[n++] = Vertex(b.Right, b.Colour, b.Alpha, 1, b.T, b.Crush);
-                vertices[n++] = Vertex(b.Left, b.Colour, b.Alpha, 0, b.T, b.Crush);
+                vertices[n++] = Vertex(a.Left, a.Colour, a.Alpha, 0, a.T, a.Crush, a.Width);
+                vertices[n++] = Vertex(a.Right, a.Colour, a.Alpha, 1, a.T, a.Crush, a.Width);
+                vertices[n++] = Vertex(b.Right, b.Colour, b.Alpha, 1, b.T, b.Crush, b.Width);
+                vertices[n++] = Vertex(a.Left, a.Colour, a.Alpha, 0, a.T, a.Crush, a.Width);
+                vertices[n++] = Vertex(b.Right, b.Colour, b.Alpha, 1, b.T, b.Crush, b.Width);
+                vertices[n++] = Vertex(b.Left, b.Colour, b.Alpha, 0, b.T, b.Crush, b.Width);
             }
             return vertices;
         }
@@ -260,7 +287,7 @@ namespace GameWorld.Core.Vfx
                 if (s.Light)
                     return new(position, colour, new Vector2(u, v), new Vector4(lift / (p.Size.X / 2), 0, 0, 0));
                 var soft = s.SoftEdge > 0 && !s.Decal ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength)) : colour;
-                return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, p.Crush));
+                return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, p.Crush), new Vector2(width, height));
             }
 
             vertices[n++] = Corner(0, 0);
@@ -317,19 +344,21 @@ namespace GameWorld.Core.Vfx
         }
 
         /// <summary>A particle vertex for Shaders/Particle. Extra: the next flipbook cell's texture coordinate (xy), how far to
-        /// blend into it (z), and the particle's alpha crush level (w).</summary>
-        public struct VfxVertex(Vector3 position, Color color, Vector2 textureCoordinate, Vector4 extra) : IVertexType
+        /// blend into it (z), and the particle's alpha crush level (w). Size: its width and height, metres.</summary>
+        public struct VfxVertex(Vector3 position, Color color, Vector2 textureCoordinate, Vector4 extra, Vector2 size = default) : IVertexType
         {
             public Vector3 Position = position;
             public Color Color = color;
             public Vector2 TextureCoordinate = textureCoordinate;
             public Vector4 Extra = extra;
+            public Vector2 Size = size;
 
             public static readonly VertexDeclaration Declaration = new(
                 new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0),
                 new VertexElement(12, VertexElementFormat.Color, VertexElementUsage.Color, 0),
                 new VertexElement(16, VertexElementFormat.Vector2, VertexElementUsage.TextureCoordinate, 0),
-                new VertexElement(24, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 1));
+                new VertexElement(24, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 1),
+                new VertexElement(40, VertexElementFormat.Vector2, VertexElementUsage.TextureCoordinate, 2));
 
             readonly VertexDeclaration IVertexType.VertexDeclaration => Declaration;
         }
@@ -348,13 +377,13 @@ namespace GameWorld.Core.Vfx
         /// <summary>
         /// Premultiplied chains: (rgb x a, a x alphaWeight) under one premultiplied blend, so alpha and additive
         /// particles mix in one sorted draw. The 825 straight-alpha chains draw their plain colour under a
-        /// straight-alpha or additive blend instead.
+        /// straight-alpha or additive blend instead. A lit chain's colour comes straight, since the shader lights it first.
         /// </summary>
         public static Color VertexColour(EmitterSettings s, Vector3 rgb, float alpha)
         {
             var (alphaWeight, brightness) = VfxConventions.Blend(s.AdditiveMul);
             alpha = Math.Clamp(alpha, 0, 1);
-            return s.Premultiplied
+            return s.Premultiplied && !s.Lit
                 ? new Color(new Vector4(rgb * alpha * brightness, alpha * alphaWeight))
                 : new Color(new Vector4(rgb * brightness, alpha));
         }

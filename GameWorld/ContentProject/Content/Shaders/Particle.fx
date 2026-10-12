@@ -8,11 +8,15 @@
 #endif
 
 // The VFX preview's particles, drawn by GameWorld.Core/Vfx/ParticleRenderItem.cs. Every reading of a CA fragment here
-// is a guess, listed in docs/VFX.md beside VfxConventions' own; ParticleRenderItemTests draw each one on the GPU.
+// is a guess, listed in docs/VFX.md beside VfxConventions' own; ParticleRenderItemTests draw each one on the GPU. ps_lighting
+// is not a guess: it is CA's own ps_main (fx/particle_vfx_main in shaders.pack), disassembled.
+
+#include "Pbr/Helpers/tone_mapping.hlsli"
 
 float4x4 WorldViewProjection;
 // The view depth comes off it, which a clip w gives only in perspective.
 float4x4 WorldView;
+float4x4 World;
 // A vertex colour stops at 1: an HDR emitter's colours arrive divided by Scale and are multiplied back here.
 float Scale = 1;
 float Premultiplied = 1;
@@ -63,6 +67,25 @@ float Occlude = 0;
 float SoftFactor = 1;
 float SoftStrength = 1;
 
+// ps_lighting on a chain blended by alpha (EmitterSettings.Lit), in the world: the way to the sun, the light a face square to
+// it takes and the ambient cube's scale, both as Shaders/Pbr light a model; the camera's axis toward the camera; and the
+// chain's small_particles, large_particles, directionality and emissive (xyzw) and average_size.
+float Lit = 0;
+float3 SunDirection;
+float3 SunColour;
+float3 AmbientColour;
+float3 CameraBack;
+float4 Scattering;
+float AverageSize;
+TextureCube AmbientCube;
+samplerCUBE AmbientSampler = sampler_state
+{
+	Texture = <AmbientCube>;
+	MinFilter = Linear;
+	MagFilter = Linear;
+	MipFilter = Linear;
+};
+
 struct VertexShaderInput
 {
 	float4 Position : POSITION0;
@@ -70,6 +93,8 @@ struct VertexShaderInput
 	float2 Uv : TEXCOORD0;
 	// The next flipbook cell's texture coordinate (xy), how far to blend into it (z), the alpha crush level (w).
 	float4 Extra : TEXCOORD1;
+	// The particle's width and height, metres.
+	float2 Size : TEXCOORD2;
 };
 
 struct VertexShaderOutput
@@ -80,12 +105,55 @@ struct VertexShaderOutput
 	float4 Extra : TEXCOORD1;
 	// The view depth, for ps_soft_edge.
 	float Depth : TEXCOORD2;
+	float3 WorldPosition : TEXCOORD3;
+	float2 Size : TEXCOORD4;
 };
 
-// sRGB to linear, as CA's ps_main decodes a texture's alpha.
+// sRGB to linear, as CA's ps_main decodes a texture's alpha, and back.
 float Linear(float x)
 {
 	return x <= 0.04045 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4);
+}
+
+float3 Linear(float3 x)
+{
+	return float3(Linear(x.r), Linear(x.g), Linear(x.b));
+}
+
+float Gamma(float x)
+{
+	return x <= 0.0031308 ? x * 12.92 : 1.055 * pow(x, 1 / 2.4) - 0.055;
+}
+
+float3 Gamma(float3 x)
+{
+	return float3(Gamma(x.r), Gamma(x.g), Gamma(x.b));
+}
+
+// The quad's own plane, on the side facing the camera, as CA's billboard faces it.
+float3 Facing(float3 worldPosition)
+{
+	float3 n = normalize(cross(ddx(worldPosition), ddy(worldPosition)));
+	return dot(n, CameraBack) < 0 ? -n : n;
+}
+
+// ps_lighting, as CA's ps_main computes it for a particle of this width with this normal: sunlight scattered through it,
+// Rayleigh's phase for small_particles and Henyey-Greenstein's, (1 - g)^2 over it, for large_particles at g = directionality,
+// each weighted by its own amount, over the light let straight through, exp(-(small + large) x average_size x width x
+// (1 - N.L) / 2); then drawn toward emissive by as much as emissive is, up to all of it; plus the sky's light from the
+// normal's way. No particles to scatter is 0 / 0 in CA's, which the GPU saturates to no sun at all.
+float3 ParticleLight(float3 n, float width)
+{
+	float small = Scattering.x;
+	float large = Scattering.y;
+	float g = Scattering.z;
+	float sigma = small + large;
+	float c = dot(-SunDirection, CameraBack);
+	float through = exp(-sigma * AverageSize * width * (1 - dot(n, SunDirection)) * 0.5);
+	float rayleigh = 0.059683 * (1 + c * c);
+	float henyey = (1 - g) * (1 - g) * 0.079577 / pow(max(1 + g * g - 2 * g * c, 0.000001), 1.5);
+	float sun = sigma > 0 ? saturate((small * rayleigh + large * henyey) / sigma * (1 - through) + through) : 0;
+	return lerp(sun * SunColour, Scattering.www, saturate(Scattering.w)) + texCUBE(AmbientSampler, n).rgb * AmbientColour;
 }
 
 float4 Ramp(float t)
@@ -103,6 +171,8 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 	output.Uv = input.Uv;
 	output.Extra = input.Extra;
 	output.Depth = -mul(input.Position, WorldView).z;
+	output.WorldPosition = mul(input.Position, World).xyz;
+	output.Size = input.Size;
 	return output;
 }
 
@@ -141,6 +211,16 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 			a *= pow(max(saturate((scene - input.Depth) / SoftFactor), 0.000001), SoftStrength);
 		if (Occlude > 0 && scene < input.Depth)
 			a = 0;
+	}
+
+	// ps_lighting: the colour is linear, the texture's decoded (a gradient's strip is linear already), times the vertex colour,
+	// lit, and tone-mapped and encoded as Shaders/Pbr bring a model's lit colour to the screen. The vertex colour comes straight.
+	if (Lit > 0)
+	{
+		float3 albedo = (UseGradient > 0 ? rgb : saturate(Linear(rgb))) * input.Colour.rgb;
+		rgb = Gamma(saturate(Uncharted2ToneMapping(albedo * ParticleLight(Facing(input.WorldPosition), input.Size.x))));
+		a *= input.Colour.a;
+		return float4(Premultiplied > 0 ? rgb * a : rgb, a);
 	}
 
 	return float4(Premultiplied > 0 ? rgb * a : rgb, a) * input.Colour;
