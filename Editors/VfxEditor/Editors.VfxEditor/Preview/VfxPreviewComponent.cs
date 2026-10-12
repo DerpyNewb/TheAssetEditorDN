@@ -18,6 +18,7 @@ namespace Editors.VfxEditor.Preview
         readonly SceneManager _sceneManager;
         readonly ComplexMeshLoader _meshLoader;
         readonly VfxTextureCache _textures;
+        readonly VfxMeshCache _meshes;
         readonly ResourceLibrary _resourceLibrary;
         readonly List<string> _lines = [];
         ParticleSimulator? _simulator;
@@ -32,6 +33,7 @@ namespace Editors.VfxEditor.Preview
             _sceneManager = sceneManager;
             _meshLoader = meshLoader;
             _textures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(packFileService, _lines.Add));
+            _meshes = new VfxMeshCache(LoadRigid);
         }
 
         public float Time { get; private set; }
@@ -62,6 +64,8 @@ namespace Editors.VfxEditor.Preview
             foreach (var emitter in settings)
             {
                 _lines.AddRange(emitter.Skipped.Select(gap => $"{emitter.Name}: {gap}"));
+                foreach (var model in emitter.Rigid.Select(x => x.ModelFile).Distinct().Where(x => _packFileService.FindFile(x) == null))
+                    _lines.Add($"{emitter.Name}: rigid model {model} is not in the loaded packs");
                 if (emitter.Texture is { } texture && _packFileService.FindFile(texture) == null)
                     _lines.Add($"{emitter.Name}: texture {texture} is not in the loaded packs");
                 else if (emitter.Texture is { } found && _textures.Failed(found))
@@ -73,7 +77,7 @@ namespace Editors.VfxEditor.Preview
                 ? ProjectileFlight.WorldAt(ProjectileFlight.Axes[ProjectileAxis].Axis, ProjectileSpeed, LoopLength)
                 : _ => Matrix.Identity;
             _simulator = new ParticleSimulator(settings, Seed, _effectWorldAt, log: _lines.Add);
-            _node = _sceneManager.RootNode.AddObject(new VfxEffectNode("VfxPreview", new ParticleRenderItem(_simulator, _textures, () => _resourceLibrary.GetStaticEffect(ShaderTypes.Particle))));
+            _node = _sceneManager.RootNode.AddObject(new VfxEffectNode("VfxPreview", new ParticleRenderItem(_simulator, _textures, () => _resourceLibrary.GetStaticEffect(ShaderTypes.Particle), _meshes)));
             SetTime(Time);
         }
 
@@ -142,11 +146,28 @@ namespace Editors.VfxEditor.Preview
             _node = null;
         }
 
+        // A rigid particle's model, through the same loader as the guide model; null (and a line) when it is missing or broken.
+        SceneNode? LoadRigid(string path)
+        {
+            if (_packFileService.FindFile(path) is not { } file)
+                return null;
+            try
+            {
+                return _meshLoader.Load(file, new AnimationPlayer(), onlyLoadRootNode: true, onlyLoadFirstMesh: false);
+            }
+            catch (Exception e)
+            {
+                _lines.Add($"rigid model {path} did not load: {e.Message}");
+                return null;
+            }
+        }
+
         public void Dispose()
         {
             Clear();
             ClearModel();
             _textures.Dispose();
+            _meshes.Dispose();
         }
     }
 }

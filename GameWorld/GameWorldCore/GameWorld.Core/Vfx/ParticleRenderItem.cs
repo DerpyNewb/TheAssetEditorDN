@@ -1,5 +1,6 @@
 ﻿using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Rendering;
+using GameWorld.Core.Rendering.RenderItems;
 using GameWorld.Core.Utility;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -18,6 +19,7 @@ namespace GameWorld.Core.Vfx
         private readonly ParticleSimulator _simulator;
         private readonly VfxTextureCache _textureCache;
         private readonly Func<Effect> _shader;
+        private readonly VfxMeshCache? _meshes;
         private Texture2D? _white;
         private RenderTarget2D? _scene;
         private SpriteBatch? _batch;
@@ -25,10 +27,12 @@ namespace GameWorld.Core.Vfx
         public Matrix World { get; set; } = Matrix.Identity;
         public bool IsDisposed { get; private set; }
 
-        /// <summary>shader: Shaders/Particle, asked for at draw time (ResourceLibrary's ShaderTypes.Particle in the app).</summary>
-        public ParticleRenderItem(ParticleSimulator simulator, VfxTextureCache textures, Func<Effect> shader)
+        /// <summary>shader: Shaders/Particle, asked for at draw time (ResourceLibrary's ShaderTypes.Particle in the app).
+        /// meshes: continuous_rigid's models; without it, rigid emitters draw nothing.</summary>
+        public ParticleRenderItem(ParticleSimulator simulator, VfxTextureCache textures, Func<Effect> shader, VfxMeshCache? meshes = null)
         {
             _shader = shader;
+            _meshes = meshes;
             _simulator = simulator;
             _textureCache = textures;
         }
@@ -66,12 +70,16 @@ namespace GameWorld.Core.Vfx
                 .OrderByDescending(x => Vector3.DistanceSquared(Centre(x.States), camera.Position))
                 .ToList();
 
+            // Rigid models first: they are opaque, and write the depth the particles are drawn against.
+            foreach (var (settings, states, _) in emitters.Where(x => x.Settings.Rigid.Count > 0))
+                DrawRigid(device, parameters, renderingTechnique, settings, states);
+
             var glow = renderingTechnique == RenderingTechnique.Emissive;
             var scene = !glow && emitters.Any(x => x.Settings.Distortion) ? CopyScene(device) : null;
             var blendState = device.BlendState;
             var samplerState = device.SamplerStates[0];
             device.SamplerStates[0] = SamplerState.LinearClamp;
-            foreach (var (settings, states, frame) in emitters)
+            foreach (var (settings, states, frame) in emitters.Where(x => x.Settings.Rigid.Count == 0))
                 DrawEmitter(device, _shader(), parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, glow, scene);
             device.BlendState = blendState;
             device.SamplerStates[0] = samplerState;
@@ -322,6 +330,25 @@ namespace GameWorld.Core.Vfx
                 return null;
             }
         };
+
+        // continuous_rigid: each particle draws its model's LOD 0 through the model's own materials, opaque. The chain's colour
+        // and alpha are not applied to it.
+        void DrawRigid(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique technique, EmitterSettings s, IReadOnlyList<ParticleState> states)
+        {
+            if (_meshes == null)
+                return;
+            var blendState = device.BlendState;
+            device.BlendState = BlendState.Opaque;
+            foreach (var p in states)
+            {
+                var entry = s.Rigid[Math.Clamp(p.Model, 0, s.Rigid.Count - 1)];
+                var model = _meshes.Get(entry.ModelFile);
+                var matrix = VfxConventions.RigidMatrix(model.Box, entry.Pivot, p.Size.X, new Vector3(p.TurnXy, p.Angle), p.Position) * World;
+                foreach (var (geometry, material, local) in model.Meshes)
+                    new GeometryRenderItem(geometry, material, local * matrix).Draw(device, parameters, technique);
+            }
+            device.BlendState = blendState;
+        }
 
         // DISTORTION samples what is drawn already, so the bound target is copied first, once a frame. Null on the back buffer.
         Texture2D? CopyScene(GraphicsDevice device)

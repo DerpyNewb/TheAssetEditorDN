@@ -38,6 +38,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
         private readonly IPackFileService _packFileService;
         private readonly VfxTextureCache _vfxTextures;
+        private readonly VfxMeshCache _vfxMeshes;
 
         private static Color s_color = Color.Black;
         private static Color s_selectedColor = Color.Red;
@@ -59,14 +60,41 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
             _packFileService = packFileService;
             _vfxTextures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(packFileService, LogOnce));
+            _vfxMeshes = new VfxMeshCache(LoadRigid);
         }
 
-        public void Dispose() => _vfxTextures.Dispose();
+        public void Dispose()
+        {
+            _vfxTextures.Dispose();
+            _vfxMeshes.Dispose();
+        }
+
+        // A rigid particle's model, through the scene's mesh loader; null (logged once) when it is missing or broken.
+        SceneNode? LoadRigid(string path)
+        {
+            if (_packFileService.FindFile(path) is not { } file)
+            {
+                LogOnce($"rigid model {path} is not in the loaded packs");
+                return null;
+            }
+            try
+            {
+                return _complexMeshLoader.Load(file, new AnimationPlayer(), onlyLoadRootNode: true, onlyLoadFirstMesh: false);
+            }
+            catch (Exception e)
+            {
+                LogOnce($"rigid model {path} did not load: {e.Message}");
+                return null;
+            }
+        }
 
         public void Forget(IEnumerable<string> paths)
         {
             foreach (var path in paths)
+            {
                 _vfxTextures.Forget(path);
+                _vfxMeshes.Forget(path);
+            }
         }
 
         public List<IMetaDataInstance> Create(ParsedMetadataFile? persistent, 
@@ -417,7 +445,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var simulator = new ParticleSimulator(settings, StableSeed(effect), t => offset * boneAt(MainTime(t)), spawnEnd,
                 message => LogOnce($"EFFECT {effect.VfxName}, {message}"));
             var particles = root.AddObject(new VfxEffectNode("Vfx:" + effect.VfxName,
-                new ParticleRenderItem(simulator, _vfxTextures, () => _shaders.GetStaticEffect(ShaderTypes.Particle))));
+                new ParticleRenderItem(simulator, _vfxTextures, () => _shaders.GetStaticEffect(ShaderTypes.Particle), _vfxMeshes)));
 
             var instance = new VfxEffectInstance(node, boneAt, startTime, particles, simulator, loop);
             instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);

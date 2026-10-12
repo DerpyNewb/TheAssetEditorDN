@@ -26,7 +26,11 @@ namespace Shared.GameFormats.Vfx
         }
     }
 
-    public record VfxEmitter(string Id, string Type, IReadOnlyDictionary<string, VfxProperty> Properties);
+    /// <summary>One model a continuous_rigid emitter's particles may be: RigidData's rigid_entry.</summary>
+    public record VfxRigidEntry(string ModelFile, Vector3 Pivot, string? AnimFile);
+
+    /// <summary>Rigid: RigidData's models, a continuous_rigid emitter's; null or empty for any other.</summary>
+    public record VfxEmitter(string Id, string Type, IReadOnlyDictionary<string, VfxProperty> Properties, IReadOnlyList<VfxRigidEntry>? Rigid = null);
 
     public record VfxModifier(string Fragment, IReadOnlyDictionary<string, VfxProperty> Properties, IReadOnlyDictionary<string, string> Textures);
 
@@ -75,7 +79,7 @@ namespace Shared.GameFormats.Vfx
             foreach (var emitter in vfx?.Element("emitters")?.Elements("emitter") ?? [])
             {
                 var properties = Properties(emitter.Elements().Where(x => x.Name.LocalName is "property" or "ranged_property"), tier);
-                file.Emitters.Add(new VfxEmitter((string?)emitter.Attribute("id") ?? "", (string?)emitter.Attribute("type") ?? "", properties));
+                file.Emitters.Add(new VfxEmitter((string?)emitter.Attribute("id") ?? "", (string?)emitter.Attribute("type") ?? "", properties, Rigid(emitter, tier)));
             }
 
             foreach (var chain in vfx?.Element("behaviour_chains")?.Elements("behaviour_chain") ?? [])
@@ -149,6 +153,21 @@ namespace Shared.GameFormats.Vfx
             foreach (var (name, property) in overrides)
                 output[name] = property;
             return output;
+        }
+
+        // RigidData written at the asked tier, else its base.
+        static List<VfxRigidEntry> Rigid(XElement emitter, int tier)
+        {
+            var blocks = emitter.Elements("property_rigid_data").ToList();
+            var asked = tier.ToString(CultureInfo.InvariantCulture);
+            var block = blocks.FirstOrDefault(x => (string?)x.Attribute("quality") == asked) ?? blocks.FirstOrDefault(x => ((string?)x.Attribute("quality") ?? "0") == "0");
+            return block?.Elements("rigid_entry")
+                .Select(entry => new VfxRigidEntry(
+                    (string?)entry.Element("ModelFile")?.Attribute("value") ?? "",
+                    entry.Element("PivotPoint") is { } pivot ? new Vector3(Num(pivot, "x", 0.5f), Num(pivot, "y", 0.5f), Num(pivot, "z", 0.5f)) : new Vector3(0.5f),
+                    (string?)entry.Element("AnimFile")?.Attribute("value") is { Length: > 0 } anim ? anim : null))
+                .Where(x => x.ModelFile.Length > 0)
+                .ToList() ?? [];
         }
 
         static float Num(XElement element, string attribute, float fallback) =>

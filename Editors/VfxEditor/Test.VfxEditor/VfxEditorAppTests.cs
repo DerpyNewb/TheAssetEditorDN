@@ -8,8 +8,12 @@ using Editors.VfxEditor.ViewModels;
 using Editors.VfxEditor.Views;
 using GameWorld.Core.Components;
 using GameWorld.Core.Components.Grid;
+using GameWorld.Core.Components.Rendering;
+using GameWorld.Core.Rendering;
 using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Vfx;
+using GameWorld.Core.WpfWindow;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Shared.Core.Commands;
@@ -20,6 +24,7 @@ using Shared.Core.ToolCreation;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
 using Vector3 = Microsoft.Xna.Framework.Vector3;
+using Xna = Microsoft.Xna.Framework;
 
 namespace Test.VfxEditor
 {
@@ -442,6 +447,41 @@ namespace Test.VfxEditor
             Assert.That((editor.SelectedNode?.Label, editor.EmitterType), Is.EqualTo(("e9 (continuous_rigid)", "continuous_rigid")));
         }
 
+        // A continuous_rigid particle draws its model through the model's own materials, standing where the particle is.
+        [Test]
+        public void A_rigid_particle_draws_its_model()
+        {
+            var (runner, _, preview) = OpenWithAGuideModelOffered();
+            const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
+            var emitter = "\r\n\t\t<emitter type=\"continuous_rigid\" id=\"rigid\">"
+                + "<property name=\"InfiniteLife\" quality=\"0\" value=\"true\"/>"
+                + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>"
+                + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
+                + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
+                + "<property_rigid_data name=\"RigidData\" quality=\"0\"><rigid_entry><ModelFile value=\"" + KarlFranz + "\"/><PivotPoint x=\"0.50\" y=\"0.50\" z=\"0.50\"/><AnimFile value=\"\"/><AnimSpeed value=\"1.00\"/></rigid_entry></property_rigid_data>"
+                + "\r\n\t\t</emitter>";
+            preview.Show("rigid", Fixtures.Utf16(Fixtures.Effect(emitters: emitter, chains: "", stacks: "", references: "")), 0);
+            preview.SetTime(0.5f);
+
+            var item = runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode.Children.OfType<VfxEffectNode>().Single().RenderItem;
+            var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
+            var eye = new Vector3(0, 0, 4);
+            var camera = new CommonShaderParameters(Xna.Matrix.CreateLookAt(eye, Vector3.Zero, Vector3.Up),
+                Xna.Matrix.CreatePerspectiveFieldOfView(Xna.MathHelper.PiOver4, 1, 0.1f, 100), eye, Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+            using var target = new RenderTarget2D(device, 64, 64, false, SurfaceFormat.Color, DepthFormat.Depth24, 0, RenderTargetUsage.PreserveContents);
+            device.SetRenderTarget(target);
+            device.Clear(Xna.Color.Transparent);
+            device.DepthStencilState = DepthStencilState.Default;
+            device.RasterizerState = RasterizerState.CullNone;
+            item.Draw(device, camera, RenderingTechnique.Normal);
+            device.SetRenderTarget(null);
+            var pixels = new Xna.Color[64 * 64];
+            target.GetData(pixels);
+            Assert.That(pixels.Count(x => x != Xna.Color.Transparent), Is.GreaterThan(100), string.Join("; ", preview.Lines));
+        }
+
+        const string KarlFranz = @"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2";
+
         // vfx\fx.xml open in the editor, with Karl Franz's model as what the pack browser will hand back.
         static (AssetEditorTestRunner, VfxEditorViewModel, VfxPreviewComponent) OpenWithAGuideModelOffered()
         {
@@ -451,7 +491,7 @@ namespace Test.VfxEditor
             var source = runner.CreateEmptyPackFile("source", false);
             runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
             runner.CreateOutputPack();
-            var model = runner.PackFileService.FindFile(@"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2")!;
+            var model = runner.PackFileService.FindFile(KarlFranz)!;
             runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, model));
             var editor = Open(runner);
             return (runner, editor, runner.GetRequiredServiceInCurrentEditorScope<VfxPreviewComponent>());

@@ -118,6 +118,11 @@ namespace GameWorld.Core.Vfx
         public bool Decal { get; set; }
         /// <summary>The stack is DISTORTION: the chain's normal map shifts the scene behind it.</summary>
         public bool Distortion { get; set; }
+        /// <summary>continuous_rigid: the models a particle may be, and its orientation and spin about X and Y (Angle and Spin are Z).</summary>
+        public IReadOnlyList<VfxRigidEntry> Rigid { get; set; } = [];
+        public (Vector2 Min, Vector2 Max) TurnXy { get; set; }
+        public (Vector2 Min, Vector2 Max) SpinXy { get; set; }
+        public Vector2 SpinSignXy { get; set; } = Vector2.One;
         /// <summary>ps_alpha_crush: a particle's crush level over its life, and whether it cuts sharp.</summary>
         public VfxCurve? AlphaCrush { get; set; }
         public bool CrushSharp { get; set; }
@@ -204,13 +209,24 @@ namespace GameWorld.Core.Vfx
             s.Angle = (Z("ParticleOrientationMin"), Z("ParticleOrientationMax"));
             s.Spin = (Z("ParticleSpin_Min"), Z("ParticleSpin_Max"));
             s.SpinSign = VfxConventions.SpinSign(P("ParticleSpinDirectionZ")?.Value);
+            s.TurnXy = (Xy("ParticleOrientationMin"), Xy("ParticleOrientationMax"));
+            s.SpinXy = (Xy("ParticleSpin_Min"), Xy("ParticleSpin_Max"));
+            s.SpinSignXy = new Vector2(VfxConventions.SpinSign(P("ParticleSpinDirectionX")?.Value), VfxConventions.SpinSign(P("ParticleSpinDirectionY")?.Value));
 
             s.Scale = ParseCurve(s, P("ParticleScale"));
             s.Deceleration = ParseCurve(s, P("ParticleDeceleration"));
             s.SpinDeceleration = ParseCurve(s, P("ParticleSpinDeceleration"));
             s.Forces = [ParseCurve(s, P("ForceA")), ParseCurve(s, P("ForceB")), ParseCurve(s, P("ForceC"))];
 
-            if (resolved.Emitter.Type != "continuous_mesh")
+            if (resolved.Emitter.Type == "continuous_rigid")
+            {
+                s.Rigid = resolved.Emitter.Rigid ?? [];
+                if (s.Rigid.Count == 0)
+                    NotDrawn(s, "its RigidData names no model, so there is nothing to draw");
+                foreach (var anim in s.Rigid.Select(x => x.AnimFile).OfType<string>().Distinct())
+                    s.Skipped.Add($"rigid model animation {anim} is not played: the model holds its bind pose");
+            }
+            else if (resolved.Emitter.Type != "continuous_mesh")
                 NotDrawn(s, $"emitter type {resolved.Emitter.Type} is not drawn in step 1");
             if (resolved.SceneViewType is "DEFERRED_DECAL" or "DEFERRED_DECAL_EMISSIVE" or "SEA_OVERLAY")
                 s.Decal = true;
@@ -243,9 +259,11 @@ namespace GameWorld.Core.Vfx
 
         static void ReadChain(EmitterSettings s, VfxBehaviourChain? chain, string? materialTexture)
         {
+            // A rigid particle draws its model, chain or no chain.
             if (chain == null)
             {
-                NotDrawn(s, "no behaviour chain block at this quality tier, so nothing to draw");
+                if (s.Rigid.Count == 0)
+                    NotDrawn(s, "no behaviour chain block at this quality tier, so nothing to draw");
                 return;
             }
             foreach (var modifier in chain.Modifiers.Where(x => !s_knownFragments.Contains(x.Fragment)))
@@ -271,7 +289,7 @@ namespace GameWorld.Core.Vfx
                 else
                     s.Skipped.Add($"fragment ps_custom_shader: {material} is drawn with its colour texture {materialTexture}, not its own shader");
             }
-            else if (texture == null && s.Draws)
+            else if (texture == null && s.Draws && s.Rigid.Count == 0)
                 NotDrawn(s, "the chain has no ps_texture, so nothing is drawn: in vanilla only sound carriers lack one");
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;
             s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);

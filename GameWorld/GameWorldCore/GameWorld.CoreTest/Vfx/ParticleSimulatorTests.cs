@@ -205,6 +205,28 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(states.Count(p => p.FlipV), Is.InRange(states.Count / 4, states.Count * 3 / 4));
         }
 
+        // A rigid particle turns on every axis: X and Y drawn in their ranges and spun on by their own signs; with two models,
+        // each particle picks one.
+        [Test]
+        public void RigidParticles_TurnOnEveryAxis_AndPickAModel()
+        {
+            var rigid = Steady(x =>
+            {
+                x.Rigid = [new("a.wsmodel", new Vector3(0.5f), null), new("b.wsmodel", new Vector3(0.5f), null)];
+                x.TurnXy = (new Vector2(10, 20), new Vector2(10, 20));
+                x.SpinXy = (new Vector2(90, 0), new Vector2(90, 0));
+                x.SpinSignXy = new Vector2(-1, 1);
+            });
+            var simulator = Run(rigid, 1);
+            var pairs = simulator.Emitters[0].Particles.Zip(States(simulator)).ToList();
+            Assert.Multiple(() =>
+            {
+                Assert.That(pairs.Select(x => x.Second.TurnXy.X - MathHelper.ToRadians(10 - 90 * x.First.Age)), Is.All.EqualTo(0).Within(1e-4));
+                Assert.That(pairs.Select(x => x.Second.TurnXy.Y), Is.All.EqualTo(MathHelper.ToRadians(20)).Within(1e-5));
+                Assert.That(pairs.Select(x => x.Second.Model).Distinct().Order(), Is.EqualTo(new[] { 0, 1 }));
+            });
+        }
+
         // ps_alpha_crush: each particle carries its crush level, off the curve over its life.
         [Test]
         public void AlphaCrush_IsCarriedByEachParticle()

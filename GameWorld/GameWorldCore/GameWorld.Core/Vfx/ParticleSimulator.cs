@@ -22,10 +22,13 @@ namespace GameWorld.Core.Vfx
         // Drawn only when the emitter collides, so an emitter that does not keeps its random sequence.
         public float Bounce, Damping;
         public bool FlipU, FlipV;
+        // Drawn only for a rigid emitter: its model, and its turn and spin about X and Y.
+        public int Model;
+        public Vector2 TurnXy, SpinXy;
     }
 
     /// <summary>A particle as drawn now, in the effect's model space.</summary>
-    public readonly record struct ParticleState(Vector3 Position, Vector3 Velocity, Vector2 Size, float Angle, Vector3 Colour, float Alpha, float Stretch, int Cell, bool FlipU = false, bool FlipV = false, int NextCell = 0, float CellBlend = 0, float Crush = 0);
+    public readonly record struct ParticleState(Vector3 Position, Vector3 Velocity, Vector2 Size, float Angle, Vector3 Colour, float Alpha, float Stretch, int Cell, bool FlipU = false, bool FlipV = false, int NextCell = 0, float CellBlend = 0, float Crush = 0, Vector2 TurnXy = default, int Model = 0);
 
     public class EmitterRuntime
     {
@@ -297,6 +300,13 @@ namespace GameWorld.Core.Vfx
                 p.FlipU = Next() < s.FlipU;
             if (s.FlipV > 0)
                 p.FlipV = Next() < s.FlipV;
+            if (s.Rigid.Count > 0)
+            {
+                Vector2 Draw2((Vector2 Min, Vector2 Max) range) => new(MathHelper.Lerp(range.Min.X, range.Max.X, Next()), MathHelper.Lerp(range.Min.Y, range.Max.Y, Next()));
+                p.TurnXy = Draw2(s.TurnXy) * (MathF.PI / 180);
+                p.SpinXy = s.SpinSignXy * Draw2(s.SpinXy) * (MathF.PI / 180);
+                p.Model = Math.Min((int)(Next() * s.Rigid.Count), s.Rigid.Count - 1);
+            }
             e.Particles.Add(p);
         }
 
@@ -323,7 +333,10 @@ namespace GameWorld.Core.Vfx
                     p.Position += p.Velocity * dt + force * (dt * dt / 2);
                 p.Velocity = (p.Velocity + force * dt) * VfxConventions.Drag(s.Deceleration?.Evaluate(0, v, p.RDeceleration) ?? 0, dt);
                 p.Angle += p.Spin * dt;
-                p.Spin *= VfxConventions.Drag(s.SpinDeceleration?.Evaluate(0, v, p.RSpinDeceleration) ?? 0, dt);
+                p.TurnXy += p.SpinXy * dt;
+                var spinDrag = VfxConventions.Drag(s.SpinDeceleration?.Evaluate(0, v, p.RSpinDeceleration) ?? 0, dt);
+                p.Spin *= spinDrag;
+                p.SpinXy *= spinDrag;
                 if (s.Collisions && !s.SkipPositionUpdate)
                     Collide(s.Space, world, ref p);
                 e.Particles[i] = p;
@@ -374,7 +387,7 @@ namespace GameWorld.Core.Vfx
                 var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W;
                 var (cell, next, blend) = s.Animated ? VfxConventions.FlipbookFrame(s.CellsX * s.CellsY, v, p.Age, p.Loops, s.FixedSpeed, s.FlipbookLoop) : (s.RandomCell ? p.Cell : s.Cell, 0, 0f);
                 yield return new ParticleState(position, velocity, size, p.Angle, colour, alpha, s.Stretch?.Evaluate(0, v, p.RStretch) ?? 0, cell, p.FlipU, p.FlipV, next, s.CellBlend ? blend : 0,
-                    s.AlphaCrush?.Evaluate(0, v, p.RAlpha) ?? 0);
+                    s.AlphaCrush?.Evaluate(0, v, p.RAlpha) ?? 0, p.TurnXy, p.Model);
             }
         }
 

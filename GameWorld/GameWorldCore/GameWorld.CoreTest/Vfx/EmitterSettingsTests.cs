@@ -54,6 +54,22 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(ripple.Skipped, Has.One.Matches<string>(x => x.Contains("DISTORTION")));
         }
 
+        // A continuous_rigid emitter draws its RigidData models, with or without a chain; an AnimFile is not played, and
+        // says so. Its orientation and spin are read on all three axes.
+        [Test]
+        public void RigidEmitter_DrawsItsModels_TurningOnEveryAxis()
+        {
+            var properties = """<property_rigid_data name="RigidData" quality="0"><rigid_entry><ModelFile value="vfx/models/rat.wsmodel"/><PivotPoint x="0.50" y="0.50" z="0.50"/><AnimFile value="animations/rat.anim"/><AnimSpeed value="1.00"/></rigid_entry></property_rigid_data><property name="ParticleOrientationMin" quality="0" x="10.00" y="20.00" z="30.00"/><property name="ParticleOrientationMax" quality="0" x="40.00" y="50.00" z="60.00"/><property name="ParticleSpin_Min" quality="0" x="1.00" y="2.00" z="3.00"/><property name="ParticleSpin_Max" quality="0" x="4.00" y="5.00" z="6.00"/><property name="ParticleSpinDirectionX" quality="0" value="CW"/>""";
+            var rat = Read(Emitter("rat", properties).Replace("continuous_mesh", "continuous_rigid"), "").Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That(rat.Draws, Is.True);
+                Assert.That(rat.Rigid.Select(x => x.ModelFile), Is.EqualTo(new[] { "vfx/models/rat.wsmodel" }));
+                Assert.That((rat.TurnXy, rat.SpinXy, rat.SpinSignXy), Is.EqualTo(((new Vector2(10, 20), new Vector2(40, 50)), (new Vector2(1, 2), new Vector2(4, 5)), new Vector2(-1, 1))));
+                Assert.That(rat.Skipped, Has.One.Matches<string>(x => x.Contains("animations/rat.anim")));
+            });
+        }
+
         // A DISTORTION chain names only a normal map; that is what it draws with.
         [Test]
         public void DistortionStack_DrawsWithItsNormalMap()

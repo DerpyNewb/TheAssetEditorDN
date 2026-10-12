@@ -1,5 +1,6 @@
 ﻿using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Rendering;
+using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Vfx;
 using System.IO;
 using Microsoft.Xna.Framework;
@@ -234,6 +235,29 @@ namespace GameWorld.Core.Test.Vfx
                 item.Draw(_device, close, RenderingTechnique.Normal);
             });
             Assert.That(new[] { pixel.X, pixel.Z }, Is.EqualTo(new[] { red, blue }).Within(0.05));
+        }
+
+        // A rigid particle's model: its pivot (a share of its box) on the particle, scaled by its size, turned X, Y, then Z.
+        [Test]
+        public void RigidMatrix_PutsThePivotOnTheParticle()
+        {
+            var box = new BoundingBox(Vector3.Zero, new Vector3(2, 4, 2));
+            var m = VfxConventions.RigidMatrix(box, new Vector3(0.5f, 0, 0.5f), 3, new Vector3(0, MathHelper.PiOver2, 0), new Vector3(10, 0, 0));
+            Assert.That(Vector3.Distance(Vector3.Transform(new Vector3(1, 0, 1), m), new Vector3(10, 0, 0)), Is.LessThan(1e-4), "the pivot");
+            Assert.That(Vector3.Distance(Vector3.Transform(new Vector3(2, 0, 1), m), new Vector3(10, 0, -3)), Is.LessThan(1e-4), "+X a metre off, scaled 3, turned to -Z");
+        }
+
+        // Each model is loaded once per editor, a miss included; one that loads with no meshes draws nothing.
+        [Test]
+        public void MeshCache_LoadsEachModelOnce()
+        {
+            var loads = 0;
+            using var cache = new VfxMeshCache(path => { loads++; return path == "missing" ? null : new GroupNode("empty"); });
+            cache.Get("vfx/a.wsmodel");
+            cache.Get(@"VFX\A.wsmodel");
+            cache.Get("missing");
+            cache.Get("missing");
+            Assert.That((loads, cache.Get("vfx/a.wsmodel").Meshes.Count), Is.EqualTo((2, 0)));
         }
 
         // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with

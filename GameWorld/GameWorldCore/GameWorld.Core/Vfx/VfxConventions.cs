@@ -124,6 +124,13 @@ namespace GameWorld.Core.Vfx
         /// a full reading moving it this many metres at the quad's distance. The game's scale is not measured.</summary>
         public const float DistortionMetres = 0.25f;
 
+        /// <summary>continuous_rigid (2,925 vanilla emitters): each particle is a model, a wsmodel in 2,745 of 2,936 RigidData
+        /// entries. PivotPoint is read as a share of the model's box (0.5, 0.5, 0.5 in 2,701 entries: its middle) put on the
+        /// particle; the particle's width scales it evenly, and it turns about X, then Y, then Z (radians), as references do.</summary>
+        public static Matrix RigidMatrix(BoundingBox box, Vector3 pivot, float scale, Vector3 turn, Vector3 position) =>
+            Matrix.CreateTranslation(-(box.Min + pivot * (box.Max - box.Min))) * Matrix.CreateScale(scale)
+            * Matrix.CreateRotationX(turn.X) * Matrix.CreateRotationY(turn.Y) * Matrix.CreateRotationZ(turn.Z) * Matrix.CreateTranslation(position);
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 

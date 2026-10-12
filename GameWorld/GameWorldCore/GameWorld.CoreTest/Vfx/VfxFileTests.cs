@@ -20,6 +20,19 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(VfxFile.Parse(bytes).Emitters[0].Properties["A"].Value, Is.EqualTo("1"));
         }
 
+        // continuous_rigid particles are meshes: RigidData lists the models, one picked per particle.
+        [Test]
+        public void Rigid_data_lists_each_model_with_its_pivot_and_animation()
+        {
+            var rigid = """<property_rigid_data name="RigidData" quality="0"><rigid_entry><ModelFile value="vfx/models/rock.wsmodel"/><PivotPoint x="0.50" y="0.25" z="0.50"/><AnimFile value=""/><AnimSpeed value="1.00"/></rigid_entry><rigid_entry><ModelFile value="vfx/models/rat.wsmodel"/><PivotPoint x="0.50" y="0.50" z="0.50"/><AnimFile value="animations/rat.anim"/><AnimSpeed value="1.00"/></rigid_entry></property_rigid_data>""";
+            var emitter = VfxFile.Parse(VfxTestFiles.Xml(emitters: VfxTestFiles.Emitter("e", rigid))).Emitters[0];
+            Assert.That(emitter.Rigid, Is.EqualTo(new[]
+            {
+                new VfxRigidEntry("vfx/models/rock.wsmodel", new Vector3(0.5f, 0.25f, 0.5f), null),
+                new VfxRigidEntry("vfx/models/rat.wsmodel", new Vector3(0.5f), "animations/rat.anim"),
+            }));
+        }
+
         // No vanilla chain lacks a value="0" block; one a modder wrote without it draws nothing at Ultra in game.
         [Test]
         public void Ultra_reads_no_other_tiers_block()
