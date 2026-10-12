@@ -75,6 +75,13 @@ namespace Test.VfxEditor
 
         public static readonly string Default = Effect();
 
+        /// <summary>Default with Terry's editor_data the way vanilla writes it: a component per emitter and per reference.</summary>
+        public static readonly string WithComponents = Default.Replace("<editor_data>\r\n</editor_data>",
+            "<editor_data>\r\n\t<effect_components>\r\n\t\t<component id=\"e1\"/>\r\n\t\t<component id=\"xref\"/>\r\n\t</effect_components>\r\n</editor_data>");
+
+        public static IEnumerable<string?> Components(VfxDocument document) =>
+            document.Root.Child("editor_data")!.Child("effect_components")!.Children.Select(c => c.Attr("id"));
+
         public static byte[] Utf16(string text) => [0xFF, 0xFE, .. Encoding.Unicode.GetBytes(text)];
 
         public static VfxDocument Document(string? text = null) => VfxDocument.Load(Utf16(text ?? Default));

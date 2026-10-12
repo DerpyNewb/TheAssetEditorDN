@@ -331,6 +331,26 @@ namespace Test.VfxEditor
             Assert.That(ListHeight(), Is.GreaterThan(10));
         }
 
+        // Rename takes the id across the emitter's records and keeps its node picked; the type picker writes its type.
+        [Test]
+        public void An_emitter_is_renamed_and_retyped_from_its_node()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            var editor = Open(runner);
+            editor.SelectedNode = editor.Tree[1].Children[0];
+
+            editor.NewEmitterId = "e9";
+            editor.RenameEmitterCommand.Execute(null);
+            Assert.That(editor.SelectedNode?.Label, Is.EqualTo("e9 (continuous_mesh)"));
+            Assert.That(editor.Status, Does.Contain("still names e1"));
+
+            Assert.That(editor.EmitterTypes, Is.EqualTo(new[] { "continuous_mesh", "continuous_rigid" }));
+            editor.EmitterType = "continuous_rigid";
+            Assert.That((editor.SelectedNode?.Label, editor.EmitterType), Is.EqualTo(("e9 (continuous_rigid)", "continuous_rigid")));
+        }
+
         // vfx\fx.xml open in the editor, with Karl Franz's model as what the pack browser will hand back.
         static (AssetEditorTestRunner, VfxEditorViewModel, VfxPreviewComponent) OpenWithAGuideModelOffered()
         {

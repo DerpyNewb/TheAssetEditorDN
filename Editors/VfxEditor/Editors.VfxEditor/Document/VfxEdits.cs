@@ -8,8 +8,20 @@ namespace Editors.VfxEditor.Document
     {
         static readonly string[] s_emitterSections = ["emitters", "behaviour_chains", "effect_render_stacks"];
 
+        /// <summary>The emitter types vanilla uses: 11,726 continuous_mesh and 2,925 continuous_rigid, nothing else.</summary>
+        public static readonly string[] EmitterTypes = ["continuous_mesh", "continuous_rigid"];
+
         static SpanElement Required(VfxDocument document, string section) =>
             document.Section(section) ?? throw new InvalidOperationException($"the file has no <{section}>");
+
+        // editor_data: Terry's list of the file's parts, a <component id> per emitter and per reference's inst_name. The game
+        // does not read it; edits keep it in step so the file stays one Terry would write.
+        static SpanElement? Components(VfxDocument document) => document.Root.Child("editor_data")?.Child("effect_components");
+
+        static SpanElement? Component(VfxDocument document, string id) =>
+            Components(document)?.ChildrenNamed("component").FirstOrDefault(c => c.Attr("id") == id);
+
+        static string ComponentXml(string id) => $"<component id=\"{XmlText.EscapeAttribute(id, '"')}\"/>";
 
         // Properties of an emitter or render stack
 
@@ -80,19 +92,42 @@ namespace Editors.VfxEditor.Document
         /// each after its original.</summary>
         public static List<Splice> DuplicateEmitter(VfxDocument document, string id, string newId)
         {
+            CheckNewId(document, id, newId);
+            var splices = s_emitterSections.Select(s => document.ById(s, id)).OfType<SpanElement>()
+                .Select(r => document.InsertAfter(r, VfxDocument.Rewrite(document.RawOf(r), (d, e) => [d.SetAttribute(e, "id", newId)])))
+                .ToList();
+            if (Component(document, id) is { } component)
+                splices.Add(document.InsertAfter(component, ComponentXml(newId)));
+            else if (Components(document) is { } components)
+                splices.Add(document.InsertInto(components, ComponentXml(newId)));
+            return splices;
+        }
+
+        /// <summary>The emitter, its chain, its render stack and its editor component, all under the new id. A reference to
+        /// this effect in another file still names the old one.</summary>
+        public static List<Splice> RenameEmitter(VfxDocument document, string id, string newId)
+        {
+            CheckNewId(document, id, newId);
+            return s_emitterSections.Select(s => document.ById(s, id)).Append(Component(document, id)).OfType<SpanElement>()
+                .Select(r => document.SetAttribute(r, "id", newId)).ToList();
+        }
+
+        static void CheckNewId(VfxDocument document, string id, string newId)
+        {
             if (string.IsNullOrWhiteSpace(newId) || newId != newId.Trim())
                 throw new ArgumentException("an id cannot be empty or start or end with a space");
             if (document.ById("emitters", id) == null)
                 throw new ArgumentException($"there is no emitter {id}");
-            if (s_emitterSections.Any(s => document.ById(s, newId) != null))
+            if (s_emitterSections.Any(s => document.ById(s, newId) != null) || Component(document, newId) != null)
                 throw new ArgumentException($"{newId} is already an id in this file");
-            return s_emitterSections.Select(s => document.ById(s, id)).OfType<SpanElement>()
-                .Select(r => document.InsertAfter(r, VfxDocument.Rewrite(document.RawOf(r), (d, e) => [d.SetAttribute(e, "id", newId)])))
-                .ToList();
         }
 
+        public static Splice SetEmitterType(VfxDocument document, string id, string type) => EmitterTypes.Contains(type)
+            ? document.SetAttribute(document.ById("emitters", id) ?? throw new ArgumentException($"there is no emitter {id}"), "type", type)
+            : throw new ArgumentException($"{type} is not an emitter type vanilla uses: {string.Join(" or ", EmitterTypes)}");
+
         public static List<Splice> RemoveEmitter(VfxDocument document, string id) =>
-            s_emitterSections.Select(s => document.ById(s, id)).OfType<SpanElement>().Select(document.Remove).ToList();
+            s_emitterSections.Select(s => document.ById(s, id)).Append(Component(document, id)).OfType<SpanElement>().Select(document.Remove).ToList();
 
         // References
 
@@ -115,16 +150,35 @@ namespace Editors.VfxEditor.Document
         /// <summary>A reference to `target` with a row, switched on, for each of its emitters (planning ruling: CA's most
         /// common row is switched off, but on shows the target at once).</summary>
         /// <summary>A file with no &lt;vfx_references&gt; gains one after &lt;vfx&gt;, where every vanilla file has it.</summary>
-        public static Splice AddReference(VfxDocument document, string target, IReadOnlyList<string> targetEmitters)
+        public static List<Splice> AddReference(VfxDocument document, string target, IReadOnlyList<string> targetEmitters)
         {
             var attributes = ReferenceDefaults.Select(a => a.Name == "vfx_ref" ? (a.Name, target) : a);
             var start = "<vfx " + string.Join(' ', attributes.Select(a => $"{a.Name}=\"{XmlText.EscapeAttribute(a.Item2, '"')}\"")) + ">";
             var rows = targetEmitters.Select(e => OverrideRow(e)).ToList();
+            var splices = new List<Splice>();
             if (document.Section("vfx_references") is { } references)
-                return document.InsertInto(references, VfxDocument.Wrap(start, rows, "</vfx>", document.ChildBreak(references)));
-            var vfx = document.Root.Child("vfx") ?? throw new InvalidOperationException("the file has no <vfx>");
-            var nl = document.Text.Contains("\r\n") ? "\r\n" : "\n";
-            return new Splice(vfx.End, vfx.End, $"{nl}<vfx_references>{nl}\t{VfxDocument.Wrap(start, rows, "</vfx>", nl + "\t")}{nl}</vfx_references>");
+                splices.Add(document.InsertInto(references, VfxDocument.Wrap(start, rows, "</vfx>", document.ChildBreak(references))));
+            else
+            {
+                var vfx = document.Root.Child("vfx") ?? throw new InvalidOperationException("the file has no <vfx>");
+                var nl = document.Text.Contains("\r\n") ? "\r\n" : "\n";
+                splices.Add(new Splice(vfx.End, vfx.End, $"{nl}<vfx_references>{nl}\t{VfxDocument.Wrap(start, rows, "</vfx>", nl + "\t")}{nl}</vfx_references>"));
+            }
+            var instName = ReferenceDefaults[0].Value;
+            if (Components(document) is { } components && Component(document, instName) == null)
+                splices.Add(document.InsertInto(components, ComponentXml(instName)));
+            return splices;
+        }
+
+        /// <summary>The reference, and its editor component when no other reference or emitter shares its name.</summary>
+        public static List<Splice> RemoveReference(VfxDocument document, SpanElement reference)
+        {
+            var splices = new List<Splice> { document.Remove(reference) };
+            var name = reference.Attr("inst_name") ?? "";
+            var shared = document.Section("vfx_references")!.ChildrenNamed("vfx").Count(r => r.Attr("inst_name") == name) > 1 || document.ById("emitters", name) != null;
+            if (!shared && Component(document, name) is { } component)
+                splices.Add(document.Remove(component));
+            return splices;
         }
 
         public static Splice AddOverride(VfxDocument document, SpanElement reference, string emitterName) => document.InsertInto(reference, OverrideRow(emitterName));

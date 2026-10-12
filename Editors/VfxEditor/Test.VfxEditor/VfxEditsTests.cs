@@ -78,6 +78,45 @@ namespace Test.VfxEditor
         }
 
         [Test]
+        public void A_renamed_emitter_takes_its_chain_stack_and_editor_component_with_it()
+        {
+            var d = Fixtures.Document(Fixtures.WithComponents);
+            d.Apply(VfxEdits.RenameEmitter(d, "e1", "e9"));
+            foreach (var section in new[] { "emitters", "behaviour_chains", "effect_render_stacks" })
+                Assert.That(d.Section(section)!.Children.Select(c => c.Attr("id")), Is.EqualTo(new[] { "e9" }), section);
+            Assert.That(Fixtures.Components(d), Is.EqualTo(new[] { "e9", "xref" }));
+            Assert.Throws<ArgumentException>(() => VfxEdits.RenameEmitter(d, "e9", "xref"), "an id the editor data already lists");
+            Assert.Throws<ArgumentException>(() => VfxEdits.RenameEmitter(d, "e9", " e3"));
+        }
+
+        // Terry lists every emitter and reference in editor_data; the game ignores it, but a file whose list is out of step is
+        // not one Terry wrote.
+        [Test]
+        public void Duplicating_removing_and_referencing_keep_the_editor_components_in_step()
+        {
+            var d = Fixtures.Document(Fixtures.WithComponents);
+            d.Apply(VfxEdits.DuplicateEmitter(d, "e1", "e2"));
+            Assert.That(Fixtures.Components(d), Is.EqualTo(new[] { "e1", "e2", "xref" }));
+            d.Apply(VfxEdits.RemoveEmitter(d, "e1"));
+            Assert.That(Fixtures.Components(d), Is.EqualTo(new[] { "e2", "xref" }));
+            d.Apply(VfxEdits.AddReference(d, "wh_main_lib_trail", ["t1"]));
+            Assert.That(Fixtures.Components(d), Is.EqualTo(new[] { "e2", "xref" }), "the new reference is another xref");
+            d.Apply(VfxEdits.RemoveReference(d, d.Section("vfx_references")!.Children[0]));
+            Assert.That(Fixtures.Components(d), Is.EqualTo(new[] { "e2", "xref" }), "one xref is left");
+            d.Apply(VfxEdits.RemoveReference(d, d.Section("vfx_references")!.Children[0]));
+            Assert.That(Fixtures.Components(d), Is.EqualTo(new[] { "e2" }));
+        }
+
+        [Test]
+        public void An_emitter_type_is_one_of_vanillas_two()
+        {
+            var d = Fixtures.Document();
+            d.Apply([VfxEdits.SetEmitterType(d, "e1", "continuous_rigid")]);
+            Assert.That(Fixtures.Emitter(d).Attr("type"), Is.EqualTo("continuous_rigid"));
+            Assert.Throws<ArgumentException>(() => VfxEdits.SetEmitterType(d, "e1", "burst"));
+        }
+
+        [Test]
         public void Removing_a_property_linked_removes_every_tier()
         {
             var d = Fixtures.Document();
@@ -127,7 +166,7 @@ namespace Test.VfxEditor
         public void A_new_reference_lists_every_emitter_of_its_target()
         {
             var d = Fixtures.Document();
-            d.Apply([VfxEdits.AddReference(d, "wh_main_lib_trail", ["t1", "t2"])]);
+            d.Apply(VfxEdits.AddReference(d, "wh_main_lib_trail", ["t1", "t2"]));
             var reference = d.Section("vfx_references")!.Children[^1];
             Assert.That(reference.Attributes.Select(a => a.Name), Is.EqualTo(VfxEdits.ReferenceDefaults.Select(a => a.Name)));
             Assert.That(reference.Attr("vfx_ref"), Is.EqualTo("wh_main_lib_trail"));
@@ -143,7 +182,7 @@ namespace Test.VfxEditor
             var d = Fixtures.Document(Fixtures.Default.Remove(start, end - start));
             Assert.That(d.Section("vfx_references"), Is.Null);
 
-            d.Apply([VfxEdits.AddReference(d, "wh_main_lib_trail", ["t1"])]);
+            d.Apply(VfxEdits.AddReference(d, "wh_main_lib_trail", ["t1"]));
 
             Assert.That(d.Section("vfx_references")!.ChildrenNamed("vfx").Single().Attr("vfx_ref"), Is.EqualTo("wh_main_lib_trail"));
             Assert.That(d.Text, Does.Contain("</vfx>\r\n<vfx_references>\r\n\t<vfx inst_name="));

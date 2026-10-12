@@ -24,7 +24,7 @@ namespace Editors.VfxEditor.ViewModels
     public sealed partial class VfxEditorViewModel : ObservableObject, IEditorInterface, IFileEditor, ISaveableEditor, IDisposable
     {
         static readonly string[] s_nodeFlags = [nameof(IsEmitterNode), nameof(IsChainNode), nameof(IsModifierNode), nameof(IsReferencesNode),
-            nameof(IsReferenceNode), nameof(IsOverrideNode), nameof(CanAddProperty), nameof(IsBlockMissing)];
+            nameof(IsReferenceNode), nameof(IsOverrideNode), nameof(CanAddProperty), nameof(IsBlockMissing), nameof(EmitterType)];
 
         readonly ILogger _logger = Logging.Create<VfxEditorViewModel>();
         readonly VfxFileSession _session;
@@ -490,6 +490,31 @@ namespace Editors.VfxEditor.ViewModels
             Edit(document => VfxEdits.DuplicateEmitter(document, document.At(node.Path).Attr("id") ?? "", newId));
         }
 
+        public IReadOnlyList<string> EmitterTypes => VfxEdits.EmitterTypes;
+
+        public string? EmitterType
+        {
+            get => SelectedNode is { Kind: NodeKind.Emitter } node && _session.Document is { } document ? document.At(node.Path).Attr("type") : null;
+            set
+            {
+                if (value != null && value != EmitterType && SelectedNode is { Kind: NodeKind.Emitter } node)
+                    Edit(document => [VfxEdits.SetEmitterType(document, document.At(node.Path).Attr("id") ?? "", value)]);
+            }
+        }
+
+        [RelayCommand]
+        void RenameEmitter()
+        {
+            if (SelectedNode is not { Kind: NodeKind.Emitter } node || _session.Document is not { } current)
+                return;
+            var (id, newId) = (current.At(node.Path).Attr("id") ?? "", NewEmitterId);
+            if (!Edit(document => VfxEdits.RenameEmitter(document, id, newId)))
+                return;
+            if (All(Tree).FirstOrDefault(n => n.Key == "emitter:" + newId) is { } renamed)
+                (renamed.IsSelected, SelectedNode) = (true, renamed);
+            Status = $"{id} renamed {newId}; a reference to this effect from another file still names {id}";
+        }
+
         [RelayCommand]
         void RemoveEmitter()
         {
@@ -514,7 +539,7 @@ namespace Editors.VfxEditor.ViewModels
                 Status = $"{GameWorld.Core.Vfx.VfxResolver.PathOf(target)} is not in the loaded packs, or does not read";
                 return;
             }
-            Edit(document => [VfxEdits.AddReference(document, target, ids)]);
+            Edit(document => VfxEdits.AddReference(document, target, ids));
         }
 
         [RelayCommand]
@@ -522,7 +547,7 @@ namespace Editors.VfxEditor.ViewModels
         {
             if (SelectedNode is not { Kind: NodeKind.Reference } node)
                 return;
-            Edit(document => [document.Remove(document.At(node.Path))]);
+            Edit(document => VfxEdits.RemoveReference(document, document.At(node.Path)));
         }
 
         [RelayCommand]

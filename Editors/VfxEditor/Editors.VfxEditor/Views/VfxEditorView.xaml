@@ -121,7 +121,14 @@
                             <TextBox Text="{Binding NewEmitterId, UpdateSourceTrigger=PropertyChanged}" Width="220"/>
                             <Button Content="Duplicate emitter" Command="{Binding DuplicateEmitterCommand}" Margin="4,0,0,0" Padding="6,0"
                                     ToolTip="Copies the emitter, its behaviour chain and its render stack under this id"/>
+                            <Button Content="Rename" Command="{Binding RenameEmitterCommand}" Margin="4,0,0,0" Padding="6,0"
+                                    ToolTip="Gives the emitter, its behaviour chain and its render stack this id. A reference to this effect from another file keeps the old one."/>
                             <Button Content="Remove emitter" Command="{Binding RemoveEmitterCommand}" Margin="4,0,0,0" Padding="6,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsEmitterNode, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Type" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox ItemsSource="{Binding EmitterTypes}" SelectedItem="{Binding EmitterType}" Width="160"
+                                      ToolTip="continuous_mesh draws quads; continuous_rigid draws models. Vanilla uses no other type."/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding IsReferencesNode, Converter={StaticResource BoolToVis}}">
                             <ComboBox IsEditable="True" ItemsSource="{Binding EffectChoices}" Text="{Binding NewReferenceTarget, UpdateSourceTrigger=PropertyChanged}" Width="260">
