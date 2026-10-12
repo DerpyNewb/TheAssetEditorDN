@@ -282,14 +282,15 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(plain.Skipped, Has.One.Matches<string>(x => x.Contains("ps_texture")));
         }
 
-        // A wind simulation stack has no ps_texture either, and is not drawn at all: it must not also claim to draw white.
+        // A wind simulation stack has no ps_texture either, and is not drawn at all: it says why once, not also that its chain
+        // lacks a texture.
         [Test]
-        public void UndrawnChainWithoutATexture_DoesNotClaimToDrawWhite()
+        public void UndrawnChainWithoutATexture_SaysOnlyWhyItIsNotDrawn()
         {
             var wind = Read(Emitter("smoke"), SmokeWithout(""),
                 """<effect_render_stack id="smoke"><property name="scene_view_type" quality="0" value="WIND_SIMULATION"/></effect_render_stack>""").Single();
             Assert.That(wind.Draws, Is.False);
-            Assert.That(wind.Skipped, Has.None.Matches<string>(x => x.Contains("drawn white")));
+            Assert.That(wind.Skipped, Has.None.Matches<string>(x => x.Contains("ps_texture")));
         }
     }
 }
