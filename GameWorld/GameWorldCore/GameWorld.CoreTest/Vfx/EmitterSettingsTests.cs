@@ -79,6 +79,17 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((ripple.Draws, ripple.Distortion, ripple.Texture), Is.EqualTo((true, true, @"vfx\textures\shockwave_normal.dds")));
         }
 
+        // DEFERRED_DYNAMIC_LIGHT: the particle is a light (249 of the 357 chains carry no ps_texture), drawn as the pool it
+        // casts on the ground; the guide model is not lit, and the preview says so.
+        [Test]
+        public void DynamicLightStack_DrawsAsAPoolOnTheGround()
+        {
+            var light = Read(Emitter("glow"), """<behaviour_chain id="glow"><quality value="0"><modifier fragment="vs_translation"><property name="pivot_x" type="float" value="0.5"/><property name="pivot_y" type="float" value="0.5"/></modifier></quality></behaviour_chain>""",
+                """<effect_render_stack id="glow"><property name="scene_view_type" quality="0" value="DEFERRED_DYNAMIC_LIGHT"/></effect_render_stack>""").Single();
+            Assert.That((light.Draws, light.Light, light.Decal, light.Texture), Is.EqualTo((true, true, true, (string?)null)));
+            Assert.That(light.Skipped, Has.One.Matches<string>(x => x.Contains("lights only the ground")));
+        }
+
         [TestCase("DEFERRED_DECAL")]
         [TestCase("DEFERRED_DECAL_EMISSIVE")]
         [TestCase("SEA_OVERLAY")]
@@ -254,14 +265,14 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(plain.Skipped, Has.One.Matches<string>(x => x.Contains("ps_texture")));
         }
 
-        // A dynamic light has no ps_texture either, and is not drawn at all: it must not also claim to draw white.
+        // A wind simulation stack has no ps_texture either, and is not drawn at all: it must not also claim to draw white.
         [Test]
         public void UndrawnChainWithoutATexture_DoesNotClaimToDrawWhite()
         {
-            var light = Read(Emitter("smoke"), SmokeWithout(""),
-                """<effect_render_stack id="smoke"><property name="scene_view_type" quality="0" value="DEFERRED_DYNAMIC_LIGHT"/></effect_render_stack>""").Single();
-            Assert.That(light.Draws, Is.False);
-            Assert.That(light.Skipped, Has.None.Matches<string>(x => x.Contains("drawn white")));
+            var wind = Read(Emitter("smoke"), SmokeWithout(""),
+                """<effect_render_stack id="smoke"><property name="scene_view_type" quality="0" value="WIND_SIMULATION"/></effect_render_stack>""").Single();
+            Assert.That(wind.Draws, Is.False);
+            Assert.That(wind.Skipped, Has.None.Matches<string>(x => x.Contains("drawn white")));
         }
     }
 }

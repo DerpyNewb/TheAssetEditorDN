@@ -130,6 +130,15 @@ float4 DistortionPS(DistortionOutput input) : COLOR
 	return float4(scene * a, a);
 }
 
+// DEFERRED_DYNAMIC_LIGHT, as the pool it casts on the ground: Uv spans the light's diameter and Extra.x is its height
+// over the ground in radii, so the falloff runs on the true distance from the light.
+float4 LightPS(VertexShaderOutput input) : COLOR
+{
+	float2 planar = input.Uv * 2 - 1;
+	float fall = saturate(1 - dot(planar, planar) - input.Extra.x * input.Extra.x);
+	return float4(input.Colour.rgb * (Premultiplied > 0 ? 1 : input.Colour.a) * fall * fall, 1);
+}
+
 technique ParticleDrawing
 {
 	pass P0
@@ -145,5 +154,14 @@ technique Distortion
 	{
 		VertexShader = compile VS_SHADERMODEL DistortionVS();
 		PixelShader = compile PS_SHADERMODEL DistortionPS();
+	}
+};
+
+technique Light
+{
+	pass P0
+	{
+		VertexShader = compile VS_SHADERMODEL MainVS();
+		PixelShader = compile PS_SHADERMODEL LightPS();
 	}
 };

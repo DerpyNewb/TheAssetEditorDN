@@ -118,6 +118,7 @@ namespace GameWorld.Core.Vfx
         public bool Decal { get; set; }
         /// <summary>The stack is DISTORTION: the chain's normal map shifts the scene behind it.</summary>
         public bool Distortion { get; set; }
+        public bool Light { get; set; }
         /// <summary>continuous_rigid: the models a particle may be, and its orientation and spin about X and Y (Angle and Spin are Z).</summary>
         public IReadOnlyList<VfxRigidEntry> Rigid { get; set; } = [];
         public (Vector2 Min, Vector2 Max) TurnXy { get; set; }
@@ -232,6 +233,11 @@ namespace GameWorld.Core.Vfx
                 s.Decal = true;
             else if (resolved.SceneViewType == "DISTORTION")
                 s.Distortion = true;
+            else if (resolved.SceneViewType == "DEFERRED_DYNAMIC_LIGHT")
+            {
+                (s.Decal, s.Light) = (true, true);
+                s.Skipped.Add("its light is drawn as the pool it casts on the ground: it lights only the ground, not the guide model");
+            }
             else if (resolved.SceneViewType is not (null or "FULLRES_DEFERRED_ALPHA" or "HALFRES_DEFERRED_ALPHA"))
                 NotDrawn(s, $"scene_view_type {resolved.SceneViewType} is not drawn in step 1");
             if (Flag("AllowEmitFromMesh"))
@@ -273,7 +279,8 @@ namespace GameWorld.Core.Vfx
             bool Flag(VfxModifier? m, string name) => m?.Properties.GetValueOrDefault(name)?.IsTrue ?? false;
 
             var texture = chain.Find("ps_texture");
-            s.Texture = texture?.Textures.GetValueOrDefault("diffuse") is { Length: > 0 } path ? path : null;
+            // A light draws no texture, only the pool it casts.
+            s.Texture = !s.Light && texture?.Textures.GetValueOrDefault("diffuse") is { Length: > 0 } path ? path : null;
             if (s.Distortion)
             {
                 s.Texture = texture?.Textures.GetValueOrDefault("normal") is { Length: > 0 } normal ? normal : null;
@@ -289,7 +296,7 @@ namespace GameWorld.Core.Vfx
                 else
                     s.Skipped.Add($"fragment ps_custom_shader: {material} is drawn with its colour texture {materialTexture}, not its own shader");
             }
-            else if (texture == null && s.Draws && s.Rigid.Count == 0)
+            else if (texture == null && s.Draws && s.Rigid.Count == 0 && !s.Light)
                 NotDrawn(s, "the chain has no ps_texture, so nothing is drawn: in vanilla only sound carriers lack one");
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;
             s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);

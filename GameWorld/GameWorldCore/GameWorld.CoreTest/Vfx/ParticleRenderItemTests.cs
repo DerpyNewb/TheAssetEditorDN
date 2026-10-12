@@ -210,6 +210,21 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // A dynamic light lights the ground under it: a pool as wide as the particle, falling off with the distance from the
+        // light as (1 - (d/r)^2)^2. Seen from above, a light half its radius up lights the centre 0.5625 of its colour; one a
+        // radius up lights nothing.
+        [TestCase(10f, 0.502f + 0.4f * 0.5625f)]
+        [TestCase(20f, 0.502f)]
+        public void Light_LightsTheGroundUnderIt(float height, float red)
+        {
+            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
+                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+            var camera = ParticleRenderItem.CameraAxes.From(down, Matrix.Identity);
+            var light = new ParticleState(new Vector3(0, height, 0), Vector3.Zero, new Vector2(40, 40), 0, new Vector3(0.4f, 0, 0), 1, 0, 0);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, camera, new EmitterSettings { Decal = true, Light = true }, _white, [light]));
+            Assert.That(new[] { pixel.X, pixel.Y }, Is.EqualTo(new[] { red, 0.502f }).Within(0.01));
+        }
+
         // DISTORTION draws the scene behind it shifted by its normal map. A red-and-blue split seen from 1 m: a full +x normal
         // brings the blue half under the pixel, a flat one leaves it red.
         [TestCase(255, 0f, 1f)]

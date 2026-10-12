@@ -105,14 +105,14 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["UseGradient"].SetValue(settings.Gradient != null ? 1f : 0f);
             effect.Parameters["GradientMapsAlpha"].SetValue(settings.GradientMapsAlpha ? 1f : 0f);
             effect.Parameters["GradientRamp"].SetValue(Ramp(settings));
-            effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : "ParticleDrawing"];
+            effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : settings.Light ? "Light" : "ParticleDrawing"];
             if (settings.Distortion)
             {
                 effect.Parameters["Scene"].SetValue(scene);
                 effect.Parameters["InverseSceneSize"].SetValue(new Vector2(1f / scene!.Width, 1f / scene.Height));
                 effect.Parameters["Reach"].SetValue(new Vector2(parameters.Projection.M11, parameters.Projection.M22) * (VfxConventions.DistortionMetres / 2));
             }
-            device.BlendState = settings.Distortion ? BlendState.AlphaBlend : BlendFor(settings);
+            device.BlendState = settings.Distortion ? BlendState.AlphaBlend : settings.Light ? BlendState.Additive : BlendFor(settings);
             foreach (var pass in effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
@@ -195,8 +195,13 @@ namespace GameWorld.Core.Vfx
         static int AddQuad(VfxVertex[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame, float fade)
         {
             var toWorld = camera.ToWorld ?? Matrix.Identity;
+            var lift = 0f;
             if (s.Decal)
-                p = p with { Position = Vector3.Transform(VfxConventions.Decal(Vector3.Transform(p.Position, toWorld)), Matrix.Invert(toWorld)) };
+            {
+                var world = Vector3.Transform(p.Position, toWorld);
+                lift = world.Y;
+                p = p with { Position = Vector3.Transform(VfxConventions.Decal(world), Matrix.Invert(toWorld)) };
+            }
             var (across, up, height) = Axes(s, camera, p, frame, toWorld);
             var width = p.Size.X;
             var grow = VfxConventions.MinPixelGrowth(Math.Min(width, height), Vector3.Distance(camera.Position, p.Position), camera.PixelScale, s.MinPixels);
@@ -209,6 +214,9 @@ namespace GameWorld.Core.Vfx
             {
                 var (u, v) = VfxConventions.QuadUv(x, y, p.FlipU, p.FlipV, s.UvTurn);
                 var position = p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height);
+                // A light's pool spans its diameter, the particle's size; Extra.x is its height over the ground in radii.
+                if (s.Light)
+                    return new(position, colour, new Vector2(u, v), new Vector4(lift / (p.Size.X / 2), 0, 0, 0));
                 var soft = s.SoftEdge > 0 && !s.Decal ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength)) : colour;
                 return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, p.Crush));
             }
