@@ -157,6 +157,45 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(velocities.Max(v => Vector3.Distance(v, new Vector3(expected, 0, 0))), Is.LessThan(1e-3f));
         }
 
+        // ParticlesSpawnOnTerrain: the preview's terrain is the flat ground, y = 0 in the effect's space, whatever space
+        // the particle lives in.
+        [TestCase(SimulationSpace.World)]
+        [TestCase(SimulationSpace.LocalPositionOnly)]
+        [TestCase(SimulationSpace.LocalPositionRotation)]
+        public void SpawnOnTerrain_PutsParticlesOnTheGround(SimulationSpace space)
+        {
+            var s = Steady(x => { x.Space = space; x.SpawnOnTerrain = true; });
+            var states = States(Run(s, 1, _ => Matrix.CreateRotationZ(0.3f) * Matrix.CreateTranslation(2, 5, 0)));
+            Assert.That(states, Is.Not.Empty);
+            Assert.That(states.Max(p => Math.Abs(p.Position.Y)), Is.LessThan(1e-3f));
+        }
+
+        // EnableCollisions: a particle that reaches the ground leaves it with its fall scaled by the bounce and its
+        // slide by one minus the damping, wherever it lives.
+        [TestCase(SimulationSpace.World)]
+        [TestCase(SimulationSpace.LocalPositionOnly)]
+        [TestCase(SimulationSpace.LocalPositionRotation)]
+        public void Collisions_BounceOffTheGround(SimulationSpace space)
+        {
+            var s = Steady(x =>
+            {
+                x.Space = space;
+                x.SpawnAngle = Vector2.Zero;
+                x.Spread = (-45, -45);
+                x.InitialSpeed = C(10);
+                x.Collisions = true;
+                x.Bounce = (0.5f, 0.5f);
+                x.Damping = (0.5f, 0.5f);
+            });
+            var states = States(Run(s, 0.5f, _ => Matrix.CreateTranslation(0, 1, 0)));
+            var c = 10 / MathF.Sqrt(2);
+            var falling = new Vector3(c, -c, 0);
+            var bounced = new Vector3(c / 2, c / 2, 0);
+            Assert.That(states.Min(p => p.Position.Y), Is.GreaterThan(-1e-3f));
+            Assert.That(states.Count(p => Vector3.Distance(p.Velocity, bounced) < 1e-3f), Is.GreaterThan(0));
+            Assert.That(states.All(p => Vector3.Distance(p.Velocity, bounced) < 1e-3f || Vector3.Distance(p.Velocity, falling) < 1e-3f), Is.True);
+        }
+
         [Test]
         public void SpawnSpacing_StandingStill_SpawnsOnlyByRate()
         {

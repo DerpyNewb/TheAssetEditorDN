@@ -48,6 +48,19 @@ namespace GameWorld.Core.Vfx
         /// SpawnInheritedDirectionBlend (146 emitters) is not read.</summary>
         public static Vector3 Inherited(Vector3 emitterVelocity, float share) => emitterVelocity * share;
 
+        /// <summary>The preview's terrain is flat ground at y = 0 in the effect's space. ParticlesSpawnOnTerrain (1,503 vanilla
+        /// emitters) drops the spawn point onto it. ParticlesFollowTerrain (1,073) is read as holding a particle's height above
+        /// the ground as it moves, which on flat ground changes nothing; pinning it to the ground is the other reading.</summary>
+        public static Vector3 OnGround(Vector3 position) => new(position.X, 0, position.Z);
+
+        /// <summary>A particle falling into the ground leaves it with its fall scaled by CollisionBouncingFactor (0..1.5 in
+        /// vanilla) and its slide cut by CollisionDampingFactor (0..2.2), read as the share lost and clamped to 0..1.</summary>
+        public static Vector3 Bounce(Vector3 velocity, float bounce, float damping)
+        {
+            var keep = 1 - Math.Clamp(damping, 0, 1);
+            return new Vector3(velocity.X * keep, -velocity.Y * bounce, velocity.Z * keep);
+        }
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 

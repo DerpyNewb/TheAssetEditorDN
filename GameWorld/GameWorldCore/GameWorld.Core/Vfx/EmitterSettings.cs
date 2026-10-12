@@ -51,6 +51,12 @@ namespace GameWorld.Core.Vfx
         public bool SkipPositionUpdate { get; set; }
         /// <summary>SpawnInheritedSpeed: the share of the emitter's own velocity a particle starts with.</summary>
         public float InheritedSpeed { get; set; }
+        /// <summary>ParticlesSpawnOnTerrain: particles start on the ground.</summary>
+        public bool SpawnOnTerrain { get; set; }
+        /// <summary>EnableCollisions, with CollisionBouncingFactor and CollisionDampingFactor drawn per particle.</summary>
+        public bool Collisions { get; set; }
+        public (float Min, float Max) Bounce { get; set; }
+        public (float Min, float Max) Damping { get; set; }
 
         // A particle's start
         public VfxCurve? InitialSpeed { get; set; }
@@ -103,14 +109,6 @@ namespace GameWorld.Core.Vfx
             "vs_vertex_alpha", "vs_colour", "ps_texture", "ps_soft_edge", "ps_lighting", "vs_translation", "vs_cell_texture",
             "vs_translation_velocity_v2", "vs_animated_texture", "vs_flip_uv", "ps_normal", "vs_rendersize_limiter", "ps_alpha_crush",
             "ps_gradient", "ps_emissive", "ps_custom_shader", "ps_metal_roughness", "vs_translation_screen_space_wrap",
-        ];
-
-        static readonly (string Property, string What)[] s_notSimulated =
-        [
-            ("AllowEmitFromMesh", "emit from mesh"),
-            ("EnableCollisions", "collisions"),
-            ("ParticlesFollowTerrain", "terrain follow"),
-            ("ParticlesSpawnOnTerrain", "terrain spawn"),
         ];
 
         public static EmitterSettings From(ResolvedEmitter resolved)
@@ -188,16 +186,17 @@ namespace GameWorld.Core.Vfx
                 NotDrawn(s, $"emitter type {resolved.Emitter.Type} is not drawn in step 1");
             if (resolved.SceneViewType is not (null or "FULLRES_DEFERRED_ALPHA" or "HALFRES_DEFERRED_ALPHA"))
                 NotDrawn(s, $"scene_view_type {resolved.SceneViewType} is not drawn in step 1");
-            foreach (var (property, what) in s_notSimulated)
-            {
-                if (Flag(property))
-                    s.Skipped.Add($"{what} is not simulated in step 1");
-            }
+            if (Flag("AllowEmitFromMesh"))
+                s.Skipped.Add("emit from mesh is not simulated in step 1");
             if (P("VectorFieldStrId")?.Value is { Length: > 0 })
                 s.Skipped.Add("the vector field is not simulated in step 1");
             if (Number("EffectedByWindFactor", 0) != 0)
                 s.Skipped.Add("wind is not simulated in step 1");
             s.InheritedSpeed = Number("SpawnInheritedSpeed", 0);
+            s.SpawnOnTerrain = Flag("ParticlesSpawnOnTerrain");
+            s.Collisions = Flag("EnableCollisions");
+            s.Bounce = Range("CollisionBouncingFactor", (0, 0));
+            s.Damping = Range("CollisionDampingFactor", (0, 0));
             if (Number("SpawnInheritedDirectionBlend", 0) != 0)
                 s.Skipped.Add("SpawnInheritedDirectionBlend is not read in step 1");
             if (Range("SpreadArc", (0, 0)) != (0, 0))

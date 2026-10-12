@@ -19,6 +19,8 @@ namespace GameWorld.Core.Vfx
         public int Cell;
         // One draw per over-life property, taken at spawn.
         public float RScale, RDeceleration, RSpinDeceleration, RForce, RAlpha, RColour, RStretch;
+        // Drawn only when the emitter collides, so an emitter that does not keeps its random sequence.
+        public float Bounce, Damping;
     }
 
     /// <summary>A particle as drawn now, in the effect's model space.</summary>
@@ -142,11 +144,11 @@ namespace GameWorld.Core.Vfx
             {
                 var s = e.Settings;
                 var dt = Step * s.SpeedMultiplier;
-                Move(e, dt);
+                var world = EmitterWorld(e, end, effectWorld);
+                Move(e, dt, world);
 
                 var age = (end - e.Start) * s.SpeedMultiplier;
                 var alive = age > 0 && (s.InfiniteLife || age <= e.Life);
-                var world = EmitterWorld(e, end, effectWorld);
                 var from = e.LastPosition;
                 e.LastPosition = world.Translation;
                 if (!alive || end > _spawnEnd + Epsilon || !VfxConventions.InBurst(age, e.BurstInterval, e.BurstLength))
@@ -280,10 +282,21 @@ namespace GameWorld.Core.Vfx
                 SimulationSpace.LocalPositionOnly => (Vector3.TransformNormal(offset, world), Vector3.TransformNormal(velocity, world)),
                 _ => (Vector3.Transform(offset, world), Vector3.TransformNormal(velocity, world) + carried),
             };
+            if (s.SpawnOnTerrain)
+            {
+                var (onEffect, _) = ToEffect(s.Space, world, p.Position, p.Velocity);
+                (p.Position, _) = FromEffect(s.Space, world, VfxConventions.OnGround(onEffect), p.Velocity);
+            }
+            if (s.Collisions)
+            {
+                p.Bounce = Draw(s.Bounce);
+                p.Damping = Draw(s.Damping);
+            }
             e.Particles.Add(p);
         }
 
-        static void Move(EmitterRuntime e, float dt)
+        // world: the emitter's matrix at the end of the step, which a collision is tested against.
+        static void Move(EmitterRuntime e, float dt, Matrix world)
         {
             var s = e.Settings;
             for (var i = e.Particles.Count - 1; i >= 0; i--)
@@ -306,8 +319,38 @@ namespace GameWorld.Core.Vfx
                 p.Velocity = (p.Velocity + force * dt) * VfxConventions.Drag(s.Deceleration?.Evaluate(0, v, p.RDeceleration) ?? 0, dt);
                 p.Angle += p.Spin * dt;
                 p.Spin *= VfxConventions.Drag(s.SpinDeceleration?.Evaluate(0, v, p.RSpinDeceleration) ?? 0, dt);
+                if (s.Collisions && !s.SkipPositionUpdate)
+                    Collide(s.Space, world, ref p);
                 e.Particles[i] = p;
             }
+        }
+
+        // EnableCollisions: the preview's one collider is the ground, y = 0 in the effect's space.
+        static void Collide(SimulationSpace space, Matrix world, ref Particle p)
+        {
+            var (position, velocity) = ToEffect(space, world, p.Position, p.Velocity);
+            if (position.Y >= 0)
+                return;
+            position.Y = 0;
+            if (velocity.Y < 0)
+                velocity = VfxConventions.Bounce(velocity, p.Bounce, p.Damping);
+            (p.Position, p.Velocity) = FromEffect(space, world, position, velocity);
+        }
+
+        // A particle between the space it lives in and the effect's, where it is drawn and where the ground is.
+        static (Vector3 Position, Vector3 Velocity) ToEffect(SimulationSpace space, Matrix world, Vector3 position, Vector3 velocity) => space switch
+        {
+            SimulationSpace.LocalPositionRotation => (Vector3.Transform(position, world), Vector3.TransformNormal(velocity, world)),
+            SimulationSpace.LocalPositionOnly => (position + world.Translation, velocity),
+            _ => (position, velocity),
+        };
+
+        static (Vector3 Position, Vector3 Velocity) FromEffect(SimulationSpace space, Matrix world, Vector3 position, Vector3 velocity)
+        {
+            if (space != SimulationSpace.LocalPositionRotation)
+                return space == SimulationSpace.LocalPositionOnly ? (position - world.Translation, velocity) : (position, velocity);
+            var inverse = Matrix.Invert(world);
+            return (Vector3.Transform(position, inverse), Vector3.TransformNormal(velocity, inverse));
         }
 
         /// <summary>An emitter's live particles as drawn now, in the effect's model space.</summary>
@@ -319,12 +362,7 @@ namespace GameWorld.Core.Vfx
             foreach (var p in e.Particles)
             {
                 var v = p.Age / p.Life;
-                var (position, velocity) = s.Space switch
-                {
-                    SimulationSpace.LocalPositionRotation => (Vector3.Transform(p.Position, world), Vector3.TransformNormal(p.Velocity, world)),
-                    SimulationSpace.LocalPositionOnly => (p.Position + world.Translation, p.Velocity),
-                    _ => (p.Position, p.Velocity),
-                };
+                var (position, velocity) = ToEffect(s.Space, world, p.Position, p.Velocity);
                 var size = p.Size * scale * (s.Scale == null ? Vector2.One : new Vector2(s.Scale.Evaluate(0, v, p.RScale, 1), s.Scale.Evaluate(1, v, p.RScale, 1)));
                 var colour = Vector(s.Colour, v, p.RColour, 1) * new Vector3(p.Tint.X, p.Tint.Y, p.Tint.Z);
                 var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W;
