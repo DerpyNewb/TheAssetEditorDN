@@ -466,6 +466,27 @@ namespace Test.VfxEditor
             Assert.That(plain.Zip(engines).Count(x => x.First != x.Second), Is.Zero);
         }
 
+        // The engine draws effects in its glow pass as well as its colour pass, so what lies over 1 blooms.
+        [Test]
+        public void The_engine_draws_effects_in_its_glow_pass()
+        {
+            var (runner, _, _) = OpenWithAGuideModelOffered();
+            var engine = runner.GetRequiredServiceInCurrentEditorScope<RenderEngineComponent>();
+            var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
+            var drawn = new List<RenderingTechnique>();
+            using var target = new RenderTarget2D(device, 64, 64, false, SurfaceFormat.Color, DepthFormat.Depth24);
+            device.SetRenderTarget(target);
+            engine.AddRenderItem(RenderBuckedId.Transparent, new Recorder(drawn));
+            engine.Draw(new Xna.GameTime());
+            device.SetRenderTarget(null);
+            Assert.That(drawn, Is.EqualTo(new[] { RenderingTechnique.Normal, RenderingTechnique.Emissive }));
+        }
+
+        sealed class Recorder(List<RenderingTechnique> drawn) : IRenderItem
+        {
+            public void Draw(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique technique) => drawn.Add(technique);
+        }
+
         // Karl Franz's model on one continuous_rigid particle, half a second in.
         static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel()
         {

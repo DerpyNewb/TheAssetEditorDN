@@ -294,8 +294,9 @@ namespace GameWorld.Core.Components.Rendering
             foreach (var item in _renderItems[RenderBuckedId.Selection])
                 item.Draw(device, commonShaderParameters, renderingTechnique);
 
-            // Particles: after everything solid, reading depth without writing it, both faces; each item sets its blend.
-            if (renderingTechnique == RenderingTechnique.Normal && _renderItems[RenderBuckedId.Transparent].Count != 0)
+            // Particles: after everything solid, in both passes so what lies over 1 blooms, reading depth without writing it,
+            // both faces; each item sets its blend.
+            if (_renderItems[RenderBuckedId.Transparent].Count != 0)
             {
                 var blendState = device.BlendState;
                 device.DepthStencilState = DepthStencilState.DepthRead;
