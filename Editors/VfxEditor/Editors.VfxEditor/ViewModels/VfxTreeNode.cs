@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Editors.VfxEditor.ViewModels
 {
-    public enum NodeKind { Effect, Emitters, Emitter, Chain, Modifier, Stack, References, Reference, Override }
+    public enum NodeKind { Effect, Emitters, Emitter, Chain, Modifier, Stack, References, Reference, Override, ShaderLibrary, EditorData, Component }
 
     /// <summary>A node of the effect tree. Key names it across rebuilds, so selection and expansion survive an edit; Path
     /// finds its element in the current document.</summary>

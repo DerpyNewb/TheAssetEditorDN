@@ -250,7 +250,7 @@ namespace Editors.VfxEditor.ViewModels
             var element = document.At(node.Path);
             return node.Kind switch
             {
-                NodeKind.Effect or NodeKind.Reference => element.Attributes.Select(a => Row("", a.Name, a.Value, "")).ToList(),
+                NodeKind.Effect or NodeKind.Reference or NodeKind.ShaderLibrary => element.Attributes.Select(a => Row("", a.Name, a.Value, "")).ToList(),
                 NodeKind.Override => element.Attributes.Where(a => a.Name != "name").Select(a => Row("", a.Name, a.Value, "")).ToList(),
                 NodeKind.Emitter or NodeKind.Stack => TierEdits.EffectiveProperties(element, Tier).SelectMany(p => RowsOf(document, p, TierNote(p))).ToList(),
                 NodeKind.Modifier => element.Children.Where(c => c.Attr("name") != null).SelectMany(p => RowsOf(document, p, "")).ToList(),
@@ -343,6 +343,16 @@ namespace Editors.VfxEditor.ViewModels
                     }
                     folder.Children.Add(node);
                 }
+                tree.Add(folder);
+            }
+            if (document.Root.Child("shader_library") is { } library)
+                tree.Add(new VfxTreeNode(NodeKind.ShaderLibrary, "Shader library", "shader_library", library.Path));
+            // Terry's list of the file's parts: shown, and kept in step by the emitter and reference edits rather than edited.
+            if (document.Root.Child("editor_data") is { } editorData)
+            {
+                var folder = new VfxTreeNode(NodeKind.EditorData, "Editor data", "editor_data", editorData.Path);
+                foreach (var component in editorData.Child("effect_components")?.ChildrenNamed("component") ?? [])
+                    folder.Children.Add(new VfxTreeNode(NodeKind.Component, component.Attr("id") ?? "", "component:" + component.Attr("id"), component.Path));
                 tree.Add(folder);
             }
             return tree;

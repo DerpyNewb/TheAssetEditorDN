@@ -33,7 +33,7 @@ namespace Test.VfxEditor
             var output = runner.CreateOutputPack();
 
             var editor = Open(runner);
-            Assert.That(editor.Tree.Select(n => n.Label), Is.EqualTo(new[] { "Effect", "Emitters", "References" }));
+            Assert.That(editor.Tree.Select(n => n.Label), Is.EqualTo(new[] { "Effect", "Emitters", "References", "Shader library", "Editor data" }));
 
             editor.SelectedNode = editor.Tree[1].Children[0];
             string Value(string label) => editor.Rows.Single(r => r.Label == label).Value;
@@ -216,7 +216,7 @@ namespace Test.VfxEditor
             Assert.That(editor.LoadError, Does.Contain("Open"));
 
             editor.OpenFileCommand.Execute(null);
-            Assert.That((editor.DisplayName, editor.Tree.Count, editor.HasLoadError, editor.CurrentFile), Is.EqualTo(("fx.xml", 3, false, file)));
+            Assert.That((editor.DisplayName, editor.Tree.Count, editor.HasLoadError, editor.CurrentFile), Is.EqualTo(("fx.xml", 5, false, file)));
 
             editor.SelectedNode = editor.Tree[1].Children[0];
             editor.Rows.Single(r => r.Label == "A").Value = "2";
@@ -329,6 +329,20 @@ namespace Test.VfxEditor
             Assert.That(ListHeight(), Is.Zero);
             editor.PreviewLines.Add("a line");
             Assert.That(ListHeight(), Is.GreaterThan(10));
+        }
+
+        // The two parts of the file that are not the effect: the shader library its attributes edit, and Terry's list of
+        // components, shown and kept in step by the edits rather than edited.
+        [Test]
+        public void The_shader_library_and_editor_data_are_in_the_tree()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.WithComponents)))]);
+            var editor = Open(runner);
+            Assert.That(editor.Tree[4].Children.Select(n => n.Label), Is.EqualTo(new[] { "e1", "xref" }));
+            editor.SelectedNode = editor.Tree[3];
+            Assert.That(editor.Rows.Select(r => (r.Label, r.Value)), Is.EqualTo(new[] { ("file", "fx/particle_vfx_library.hlsl") }));
         }
 
         // Rename takes the id across the emitter's records and keeps its node picked; the type picker writes its type.
