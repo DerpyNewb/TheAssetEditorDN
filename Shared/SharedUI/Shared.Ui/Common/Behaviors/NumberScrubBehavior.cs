@@ -115,8 +115,9 @@ namespace Shared.Ui.Common.Behaviors
             if (_pressX == null)
                 return;
             e.Handled = true;
-            AssociatedObject.ReleaseMouseCapture();
+            // Before letting go: letting go raises LostMouseCapture, which forgets the press, and a click would not start typing.
             End();
+            AssociatedObject.ReleaseMouseCapture();
         }
 
         // Another window took the mouse mid-drag: the number stays where it got to.

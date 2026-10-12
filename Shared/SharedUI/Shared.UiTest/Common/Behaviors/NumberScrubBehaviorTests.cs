@@ -58,6 +58,28 @@ namespace Shared.UiTest.Common.Behaviors
         [Test]
         public void Drag_ACoupleOfPixelsIsAClick() => Assert.That(Drag("1.65", 2), Is.EqualTo("1.65"));
 
+        // A left click, let go through the box's own mouse event, starts typing with the text selected. Letting go of the mouse
+        // raises LostMouseCapture, which had forgotten the press before the click was read, so only a right click edited. The
+        // press begins after the capture: capturing raises a move read off wherever the real mouse is, which would be a drag.
+        [Test]
+        public void Click_StartsTyping()
+        {
+            var (box, scrub) = Box("1.65");
+            var window = new Window { Content = box, Width = 200, Height = 60, ShowActivated = false, ShowInTaskbar = false, WindowStyle = WindowStyle.None };
+            window.Show();
+            try
+            {
+                Assert.That(box.CaptureMouse(), Is.True, "a press captures the mouse, as a drag needs");
+                scrub.Begin(0);
+                box.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent });
+                Assert.That((box.SelectionLength, Mouse.Captured), Is.EqualTo((4, (IInputElement?)null)));
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
         // A text field and a read-only one do not scrub.
         [Test]
         public void Drag_OnlyAnEditableNumberScrubs()
