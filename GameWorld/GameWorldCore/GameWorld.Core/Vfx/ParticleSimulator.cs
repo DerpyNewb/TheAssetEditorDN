@@ -98,9 +98,12 @@ namespace GameWorld.Core.Vfx
                 return;
             }
 
-            if (effectTime + Epsilon < Time)
+            // Whole steps, counted in double: minutes in, a float time cannot hold Epsilon, and a paused clock asked for the
+            // same time again started over from nothing every frame.
+            var steps = (int)Math.Floor(((double)effectTime + Epsilon - _origin) / Step);
+            if (steps < _steps)
                 Reset();
-            while (Time + Step <= effectTime + Epsilon)
+            while (_steps < steps)
                 StepOnce();
 
             var effectWorld = _effectWorldAt(Time);

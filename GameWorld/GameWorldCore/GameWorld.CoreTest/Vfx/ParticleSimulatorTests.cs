@@ -227,6 +227,23 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // Minutes into a clock a float time cannot hold a 1e-5 s tolerance. Asked for the same time twice, the simulator must
+        // not start again from nothing: a paused persistent effect did, every frame.
+        [Test]
+        public void TheSameTimeTwice_DoesNotStartAgain_MinutesIn()
+        {
+            var simulator = new ParticleSimulator([Steady(x => x.Rate = C(0))], 1, _ => Matrix.Identity);
+            var restarts = 0;
+            for (var t = 250f; t < 400f; t += 0.0173f)
+            {
+                simulator.AdvanceTo(t);
+                var emitter = simulator.Emitters[0];
+                simulator.AdvanceTo(t);
+                restarts += ReferenceEquals(emitter, simulator.Emitters[0]) ? 0 : 1;
+            }
+            Assert.That(restarts, Is.Zero);
+        }
+
         // A vector field volume: x along a row, y down the rows, z through the slices, sampled between cell centres and
         // repeating outside itself.
         [Test]
