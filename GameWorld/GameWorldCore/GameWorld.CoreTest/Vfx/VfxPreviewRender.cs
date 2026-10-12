@@ -42,6 +42,8 @@ namespace GameWorld.Core.Test.Vfx
             var shader = content.Load<Effect>("Shaders/Particle");
             var textures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(runner.PackFileService, log.Add));
             using var target = new RenderTarget2D(device, 512, 512, false, SurfaceFormat.Color, DepthFormat.Depth24, 0, RenderTargetUsage.PreserveContents);
+            using var picture = new RenderTarget2D(device, 512, 512);
+            using var batch = new SpriteBatch(device);
             using var lines = new BasicEffect(device) { VertexColorEnabled = true };
             var lookAt = new Vector3(0, 1, 0);
             var views = new (string Name, Vector3 Eye, Vector3 Up)[]
@@ -66,16 +68,22 @@ namespace GameWorld.Core.Test.Vfx
                         var parameters = new CommonShaderParameters(Matrix.CreateLookAt(eye, lookAt, up),
                             Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 500), eye, lookAt, 0, 0, 0, 1, [], Vector3.One);
                         device.SetRenderTarget(target);
-                        device.Clear(new Color(40, 40, 40));
+                        device.Clear(Color.Transparent);
                         device.BlendState = BlendState.Opaque;
                         device.DepthStencilState = DepthStencilState.Default;
                         DrawGrid(device, lines, parameters);
                         device.DepthStencilState = DepthStencilState.DepthRead;
                         device.RasterizerState = RasterizerState.CullNone;
                         item.Draw(device, parameters, RenderingTechnique.Normal);
+                        // Laid over the background by its alpha, as the app lays its scene.
+                        device.SetRenderTarget(picture);
+                        device.Clear(new Color(40, 40, 40));
+                        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
+                        batch.Draw(target, Vector2.Zero, Color.White);
+                        batch.End();
                         device.SetRenderTarget(null);
                         using var stream = File.Create(Path.Combine(output, $"{name}_{view}_{time.ToString("0.00", CultureInfo.InvariantCulture)}s.png"));
-                        target.SaveAsPng(stream, target.Width, target.Height);
+                        picture.SaveAsPng(stream, picture.Width, picture.Height);
                     }
                 }
                 TestContext.Out.WriteLine($"{name}: {settings.Count(x => x.Draws)} of {settings.Count} emitters drawn");
