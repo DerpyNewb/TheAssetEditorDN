@@ -1,18 +1,13 @@
 ﻿using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.SuperView.Visualisation;
 using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.BaseControl;
 using Editors.Shared.Core.Common.ReferenceModel;
-using GameWorld.Core.Components.Grid;
-using GameWorld.Core.Components.Rendering;
-using GameWorld.Core.Utility.RenderSettingsDialog;
 using Microsoft.Xna.Framework;
 using Shared.Core.Events;
 using Shared.Core.Events.Scoped;
-using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
@@ -32,9 +27,6 @@ namespace Editors.AnimationMeta.SuperView
         private readonly IEventHub _eventHub;
         private readonly IGlobalEventHub _globalEventHub;
         private readonly IUiCommandFactory _uiCommandFactory;
-        private readonly RenderEngineComponent _renderEngine;
-        private readonly SceneRenderParametersStore _sceneParameters;
-        private readonly GridComponent _grid;
 
         [ObservableProperty] string _persistentMetaFilePath = "";
         [ObservableProperty] string _metaFilePath = "";
@@ -73,19 +65,8 @@ namespace Editors.AnimationMeta.SuperView
                 OnPropertyChanged(nameof(HasUnsavedChanges));
         }
 
-        /// <summary>Where a screenshot goes, and whether that folder opens after.</summary>
-        public string ScreenshotFolder { get; set; } = Path.Combine(DirectoryHelper.ApplicationDirectory, "PhotoStudio", "Screenshots");
-        public bool OpenScreenshotFolder { get; set; } = true;
-
-        /// <summary>The Kitbash editor's render settings: the light's intensity, colour and turn, which lights the models and lit
-        /// smoke, the environment's turn, and the grid.</summary>
-        [RelayCommand]
-        void OpenRenderSettings() => new RenderSettingsWindow(_renderEngine, _sceneParameters, _grid) { Owner = System.Windows.Application.Current.MainWindow }.ShowDialog();
-
-        /// <summary>The next frame at twice the view's size, as PhotoStudio takes one, named after the file.</summary>
-        [RelayCommand]
-        void TakeScreenshot() => _renderEngine.SaveNextFrame(new SaveRenderImageSettings(
-            Path.GetFileNameWithoutExtension(CurrentFile?.Name ?? "superview"), OpenScreenshotFolder, false, 2, ScreenshotFolder));
+        // A screenshot is named after the file.
+        protected override string ScreenshotName => Path.GetFileNameWithoutExtension(CurrentFile?.Name ?? "superview");
 
 
         public SuperViewViewModel(
@@ -96,16 +77,10 @@ namespace Editors.AnimationMeta.SuperView
             SceneObjectEditor sceneObjectBuilder,
             IEditorHostParameters editorHostParameters,
             MetaDataFileParser metaDataFileParser,
-            IMetaDataBuilder metaDataFactory,
-            RenderEngineComponent renderEngine,
-            SceneRenderParametersStore sceneParameters,
-            GridComponent grid)
+            IMetaDataBuilder metaDataFactory)
             : base(editorHostParameters)
         {
             DisplayName = "Super view";
-            _renderEngine = renderEngine;
-            _sceneParameters = sceneParameters;
-            _grid = grid;
             _packFileService = packFileService;
             _eventHub = eventHub;
             _globalEventHub = globalEventHub;

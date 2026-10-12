@@ -35,6 +35,8 @@
                 <MenuItem Header="{loc:Loc EditorHost.Menu.FocusSelection}" Command="{Binding FocusCameraCommand}"/>
                 <MenuItem Header="{loc:Loc EditorHost.Menu.Reset}" Command="{Binding ResetCameraCommand}"/>
             </MenuItem>
+            <MenuItem Header="{loc:Loc EditorHost.Menu.Lighting}" Command="{Binding OpenRenderSettingsCommand}" ToolTip="{loc:Loc EditorHost.Menu.Lighting.ToolTip}"/>
+            <MenuItem Header="{loc:Loc EditorHost.Menu.Screenshot}" Command="{Binding TakeScreenshotCommand}" ToolTip="{loc:Loc EditorHost.Menu.Screenshot.ToolTip}"/>
         </Menu>
 
         <ContentControl Grid.Row="2" Grid.Column="0" Content="{Binding GameWorld, Mode=OneTime}"/>

@@ -170,22 +170,37 @@ namespace Test.AnimationMeta
             Assert.That(data.MetaDataItems, rebuilds ? Is.Not.SameAs(before) : Is.SameAs(before), "on save");
         }
 
-        // The panel opens the Kitbash editor's render settings, the light that lights the models and lit smoke, and takes a
-        // screenshot, as the VFX editor's preview bar does.
+        // The bar above the 3D view, beside Camera, opens the Kitbash editor's render settings, the light that lights the models
+        // and lit smoke, and takes a screenshot. The side panel, under Show VFX, no longer carries them.
         [Test, Apartment(ApartmentState.STA)]
-        public void ThePanelOffersTheRenderSettingsAndAScreenshot()
+        public void TheViewBarOffersTheRenderSettingsAndAScreenshot()
         {
             var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
             var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
-            // The panel's one app-level resource, which the test has no App.xaml to give it.
+            // The app-level converters, as App.xaml declares them, which the test has no App.xaml to give it.
             var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
-            app.Resources["InvBoolToHiddenConverter"] = new System.Windows.Controls.BooleanToVisibilityConverter();
-            var view = new EditorView { DataContext = superView };
-            view.Measure(new System.Windows.Size(500, 900));
-            view.Arrange(new System.Windows.Rect(0, 0, 500, 900));
+            static Shared.Ui.Common.ValueConverters.BoolToVisibilityConverter Vis(System.Windows.Visibility t, System.Windows.Visibility f) => new() { TrueValue = t, FalseValue = f };
+            static Shared.Ui.Common.ValueConverters.BoolToColourConverter Brush(System.Windows.Media.Color t, System.Windows.Media.Color f) => new() { TrueValue = new(t), FalseValue = new(f) };
+            var (visible, hidden, collapsed) = (System.Windows.Visibility.Visible, System.Windows.Visibility.Hidden, System.Windows.Visibility.Collapsed);
+            app.Resources["BoolToCollapsedConverter"] = Vis(visible, collapsed);
+            app.Resources["BoolToHiddenConverter"] = Vis(visible, hidden);
+            app.Resources["InvBoolToHiddenConverter"] = Vis(hidden, visible);
+            app.Resources["NullToVisibilityConverter"] = new Shared.Ui.Common.ValueConverters.NullVisibilityConverter();
+            app.Resources["ColourConverter_black_red"] = Brush(System.Windows.Media.Colors.Black, System.Windows.Media.Colors.Red);
+            app.Resources["BoolToColour_white_red"] = Brush(System.Windows.Media.Colors.White, System.Windows.Media.Colors.Red);
+            app.Resources["BoolToColour_black_gray"] = Brush(System.Windows.Media.Colors.Black, System.Windows.Media.Colors.Gray);
+            app.Resources["BoolToColour_white_gray"] = Brush(System.Windows.Media.Colors.White, System.Windows.Media.Colors.Gray);
+            app.Resources["InvBoolConverter"] = new Shared.Ui.Common.ValueConverters.InverseBooleanConverter();
+            app.Resources["BoolToChangedPrefixStr"] = new Shared.Ui.Common.ValueConverters.BoolToStringConverter { TrueValue = "*" };
+            var view = new AnimationEditor.Common.BaseControl.EditorHostView { DataContext = superView };
+            view.Measure(new System.Windows.Size(1400, 900));
+            view.Arrange(new System.Windows.Rect(0, 0, 1400, 900));
             view.UpdateLayout();
-            var commands = Descendants(view).OfType<System.Windows.Controls.Button>().Select(x => x.Command).ToList();
-            Assert.That(commands, Does.Contain(superView.OpenRenderSettingsCommand).And.Contain(superView.TakeScreenshotCommand));
+            var panel = Descendants(view).OfType<EditorView>().Single();
+            var bar = Descendants(view).OfType<System.Windows.Controls.MenuItem>().Select(x => x.Command).ToList();
+            var side = Descendants(panel).OfType<System.Windows.Controls.Button>().Select(x => x.Command).ToList();
+            System.Windows.Input.ICommand[] both =[superView.OpenRenderSettingsCommand, superView.TakeScreenshotCommand];
+            Assert.That((both.All(bar.Contains), both.Any(side.Contains)), Is.EqualTo((true, false)));
         }
 
         // A screenshot is the next frame at twice the view's size, named after the file, saved where PhotoStudio saves its own.

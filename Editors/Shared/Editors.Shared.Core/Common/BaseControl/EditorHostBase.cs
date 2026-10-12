@@ -1,11 +1,15 @@
 ﻿using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.Shared.Core.Common.AnimationPlayer;
 using Editors.Shared.Core.Common.ReferenceModel;
+using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Services;
+using GameWorld.Core.Utility.RenderSettingsDialog;
 using GameWorld.Core.WpfWindow;
+using Shared.Core.Misc;
 using Shared.Core.ToolCreation;
 
 namespace Editors.Shared.Core.Common.BaseControl
@@ -13,6 +17,7 @@ namespace Editors.Shared.Core.Common.BaseControl
     public abstract partial class EditorHostBase : ObservableObject, IEditorInterface, IEditorViewModelTypeProvider
     {
         private readonly FocusSelectableObjectService _focusSelectableObjectService;
+        private readonly IEditorHostParameters _inputParams;
         protected readonly SceneObjectViewModelBuilder _sceneObjectViewModelBuilder;
         protected readonly SceneObjectEditor _sceneObjectEditor;
 
@@ -34,6 +39,7 @@ namespace Editors.Shared.Core.Common.BaseControl
             Player = inputParams.AnimationPlayerViewModel;
 
             _focusSelectableObjectService = inputParams.FocusSelectableObjectService;
+            _inputParams = inputParams;
             _sceneObjectViewModelBuilder = inputParams.SceneObjectViewModelBuilder;
             _sceneObjectEditor = inputParams.SceneObjectEditor;
 
@@ -42,6 +48,22 @@ namespace Editors.Shared.Core.Common.BaseControl
 
         [RelayCommand] void ResetCamera() => _focusSelectableObjectService.ResetCamera();
         [RelayCommand] void FocusCamera() => _focusSelectableObjectService.FocusSelection();
+
+        /// <summary>Where a screenshot goes, and whether that folder opens after.</summary>
+        public string ScreenshotFolder { get; set; } = Path.Combine(DirectoryHelper.ApplicationDirectory, "PhotoStudio", "Screenshots");
+        public bool OpenScreenshotFolder { get; set; } = true;
+
+        /// <summary>A screenshot's name, before its number.</summary>
+        protected virtual string ScreenshotName => DisplayName;
+
+        /// <summary>The Kitbash editor's render settings: the light's intensity, colour and turn, which lights the models and lit
+        /// smoke, the environment's turn, and the grid.</summary>
+        [RelayCommand]
+        void OpenRenderSettings() => new RenderSettingsWindow(_inputParams.RenderEngine, _inputParams.SceneParameters, _inputParams.Grid) { Owner = Application.Current.MainWindow }.ShowDialog();
+
+        /// <summary>The next frame at twice the view's size, as PhotoStudio takes one.</summary>
+        [RelayCommand]
+        void TakeScreenshot() => _inputParams.RenderEngine.SaveNextFrame(new SaveRenderImageSettings(ScreenshotName, OpenScreenshotFolder, false, 2, ScreenshotFolder));
 
         public virtual void Close()
         {

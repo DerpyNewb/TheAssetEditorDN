@@ -1,5 +1,7 @@
 ﻿using Editors.Shared.Core.Common.AnimationPlayer;
 using GameWorld.Core.Components;
+using GameWorld.Core.Components.Grid;
+using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Services;
 using GameWorld.Core.WpfWindow;
 
@@ -13,6 +15,9 @@ namespace Editors.Shared.Core.Common.BaseControl
         IWpfGame GameWorld { get; }
         SceneObjectViewModelBuilder SceneObjectViewModelBuilder { get; }
         SceneObjectEditor SceneObjectEditor { get; }
+        RenderEngineComponent RenderEngine { get; }
+        SceneRenderParametersStore SceneParameters { get; }
+        GridComponent Grid { get; }
     }
 
     public class EditorHostParameters : IEditorHostParameters
@@ -23,7 +28,10 @@ namespace Editors.Shared.Core.Common.BaseControl
             IWpfGame gameWorld,
             FocusSelectableObjectService focusSelectableObjectService,
             SceneObjectViewModelBuilder sceneObjectViewModelBuilder,
-            SceneObjectEditor sceneObjectEditor)
+            SceneObjectEditor sceneObjectEditor,
+            RenderEngineComponent renderEngine,
+            SceneRenderParametersStore sceneParameters,
+            GridComponent grid)
         {
             ComponentInserter = componentInserter;
             AnimationPlayerViewModel = animationPlayerViewModel;
@@ -31,6 +39,9 @@ namespace Editors.Shared.Core.Common.BaseControl
             FocusSelectableObjectService = focusSelectableObjectService;
             SceneObjectViewModelBuilder = sceneObjectViewModelBuilder;
             SceneObjectEditor = sceneObjectEditor;
+            RenderEngine = renderEngine;
+            SceneParameters = sceneParameters;
+            Grid = grid;
         }
 
         public IComponentInserter ComponentInserter { get; }
@@ -40,5 +51,8 @@ namespace Editors.Shared.Core.Common.BaseControl
         public SceneObjectViewModelBuilder SceneObjectViewModelBuilder { get; }
 
         public SceneObjectEditor SceneObjectEditor { get; }
+        public RenderEngineComponent RenderEngine { get; }
+        public SceneRenderParametersStore SceneParameters { get; }
+        public GridComponent Grid { get; }
     }
 }
