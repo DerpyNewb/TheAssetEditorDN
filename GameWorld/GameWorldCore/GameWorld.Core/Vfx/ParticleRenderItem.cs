@@ -76,12 +76,15 @@ namespace GameWorld.Core.Vfx
                 DrawRigid(device, parameters, renderingTechnique, settings, states);
 
             var glow = renderingTechnique == RenderingTechnique.Emissive;
-            var scene = !glow && emitters.Any(x => x.Settings.Distortion) ? CopyScene(device) : null;
             var blendState = device.BlendState;
             var samplerState = device.SamplerStates[0];
             device.SamplerStates[0] = SamplerState.LinearClamp;
             foreach (var (settings, states, frame) in emitters.Where(x => x.Settings.Rigid.Count == 0))
+            {
+                // A haze bends what is drawn behind it by now, this effect's own particles included.
+                var scene = !glow && settings.Distortion ? CopyScene(device) : null;
                 DrawEmitter(device, _shader(), parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, glow, scene);
+            }
             device.BlendState = blendState;
             device.SamplerStates[0] = samplerState;
         }
@@ -384,13 +387,13 @@ namespace GameWorld.Core.Vfx
                 _scene = new RenderTarget2D(device, target.Width, target.Height, false, SurfaceFormat.Color, DepthFormat.None);
             }
             _batch ??= new SpriteBatch(device);
-            var (viewport, depth, raster) = (device.Viewport, device.DepthStencilState, device.RasterizerState);
+            var (viewport, depth, raster, blend, sampler) = (device.Viewport, device.DepthStencilState, device.RasterizerState, device.BlendState, device.SamplerStates[0]);
             device.SetRenderTarget(_scene);
             _batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
             _batch.Draw(target, Vector2.Zero, Color.White);
             _batch.End();
             device.SetRenderTarget(target);
-            (device.Viewport, device.DepthStencilState, device.RasterizerState) = (viewport, depth, raster);
+            (device.Viewport, device.DepthStencilState, device.RasterizerState, device.BlendState, device.SamplerStates[0]) = (viewport, depth, raster, blend, sampler);
             return _scene;
         }
 

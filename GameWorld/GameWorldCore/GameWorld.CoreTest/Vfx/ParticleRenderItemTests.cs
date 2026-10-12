@@ -398,16 +398,53 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         // One particle 10 m across at the origin, filling the view.
-        static ParticleSimulator OneParticle(string? texture, Vector4? tint = null, bool distortion = false)
+        static ParticleSimulator OneParticle(string? texture, Vector4? tint = null, bool distortion = false) => Particles(Filling(texture, tint, distortion));
+
+        // An emitter of one particle 10 m across, z metres along the view axis.
+        static EmitterSettings Filling(string? texture, Vector4? tint = null, bool distortion = false, float z = 0) => new()
         {
-            var settings = new EmitterSettings
-            {
-                Name = "test", InfiniteLife = true, Rate = VfxCurve.Constant(60), MaxParticles = 1, ParticleLife = VfxCurve.Constant(100),
-                InitialScale = VfxCurve.Constant(10, 10, 10), Texture = texture, TintMin = tint ?? Vector4.One, TintMax = tint ?? Vector4.One, Distortion = distortion,
-            };
-            var simulator = new ParticleSimulator([settings], 1, _ => Matrix.Identity);
+            Name = "test", InfiniteLife = true, Rate = VfxCurve.Constant(60), MaxParticles = 1, ParticleLife = VfxCurve.Constant(100),
+            InitialScale = VfxCurve.Constant(10, 10, 10), Texture = texture, TintMin = tint ?? Vector4.One, TintMax = tint ?? Vector4.One, Distortion = distortion,
+            ReferenceTransform = Matrix.CreateTranslation(0, 0, z),
+        };
+
+        static ParticleSimulator Particles(params EmitterSettings[] settings)
+        {
+            var simulator = new ParticleSimulator(settings, 1, _ => Matrix.Identity);
             simulator.AdvanceTo(0.5f);
             return simulator;
+        }
+
+        // A heat haze shifts what lies behind it when it draws, the effect's own particles included: copied once before any
+        // of them, it pasted the bare scene over the mist (tidecall's ripples over its splashes). A flat normal shifts
+        // nothing, so the red particle behind stays red.
+        [Test]
+        public void Distortion_ShiftsTheEffectsOwnParticlesBehindIt()
+        {
+            var normal = new Texture2D(_device, 1, 1);
+            normal.SetData(new[] { new Color(128, 128, 255, 255) });
+            using var cache = new VfxTextureCache((_, _) => normal);
+            using var item = new ParticleRenderItem(Particles(Filling(null, new Vector4(1, 0, 0, 1), z: -1), Filling("normal", distortion: true)), cache, () => Shader);
+            var pixel = Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
+            Assert.That(new[] { pixel.X, pixel.Y }, Is.EqualTo(new[] { 1f, 0f }).Within(0.02));
+        }
+
+        // The haze's copy of the scene leaves the caller's sampler as it found it: it left point sampling behind.
+        [Test]
+        public void Distortion_LeavesTheCallersSampler()
+        {
+            var normal = new Texture2D(_device, 1, 1);
+            normal.SetData(new[] { new Color(128, 128, 255, 255) });
+            using var cache = new VfxTextureCache((_, _) => normal);
+            using var item = new ParticleRenderItem(OneParticle("normal", distortion: true), cache, () => Shader);
+            SamplerState? after = null;
+            Render(() =>
+            {
+                _device.SamplerStates[0] = SamplerState.AnisotropicWrap;
+                item.Draw(_device, View, RenderingTechnique.Normal);
+                after = _device.SamplerStates[0];
+            });
+            Assert.That(after, Is.SameAs(SamplerState.AnisotropicWrap));
         }
 
         static VfxTextureCache NoTextures() => new((_, _) => null);
