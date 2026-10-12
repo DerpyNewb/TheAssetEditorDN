@@ -71,7 +71,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var usePersistentVfx = metaData == null || metaData.GetItemsOfType<DisablePersistantVfx_v10>().Count == 0;
             if (usePersistent)
             {
-                var metaDataPersistent = ApplyMetaData(persistent, selectedMetaDataAttribute, root, skeleton, rootPlayer, fragment, usePersistentVfx);
+                var metaDataPersistent = ApplyMetaData(persistent, selectedMetaDataAttribute, root, skeleton, rootPlayer, fragment, usePersistentVfx, persistent: true);
                 output.AddRange(metaDataPersistent);
             }
 
@@ -128,7 +128,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return AnimationSampler.Sample(0, 0, skeleton, new AnimationClip(AnimationFile.Create(file), skeleton));
         }
 
-        private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment, bool includeEffects = true)
+        private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment, bool includeEffects = true, bool persistent = false)
         {
             var output = new List<IMetaDataInstance>();
             if (file == null)
@@ -145,7 +145,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             output.AddRange(file.GetItemsOfType<SplashAttack_v10>().Select(meteDataItem => CreateSplashAttack(meteDataItem, root, $"SplashAttack_{Math.Round(meteDataItem.EndTime, 2)}", 0.1f, selectedAttribute)));
 
             if (includeEffects)
-                output.AddRange(file.GetItemsOfType<IEffectMeta>().Select(x => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer)));
+                output.AddRange(file.GetItemsOfType<IEffectMeta>().Select(x => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent)));
 
             foreach (var meteDataItem in file.GetItemsOfType<DockEquipment>())
                 CreateEquipmentDock(meteDataItem, fragment, skeleton, rootPlayer);
@@ -342,7 +342,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return instance;
         }
 
-        private IMetaDataInstance CreateEffect(IEffectMeta effect, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute, AnimationPlayer rootPlayer)
+        private IMetaDataInstance CreateEffect(IEffectMeta effect, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute, AnimationPlayer rootPlayer, bool persistent)
         {
             var resolved = ShowVfx ? new VfxResolver(_packFileService).Resolve(effect.VfxName, new Random(StableSeed(effect))) : null;
             if (resolved is { Found: false })
@@ -400,12 +400,15 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var offset = Matrix.CreateScale(ScaleOf(effect)) * rotMatrix * Matrix.CreateTranslation(effect.Position);
             // A 0/0 tag (or one ending before it starts) spawns for the whole animation.
             var spawnEnd = effect.EffectEndTime > startTime ? effect.EffectEndTime - startTime : float.PositiveInfinity;
-            var simulator = new ParticleSimulator(settings, StableSeed(effect), t => offset * boneAt(t + startTime), spawnEnd,
+            // A persistent effect's clock runs past the clip's end; its bone is read where the looping clip is then.
+            var loop = persistent ? rootPlayer.AnimationClip?.PlayTimeInSec ?? 0 : 0;
+            float MainTime(float effectTime) => loop > 0 ? ((effectTime + startTime) % loop + loop) % loop : effectTime + startTime;
+            var simulator = new ParticleSimulator(settings, StableSeed(effect), t => offset * boneAt(MainTime(t)), spawnEnd,
                 message => LogOnce($"EFFECT {effect.VfxName}, {message}"));
             var particles = root.AddObject(new VfxEffectNode("Vfx:" + effect.VfxName,
                 new ParticleRenderItem(simulator, _vfxTextures)));
 
-            var instance = new VfxEffectInstance(node, boneAt, startTime, particles, simulator);
+            var instance = new VfxEffectInstance(node, boneAt, startTime, particles, simulator, loop);
             instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
             return instance;
         }

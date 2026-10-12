@@ -108,6 +108,21 @@ namespace Test.AnimationMeta
             Assert.That(states.Max(x => Vector3.Distance(x.Position, new Vector3(3, 1, 0))), Is.LessThan(0.01f));
         }
 
+        // The 2 s clip plays 1.5, 1.9, loops to 0.1, then 0.5: a persistent effect runs on across the loop (2.5 s of
+        // particles), a tag in the animation's own meta restarts with it (0.5 s), and both ride the bone where the clip is now.
+        [TestCase(true, 75)]
+        [TestCase(false, 15)]
+        public void PersistentEffect_RunsOnAcrossALoop(bool persistent, int particles)
+        {
+            var tag = Meta(Tag("test_smoke", start: 0));
+            var instance = (VfxEffectInstance)(persistent ? Build(tag, Meta()) : Build(null, tag)).Single();
+            foreach (var time in new[] { 1.5f, 1.9f, 0.1f, 0.5f })
+                instance.Update(time);
+            var states = States(instance);
+            Assert.That(states.Count, Is.EqualTo(particles).Within(1));
+            Assert.That(states.Max(x => Vector3.Distance(x.Position, new Vector3(1, 1, 0))), Is.LessThan(0.01f));
+        }
+
         [Test]
         public void UntrackedEffect_StaysWhereItsBoneWasAtTheStart()
         {
