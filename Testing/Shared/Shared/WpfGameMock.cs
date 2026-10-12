@@ -22,7 +22,10 @@ namespace Test.TestingUtility.Shared
                 var mock = new GraphicsDeviceServiceMock();
                 var services = new GameServiceContainer();
                 services.AddService<IGraphicsDeviceService>(mock);
-                var fullPath = PathHelper.GetDataFolder("GameWorld\\ContentProject\\bin\\Debug\\net10.0-windows\\Content");
+                // The test's own output carries a copy of the content from this build; the project's bin\Debug one is
+                // only refreshed by a build without --artifacts-path, so a new shader is missing from it.
+                var local = Path.Combine(TestContext.CurrentContext.TestDirectory, "Content");
+                var fullPath = Directory.Exists(local) ? local : PathHelper.GetDataFolder("GameWorld\\ContentProject\\bin\\Debug\\net10.0-windows\\Content");
 
                 //var fullPath = Path.GetFullPath(@"..\..\..\..\..\GameWorld\ContentProject\bin\Debug\net10.0-windows\Content");
                 if (Directory.Exists(fullPath) == false)
