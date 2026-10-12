@@ -28,6 +28,7 @@ namespace Test.AnimationMeta
         AnimationPlayer _player = null!;
         Provider _skeleton = null!;
         MetaDataBuilder _builder = null!;
+        AssetEditorTestRunner _runner = null!;
 
         [TearDown]
         public void TearDown() => _builder.Dispose();
@@ -36,11 +37,10 @@ namespace Test.AnimationMeta
         public void Setup()
         {
             // PackFileService is internal to Shared.Core; the runner's is the public way to an in-memory pack.
-            var runner = new AssetEditorTestRunner();
+            var runner = _runner = new AssetEditorTestRunner();
             runner.CreateCaContainer();
             var pack = runner.CreateOutputPack();
-            byte[] bytes = [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes(Smoke)];
-            runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("test_smoke.xml", bytes))]);
+            runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("test_smoke.xml", Utf16(Smoke)))]);
             // Only the EFFECT path runs here, and it uses none of the mesh, render or skeleton loaders.
             _builder = new MetaDataBuilder(null!, null!, null!, runner.PackFileService, null!);
 
@@ -82,6 +82,8 @@ namespace Test.AnimationMeta
             file.AnimationParts.Add(part);
             return file;
         }
+
+        static byte[] Utf16(string text) => [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes(text)];
 
         static Effect_v11 Tag(string vfx, int bone = 1, float start = 0.5f, bool tracking = true) =>
             new() { VfxName = vfx, NodeIndex = bone, StartTime = start, EndTime = 0, Tracking = tracking };
@@ -155,6 +157,54 @@ namespace Test.AnimationMeta
             Build(persistent, Meta(new DisablePersistantVfx_v10()));
             Assert.That(_root.Children.OfType<VfxEffectNode>(), Is.Empty, "DISABLE_PERSISTENT_VFX kept the persistent meta's effect");
             Assert.That(Build(persistent, Meta()), Has.Count.EqualTo(1), "without it, the persistent effect is built");
+        }
+
+        // Every edit in the meta panel rebuilds every effect, so a rebuild reuses what it resolved of an effect's vfx file and
+        // reads the file again only once Forget names a changed one, as SuperView does when a pack changes: smoke rewritten to
+        // emit nothing shows only after.
+        [Test]
+        public void Rebuild_ReusesTheResolvedFile_UntilForgetNamesIt()
+        {
+            var tag = Meta(Tag("test_smoke"));
+            int Particles()
+            {
+                var instance = (VfxEffectInstance)Build(null, tag).Single();
+                instance.Update(1.5f);
+                return States(instance).Count;
+            }
+            Particles();
+            _runner.PackFileService.SaveFile(_runner.PackFileService.FindFile(@"vfx\test_smoke.xml")!, Utf16(Smoke.Replace("30.0", "0.0")));
+            var reused = Particles();
+            _builder.Forget([@"vfx\test_smoke.xml"]);
+            var reread = Particles();
+            Assert.Multiple(() =>
+            {
+                Assert.That(reused, Is.EqualTo(30).Within(1), "the rebuild read the file again");
+                Assert.That(reread, Is.Zero, "Forget kept the old file");
+            });
+        }
+
+        // ...and samples the bone afresh when the animation changes: rebuilt on a clip that holds the fx bone at (0, 1, 5), the
+        // smoke rides there, not where the first clip had the bone at the same times.
+        [Test]
+        public void Rebuild_AfterTheClipChanges_RidesTheNewClip()
+        {
+            var tag = Meta(Tag("test_smoke"));
+            ((VfxEffectInstance)Build(null, tag).Single()).Update(1.5f);
+            var held = new AnimationClip { PlayTimeInSec = 2 };
+            for (var frame = 0; frame <= 20; frame++)
+            {
+                held.DynamicFrames.Add(new AnimationClip.KeyFrame
+                {
+                    Position = [Vector3.Zero, new Vector3(0, 1, 5)],
+                    Rotation = [Quaternion.Identity, Quaternion.Identity],
+                    Scale = [Vector3.One, Vector3.One],
+                });
+            }
+            _player.SetAnimation(held, _skeleton.Skeleton);
+            var instance = (VfxEffectInstance)Build(null, tag).Single();
+            instance.Update(1.5f);
+            Assert.That(States(instance).Max(x => Vector3.Distance(x.Position, new Vector3(0, 1, 5))), Is.LessThan(0.01f));
         }
 
         [Test]

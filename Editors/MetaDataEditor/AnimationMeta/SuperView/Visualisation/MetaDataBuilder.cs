@@ -40,6 +40,13 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         private readonly VfxTextureCache _vfxTextures;
         private readonly VfxMeshCache _vfxMeshes;
 
+        // Every edit in the meta panel rebuilds every effect. What a tag's vfx file resolves to is kept until Forget names a
+        // changed file; and as an effect re-simulates up to now it asks its bone for every step, each a sample of the whole
+        // skeleton, which effects asking the same time share. 55 effects on a Bale Taurus took 1.3 s to rebuild.
+        readonly Dictionary<(string Name, int Seed), VfxResolveResult> _resolved = [];
+        readonly Dictionary<float, Matrix[]> _bones = [];
+        (AnimationClip? Clip, GameSkeleton? Skeleton) _bonesOf;
+
         private static Color s_color = Color.Black;
         private static Color s_selectedColor = Color.Red;
 
@@ -92,6 +99,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
         public void Forget(IEnumerable<string> paths)
         {
+            // An effect resolves through its file's references too, so any changed vfx file may change any of them.
+            _resolved.Clear();
+            _bones.Clear();
             foreach (var path in paths)
             {
                 _vfxTextures.Forget(path);
@@ -385,7 +395,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
         private IMetaDataInstance CreateEffect(IEffectMeta effect, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute, AnimationPlayer rootPlayer, bool persistent)
         {
-            var resolved = ShowVfx ? new VfxResolver(_packFileService).Resolve(effect.VfxName, new Random(StableSeed(effect))) : null;
+            var resolved = ShowVfx ? Resolve(effect) : null;
             if (resolved is { Found: false })
                 LogOnce($"EFFECT {effect.VfxName}: {VfxResolver.PathOf(effect.VfxName)} is not in any loaded pack, so only its locator is drawn");
             foreach (var problem in resolved?.Problems ?? [])
@@ -458,7 +468,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         // for any time. -1, or a bone the skeleton lacks, is the model's origin.
         // ponytail: sampled without the player's rules (hand poses, TRANSFORM); pass rootPlayer.AnimationRules
         // if an effect is ever placed on a bone a rule moves.
-        static Func<float, Matrix> BoneAt(int boneIndex, ISkeletonProvider skeleton, AnimationPlayer rootPlayer) => mainTime =>
+        Func<float, Matrix> BoneAt(int boneIndex, ISkeletonProvider skeleton, AnimationPlayer rootPlayer) => mainTime =>
         {
             var gameSkeleton = skeleton.Skeleton;
             if (gameSkeleton == null || boneIndex < 0 || boneIndex >= gameSkeleton.BoneCount)
@@ -466,9 +476,34 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var clip = rootPlayer.AnimationClip;
             if (clip == null || clip.PlayTimeInSec <= 0)
                 return gameSkeleton.GetWorldTransform(boneIndex);
-            var frame = AnimationSampler.Sample(Math.Clamp(mainTime / clip.PlayTimeInSec, 0, 1), gameSkeleton, clip);
-            return frame.GetSkeletonAnimatedWorld(gameSkeleton, boneIndex);
+            return BonesAt(Math.Clamp(mainTime / clip.PlayTimeInSec, 0, 1), gameSkeleton, clip)[boneIndex];
         };
+
+        // Every bone in the world at a time through the clip, sampled once for all the effects that ask.
+        // ponytail: one entry per distinct time asked, dropped wholesale past 2048 or when the clip or skeleton changes.
+        Matrix[] BonesAt(float t, GameSkeleton skeleton, AnimationClip clip)
+        {
+            if (_bonesOf != (clip, skeleton) || _bones.Count > 2048)
+            {
+                _bones.Clear();
+                _bonesOf = (clip, skeleton);
+            }
+            if (_bones.TryGetValue(t, out var bones))
+                return bones;
+            var frame = AnimationSampler.Sample(t, skeleton, clip);
+            bones = new Matrix[skeleton.BoneCount];
+            for (var i = 0; i < bones.Length; i++)
+                bones[i] = frame.GetSkeletonAnimatedWorld(skeleton, i);
+            return _bones[t] = bones;
+        }
+
+        VfxResolveResult Resolve(IEffectMeta effect)
+        {
+            var key = (effect.VfxName, StableSeed(effect));
+            if (!_resolved.TryGetValue(key, out var resolved))
+                _resolved[key] = resolved = new VfxResolver(_packFileService).Resolve(effect.VfxName, new Random(key.Item2));
+            return resolved;
+        }
 
         // Scale is on EFFECT v3, v5, v7, v11 and v12, not on IEffectMeta; the other versions draw at 1.
         static float ScaleOf(IEffectMeta effect) => effect switch
