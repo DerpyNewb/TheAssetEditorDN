@@ -1,13 +1,16 @@
 ﻿using System.Xml;
+using System.Xml.Linq;
 using Microsoft.Xna.Framework;
 using Shared.Core.PackFiles;
 using Shared.GameFormats.Vfx;
 
 namespace GameWorld.Core.Vfx
 {
-    /// <summary>An enabled emitter of an effect, with what every reference on the way to it said.</summary>
+    /// <summary>An enabled emitter of an effect, with what every reference on the way to it said. MaterialTexture: the colour
+    /// texture its ps_custom_shader material names, if the material is in the packs and names one.</summary>
     public record ResolvedEmitter(VfxEmitter Emitter, VfxBehaviourChain? Chain, string? SceneViewType, string File,
-        Matrix ReferenceTransform, float StartOffset, float SpeedMultiplier, bool InfiniteLife, VfxEmitterOverride Override, bool TrailMode = false);
+        Matrix ReferenceTransform, float StartOffset, float SpeedMultiplier, bool InfiniteLife, VfxEmitterOverride Override, bool TrailMode = false,
+        string? MaterialTexture = null);
 
     public record VfxResolveResult(bool Found, List<ResolvedEmitter> Emitters, List<string> Problems);
 
@@ -72,6 +75,26 @@ namespace GameWorld.Core.Vfx
             }
         }
 
+        // A vfx material's first texture in a slot named for a diffuse or base colour (t_xml_particle_diffuse_2048_only,
+        // t_xml_diffuse_base_colour, ...). Null when the material is not in the packs or names none: the fire's carry only alpha masks.
+        string? ColourTexture(string? material)
+        {
+            if (string.IsNullOrEmpty(material) || _packFileService.FindFile(material) is not { } file)
+                return null;
+            try
+            {
+                using var stream = new System.IO.MemoryStream(file.DataSource.ReadData());
+                return XDocument.Load(stream).Descendants("texture")
+                    .Where(t => t.Element("slot")?.Value is { } slot && (slot.Contains("diffuse", StringComparison.OrdinalIgnoreCase) || slot.Contains("base_colour", StringComparison.OrdinalIgnoreCase)))
+                    .Select(t => t.Element("source")?.Value.Trim())
+                    .FirstOrDefault(source => !string.IsNullOrEmpty(source));
+            }
+            catch (Exception)   // a broken material draws nothing, as one with no colour texture does
+            {
+                return null;
+            }
+        }
+
         void Collect(string name, VfxFile file, Matrix transform, float startOffset, float speed, bool infinite,
             IReadOnlyDictionary<string, VfxEmitterOverride> outer, HashSet<string> stack, Random random, VfxResolveResult result, HashSet<string> seen)
         {
@@ -84,7 +107,9 @@ namespace GameWorld.Core.Vfx
                     continue;
                 file.Chains.TryGetValue(emitter.Id, out var chain);
                 file.SceneViewTypes.TryGetValue(emitter.Id, out var sceneView);
-                result.Emitters.Add(new ResolvedEmitter(emitter, chain, sceneView, name, transform, startOffset, speed, infinite, o, file.TrailModes.Contains(emitter.Id)));
+                var material = chain?.Find("ps_custom_shader")?.Properties.GetValueOrDefault("material")?.Attributes.GetValueOrDefault("path");
+                result.Emitters.Add(new ResolvedEmitter(emitter, chain, sceneView, name, transform, startOffset, speed, infinite, o, file.TrailModes.Contains(emitter.Id),
+                    ColourTexture(material)));
             }
 
             foreach (var reference in file.References)

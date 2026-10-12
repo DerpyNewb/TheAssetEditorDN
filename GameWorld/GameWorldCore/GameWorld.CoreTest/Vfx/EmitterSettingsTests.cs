@@ -205,6 +205,20 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(blood.Skipped, Has.One.Matches<string>(x => x.Contains("ps_custom_shader") && x.Contains("wh3_blood_spurt_01")));
         }
 
+        // A custom-shader material's colour texture (a slot named for a diffuse or base colour) stands in for its shader. One
+        // with none, as the fire's alpha masks, is not drawn and says so.
+        [TestCase("t_xml_particle_diffuse_2048_only", true)]
+        [TestCase("t_xml_alpha_1", false)]
+        public void CustomShaderChain_DrawsItsMaterialsColourTexture(string slot, bool drawn)
+        {
+            var material = $"<material><textures><texture><slot version=\"2\">t_xml_dither</slot><source>vfx/textures/dither.dds</source></texture><texture><slot version=\"2\">{slot}</slot><source>vfx/Textures/blood_base.dds</source></texture></textures></material>";
+            var chain = SmokeWithout("""<modifier fragment="ps_custom_shader"><property name="material" type="file" path="vfx\materials\wh3_blood_spurt_01.xml.material"/></modifier>""");
+            var pack = Pack(("fx.xml", Xml(emitters: Emitter("smoke"), chains: chain)), ("materials/wh3_blood_spurt_01.xml.material", System.Text.Encoding.UTF8.GetBytes(material)));
+            var blood = new VfxResolver(pack).Resolve("fx", new Random(1)).Emitters.Select(EmitterSettings.From).Single();
+            Assert.That((blood.Draws, blood.Texture), Is.EqualTo((drawn, drawn ? "vfx/Textures/blood_base.dds" : null)));
+            Assert.That(blood.Skipped, Has.One.Matches<string>(x => x.Contains("ps_custom_shader") && x.Contains("wh3_blood_spurt_01")));
+        }
+
         // The five vanilla drawn chains with no ps_texture all belong to emitters named "sound": they carry a sound and
         // show nothing, where a white quad each was drawn.
         [Test]

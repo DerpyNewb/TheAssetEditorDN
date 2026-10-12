@@ -233,11 +233,11 @@ namespace GameWorld.Core.Vfx
             if (Range("SpreadArc", (0, 0)) != (0, 0))
                 s.Skipped.Add("SpreadArc is not read in step 1");
 
-            ReadChain(s, resolved.Chain);
+            ReadChain(s, resolved.Chain, resolved.MaterialTexture);
             return s;
         }
 
-        static void ReadChain(EmitterSettings s, VfxBehaviourChain? chain)
+        static void ReadChain(EmitterSettings s, VfxBehaviourChain? chain, string? materialTexture)
         {
             if (chain == null)
             {
@@ -253,7 +253,14 @@ namespace GameWorld.Core.Vfx
             var texture = chain.Find("ps_texture");
             s.Texture = texture?.Textures.GetValueOrDefault("diffuse") is { Length: > 0 } path ? path : null;
             if (texture == null && chain.Find("ps_custom_shader") is { } custom)
-                NotDrawn(s, $"fragment ps_custom_shader draws through {custom.Properties.GetValueOrDefault("material")?.Attributes.GetValueOrDefault("path")}, which step 1 does not read");
+            {
+                var material = custom.Properties.GetValueOrDefault("material")?.Attributes.GetValueOrDefault("path");
+                s.Texture = materialTexture;
+                if (materialTexture == null)
+                    NotDrawn(s, $"fragment ps_custom_shader draws through {material}, which names no colour texture in the loaded packs");
+                else
+                    s.Skipped.Add($"fragment ps_custom_shader: {material} is drawn with its colour texture {materialTexture}, not its own shader");
+            }
             else if (texture == null && s.Draws)
                 NotDrawn(s, "the chain has no ps_texture, so nothing is drawn: in vanilla only sound carriers lack one");
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;

@@ -25,14 +25,21 @@ namespace GameWorld.Core.Test.Vfx
         public static string Override(string name, bool enable = true, string tint = "1.00") =>
             $"""<emitter name="{name}" enable="{(enable ? "true" : "false")}" tint_min_r="{tint}" tint_min_g="{tint}" tint_min_b="{tint}" tint_min_a="1.00" tint_max_r="{tint}" tint_max_g="{tint}" tint_max_b="{tint}" tint_max_a="1.00" particle_lifetime_bias_min="0.00" particle_lifetime_bias_max="0.00" emitter_lifetime_bias_min="0.00" emitter_lifetime_bias_max="0.00" spawn_rate_scale_factor_min="1.00" spawn_rate_scale_factor_max="1.00" sound_record=""/>""";
 
-        public static IPackFileService Pack(params (string Name, byte[] Bytes)[] files) =>
-            Pack(files.Select(f => PackFile.CreateFromBytes(f.Name, f.Bytes)));
+        /// <summary>Files under vfx/; a name may carry folders below it ("materials/x.xml.material").</summary>
+        public static IPackFileService Pack(params (string Name, byte[] Bytes)[] files) => Pack(files.Select(f =>
+        {
+            var path = "vfx/" + f.Name;
+            var slash = path.LastIndexOf('/');
+            return new NewPackFileEntry(path[..slash], PackFile.CreateFromBytes(path[(slash + 1)..], f.Bytes));
+        }));
 
-        public static IPackFileService Pack(IEnumerable<PackFile> files)
+        public static IPackFileService Pack(IEnumerable<PackFile> files) => Pack(files.Select(f => new NewPackFileEntry("vfx", f)));
+
+        static IPackFileService Pack(IEnumerable<NewPackFileEntry> entries)
         {
             var packFileService = new PackFileService(null) { EnforceGameFilesMustBeLoaded = false };
             var container = packFileService.CreateNewPackFileContainer("output", PackFileVersion.PFH5, PackFileCAType.MOD, true);
-            packFileService.AddFilesToPack(container, files.Select(f => new NewPackFileEntry("vfx", f)).ToList());
+            packFileService.AddFilesToPack(container, entries.ToList());
             return packFileService;
         }
     }
