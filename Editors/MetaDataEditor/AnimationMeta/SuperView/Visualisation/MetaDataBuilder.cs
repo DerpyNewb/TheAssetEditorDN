@@ -23,6 +23,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
     {
         // Off, an EFFECT tag draws its locator and no particles.
         bool ShowVfx { get; set; }
+        /// <summary>Lets go of what was loaded from these pack paths, so the next Create reads them again.</summary>
+        void Forget(IEnumerable<string> paths);
         List<IMetaDataInstance> Create(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData, ParsedMetadataAttribute? selectedMetaDataAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment);
     }
 
@@ -57,6 +59,12 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         }
 
         public void Dispose() => _vfxTextures.Dispose();
+
+        public void Forget(IEnumerable<string> paths)
+        {
+            foreach (var path in paths)
+                _vfxTextures.Forget(path);
+        }
 
         public List<IMetaDataInstance> Create(ParsedMetadataFile? persistent, 
             ParsedMetadataFile? metaData, ParsedMetadataAttribute? selectedMetaDataAttribute,

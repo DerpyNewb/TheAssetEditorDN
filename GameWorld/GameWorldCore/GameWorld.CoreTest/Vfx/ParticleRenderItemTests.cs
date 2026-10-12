@@ -222,6 +222,20 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((cache.Failed("broken"), cache.Failed("other")), Is.EqualTo((true, false)));
         }
 
+        // A texture replaced in a pack: the cache lets go of the old one, by either separator, and loads the new one.
+        [Test]
+        public void TextureCache_ForgetsAChangedPath()
+        {
+            var loads = 0;
+            var first = new Texture2D(_device, 1, 1);
+            using var cache = new VfxTextureCache((_, _) => ++loads == 1 ? first : new Texture2D(_device, 1, 1));
+            cache.Load(_device, @"vfx\textures\a.dds");
+            cache.Forget("vfx/textures/A.dds");
+            Assert.That(first.IsDisposed, Is.True);
+            Assert.That(cache.Load(_device, @"vfx\textures\a.dds"), Is.Not.SameAs(first));
+            Assert.That(loads, Is.EqualTo(2));
+        }
+
         [Test]
         public void TextureCache_LoadsEachPathOnce_AndOwnsWhatItLoads()
         {

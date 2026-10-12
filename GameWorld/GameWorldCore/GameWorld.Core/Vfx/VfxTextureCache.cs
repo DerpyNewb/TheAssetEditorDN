@@ -16,16 +16,26 @@ namespace GameWorld.Core.Vfx
 
         public VfxTextureCache(Func<GraphicsDevice, string, Texture2D?> load) => _load = load;
 
+        static string Key(string path) => path.Replace('/', '\\');
+
         /// <summary>The texture at a path, or null when it did not load (the loader logs why).</summary>
         public Texture2D? Load(GraphicsDevice device, string path)
         {
-            if (!_textures.TryGetValue(path, out var texture))
-                _textures[path] = texture = _load(device, path);
+            if (!_textures.TryGetValue(Key(path), out var texture))
+                _textures[Key(path)] = texture = _load(device, path);
             return texture;
         }
 
         /// <summary>True once a load of this path has been tried and failed.</summary>
-        public bool Failed(string path) => _textures.TryGetValue(path, out var texture) && texture == null;
+        public bool Failed(string path) => _textures.TryGetValue(Key(path), out var texture) && texture == null;
+
+        /// <summary>Lets go of a path whose file changed, so the next draw loads it again. Render items ask on every draw
+        /// and keep nothing, so none is left holding the disposed texture.</summary>
+        public void Forget(string path)
+        {
+            if (_textures.Remove(Key(path), out var texture))
+                texture?.Dispose();
+        }
 
         public void Dispose()
         {

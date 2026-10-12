@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework;
 using Shared.Core.Events;
 using Shared.Core.Events.Scoped;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationMeta.Parsing;
@@ -23,6 +24,7 @@ namespace Editors.AnimationMeta.SuperView
         private readonly IMetaDataBuilder _metaDataFactory;
         private readonly IPackFileService _packFileService;
         private readonly IEventHub _eventHub;
+        private readonly IGlobalEventHub _globalEventHub;
         private readonly IUiCommandFactory _uiCommandFactory;
 
         [ObservableProperty] string _persistentMetaFilePath = "";
@@ -49,6 +51,7 @@ namespace Editors.AnimationMeta.SuperView
         public SuperViewViewModel(
             IPackFileService packFileService,
             IEventHub eventHub,
+            IGlobalEventHub globalEventHub,
             IUiCommandFactory uiCommandFactory,
             SceneObjectEditor sceneObjectBuilder,
             IEditorHostParameters editorHostParameters,
@@ -59,6 +62,7 @@ namespace Editors.AnimationMeta.SuperView
             DisplayName = "Super view";
             _packFileService = packFileService;
             _eventHub = eventHub;
+            _globalEventHub = globalEventHub;
             _uiCommandFactory = uiCommandFactory;
             _sceneObjectBuilder = sceneObjectBuilder;
             _metaDataFileParser = metaDataFileParser;
@@ -68,6 +72,21 @@ namespace Editors.AnimationMeta.SuperView
             eventHub.Register<SceneObjectUpdateEvent>(this, OnSceneObjectUpdated);
             eventHub.Register<MetaDataAttributeChangedEvent>(this, OnMetaDataAttributeChanged);
             eventHub.Register<SelecteMetaDataAttributeChangedEvent>(this, OnSelectedMetaDataAttributeChanged);
+            globalEventHub.Register<PackFileContainerFilesAddedEvent>(this, x => OnPackFilesChanged(x.Container, x.AddedFiles));
+            globalEventHub.Register<PackFileContainerFilesUpdatedEvent>(this, x => OnPackFilesChanged(x.Container, x.ChangedFiles));
+        }
+
+        // A vfx file or a texture changed in a pack (the VFX editor saved, a texture was replaced): forget what was loaded
+        // from it and rebuild, so the scene shows it without the tab being reopened.
+        void OnPackFilesChanged(IPackFileContainer container, List<PackFile> files)
+        {
+            var paths = files.Select(x => _packFileService.GetFullPath(x, container))
+                .Where(x => x.StartsWith("vfx", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (paths.Count == 0)
+                return;
+            _metaDataFactory.Forget(paths);
+            RecreateMetaDataInformation();
         }
 
         private void OnSelectedMetaDataAttributeChanged(SelecteMetaDataAttributeChangedEvent @event) => RecreateMetaDataInformation();
@@ -167,6 +186,7 @@ namespace Editors.AnimationMeta.SuperView
         public override void Close()
         {
             _eventHub?.UnRegister(this);
+            _globalEventHub.UnRegister(this);
             base.Close();
         }
 

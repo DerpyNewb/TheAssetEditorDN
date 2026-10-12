@@ -1,7 +1,10 @@
+using System.IO;
 using Editors.AnimationMeta.SuperView;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
 using Shared.Core.Commands;
+using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
@@ -79,6 +82,26 @@ namespace Test.AnimationMeta
             open.Execute(vmd, EditorEnums.Kitbash_Editor);
 
             Assert.That(open.Execute(vmd, EditorEnums.SuperView_Editor), Is.InstanceOf<SuperViewViewModel>());
+        }
+
+        // A vfx file added or saved in any pack (the VFX editor's save, a replaced texture) rebuilds the scene's effects, so
+        // SuperView shows it without the tab being reopened; any other file leaves the scene alone.
+        [TestCase(@"vfx\test_smoke.xml", true)]
+        [TestCase(@"text\notes.txt", false)]
+        public void AChangedVfxFile_RebuildsTheScene(string path, bool rebuilds)
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var data = superView.SceneObjects[0].Data;
+            var pack = _runner.CreateOutputPack();
+
+            var before = data.MetaDataItems;
+            _runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry(Path.GetDirectoryName(path)!, PackFile.CreateFromBytes(Path.GetFileName(path), [1]))]);
+            Assert.That(data.MetaDataItems, rebuilds ? Is.Not.SameAs(before) : Is.SameAs(before), "on add");
+
+            before = data.MetaDataItems;
+            _runner.PackFileService.SaveFile(_runner.PackFileService.FindFile(path, pack)!, [2]);
+            Assert.That(data.MetaDataItems, rebuilds ? Is.Not.SameAs(before) : Is.SameAs(before), "on save");
         }
     }
 }
