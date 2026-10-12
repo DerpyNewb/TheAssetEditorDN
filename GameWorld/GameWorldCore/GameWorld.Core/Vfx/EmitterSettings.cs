@@ -5,7 +5,7 @@ namespace GameWorld.Core.Vfx
 {
     public enum SimulationSpace { World, LocalPositionRotation, LocalPositionOnly }
 
-    public enum QuadOrientation { CameraFacing, VelocityAligned, Horizontal }
+    public enum QuadOrientation { CameraFacing, VelocityAligned, Horizontal, Vertical, LocalHorizontal, LocalVertical }
 
     /// <summary>
     /// One emitter, read into what ParticleSimulator and ParticleRenderItem use. Its setters let a test
@@ -250,6 +250,9 @@ namespace GameWorld.Core.Vfx
                 null => (QuadOrientation.CameraFacing, true),
                 "Camera-aligned with stretching factor" or "Camera-facing velocity-aligned" => (QuadOrientation.VelocityAligned, true),
                 "Horizontally-oriented" => (QuadOrientation.Horizontal, true),
+                "Vertically-oriented" => (QuadOrientation.Vertical, true),
+                "Particle only rotating around local Y (horizontal)" => (QuadOrientation.LocalHorizontal, true),
+                "Particle only rotating around local Y (vertical)" => (QuadOrientation.LocalVertical, true),
                 _ => (QuadOrientation.CameraFacing, false),
             };
             if (!known)

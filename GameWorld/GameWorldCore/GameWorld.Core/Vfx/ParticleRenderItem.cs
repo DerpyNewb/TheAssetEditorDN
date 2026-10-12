@@ -56,23 +56,23 @@ namespace GameWorld.Core.Vfx
             var camera = CameraAxes.From(parameters, World);
             // ponytail: emitters are sorted back to front within one effect, not against other effects.
             var emitters = _simulator.Emitters.Where(x => x.Particles.Count != 0)
-                .Select(x => (x.Settings, States: ParticleSimulator.States(x).ToList()))
+                .Select(x => (x.Settings, States: ParticleSimulator.States(x).ToList(), Frame: x.World))
                 .OrderByDescending(x => Vector3.DistanceSquared(Centre(x.States), camera.Position))
                 .ToList();
 
             var blendState = device.BlendState;
             var samplerState = device.SamplerStates[0];
             device.SamplerStates[0] = SamplerState.LinearClamp;
-            foreach (var (settings, states) in emitters)
-                DrawEmitter(device, _effect, parameters, World, camera, settings, TextureFor(device, settings.Texture), states);
+            foreach (var (settings, states, frame) in emitters)
+                DrawEmitter(device, _effect, parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame);
             device.BlendState = blendState;
             device.SamplerStates[0] = samplerState;
         }
 
         public static void DrawEmitter(GraphicsDevice device, BasicEffect effect, CommonShaderParameters parameters, Matrix world,
-            CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states)
+            CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null)
         {
-            var vertices = settings.Trail ? Ribbon(settings, camera, states) : Quads(settings, camera, states);
+            var vertices = settings.Trail ? Ribbon(settings, camera, states) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
                 return;
 
@@ -88,12 +88,12 @@ namespace GameWorld.Core.Vfx
             }
         }
 
-        public static VertexPositionColorTexture[] Quads(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states)
+        public static VertexPositionColorTexture[] Quads(EmitterSettings s, CameraAxes camera, IReadOnlyList<ParticleState> states, Matrix? frame = null)
         {
             var vertices = new VertexPositionColorTexture[states.Count * 6];
             var n = 0;
             foreach (var state in states.OrderByDescending(x => Vector3.DistanceSquared(x.Position, camera.Position)))
-                n = AddQuad(vertices, n, s, camera, state);
+                n = AddQuad(vertices, n, s, camera, state, frame ?? Matrix.Identity);
             return vertices;
         }
 
@@ -130,9 +130,9 @@ namespace GameWorld.Core.Vfx
             return vertices;
         }
 
-        static int AddQuad(VertexPositionColorTexture[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p)
+        static int AddQuad(VertexPositionColorTexture[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame)
         {
-            var (across, up, height) = Axes(s, camera, p);
+            var (across, up, height) = Axes(s, camera, p, frame);
             var width = p.Size.X;
             var colour = VertexColour(s, p.Colour, p.Alpha);
             var uv = UvRect(s, p.Cell);
@@ -151,12 +151,29 @@ namespace GameWorld.Core.Vfx
             return n;
         }
 
-        // The quad's two edge directions and its height, per orientation_mode.
-        static (Vector3 Across, Vector3 Up, float Height) Axes(EmitterSettings s, CameraAxes camera, ParticleState p)
+        // The quad's two edge directions and its height, per orientation_mode. frame: the emitter's matrix, whose axes the
+        // two local-Y modes use. The three rare modes (29 vanilla chains) are readings of their names, not measurements.
+        static (Vector3 Across, Vector3 Up, float Height) Axes(EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame)
         {
             var (sin, cos) = MathF.SinCos(p.Angle);
             if (s.Orientation == QuadOrientation.Horizontal)
                 return (new Vector3(cos, 0, -sin), new Vector3(sin, 0, cos), p.Size.Y);
+
+            // Flat in the emitter's XZ plane, or upright on its Y, turned by the particle's angle about that Y.
+            if (s.Orientation is QuadOrientation.LocalHorizontal or QuadOrientation.LocalVertical)
+            {
+                var (x, z) = (Vector3.Normalize(frame.Right), Vector3.Normalize(frame.Backward));
+                var across = x * cos - z * sin;
+                return (across, s.Orientation == QuadOrientation.LocalHorizontal ? x * sin + z * cos : Vector3.Normalize(frame.Up), p.Size.Y);
+            }
+
+            // Upright, turning about the world's Y to face the camera.
+            if (s.Orientation == QuadOrientation.Vertical)
+            {
+                var side = Vector3.Cross(Vector3.Up, camera.Position - p.Position);
+                if (side.LengthSquared() > 1e-8f)
+                    return (Vector3.Normalize(side), Vector3.Up, p.Size.Y);
+            }
 
             if (s.Orientation == QuadOrientation.VelocityAligned)
             {

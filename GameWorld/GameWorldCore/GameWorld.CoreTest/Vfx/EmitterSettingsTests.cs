@@ -54,12 +54,21 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(ripple.Skipped, Has.One.Matches<string>(x => x.Contains("DISTORTION")));
         }
 
-        [Test]
-        public void RareOrientationMode_DrawsCameraFacing_AndSaysSo()
+        [TestCase("Vertically-oriented", QuadOrientation.Vertical)]
+        [TestCase("Particle only rotating around local Y (horizontal)", QuadOrientation.LocalHorizontal)]
+        [TestCase("Particle only rotating around local Y (vertical)", QuadOrientation.LocalVertical)]
+        public void RareOrientationModes_AreRead(string mode, QuadOrientation expected)
         {
-            var sparks = Read(Emitter("sparks"), SparksChain.Replace("Camera-aligned with stretching factor", "Vertically-oriented")).Single();
+            var sparks = Read(Emitter("sparks"), SparksChain.Replace("Camera-aligned with stretching factor", mode)).Single();
+            Assert.That((sparks.Orientation, sparks.Skipped.Any(x => x.Contains("orientation_mode"))), Is.EqualTo((expected, false)));
+        }
+
+        [Test]
+        public void UnknownOrientationMode_DrawsCameraFacing_AndSaysSo()
+        {
+            var sparks = Read(Emitter("sparks"), SparksChain.Replace("Camera-aligned with stretching factor", "Made up")).Single();
             Assert.That((sparks.Draws, sparks.Orientation), Is.EqualTo((true, QuadOrientation.CameraFacing)));
-            Assert.That(sparks.Skipped, Has.One.Matches<string>(x => x.Contains("Vertically-oriented")));
+            Assert.That(sparks.Skipped, Has.One.Matches<string>(x => x.Contains("Made up")));
         }
 
         [Test]

@@ -110,6 +110,22 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(BottomLeft(new EmitterSettings { UvTurn = 1 }, false), Is.EqualTo(new Vector2(0, 0)));
         }
 
+        // The axis each rare orientation's quad lies flat across, seen from (10, 10, 0): an upright quad turns about Y to face
+        // the camera, and the local ones lie in the emitter's own frame, here turned 90 degrees about X or Y.
+        [TestCase(QuadOrientation.Vertical, 0f, 0f, 0)]
+        [TestCase(QuadOrientation.LocalHorizontal, 90f, 0f, 2)]
+        [TestCase(QuadOrientation.LocalVertical, 0f, 90f, 0)]
+        public void RareOrientations_LieFlatAcrossTheirAxis(QuadOrientation mode, float aboutX, float aboutY, int flat)
+        {
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity) with { Position = new Vector3(10, 10, 0) };
+            var frame = Matrix.CreateRotationX(MathHelper.ToRadians(aboutX)) * Matrix.CreateRotationY(MathHelper.ToRadians(aboutY));
+            var corners = ParticleRenderItem.Quads(new EmitterSettings { Orientation = mode }, camera, [RedHalfAlpha], frame).Select(v => v.Position).ToList();
+            float Axis(Vector3 v, int i) => i == 0 ? v.X : i == 1 ? v.Y : v.Z;
+            Assert.That(corners.Max(v => Math.Abs(Axis(v, flat))), Is.LessThan(1e-3f));
+            foreach (var other in new[] { 0, 1, 2 }.Where(i => i != flat))
+                Assert.That(corners.Max(v => Axis(v, other)) - corners.Min(v => Axis(v, other)), Is.GreaterThan(9f), $"spans axis {other}");
+        }
+
         [Test]
         public void UvRect_AtlasCellThenFlipbookCell()
         {
