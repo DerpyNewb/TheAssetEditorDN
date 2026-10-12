@@ -99,6 +99,21 @@ namespace GameWorld.Core.Vfx
         /// <summary>The part of a colour that glows, drawn into the app's bloom pass: what lies over 1.</summary>
         public static Vector3 Glow(Vector3 colour) => Vector3.Max(colour - Vector3.One, Vector3.Zero);
 
+        /// <summary>ps_soft_edge (6,893 vanilla chains): a particle fades in over soft_factor metres of view ray in front of what
+        /// lies behind it (1.5 in 1,684 chains, 1 in 1,489, 0.2 to 5), scale_strength (1 in 6,610) read as the fade's exponent.
+        /// The preview has nothing to measure against but its ground, world y = 0: the gap is how far the ray from the camera
+        /// through a quad corner runs on before it reaches the ground, and a corner under the ground is hidden, as terrain hides it.</summary>
+        public static float SoftEdge(Vector3 corner, Vector3 camera, float softFactor, float strength)
+        {
+            if (softFactor <= 0)
+                return 1;
+            if (corner.Y < 0)
+                return 0;
+            var ray = corner - camera;
+            var down = ray.LengthSquared() > 1e-12f ? -Vector3.Normalize(ray).Y : 0;
+            return down <= 0 ? 1 : MathF.Pow(Math.Clamp(corner.Y / down / softFactor, 0, 1), strength);
+        }
+
         /// <summary>SpawnAreaBox is the box's full size, centred on the emitter.</summary>
         public static Vector3 BoxOffset(Vector3 size, Vector3 random01) => (random01 - new Vector3(0.5f)) * size;
 

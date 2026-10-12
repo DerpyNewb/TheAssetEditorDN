@@ -30,8 +30,8 @@ namespace GameWorld.Core.Vfx
         }
 
         /// <summary>The view's position and axes, moved into the effect's model space. PixelScale: the pixels one metre covers
-        /// one metre from the camera, 0 when the view's height is not known.</summary>
-        public readonly record struct CameraAxes(Vector3 Position, Vector3 Right, Vector3 Up, Vector3 Forward, float PixelScale = 0)
+        /// one metre from the camera, 0 when the view's height is not known. ToWorld: the effect's matrix, null for none.</summary>
+        public readonly record struct CameraAxes(Vector3 Position, Vector3 Right, Vector3 Up, Vector3 Forward, float PixelScale = 0, Matrix? ToWorld = null)
         {
             public static CameraAxes From(CommonShaderParameters parameters, Matrix world, int viewportHeight = 0)
             {
@@ -40,7 +40,7 @@ namespace GameWorld.Core.Vfx
                 Vector3 Axis(Vector3 axis) => Vector3.Normalize(Vector3.TransformNormal(axis, toModel));
                 return new CameraAxes(Vector3.Transform(parameters.CameraPosition, toModel),
                     Axis(new Vector3(v.M11, v.M21, v.M31)), Axis(new Vector3(v.M12, v.M22, v.M32)), Axis(-new Vector3(v.M13, v.M23, v.M33)),
-                    viewportHeight * parameters.Projection.M22 / 2);
+                    viewportHeight * parameters.Projection.M22 / 2, world);
             }
         }
 
@@ -164,12 +164,17 @@ namespace GameWorld.Core.Vfx
             var width = p.Size.X;
             var grow = VfxConventions.MinPixelGrowth(Math.Min(width, height), Vector3.Distance(camera.Position, p.Position), camera.PixelScale, s.MinPixels);
             (width, height) = (width * grow, height * grow);
-            var colour = VertexColour(s, p.Colour, Faded(s, camera, p, fade));
+            var alpha = Faded(s, camera, p, fade);
+            var colour = VertexColour(s, p.Colour, alpha);
             var uv = UvRect(s, p.Cell);
+            var toWorld = camera.ToWorld ?? Matrix.Identity;
+            var eye = Vector3.Transform(camera.Position, toWorld);
             VertexPositionColorTexture Corner(float x, float y)
             {
                 var (u, v) = VfxConventions.QuadUv(x, y, p.FlipU, p.FlipV, s.UvTurn);
-                return new(p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height), colour, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W));
+                var position = p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height);
+                var soft = s.SoftEdge > 0 ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength)) : colour;
+                return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W));
             }
 
             vertices[n++] = Corner(0, 0);

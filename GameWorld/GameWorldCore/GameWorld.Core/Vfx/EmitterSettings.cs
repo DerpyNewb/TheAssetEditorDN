@@ -67,6 +67,9 @@ namespace GameWorld.Core.Vfx
         public Vector4 ParticleCull { get; set; } = NoCull;
         /// <summary>vs_rendersize_limiter pixelsize_limit: the fewest pixels a particle is drawn across.</summary>
         public float MinPixels { get; set; }
+        /// <summary>ps_soft_edge soft_factor, metres (0: a hard edge), and scale_strength.</summary>
+        public float SoftEdge { get; set; }
+        public float SoftStrength { get; set; } = 1;
         static readonly Vector4 NoCull = new(0, 0, float.MaxValue, float.MaxValue);
 
         // A particle's start
@@ -245,6 +248,9 @@ namespace GameWorld.Core.Vfx
             s.AdditiveMul = Number(chain.Find("ps_lighting"), "additive_blend_mul", 0);
             s.MinPixels = Number(chain.Find("vs_rendersize_limiter"), "pixelsize_limit", 0);
             s.EmissiveMul = Number(chain.Find("ps_emissive"), "emissive_mul", 1);
+            var soft = chain.Find("ps_soft_edge");
+            s.SoftEdge = Number(soft, "soft_factor", 0);
+            s.SoftStrength = Number(soft, "scale_strength", 1);
             var flip = chain.Find("vs_flip_uv");
             s.FlipU = Number(flip, "flip_u", 0);
             s.FlipV = Number(flip, "flip_v", 0);

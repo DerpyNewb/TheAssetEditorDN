@@ -87,6 +87,15 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [Test]
+        public void SoftEdge_IsRead()
+        {
+            var soft = """<modifier fragment="ps_soft_edge"><property name="soft_factor" type="float" value="1.5"/><property name="scale_strength" type="float" value="2.0"/></modifier>""";
+            var e = Read(Emitter("sparks"), SparksChain.Replace("</quality>", soft + "</quality>")).Single();
+            Assert.That((e.SoftEdge, e.SoftStrength), Is.EqualTo((1.5f, 2f)));
+            Assert.That(Read(Emitter("sparks"), SparksChain).Single().SoftEdge, Is.Zero, "no ps_soft_edge: a hard edge");
+        }
+
+        [Test]
         public void Emissive_IsRead()
         {
             var emissive = """<modifier fragment="ps_emissive"><property name="emissive_mul" type="float" value="21.0"/></modifier>""";

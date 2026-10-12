@@ -107,6 +107,27 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.All.EqualTo(1).Within(0.02));
         }
 
+        // ps_soft_edge against the preview's ground, world y = 0: a small flat quad 0.5 m up, seen from 10 m straight above,
+        // is 0.5 m of view ray from the ground, half of a 1 m soft_factor; below the ground it is hidden. The effect's own
+        // y = 0 is not the ground: lifted 1 m by its matrix, a quad 0.5 m below its origin is 0.5 m up.
+        [Test]
+        public void SoftEdges_FadeIntoTheGround()
+        {
+            var looking = new ParticleRenderItem.CameraAxes(new Vector3(0, 10, 0), Vector3.Right, Vector3.Forward, Vector3.Down);
+            float Alpha(EmitterSettings s, float height, ParticleRenderItem.CameraAxes camera) =>
+                ParticleRenderItem.Quads(s, camera, [new(new Vector3(0, height, 0), Vector3.Zero, new Vector2(0.01f), 0, Vector3.One, 1, 0, 0)])[0].Color.A / 255f;
+            EmitterSettings Soft(float factor, float strength = 1) => new() { Premultiplied = false, Orientation = QuadOrientation.Horizontal, SoftEdge = factor, SoftStrength = strength };
+            Assert.Multiple(() =>
+            {
+                Assert.That(Alpha(Soft(0), 0.5f, looking), Is.EqualTo(1f), "no ps_soft_edge");
+                Assert.That(Alpha(Soft(1), 0.5f, looking), Is.EqualTo(0.5f).Within(0.01));
+                Assert.That(Alpha(Soft(1, 2), 0.5f, looking), Is.EqualTo(0.25f).Within(0.01));
+                Assert.That(Alpha(Soft(1), -0.5f, looking), Is.Zero, "under the ground");
+                var lifted = new ParticleRenderItem.CameraAxes(new Vector3(0, 9, 0), Vector3.Right, Vector3.Forward, Vector3.Down, ToWorld: Matrix.CreateTranslation(0, 1, 0));
+                Assert.That(Alpha(Soft(1), -0.5f, lifted), Is.EqualTo(0.5f).Within(0.01), "the ground is the world's");
+            });
+        }
+
         // enable_trail_mode: one strip through the particles, oldest to newest, as wide as each, facing the camera, with
         // the texture cell running from the newest (its top, as a velocity-aligned quad's head) to the oldest.
         [Test]
