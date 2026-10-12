@@ -296,6 +296,14 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(Vector3.Distance(Vector3.Transform(new Vector3(2, 0, 1), framed), new Vector3(10, 3, 0)), Is.LessThan(1e-4), "then turned by its emitter's frame");
         }
 
+        // A rigid particle's AnimFile plays at AnimSpeed from the particle's birth and loops: most of vanilla's 118 are run
+        // cycles, idles and tentacles. A clip with no length holds its first frame.
+        [TestCase(0.5f, 2f, 4f, 0.25f)]
+        [TestCase(5f, 1f, 2f, 0.5f)]
+        [TestCase(1f, 1f, 0f, 0f)]
+        public void AnimShare_PlaysAtItsSpeedAndLoops(float age, float speed, float length, float share) =>
+            Assert.That(VfxConventions.AnimShare(age, speed, length), Is.EqualTo(share).Within(1e-5));
+
         // A rigid particle takes its emitter's turn, without its place or scale; one RELATIVE_TO_TERRAIN_NORMAL stands on the
         // preview's flat ground, so it keeps only the emitter's heading.
         [Test]

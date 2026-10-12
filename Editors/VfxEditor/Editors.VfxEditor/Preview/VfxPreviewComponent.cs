@@ -33,7 +33,7 @@ namespace Editors.VfxEditor.Preview
             _sceneManager = sceneManager;
             _meshLoader = meshLoader;
             _textures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(packFileService, _lines.Add));
-            _meshes = new VfxMeshCache(LoadRigid);
+            _meshes = new VfxMeshCache(LoadRigid, VfxMeshCache.PackAnimationLoader(packFileService, _lines.Add), _lines.Add);
         }
 
         public float Time { get; private set; }

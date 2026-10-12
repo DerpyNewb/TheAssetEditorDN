@@ -134,6 +134,16 @@ namespace GameWorld.Core.Vfx
             Matrix.CreateTranslation(-(box.Min + pivot * (box.Max - box.Min))) * Matrix.CreateScale(scale)
             * Matrix.CreateRotationX(turn.X) * Matrix.CreateRotationY(turn.Y) * Matrix.CreateRotationZ(turn.Z) * frame * Matrix.CreateTranslation(position);
 
+        /// <summary>How far through its AnimFile a rigid particle is: played at AnimSpeed from its birth, looping, since most of
+        /// vanilla's 118 animated entries are run cycles, idles and tentacles. Read as a playback rate; not measured in game.</summary>
+        public static float AnimShare(float age, float speed, float length)
+        {
+            if (length <= 0)
+                return 0;
+            var u = age * speed / length;
+            return u - MathF.Floor(u);
+        }
+
         /// <summary>The turn a rigid particle takes from its emitter's matrix, without its place or scale: ParticleRelativeSpawnOrientation
         /// is RELATIVE_TO_VFX_UP_AXIS or unset on 2,853 of vanilla's 2,924 rigid emitters. RELATIVE_TO_TERRAIN_NORMAL (71) stands the
         /// model on the ground, the preview's flat one, so it keeps only the emitter's heading.</summary>

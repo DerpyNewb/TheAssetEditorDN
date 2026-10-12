@@ -503,6 +503,22 @@ namespace Test.VfxEditor
             });
         }
 
+        // A rigid particle plays its AnimFile (118 vanilla entries): Karl Franz on the test pack's stand idle drops his arms from
+        // the bind pose, so he draws narrower.
+        [Test]
+        public void A_rigid_model_plays_its_animation()
+        {
+            static int Wide(Xna.Color[] frame)
+            {
+                var drawn = Enumerable.Range(0, frame.Length).Where(i => frame[i].A > 0).ToList();
+                return drawn.Max(i => i % 64) - drawn.Min(i => i % 64);
+            }
+            var bind = Wide(DrawEffect(ShowRigidModel().Item1, DepthStencilState.Default));
+            var (runner, preview) = ShowRigidModel(anim: "animations/battle/humanoid01/2handed_hammer/stand/hu1_2hh_stand_idle_01.anim");
+            var idle = Wide(DrawEffect(runner, DepthStencilState.Default));
+            Assert.That(idle, Is.LessThan(bind), string.Join("; ", preview.Lines));
+        }
+
         // The engine draws effects reading depth without writing it, so a model that does not write its own draws its far side
         // over its near one. It draws the same under the engine's state as under a plain depth test.
         [Test]
@@ -575,7 +591,7 @@ namespace Test.VfxEditor
         }
 
         // Karl Franz's model on one continuous_rigid particle, half a second in.
-        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel(string chains = "", string properties = "")
+        static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel(string chains = "", string properties = "", string anim = "")
         {
             var (runner, _, preview) = OpenWithAGuideModelOffered();
             const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
@@ -584,7 +600,7 @@ namespace Test.VfxEditor
                 + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>" + properties
                 + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
                 + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
-                + "<property_rigid_data name=\"RigidData\" quality=\"0\"><rigid_entry><ModelFile value=\"" + KarlFranz + "\"/><PivotPoint x=\"0.50\" y=\"0.50\" z=\"0.50\"/><AnimFile value=\"\"/><AnimSpeed value=\"1.00\"/></rigid_entry></property_rigid_data>"
+                + "<property_rigid_data name=\"RigidData\" quality=\"0\"><rigid_entry><ModelFile value=\"" + KarlFranz + "\"/><PivotPoint x=\"0.50\" y=\"0.50\" z=\"0.50\"/><AnimFile value=\"" + anim + "\"/><AnimSpeed value=\"1.00\"/></rigid_entry></property_rigid_data>"
                 + "\r\n\t\t</emitter>";
             preview.Show("rigid", Fixtures.Utf16(Fixtures.Effect(emitters: emitter, chains: chains, stacks: "", references: "")), 0);
             preview.SetTime(0.5f);

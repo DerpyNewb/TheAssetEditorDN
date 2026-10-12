@@ -27,7 +27,7 @@ namespace Shared.GameFormats.Vfx
     }
 
     /// <summary>One model a continuous_rigid emitter's particles may be: RigidData's rigid_entry.</summary>
-    public record VfxRigidEntry(string ModelFile, Vector3 Pivot, string? AnimFile);
+    public record VfxRigidEntry(string ModelFile, Vector3 Pivot, string? AnimFile, float AnimSpeed = 1);
 
     /// <summary>Rigid: RigidData's models, a continuous_rigid emitter's; null or empty for any other.</summary>
     public record VfxEmitter(string Id, string Type, IReadOnlyDictionary<string, VfxProperty> Properties, IReadOnlyList<VfxRigidEntry>? Rigid = null);
@@ -165,7 +165,8 @@ namespace Shared.GameFormats.Vfx
                 .Select(entry => new VfxRigidEntry(
                     (string?)entry.Element("ModelFile")?.Attribute("value") ?? "",
                     entry.Element("PivotPoint") is { } pivot ? new Vector3(Num(pivot, "x", 0.5f), Num(pivot, "y", 0.5f), Num(pivot, "z", 0.5f)) : new Vector3(0.5f),
-                    (string?)entry.Element("AnimFile")?.Attribute("value") is { Length: > 0 } anim ? anim : null))
+                    (string?)entry.Element("AnimFile")?.Attribute("value") is { Length: > 0 } anim ? anim : null,
+                    entry.Element("AnimSpeed") is { } speed ? Num(speed, "value", 1) : 1))
                 .Where(x => x.ModelFile.Length > 0)
                 .ToList() ?? [];
         }

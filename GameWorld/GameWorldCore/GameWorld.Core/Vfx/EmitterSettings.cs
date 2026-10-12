@@ -233,8 +233,6 @@ namespace GameWorld.Core.Vfx
                 s.RigidOnTerrain = P("ParticleRelativeSpawnOrientation")?.Value == "RELATIVE_TO_TERRAIN_NORMAL";
                 if (s.Rigid.Count == 0)
                     NotDrawn(s, "its RigidData names no model, so there is nothing to draw");
-                foreach (var anim in s.Rigid.Select(x => x.AnimFile).OfType<string>().Distinct())
-                    s.Skipped.Add($"rigid model animation {anim} is not played: the model holds its bind pose");
             }
             else if (resolved.Emitter.Type != "continuous_mesh")
                 NotDrawn(s, $"emitter type {resolved.Emitter.Type} is not drawn in step 1");

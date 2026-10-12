@@ -370,6 +370,7 @@ namespace GameWorld.Core.Vfx
             {
                 var entry = s.Rigid[Math.Clamp(p.Model, 0, s.Rigid.Count - 1)];
                 var model = _meshes.Get(entry.ModelFile);
+                _meshes.Pose(model, entry.AnimFile, p.Age, entry.AnimSpeed);
                 var matrix = VfxConventions.RigidMatrix(model.Box, entry.Pivot, p.Size.X, new Vector3(p.TurnXy, p.Angle), turn, p.Position) * World;
                 var tinted = parameters with { ModelColour = new Vector4(p.Colour, p.Alpha) };
                 // A see-through model shows its nearest faces once: its depth first, then its colour laid over where it is nearest.

@@ -79,8 +79,8 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(ripple.Skipped, Has.One.Matches<string>(x => x.Contains("DISTORTION")));
         }
 
-        // A continuous_rigid emitter draws its RigidData models, with or without a chain; an AnimFile is not played, and
-        // says so. Its orientation and spin are read on all three axes.
+        // A continuous_rigid emitter draws its RigidData models, with or without a chain; an AnimFile plays, so it reports
+        // nothing. Its orientation and spin are read on all three axes.
         [Test]
         public void RigidEmitter_DrawsItsModels_TurningOnEveryAxis()
         {
@@ -91,7 +91,7 @@ namespace GameWorld.Core.Test.Vfx
                 Assert.That(rat.Draws, Is.True);
                 Assert.That(rat.Rigid.Select(x => x.ModelFile), Is.EqualTo(new[] { "vfx/models/rat.wsmodel" }));
                 Assert.That((rat.TurnXy, rat.SpinXy, rat.SpinSignXy), Is.EqualTo(((new Vector2(10, 20), new Vector2(40, 50)), (new Vector2(1, 2), new Vector2(4, 5)), new Vector2(-1, 1))));
-                Assert.That(rat.Skipped, Has.One.Matches<string>(x => x.Contains("animations/rat.anim")));
+                Assert.That(rat.Skipped, Has.None.Matches<string>(x => x.Contains("animations/rat.anim")), "the animation plays");
             });
         }
 

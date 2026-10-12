@@ -28,7 +28,7 @@ namespace GameWorld.Core.Vfx
     }
 
     /// <summary>A particle as drawn now, in the effect's model space.</summary>
-    public readonly record struct ParticleState(Vector3 Position, Vector3 Velocity, Vector2 Size, float Angle, Vector3 Colour, float Alpha, float Stretch, int Cell, bool FlipU = false, bool FlipV = false, int NextCell = 0, float CellBlend = 0, float Crush = 0, Vector2 TurnXy = default, int Model = 0);
+    public readonly record struct ParticleState(Vector3 Position, Vector3 Velocity, Vector2 Size, float Angle, Vector3 Colour, float Alpha, float Stretch, int Cell, bool FlipU = false, bool FlipV = false, int NextCell = 0, float CellBlend = 0, float Crush = 0, Vector2 TurnXy = default, int Model = 0, float Age = 0);
 
     public class EmitterRuntime
     {
@@ -424,7 +424,7 @@ namespace GameWorld.Core.Vfx
                 var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W;
                 var (cell, next, blend) = s.Animated ? VfxConventions.FlipbookFrame(s.CellsX * s.CellsY, v, p.Age, p.Loops, s.FixedSpeed, s.FlipbookLoop) : (s.RandomCell ? p.Cell : s.Cell, 0, 0f);
                 yield return new ParticleState(position, velocity, size, p.Angle, colour, alpha, s.Stretch?.Evaluate(0, v, p.RStretch) ?? 0, cell, p.FlipU, p.FlipV, next, s.CellBlend ? blend : 0,
-                    s.AlphaCrush?.Evaluate(0, v, p.RAlpha) ?? 0, p.TurnXy, p.Model);
+                    s.AlphaCrush?.Evaluate(0, v, p.RAlpha) ?? 0, p.TurnXy, p.Model, p.Age);
             }
         }
 

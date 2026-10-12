@@ -60,7 +60,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
             _packFileService = packFileService;
             _vfxTextures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(packFileService, LogOnce));
-            _vfxMeshes = new VfxMeshCache(LoadRigid);
+            _vfxMeshes = new VfxMeshCache(LoadRigid, VfxMeshCache.PackAnimationLoader(packFileService, LogOnce), LogOnce);
         }
 
         public void Dispose()

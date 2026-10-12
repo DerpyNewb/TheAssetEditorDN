@@ -1,13 +1,17 @@
+using GameWorld.Core.Animation;
 using GameWorld.Core.Rendering.Geometry;
 using GameWorld.Core.Rendering.Materials.Capabilities;
 using GameWorld.Core.Rendering.Materials.Shaders;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
+using Shared.Core.PackFiles;
+using Shared.GameFormats.Animation;
+using Shared.GameFormats.RigidModel;
 
 namespace GameWorld.Core.Vfx
 {
-    /// <summary>A model's LOD 0 meshes, each with its placement in the model, and the box around them.</summary>
-    public record VfxModel(IReadOnlyList<(MeshObject Geometry, IShader Material, Matrix Local)> Meshes, BoundingBox Box);
+    /// <summary>A model's LOD 0 meshes, each with its placement in the model, the box around them, and its skeleton's name.</summary>
+    public record VfxModel(IReadOnlyList<(MeshObject Geometry, IShader Material, Matrix Local)> Meshes, BoundingBox Box, string Skeleton = "");
 
     /// <summary>
     /// The models continuous_rigid particles draw, loaded once per editor through the editor's own mesh loader, which returns
@@ -20,8 +24,14 @@ namespace GameWorld.Core.Vfx
         static readonly Matrix[] s_bindPose = Enumerable.Repeat(Matrix.Identity, 256).ToArray();
         readonly Func<string, SceneNode?> _load;
         readonly Dictionary<string, VfxModel> _models = [];
+        readonly Func<string, AnimationFile?>? _loadAnimation;
+        readonly Action<string>? _log;
+        readonly Dictionary<(string Skeleton, string Anim), (GameSkeleton Skeleton, AnimationClip Clip)?> _clips = [];
 
-        public VfxMeshCache(Func<string, SceneNode?> load) => _load = load;
+        /// <summary>loadAnimation: an AnimFile or a skeleton (animations/skeletons/name.anim) by path, null (said by itself) when
+        /// missing; without it every model holds its bind pose.</summary>
+        public VfxMeshCache(Func<string, SceneNode?> load, Func<string, AnimationFile?>? loadAnimation = null, Action<string>? log = null) =>
+            (_load, _loadAnimation, _log) = (load, loadAnimation, log);
 
         static string Key(string path) => path.Replace('/', '\\').ToLowerInvariant();
 
@@ -40,8 +50,68 @@ namespace GameWorld.Core.Vfx
                 .Select(mesh => (mesh.Geometry, (IShader)mesh.Material, Matrix.CreateTranslation(mesh.PivotPoint) * mesh.ModelMatrix))
                 .ToList();
             return _models[key] = meshes.Count == 0 ? s_none
-                : new VfxModel(meshes, meshes.Select(x => x.Geometry.BoundingBox).Aggregate(BoundingBox.CreateMerged));
+                : new VfxModel(meshes, meshes.Select(x => x.Geometry.BoundingBox).Aggregate(BoundingBox.CreateMerged),
+                    meshes.Select(x => x.Geometry.SkeletonName).FirstOrDefault(x => !string.IsNullOrEmpty(x)) ?? "");
         }
+
+        /// <summary>Poses a model's meshes for its next draw: anim sampled at age (seconds since the particle's birth) at speed,
+        /// looping (VfxConventions.AnimShare); the bind pose when there is no anim or it, or the model's skeleton, does not load.</summary>
+        public void Pose(VfxModel model, string? anim, float age, float speed)
+        {
+            var clip = anim == null ? null : Clip(model.Skeleton, anim);
+            var transforms = s_bindPose;
+            if (clip is var (skeleton, animation))
+            {
+                var frame = AnimationSampler.Sample(VfxConventions.AnimShare(age, speed, animation.PlayTimeInSec), skeleton, animation);
+                transforms = s_bindPose.ToArray();
+                for (var i = 0; i < Math.Min(frame.BoneTransforms.Count, transforms.Length); i++)
+                    transforms[i] = frame.BoneTransforms[i].WorldTransform;
+            }
+            foreach (var (geometry, material, _) in model.Meshes)
+                if ((material as CapabilityMaterial)?.TryGetCapability<AnimationCapability>() is { } animated)
+                    (animated.AnimationTransforms, animated.ApplyAnimation) = (transforms, clip != null && geometry.VertexFormat != UiVertexFormat.Static);
+        }
+
+        (GameSkeleton, AnimationClip)? Clip(string skeletonName, string anim)
+        {
+            var key = (skeletonName, Key(anim));
+            if (_clips.TryGetValue(key, out var known))
+                return known;
+            _clips[key] = null;
+            if (_loadAnimation == null || skeletonName.Length == 0)
+                return null;
+            if (_loadAnimation($"animations/skeletons/{skeletonName}.anim") is not { } skeletonFile || _loadAnimation(anim) is not { } animFile)
+                return null;
+            try
+            {
+                var skeleton = new GameSkeleton(skeletonFile, null!);
+                return _clips[key] = (skeleton, new AnimationClip(animFile, skeleton));
+            }
+            catch (Exception e)
+            {
+                _log?.Invoke($"rigid model animation {anim} does not play on skeleton {skeletonName}: {e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Loads an AnimFile or a skeleton from the loaded packs; missing or unreadable, null and one log line.</summary>
+        public static Func<string, AnimationFile?> PackAnimationLoader(IPackFileService packFileService, Action<string> log) => path =>
+        {
+            if (packFileService.FindFile(path) is not { } file)
+            {
+                log($"{path} is not in the loaded packs, so the rigid model holds its bind pose");
+                return null;
+            }
+            try
+            {
+                return AnimationFile.Create(file);
+            }
+            catch (Exception e)
+            {
+                log($"{path} did not load, so the rigid model holds its bind pose: {e.Message}");
+                return null;
+            }
+        };
 
         // A mesh node fills its material's bone transforms when it renders itself; drawn from here it never does, and a
         // material with none set throws. The model holds its bind pose.
@@ -55,7 +125,10 @@ namespace GameWorld.Core.Vfx
         /// <summary>A model changed in a pack: let go of it, so the next draw loads the new one.</summary>
         public void Forget(string path)
         {
-            if (_models.Remove(Key(path), out var model))
+            var key = Key(path);
+            foreach (var clip in _clips.Keys.Where(x => x.Anim == key || Key($"animations/skeletons/{x.Skeleton}.anim") == key).ToList())
+                _clips.Remove(clip);
+            if (_models.Remove(key, out var model))
                 foreach (var mesh in model.Meshes)
                     mesh.Geometry.Dispose();
         }
@@ -65,6 +138,7 @@ namespace GameWorld.Core.Vfx
             foreach (var mesh in _models.Values.SelectMany(x => x.Meshes))
                 mesh.Geometry.Dispose();
             _models.Clear();
+            _clips.Clear();
         }
     }
 }
