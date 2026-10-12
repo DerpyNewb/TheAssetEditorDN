@@ -155,13 +155,17 @@ namespace GameWorld.Core.Vfx
             return events;
         }
 
+        // named: the reference that reached this file lists emitters, and so plays only those, as the game does. CA's editor
+        // saves every emitter a library has into the reference, so one the library gained later is unnamed and silent.
         void Collect(string name, VfxFile file, Matrix transform, float startOffset, float speed, bool infinite,
-            IReadOnlyDictionary<string, VfxEmitterOverride> outer, HashSet<string> stack, Random random, VfxResolveResult result, HashSet<string> seen)
+            IReadOnlyDictionary<string, VfxEmitterOverride> outer, HashSet<string> stack, Random random, VfxResolveResult result, HashSet<string> seen, bool named = false)
         {
             foreach (var emitter in file.Emitters)
             {
                 seen.Add(emitter.Id);
-                var o = outer.GetValueOrDefault(emitter.Id) ?? VfxEmitterOverride.None;
+                if (!outer.TryGetValue(emitter.Id, out var o) && named)
+                    continue;
+                o ??= VfxEmitterOverride.None;
                 var switchedOn = !emitter.Properties.TryGetValue("Enable", out var enable) || enable.IsTrue;
                 if (!o.Enable || !switchedOn)
                     continue;
@@ -200,7 +204,7 @@ namespace GameWorld.Core.Vfx
                 var below = new HashSet<string>();
                 stack.Add(key);
                 Collect(reference.Target, target, local * transform, startOffset + start, speed * reference.SimulationSpeed,
-                    infinite && reference.InfiniteLife, overrides, stack, random, result, below);
+                    infinite && reference.InfiniteLife, overrides, stack, random, result, below, reference.Overrides.Count > 0);
                 stack.Remove(key);
                 seen.UnionWith(below);
                 foreach (var missing in reference.Overrides.Keys.Where(x => !below.Contains(x)))

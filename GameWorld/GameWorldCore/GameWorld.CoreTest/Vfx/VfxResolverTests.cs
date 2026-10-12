@@ -110,6 +110,24 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(Resolve(Pack(("fx.xml", Xml(emitters: off))), "fx").Emitters, Is.Empty);
         }
 
+        // A reference plays only the emitters it names: CA's editor lists every emitter its library had when the effect was
+        // made, and one the library gained later is not played. wh3_dlc23_entity_drazhoath_axe_fire_trail reaches a library
+        // whose flamethrower_continuous2 it never lists, and played, a weapon's fire trail threw flame 40 m. 1,824 of
+        // vanilla's 11,555 references leave some emitter unnamed, in 1,311 effects. The one that names none points at a file
+        // with no emitters of its own, so a reference naming none still plays them all.
+        [Test]
+        public void EmitterTheReferenceDoesNotName_IsNotPlayed()
+        {
+            var lib = ("lib.xml", Xml(emitters: Emitter("named") + Emitter("added_later")));
+            var named = Resolve(Pack(lib, ("top.xml", Xml(references: Reference("lib", overrides: Override("named"))))), "top");
+            var none = Resolve(Pack(lib, ("top.xml", Xml(references: Reference("lib")))), "top");
+            Assert.Multiple(() =>
+            {
+                Assert.That(named.Emitters.Select(x => x.Emitter.Id), Is.EqualTo(new[] { "named" }));
+                Assert.That(none.Emitters.Select(x => x.Emitter.Id), Is.EqualTo(new[] { "named", "added_later" }));
+            });
+        }
+
         // An override reaches an emitter anywhere under its reference; one naming an id nothing there has does nothing,
         // so it is said. A tracer switched on _rifle_100ms_aftertrail, which wh_main_lib_trail_small_arm does not contain.
         [Test]
