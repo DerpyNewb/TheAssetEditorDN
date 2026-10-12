@@ -89,6 +89,14 @@ namespace GameWorld.Core.Vfx
             device.SamplerStates[0] = samplerState;
         }
 
+        /// <summary>The light particles alive now, in the world: each reaches as far as its pool, half its size, in its colour at its
+        /// alpha, as LightPS draws the pool.</summary>
+        public IEnumerable<PointLight> Lights() => _simulator.AllEmitters.Where(x => x.Settings.Light).SelectMany(e =>
+        {
+            var brightness = VfxConventions.Blend(e.Settings.AdditiveMul).Brightness;
+            return ParticleSimulator.States(e).Select(p => new PointLight(Vector3.Transform(p.Position, World), p.Size.X / 2, p.Colour * p.Alpha * brightness));
+        });
+
         public static void DrawEmitter(GraphicsDevice device, Effect effect, CommonShaderParameters parameters, Matrix world,
             CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null, bool glow = false,
             Texture2D? scene = null)

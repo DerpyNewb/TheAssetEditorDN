@@ -19,6 +19,7 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
         public float LightIntensityMult { get; set; }
         public Vector3 LightColour { get; set; }
         public Vector4 ModelColour { get; set; } = Vector4.One;
+        public IReadOnlyList<PointLight> PointLights { get; set; } = [];
 
         public void Apply(Effect effect, IScopedResourceLibrary _)
         {
@@ -31,6 +32,16 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
             effect.Parameters["CameraPos"].SetValue(CameraPosition);
             effect.Parameters["Constant_LightColour"].SetValue(LightColour);
             effect.Parameters["ModelColour"]?.SetValue(ModelColour);
+            if (effect.Parameters["PointLightCount"] is { } count)
+            {
+                var lights = PointLights.Take(CommonShaderParameters.MaxPointLights).ToArray();
+                count.SetValue(lights.Length);
+                if (lights.Length > 0)
+                {
+                    effect.Parameters["PointLights"].SetValue(lights.Select(x => new Vector4(x.Position, x.Radius)).ToArray());
+                    effect.Parameters["PointLightColours"].SetValue(lights.Select(x => new Vector4(x.Colour, 1)).ToArray());
+                }
+            }
         }
 
         public void Assign(CommonShaderParameters parameters, Matrix modelMatrix)
@@ -47,6 +58,7 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
             LightIntensityMult = parameters.LightIntensityMult;
             LightColour = parameters.LightColour;
             ModelColour = parameters.ModelColour;
+            PointLights = parameters.PointLights;
         }
 
         public ICapability Clone()
@@ -63,6 +75,7 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
                 ModelMatrix = ModelMatrix,
                 LightIntensityMult = LightIntensityMult,
                 ModelColour = ModelColour,
+                PointLights = PointLights,
             };
         }
 

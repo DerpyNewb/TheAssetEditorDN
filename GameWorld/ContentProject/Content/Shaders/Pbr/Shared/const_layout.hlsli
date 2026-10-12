@@ -26,6 +26,22 @@ float3 TintColour = float3(1, 1, 1);
 // A rigid particle's colour and alpha off its chain; white and opaque for everything else.
 float4 ModelColour = float4(1, 1, 1, 1);
 
+// The VFX preview's light particles (CommonShaderParameters.PointLights): position and reach (xyz, w), and colour.
+float4 PointLights[16];
+float4 PointLightColours[16];
+int PointLightCount = 0;
+
+// Light i's colour where it reaches position, falling off as its pool on the ground does, (1 - d^2/r^2)^2, and the way to it.
+// Each shader lights with it as it lights with the sun, on the sun's scale: a light of colour 1 lights a face square to it as
+// the sun does.
+float3 PointLightAt(int i, float3 position, out float3 direction)
+{
+    float3 to = PointLights[i].xyz - position;
+    direction = normalize(to);
+    float fall = saturate(1 - dot(to, to) / max(PointLights[i].w * PointLights[i].w, 0.0001));
+    return PointLightColours[i].rgb * fall * fall;
+}
+
 // Textures
 Texture2D<float4> DiffuseTexture;
 Texture2D<float4> SpecularTexture;

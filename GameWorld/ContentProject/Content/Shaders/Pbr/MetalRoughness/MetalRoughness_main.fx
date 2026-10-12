@@ -100,6 +100,15 @@ float4 DefaultPixelShader(in PixelInputType input, bool bIsFrontFace : SV_IsFron
     // Apply global constant light colour so the scene lighting can be globally tuned
     hdr_linear_col *= Constant_LightColour;
 
+    // The VFX preview's light particles, each lit as the sun is, without the sun's environment light.
+    float3 reflectedView = reflect(normalizedViewDirection, slm_uncompressed.Normal);
+    for (int i = 0; i < PointLightCount; i++)
+    {
+        float3 toLight;
+        float3 pointColour = PointLightAt(i, input.worldPosition, toLight) * get_sun_colour() * unchartedSunFactor;
+        hdr_linear_col += standard_lighting_model_directional_light_SM4_private(pointColour, toLight, normalizedViewDirection, reflectedView, slm_uncompressed);
+    }
+
     //  Tone-map the pixel...            
     //float3 ldr_linear_col = saturate(tone_map_linear_hdr_to_linear_ldr_reinhard(hdr_linear_col));    
     float3 ldr_linear_col = saturate(Uncharted2ToneMapping(hdr_linear_col));    

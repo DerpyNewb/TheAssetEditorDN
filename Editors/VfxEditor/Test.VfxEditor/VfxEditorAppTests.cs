@@ -636,6 +636,66 @@ namespace Test.VfxEditor
             Assert.That(drawn, Is.EqualTo(new[] { RenderingTechnique.Normal, RenderingTechnique.Emissive }));
         }
 
+        // A DEFERRED_DYNAMIC_LIGHT particle lights the solid scene, not only the ground its pool lies on: the engine hands the
+        // solid draws every light particle alive this frame, where it is, as wide as its pool and in its colour. A red light 1.5 m
+        // in front of Karl Franz, 6 m across.
+        [Test]
+        public void The_engine_hands_its_light_particles_to_the_solid_scene()
+        {
+            const string Key = "linear,linear,-0.05,0.0,0.05,0.0,0";
+            const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
+            var light = "\r\n\t\t<emitter type=\"continuous_mesh\" id=\"glow\">"
+                + "<property name=\"InfiniteLife\" quality=\"0\" value=\"true\"/>"
+                + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>"
+                + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
+                + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
+                + "<property name=\"ParticleInitialScale\" quality=\"0\">" + string.Format(Constant, "6.0") + "</property>"
+                + $"<property name=\"EmitterPosition\" quality=\"0\">far,0,0;0.0,1.5,{Key}|none,0,0;0.0,0.0,{Key}:x,0;1,1|y,0;1,1|z,0;0,0</property>"
+                + "\r\n\t\t</emitter>";
+            var red = "<behaviour_chain id=\"glow\"><quality value=\"0\">"
+                + $"<modifier fragment=\"vs_colour\"><property name=\"curve_colour\" type=\"curve\">one,0,0;0.0,1.0,{Key}|none,0,0;0.0,0.0,{Key}:r,0;0,0|g,0;1,1|b,0;1,1</property></modifier>"
+                + "</quality></behaviour_chain>";
+            const string Stack = "<effect_render_stack id=\"glow\"><property name=\"scene_view_type\" quality=\"0\" value=\"DEFERRED_DYNAMIC_LIGHT\"/></effect_render_stack>";
+            var (runner, preview) = ShowRigidModel(chains: red, emitters: light, stacks: Stack);
+            var engine = runner.GetRequiredServiceInCurrentEditorScope<RenderEngineComponent>();
+            var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
+            var seen = new List<CommonShaderParameters>();
+            using var target = new RenderTarget2D(device, 64, 64, false, SurfaceFormat.Color, DepthFormat.Depth24);
+            device.SetRenderTarget(target);
+            engine.AddRenderItem(RenderBuckedId.Transparent, runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode.Children.OfType<VfxEffectNode>().Single().RenderItem);
+            engine.AddRenderItem(RenderBuckedId.Normal, new Witness(seen));
+            engine.Draw(new Xna.GameTime());
+            device.SetRenderTarget(null);
+            var lit = seen[0].PointLights.Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That(lit.Position.Z, Is.EqualTo(1.5f).Within(0.01f), string.Join("; ", preview.Lines));
+                Assert.That(lit.Radius, Is.EqualTo(3f).Within(0.01f));
+                Assert.That((lit.Colour.X, lit.Colour.Y, lit.Colour.Z), Is.EqualTo((1f, 0f, 0f)));
+            });
+        }
+
+        // ...and a model takes that light: Karl Franz grows redder under a light four times red (light colours run past 1), by how
+        // squarely each face meets it, and no greener.
+        [Test]
+        public void A_light_particle_lights_a_model()
+        {
+            var (runner, preview) = ShowRigidModel();
+            static (double R, double G) Mean(Xna.Color[] frame) => (frame.Where(x => x.A > 0).Average(x => x.R), frame.Where(x => x.A > 0).Average(x => x.G));
+            var dark = Mean(DrawEffect(runner, DepthStencilState.Default));
+            var lit = Mean(DrawEffect(runner, DepthStencilState.Default, [new PointLight(new Vector3(0, 0, 1.5f), 3, new Vector3(4, 0, 0))]));
+            Assert.Multiple(() =>
+            {
+                Assert.That(lit.R, Is.GreaterThan(dark.R + 20), string.Join("; ", preview.Lines));
+                Assert.That(lit.G, Is.EqualTo(dark.G).Within(1));
+            });
+        }
+
+        sealed class Witness(List<CommonShaderParameters> seen) : IRenderItem
+        {
+            public void Draw(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique technique) => seen.Add(parameters);
+        }
+
         sealed class Recorder(List<RenderingTechnique> drawn) : IRenderItem
         {
             public void Draw(GraphicsDevice device, CommonShaderParameters parameters, RenderingTechnique technique) => drawn.Add(technique);
@@ -682,7 +742,7 @@ namespace Test.VfxEditor
 
         // Karl Franz's model on one continuous_rigid particle, half a second in.
         static (AssetEditorTestRunner, VfxPreviewComponent) ShowRigidModel(string chains = "", string properties = "", string anim = "", string model = KarlFranz,
-            Action<AssetEditorTestRunner>? before = null)
+            Action<AssetEditorTestRunner>? before = null, string emitters = "", string stacks = "")
         {
             var (runner, _, preview) = OpenWithAGuideModelOffered();
             before?.Invoke(runner);
@@ -694,19 +754,19 @@ namespace Test.VfxEditor
                 + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
                 + "<property_rigid_data name=\"RigidData\" quality=\"0\"><rigid_entry><ModelFile value=\"" + model + "\"/><PivotPoint x=\"0.50\" y=\"0.50\" z=\"0.50\"/><AnimFile value=\"" + anim + "\"/><AnimSpeed value=\"1.00\"/></rigid_entry></property_rigid_data>"
                 + "\r\n\t\t</emitter>";
-            preview.Show("rigid", Fixtures.Utf16(Fixtures.Effect(emitters: emitter, chains: chains, stacks: "", references: "")), 0);
+            preview.Show("rigid", Fixtures.Utf16(Fixtures.Effect(emitters: emitter + emitters, chains: chains, stacks: stacks, references: "")), 0);
             preview.SetTime(0.5f);
             return (runner, preview);
         }
 
         // The preview's effect drawn from 4 m into a 64x64 frame, both faces, under the depth state the caller leaves.
-        static Xna.Color[] DrawEffect(AssetEditorTestRunner runner, DepthStencilState depth)
+        static Xna.Color[] DrawEffect(AssetEditorTestRunner runner, DepthStencilState depth, IReadOnlyList<PointLight>? lights = null)
         {
             var item = runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode.Children.OfType<VfxEffectNode>().Single().RenderItem;
             var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
             var eye = new Vector3(0, 0, 4);
             var camera = new CommonShaderParameters(Xna.Matrix.CreateLookAt(eye, Vector3.Zero, Vector3.Up),
-                Xna.Matrix.CreatePerspectiveFieldOfView(Xna.MathHelper.PiOver4, 1, 0.1f, 100), eye, Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+                Xna.Matrix.CreatePerspectiveFieldOfView(Xna.MathHelper.PiOver4, 1, 0.1f, 100), eye, Vector3.Zero, 0, 0, 0, 1, [], Vector3.One) { PointLights = lights ?? [] };
             using var target = new RenderTarget2D(device, 64, 64, false, SurfaceFormat.Color, DepthFormat.Depth24, 0, RenderTargetUsage.PreserveContents);
             device.SetRenderTarget(target);
             device.Clear(Xna.Color.Transparent);

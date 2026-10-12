@@ -4,6 +4,7 @@ using GameWorld.Core.Components.Selection;
 using GameWorld.Core.Rendering;
 using GameWorld.Core.Services;
 using GameWorld.Core.Utility;
+using GameWorld.Core.Vfx;
 using GameWorld.Core.WpfWindow;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -160,6 +161,12 @@ namespace GameWorld.Core.Components.Rendering
             }
 
             var commonShaderParameters = CommonShaderParameterBuilder.Build(_camera, _sceneLightParameters, screenWidth, screenHeight);
+            // The VFX preview's light particles light the solid scene too, not only the ground their pools are drawn on.
+            // ponytail: the first MaxPointLights in draw order, not the brightest or nearest; rank them if a scene needs more.
+            commonShaderParameters = commonShaderParameters with
+            {
+                PointLights = _renderItems[RenderBuckedId.Transparent].OfType<ParticleRenderItem>().SelectMany(x => x.Lights()).Take(CommonShaderParameters.MaxPointLights).ToList()
+            };
             var backgroundColour = ApplicationSettingsHelper.GetEnumAsColour(_applicationSettingsService.CurrentSettings.RenderEngineBackgroundColour);
 
             _normalRenderTarget = RenderTargetHelper.GetRenderTarget(device, _normalRenderTarget, imageUpScale, _graphicsResourceCreator, screenWidth, screenHeight);

@@ -250,10 +250,7 @@ namespace GameWorld.Core.Vfx
             else if (resolved.SceneViewType == "DISTORTION")
                 s.Distortion = true;
             else if (resolved.SceneViewType == "DEFERRED_DYNAMIC_LIGHT")
-            {
                 (s.Decal, s.Light) = (true, true);
-                s.Skipped.Add("its light is drawn as the pool it casts on the ground: it lights only the ground, not the guide model");
-            }
             else if (resolved.SceneViewType is not (null or "FULLRES_DEFERRED_ALPHA" or "HALFRES_DEFERRED_ALPHA"))
                 NotDrawn(s, $"scene_view_type {resolved.SceneViewType} is not drawn in step 1");
             if (Flag("AllowEmitFromMesh"))

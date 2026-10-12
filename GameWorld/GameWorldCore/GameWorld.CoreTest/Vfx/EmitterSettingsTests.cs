@@ -145,14 +145,14 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         // DEFERRED_DYNAMIC_LIGHT: the particle is a light (249 of the 357 chains carry no ps_texture), drawn as the pool it
-        // casts on the ground; the guide model is not lit, and the preview says so.
+        // casts on the ground. It lights the models too (RenderEngineComponent hands it to their shaders), so nothing is reported.
         [Test]
         public void DynamicLightStack_DrawsAsAPoolOnTheGround()
         {
             var light = Read(Emitter("glow"), """<behaviour_chain id="glow"><quality value="0"><modifier fragment="vs_translation"><property name="pivot_x" type="float" value="0.5"/><property name="pivot_y" type="float" value="0.5"/></modifier></quality></behaviour_chain>""",
                 """<effect_render_stack id="glow"><property name="scene_view_type" quality="0" value="DEFERRED_DYNAMIC_LIGHT"/></effect_render_stack>""").Single();
             Assert.That((light.Draws, light.Light, light.Decal, light.Texture), Is.EqualTo((true, true, true, (string?)null)));
-            Assert.That(light.Skipped, Has.One.Matches<string>(x => x.Contains("lights only the ground")));
+            Assert.That(light.Skipped, Has.None.Matches<string>(x => x.Contains("lights only the ground")));
         }
 
         [TestCase("DEFERRED_DECAL")]
