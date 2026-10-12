@@ -2,6 +2,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Editors.VfxEditor.Preview;
 using Editors.VfxEditor.ViewModels;
 using Editors.VfxEditor.Views;
@@ -9,6 +10,7 @@ using GameWorld.Core.Components;
 using GameWorld.Core.Components.Grid;
 using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Vfx;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Shared.Core.Commands;
 using Shared.Core.Services;
@@ -370,6 +372,37 @@ namespace Test.VfxEditor
             Assert.That(editor.Tree[4].Children.Select(n => n.Label), Is.EqualTo(new[] { "e1", "xref" }));
             editor.SelectedNode = editor.Tree[3];
             Assert.That(editor.Rows.Select(r => (r.Label, r.Value)), Is.EqualTo(new[] { ("file", "fx/particle_vfx_library.hlsl") }));
+        }
+
+        // A texture path row shows the texture it names and browses the packs for another; a material path row opens the
+        // material in the app's text editor.
+        [Test]
+        public void A_texture_row_shows_and_browses_and_a_material_row_opens()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            var effect = Fixtures.Default.Replace("<texture_property name=\"diffuse\" path=\"vfx/a.dds\"/>",
+                "<texture_property name=\"diffuse\" path=\"vfx/a.dds\"/><property name=\"material\" type=\"file\" path=\"vfx\\materials\\m.xml.material\"/>");
+            runner.PackFileService.AddFilesToPack(source, [
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(effect))),
+                new NewPackFileEntry("vfx", PackFile.CreateFromBytes("a.dds", Fixtures.Dds(4, 2, 255, 0, 0, 255))),
+                new NewPackFileEntry(@"vfx\textures", PackFile.CreateFromBytes("b.dds", Fixtures.Dds(8, 8, 0, 255, 0, 255))),
+                new NewPackFileEntry(@"vfx\materials", PackFile.CreateFromBytes("m.xml.material", Encoding.UTF8.GetBytes("<PROPERTY_SET/>")))]);
+            runner.CreateOutputPack();
+            var editor = Open(runner);
+            editor.SelectedNode = editor.Tree[1].Children[0].Children[0].Children.First(n => n.Fragment == "ps_texture");
+            PropertyRow Row(string label) => editor.Rows.Single(r => r.Label == label);
+
+            Assert.That(Row("diffuse path").Thumbnail, Is.InstanceOf<BitmapSource>().With.Property("PixelWidth").EqualTo(4));
+            var b = runner.PackFileService.FindFile(@"vfx\textures\b.dds")!;
+            runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, b));
+            editor.BrowseFileCommand.Execute(Row("diffuse path"));
+            Assert.That(Row("diffuse path").Value, Is.EqualTo(@"vfx\textures\b.dds").IgnoreCase);
+            Assert.That(Row("diffuse path").Thumbnail, Is.InstanceOf<BitmapSource>().With.Property("PixelWidth").EqualTo(8));
+
+            editor.OpenPathCommand.Execute(Row("material path"));
+            var material = runner.PackFileService.FindFile(@"vfx\materials\m.xml.material");
+            Assert.That(runner.ServiceProvider.GetRequiredService<IEditorManager>().GetAllEditors().OfType<IFileEditor>().Select(e => e.CurrentFile), Does.Contain(material));
         }
 
         // The curve graph's points reach the screen: a binding that cannot convert them only logs, and draws an empty box.

@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,8 +10,11 @@ using Editors.VfxEditor.Preview;
 using Editors.VfxEditor.Vocabulary;
 using GameWorld.Core.Components;
 using GameWorld.Core.Components.Grid;
+using GameWorld.Core.Utility;
 using GameWorld.Core.WpfWindow;
 using Serilog;
+using Shared.Core.Commands;
+using Shared.Core.Events;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
@@ -28,17 +33,22 @@ namespace Editors.VfxEditor.ViewModels
 
         readonly ILogger _logger = Logging.Create<VfxEditorViewModel>();
         readonly VfxFileSession _session;
+        readonly IPackFileService _packFileService;
+        readonly IUiCommandFactory _commands;
         readonly IStandardDialogs _dialogs;
+        readonly Dictionary<string, ImageSource?> _thumbnails = new(StringComparer.OrdinalIgnoreCase);
         VfxVocabulary? _vocabulary;
         readonly VfxPreviewComponent _preview;
         readonly GridComponent _grid;
         readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
         int _shownLines;
 
-        public VfxEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs,
+        public VfxEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs, IUiCommandFactory commands,
             IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService, VfxPreviewComponent preview, GridComponent grid)
         {
             _grid = grid;
+            _packFileService = packFileService;
+            _commands = commands;
             _session = new VfxFileSession(packFileService, fileSaveService);
             _dialogs = dialogs;
             Scene = gameWorld;
@@ -287,7 +297,35 @@ namespace Editors.VfxEditor.ViewModels
                 : float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? RowKind.Number
                 : choices != null ? RowKind.Choice
                 : RowKind.Text;
-            return new PropertyRow(property, attribute, label, kind, value, choices, note, Commit, message => Status = message);
+            var thumbnail = attribute == "path" && value.EndsWith(".dds", StringComparison.OrdinalIgnoreCase) ? Thumbnail(value) : null;
+            return new PropertyRow(property, attribute, label, kind, value, choices, note, Commit, message => Status = message, thumbnail);
+        }
+
+        // Each path decoded once per tab; null when the texture is not in the packs or Pfim cannot read it.
+        ImageSource? Thumbnail(string path)
+        {
+            if (_thumbnails.TryGetValue(path, out var known))
+                return known;
+            ImageSource? thumbnail = null;
+            try
+            {
+                if (_packFileService.FindFile(path) is { } file)
+                {
+                    using var image = ImageLoader.LoadImageFromBytes(file.DataSource.ReadData(), out _);
+                    var format = image.Format switch { Pfim.ImageFormat.Rgba32 => PixelFormats.Bgra32, Pfim.ImageFormat.Rgb24 => PixelFormats.Bgr24, _ => (PixelFormat?)null };
+                    if (format is { } pixels)
+                    {
+                        var bitmap = BitmapSource.Create(image.Width, image.Height, 96, 96, pixels, null, image.Data, image.Stride);
+                        bitmap.Freeze();
+                        thumbnail = bitmap;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.Warning("No thumbnail for {Path}: {Reason}", path, e.Message);
+            }
+            return _thumbnails[path] = thumbnail;
         }
 
         // The tree
@@ -461,6 +499,40 @@ namespace Editors.VfxEditor.ViewModels
             }, node);
             if (added && ThisTierOnly && Tier == 0 && node.Kind != NodeKind.Modifier)
                 Status = $"{name} added at Ultra; High and Medium inherit it, having no value of their own to keep";
+        }
+
+        /// <summary>A path row's file picked from the loaded packs, of the type it already names (a texture when empty).</summary>
+        [RelayCommand]
+        void BrowseFile(PropertyRow? row)
+        {
+            if (row is not { IsPath: true })
+                return;
+            var extension = row.Value.EndsWith(".xml.material", StringComparison.OrdinalIgnoreCase) ? ".xml.material"
+                : System.IO.Path.GetExtension(row.Value) is { Length: > 0 } named ? named : ".dds";
+            var picked = _dialogs.DisplayBrowseDialog([extension]);
+            if (picked.Result && picked.File != null)
+                row.Value = _packFileService.GetFullPath(picked.File);
+        }
+
+        /// <summary>Opens a path row's file in the app (a material in the text editor), as a double-click in the pack explorer does.</summary>
+        [RelayCommand]
+        void OpenPath(PropertyRow? row)
+        {
+            if (row is not { IsPath: true })
+                return;
+            if (_packFileService.FindFile(row.Value) is not { } file)
+            {
+                Status = $"{row.Value} is not in the loaded packs";
+                return;
+            }
+            try
+            {
+                _commands.Create<OpenEditorCommand>().Execute(file);
+            }
+            catch (Exception e)
+            {
+                Status = $"{row.Value} did not open: {e.Message}";
+            }
         }
 
         [RelayCommand]

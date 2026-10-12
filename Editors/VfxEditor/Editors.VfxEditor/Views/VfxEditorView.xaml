@@ -212,12 +212,23 @@
                                                 </Style>
                                             </TextBox.Style>
                                         </TextBox>
-                                        <TextBlock Grid.Column="2" Text="{Binding Note}" Margin="6,0" VerticalAlignment="Center" Opacity="0.7"/>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                            <Button Content="Browse" Padding="6,0" Margin="4,0,0,0" ToolTip="Pick the file from the loaded packs"
+                                                    Visibility="{Binding IsPath, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.BrowseFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Content="Open" Padding="6,0" Margin="4,0,0,0" ToolTip="Open the file in the app (a material opens in the text editor)"
+                                                    Visibility="{Binding IsPath, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.OpenPathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <TextBlock Text="{Binding Note}" Margin="6,0" VerticalAlignment="Center" Opacity="0.7"/>
+                                        </StackPanel>
                                         <Button Grid.Column="3" Content="Remove" Padding="6,0" ToolTip="Remove this property"
                                                 Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
                                                 Command="{Binding DataContext.RemovePropertyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"/>
                                         <ContentControl Grid.Row="1" Grid.ColumnSpan="4" Content="{Binding Curve}"/>
+                                        <Image Grid.Row="1" Grid.Column="1" Source="{Binding Thumbnail}" MaxHeight="64" MaxWidth="128" HorizontalAlignment="Left" Margin="0,2" Stretch="Uniform"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

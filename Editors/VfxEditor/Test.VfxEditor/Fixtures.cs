@@ -84,6 +84,21 @@ namespace Test.VfxEditor
 
         public static byte[] Utf16(string text) => [0xFF, 0xFE, .. Encoding.Unicode.GetBytes(text)];
 
+        /// <summary>An uncompressed 32-bit DDS of one colour, which Pfim reads as Rgba32.</summary>
+        public static byte[] Dds(int width, int height, byte r, byte g, byte b, byte a)
+        {
+            var header = new int[31];
+            (header[0], header[1], header[2], header[3], header[4]) = (124, 0x100F, height, width, width * 4);   // size, flags, height, width, pitch
+            (header[18], header[19], header[21]) = (32, 0x41, 32);   // pixel format: size, RGB with alpha, 32 bits
+            (header[22], header[23], header[24], header[25]) = (0x00FF0000, 0x0000FF00, 0x000000FF, unchecked((int)0xFF000000));
+            header[26] = 0x1000;   // a texture
+            var bytes = new List<byte>(Encoding.ASCII.GetBytes("DDS "));
+            bytes.AddRange(header.SelectMany(BitConverter.GetBytes));
+            for (var i = 0; i < width * height; i++)
+                bytes.AddRange([b, g, r, a]);
+            return [.. bytes];
+        }
+
         public static VfxDocument Document(string? text = null) => VfxDocument.Load(Utf16(text ?? Default));
 
         public static SpanElement Emitter(VfxDocument document) => document.Section("emitters")!.Children[0];
