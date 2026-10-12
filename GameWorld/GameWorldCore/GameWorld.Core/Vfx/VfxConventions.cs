@@ -222,8 +222,10 @@ namespace GameWorld.Core.Vfx
 
         /// <summary>A DEFERRED_DYNAMIC_LIGHT particle's share of the models' sun per unit of colour times alpha: CA's
         /// ps_main_deferred_dynamic_light lights with colour x alpha x 2500 where the models' sun is get_sun_colour() x
-        /// unchartedSunFactor, 20000 x 3, both then taking sin^2(0.5 deg). Read off the shader, not assumed.</summary>
-        public const float LightShare = 2500f / 60000f;
+        /// unchartedSunFactor, 20000 x 3, both then taking sin^2(0.5 deg). Read off the shader, not assumed. Times the battle's
+        /// dynamic_light_scale, which no shader reads, so the game puts it on the lights themselves: 0.1 in 93 of the 126 lighting
+        /// blocks of vanilla's weather/battle environments, between 0.03 and 0.3 in the rest.</summary>
+        public const float LightShare = 2500f / 60000f * 0.1f;
 
         /// <summary>The ground a light's pool lies on, which the preview does not draw: a mid grey of albedo 0.18. CA's light lights
         /// the terrain's own albedo out of its gbuffer.</summary>

@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -683,7 +684,8 @@ namespace Test.VfxEditor
         // A DEFERRED_DYNAMIC_LIGHT particle lights the solid scene, not only the ground its pool lies on: the engine hands the
         // solid draws every light particle alive this frame, where it is, reaching as far as the particle is wide, and as strong as CA's
         // ps_main_deferred_dynamic_light makes it: its colour times its alpha times 2500, where the models' sun is 20000 x 3, so a
-        // light of colour 1 is a 24th of the sun. A red light 1.5 m in front of Karl Franz, 6 m across.
+        // light of colour 1 is a 24th of the sun; times the battle's dynamic_light_scale, 0.1 in 93 of the 126 lighting blocks of
+        // vanilla's weather/battle environments. A red light 1.5 m in front of Karl Franz, 6 m across.
         [Test]
         public void The_engine_hands_its_light_particles_to_the_solid_scene()
         {
@@ -703,12 +705,13 @@ namespace Test.VfxEditor
             {
                 Assert.That(lit.Position.Z, Is.EqualTo(1.5f).Within(0.01f), string.Join("; ", preview.Lines));
                 Assert.That(lit.Radius, Is.EqualTo(6f).Within(0.01f));
-                Assert.That((lit.Colour.X, lit.Colour.Y, lit.Colour.Z), Is.EqualTo((2500 / 60000f, 0f, 0f)));
+                Assert.That((lit.Colour.X, lit.Colour.Y, lit.Colour.Z), Is.EqualTo((2500 / 60000f * 0.1f, 0f, 0f)));
             });
         }
 
-        // A red DEFERRED_DYNAMIC_LIGHT particle 1.5 m in front of the origin, 6 m across: its emitter, chain and render stack.
-        static (string Emitters, string Chains, string Stacks) RedLight()
+        // A red DEFERRED_DYNAMIC_LIGHT particle 1.5 m in front of the origin, 6 m across, at this alpha: its emitter, chain and render
+        // stack.
+        static (string Emitters, string Chains, string Stacks) RedLight(float alpha = 1)
         {
             const string Key = "linear,linear,-0.05,0.0,0.05,0.0,0";
             const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
@@ -718,6 +721,7 @@ namespace Test.VfxEditor
                 + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
                 + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
                 + "<property name=\"ParticleInitialScale\" quality=\"0\">" + string.Format(Constant, "6.0") + "</property>"
+                + "<property name=\"ParticleInitialAlpha\" quality=\"0\">" + string.Format(Constant, alpha.ToString("0.0", CultureInfo.InvariantCulture)) + "</property>"
                 + $"<property name=\"EmitterPosition\" quality=\"0\">far,0,0;0.0,1.5,{Key}|none,0,0;0.0,0.0,{Key}:x,0;1,1|y,0;1,1|z,0;0,0</property>"
                 + "\r\n\t\t</emitter>";
             var red = "<behaviour_chain id=\"glow\"><quality value=\"0\">"
@@ -727,7 +731,7 @@ namespace Test.VfxEditor
         }
 
         // ...and the engine draws the light they put on the ground, once for all of them: seen from above, the ground round Karl
-        // Franz goes red under the red light, where with none it stays the background.
+        // Franz goes red under the red light, at the Bale Taurus's alpha of 20, where with none it stays the background.
         [Test]
         public void The_engine_lights_the_ground_under_its_light_particles()
         {
@@ -749,7 +753,7 @@ namespace Test.VfxEditor
                 target.GetData(pixels);
                 return pixels;
             }
-            var (light, red, stack) = RedLight();
+            var (light, red, stack) = RedLight(20);
             var unlit = Frame("", "", "");
             var lit = Frame(light, red, stack);
             var ground = Enumerable.Range(0, unlit.Length).Where(i => unlit[i] == unlit[0]).ToList();

@@ -431,17 +431,18 @@ namespace GameWorld.Core.Test.Vfx
         static PointLight White(Vector3 at, float reach, float alpha) => new(at, reach, Vector3.One * alpha * VfxConventions.LightShare);
 
         // The light CA's ps_main_deferred_dynamic_light puts on the ground: colour x alpha x 2500 on the scale of the models' sun
-        // (20000 x 3 at intensity 1, both taking sin^2(0.5 deg)), on a mid-grey ground of albedo 0.18, through the models' tone map.
-        static float Expected(float lit) => Encode(Math.Clamp(Uncharted2(0.18f * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * lit), 0, 1));
+        // (20000 x 3 at intensity 1, both taking sin^2(0.5 deg)), times the battle's dynamic_light_scale of 0.1, on a mid-grey ground
+        // of albedo 0.18, through the models' tone map.
+        static float Expected(float lit) => Encode(Math.Clamp(Uncharted2(0.18f * 2500 * 0.1f * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * lit), 0, 1));
 
         // A dynamic light lights the ground under it, its alpha not held to 1, reaching as far from the light as the particle is
         // wide and falling off as (1 - d/r)^2, as CA's does with its smooth falloff. Over black, a white light 40 m across: a quarter
-        // of its reach up it lights the centre at 0.5625 of its strength, at alpha 1 and at the Bale Taurus's 20; half its reach up,
-        // at 0.25; its reach up, not at all.
-        [TestCase(10f, 1f, 0.5625f)]
-        [TestCase(10f, 20f, 0.5625f)]
-        [TestCase(20f, 20f, 0.25f)]
-        [TestCase(40f, 20f, 0f)]
+        // of its reach up it lights the centre at 0.5625 of its strength, at alpha 10 and at 200; half its reach up, at 0.25; its
+        // reach up, not at all.
+        [TestCase(10f, 10f, 0.5625f)]
+        [TestCase(10f, 200f, 0.5625f)]
+        [TestCase(20f, 200f, 0.25f)]
+        [TestCase(40f, 200f, 0f)]
         public void Light_LightsTheGroundUnderIt(float height, float alpha, float fall)
         {
             var pixel = Render(() => ParticleRenderItem.DrawGroundLight(_device, Shader, Above([White(new Vector3(0, height, 0), 40, alpha)])), Color.Black);
@@ -454,18 +455,18 @@ namespace GameWorld.Core.Test.Vfx
         [TestCase(6f, 0f)]
         public void Light_LightsTheGroundAllRound(float x, float z)
         {
-            var pixel = Render(() => ParticleRenderItem.DrawGroundLight(_device, Shader, Above([White(new Vector3(x, 20, z), 40, 20)])), Color.Black);
+            var pixel = Render(() => ParticleRenderItem.DrawGroundLight(_device, Shader, Above([White(new Vector3(x, 20, z), 40, 200)])), Color.Black);
             var d = MathF.Sqrt(6 * 6 + 20 * 20);
-            Assert.That(pixel.X, Is.EqualTo(Expected(20 * MathF.Pow(1 - d / 40, 2) * (20 / d))).Within(0.01));
+            Assert.That(pixel.X, Is.EqualTo(Expected(200 * MathF.Pow(1 - d / 40, 2) * (20 / d))).Within(0.01));
         }
 
         // CA adds up every light reaching a spot of ground and tone maps the sum once: lights tone mapped one by one and added after
-        // ran the Bale Taurus's leg lights to white. Lights 40 m wide and 20 m up: four at alpha 20 on one spot light it as one light
+        // ran the Bale Taurus's leg lights to white. Lights 40 m wide and 20 m up: four at alpha 200 on one spot light it as one light
         // four times as strong; one there and one 100 m off, out of reach, as the one alone; and the 35 a Bale Taurus stands among,
-        // at alpha 1, as 35 times one, every one counted once.
-        [TestCase(4, 0, 20f)]
-        [TestCase(1, 1, 20f)]
-        [TestCase(35, 0, 1f)]
+        // at alpha 10, as 35 times one, every one counted once.
+        [TestCase(4, 0, 200f)]
+        [TestCase(1, 1, 200f)]
+        [TestCase(35, 0, 10f)]
         public void Light_AllTheLightsOnASpotAddUpBeforeTheToneMap(int overhead, int away, float alpha)
         {
             var at = Enumerable.Repeat(new Vector3(0, 20, 0), overhead).Concat(Enumerable.Repeat(new Vector3(100, 20, 0), away));
