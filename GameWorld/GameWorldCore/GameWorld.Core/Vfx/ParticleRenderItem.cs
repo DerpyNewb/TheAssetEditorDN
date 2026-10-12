@@ -240,7 +240,7 @@ namespace GameWorld.Core.Vfx
             {
                 var (u, v) = VfxConventions.QuadUv(across, 1 - t, newest.FlipU, newest.FlipV, s.UvTurn);
                 if (s.SoftEdge > 0 && !s.Decal)
-                    alpha *= VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength);
+                    alpha *= VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength, width);
                 return new(position, VertexColour(s, colour, alpha), new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, blend, crush), new Vector2(width));
             }
             var vertices = new VfxVertex[last * 6];
@@ -291,7 +291,7 @@ namespace GameWorld.Core.Vfx
                 // A light's pool spans its diameter, the particle's size; Extra.x is its height over the ground in radii.
                 if (s.Light)
                     return new(position, colour, new Vector2(u, v), new Vector4(lift / (p.Size.X / 2), 0, 0, 0));
-                var soft = s.SoftEdge > 0 && !s.Decal ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength)) : colour;
+                var soft = s.SoftEdge > 0 && !s.Decal ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength, Math.Min(width, height))) : colour;
                 return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, p.Crush), new Vector2(width, height));
             }
 

@@ -276,41 +276,48 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.All.EqualTo(1).Within(0.02));
         }
 
-        // ps_soft_edge against the preview's ground, world y = 0: a small flat quad 0.5 m up, seen from 10 m straight above,
-        // is 0.5 m of view ray from the ground, half of a 1 m soft_factor; below the ground it is hidden. The effect's own
-        // y = 0 is not the ground: lifted 1 m by its matrix, a quad 0.5 m below its origin is 0.5 m up.
+        // ps_soft_edge against the preview's ground, world y = 0: a 1 m flat quad 0.5 m up, seen from 10 m straight above, is
+        // 0.5 m of view ray from the ground, half of a 1 m soft_factor; below the ground it is hidden. A quad under a metre fades
+        // over less, by scale_strength: a 0.25 m one 0.1 m up is 0.4 of the way in at full strength and 0.1 at none. The effect's
+        // own y = 0 is not the ground: lifted 1 m by its matrix, a quad 0.5 m below its origin is 0.5 m up.
         [Test]
         public void SoftEdges_FadeIntoTheGround()
         {
             var looking = new ParticleRenderItem.CameraAxes(new Vector3(0, 10, 0), Vector3.Right, Vector3.Forward, Vector3.Down);
-            float Alpha(EmitterSettings s, float height, ParticleRenderItem.CameraAxes camera) =>
-                ParticleRenderItem.Quads(s, camera, [new(new Vector3(0, height, 0), Vector3.Zero, new Vector2(0.01f), 0, Vector3.One, 1, 0, 0)])[0].Color.A / 255f;
+            float Alpha(EmitterSettings s, float height, ParticleRenderItem.CameraAxes camera, float size = 1) =>
+                ParticleRenderItem.Quads(s, camera, [new(new Vector3(0, height, 0), Vector3.Zero, new Vector2(size), 0, Vector3.One, 1, 0, 0)])[0].Color.A / 255f;
             EmitterSettings Soft(float factor, float strength = 1) => new() { Premultiplied = false, Orientation = QuadOrientation.Horizontal, SoftEdge = factor, SoftStrength = strength };
             Assert.Multiple(() =>
             {
                 Assert.That(Alpha(Soft(0), 0.5f, looking), Is.EqualTo(1f), "no ps_soft_edge");
                 Assert.That(Alpha(Soft(1), 0.5f, looking), Is.EqualTo(0.5f).Within(0.01));
-                Assert.That(Alpha(Soft(1, 2), 0.5f, looking), Is.EqualTo(0.25f).Within(0.01));
+                Assert.That(Alpha(Soft(1, 2), 0.5f, looking), Is.EqualTo(0.5f).Within(0.01), "no exponent");
+                Assert.That(Alpha(Soft(1), 0.1f, looking, 0.25f), Is.EqualTo(0.4f).Within(0.01), "small, full strength");
+                Assert.That(Alpha(Soft(1, 0), 0.1f, looking, 0.25f), Is.EqualTo(0.1f).Within(0.01), "small, no strength");
                 Assert.That(Alpha(Soft(1), -0.5f, looking), Is.Zero, "under the ground");
                 var lifted = new ParticleRenderItem.CameraAxes(new Vector3(0, 9, 0), Vector3.Right, Vector3.Forward, Vector3.Down, ToWorld: Matrix.CreateTranslation(0, 1, 0));
                 Assert.That(Alpha(Soft(1), -0.5f, lifted), Is.EqualTo(0.5f).Within(0.01), "the ground is the world's");
             });
         }
 
-        // ps_soft_edge against the solid scene, when the engine has drawn its depth: a white quad 5 m from the camera, well above the
-        // ground, with the scene 0.5 m behind it is half faded at a 1 m soft_factor, and with it 2 m behind not at all; the same
-        // through the app's orthographic view. A scale_strength of 0 (33 vanilla chains) fades nothing, as on the ground.
-        [TestCase(5.5f, 1f, false, 0.5f)]
-        [TestCase(7f, 1f, false, 1f)]
-        [TestCase(5.5f, 1f, true, 0.5f)]
-        [TestCase(4f, 0f, false, 1f)]
-        public void SoftEdges_FadeIntoTheSolidScene(float sceneDepth, float strength, bool orthographic, float white)
+        // ps_soft_edge against the solid scene, when the engine has drawn its depth: a 10 m white quad 5 m from the camera, well above
+        // the ground, with the scene 0.5 m behind it is half faded at a 1 m soft_factor, and with it 2 m behind not at all; the same
+        // through the app's orthographic view. A scale_strength of 0 (33 vanilla chains) is the full soft_factor. A 0.4 m quad,
+        // filling a 0.3 m view, with the scene 0.2 m behind it fades over 0.4 m at full strength, 0.7 at half and 1 at none.
+        [TestCase(5.5f, 1f, false, 10f, 0.5f)]
+        [TestCase(7f, 1f, false, 10f, 1f)]
+        [TestCase(5.5f, 1f, true, 10f, 0.5f)]
+        [TestCase(5.5f, 0f, false, 10f, 0.5f)]
+        [TestCase(5.2f, 1f, true, 0.4f, 0.5f)]
+        [TestCase(5.2f, 0.5f, true, 0.4f, 0.285f)]
+        [TestCase(5.2f, 0f, true, 0.4f, 0.2f)]
+        public void SoftEdges_FadeIntoTheSolidScene(float sceneDepth, float strength, bool orthographic, float size, float white)
         {
             using var depth = new Texture2D(_device, 4, 4, false, SurfaceFormat.Single);
             depth.SetData(Enumerable.Repeat(sceneDepth, 16).ToArray());
-            var level = Level(depth, orthographic);
+            var level = Level(depth, orthographic, size < 1 ? 0.3f : 12);
             var camera = ParticleRenderItem.CameraAxes.From(level, Matrix.Identity);
-            var quad = new ParticleState(new Vector3(0, 10, 0), Vector3.Zero, new Vector2(10, 10), 0, Vector3.One, 1, 0, 0);
+            var quad = new ParticleState(new Vector3(0, 10, 0), Vector3.Zero, new Vector2(size), 0, Vector3.One, 1, 0, 0);
             var settings = new EmitterSettings { Premultiplied = false, SoftEdge = 1, SoftStrength = strength };
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, level, Matrix.Identity, camera, settings, _white, [quad]), Color.Black);
             Assert.That(pixel.X, Is.EqualTo(white).Within(0.02));
@@ -331,10 +338,11 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.X > 0.5f, Is.EqualTo(glows), $"red {pixel.X}");
         }
 
-        // Looking level along -Z at a point 10 m up from 5 m away, in perspective or the app's orthographic view, over a scene depth.
-        static CommonShaderParameters Level(Texture2D depth, bool orthographic) =>
+        // Looking level along -Z at a point 10 m up from 5 m away, in perspective or the app's orthographic view (this wide), over a
+        // scene depth.
+        static CommonShaderParameters Level(Texture2D depth, bool orthographic, float wide = 12) =>
             new(Matrix.CreateLookAt(new Vector3(0, 10, 5), new Vector3(0, 10, 0), Vector3.Up),
-                orthographic ? Matrix.CreateOrthographic(12, 12, 0.1f, 100) : Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100),
+                orthographic ? Matrix.CreateOrthographic(wide, wide, 0.1f, 100) : Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100),
                 new Vector3(0, 10, 5), new Vector3(0, 10, 0), 0, 0, 0, 1, [], Vector3.One) { SceneDepth = depth };
 
         // cell_blend: half way from a red cell to a blue one draws both at half.
@@ -557,7 +565,7 @@ namespace GameWorld.Core.Test.Vfx
                 var grown = ParticleRenderItem.Ribbon(new EmitterSettings { Trail = true, MinPixels = 2 }, far, [At(0), At(1)]);
                 Assert.That(grown.Max(v => MathF.Abs(v.Position.Y)), Is.EqualTo(1f).Within(1e-2), "grown");
                 var soft = ParticleRenderItem.Ribbon(new EmitterSettings { Trail = true, Premultiplied = false, SoftEdge = 1, SoftStrength = 1 }, looking,
-                    [At(0, 0.5f, 0.01f), At(1, 0.5f, 0.01f)]);
+                    [At(0, 0.5f, 1), At(1, 0.5f, 1)]);
                 Assert.That(soft.Max(v => v.Color.A / 255f), Is.EqualTo(0.5f).Within(0.02), "softened");
             });
         }

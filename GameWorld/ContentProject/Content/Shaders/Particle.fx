@@ -236,13 +236,14 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	float crush = input.Extra.w;
 	a = CrushSharp > 0 ? (a > crush ? a : 0) : saturate((a - crush) / max(1 - crush, 0.0001));
 
-	// ps_soft_edge: fades in over soft_factor metres of view depth in front of the solid scene, as VfxConventions.SoftEdge fades
-	// it in front of the ground; a strength of 0 fades nothing, as there (pow(0, 0) is not a number here).
+	// ps_soft_edge, as CA's ps_main reads it: fades in, linearly, over soft_factor metres of view depth in front of the solid
+	// scene, shrunk for a particle under a metre across by scale_strength, as VfxConventions.SoftDistance has it in front of the
+	// ground.
 	if (UseSceneDepth > 0 || Occlude > 0)
 	{
 		float scene = tex2D(SceneDepthSampler, input.Position.xy * InverseDepthSize).r;
 		if (UseSceneDepth > 0)
-			a *= pow(max(saturate((scene - input.Depth) / SoftFactor), 0.000001), SoftStrength);
+			a *= saturate((scene - input.Depth) / (SoftFactor * lerp(1, saturate(min(input.Size.x, input.Size.y)), SoftStrength) + 0.001));
 		if (Occlude > 0 && scene < input.Depth)
 			a = 0;
 	}

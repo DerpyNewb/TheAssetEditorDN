@@ -124,12 +124,12 @@ namespace GameWorld.Core.Vfx
         /// <summary>The part of a colour that glows, drawn into the app's bloom pass: what lies over 1.</summary>
         public static Vector3 Glow(Vector3 colour) => Vector3.Max(colour - Vector3.One, Vector3.Zero);
 
-        /// <summary>ps_soft_edge (6,893 vanilla chains): a particle fades in over soft_factor metres of view ray in front of what
-        /// lies behind it (1.5 in 1,684 chains, 1 in 1,489, 0.2 to 5), scale_strength (1 in 6,610) read as the fade's exponent.
-        /// Here against the preview's ground, world y = 0: the gap is how far the ray from the camera through a quad corner runs on
-        /// before it reaches the ground, and a corner under the ground is hidden, as terrain hides it. Against the solid scene,
-        /// Shaders/Particle fades each pixel by its view depth in front of the depth the engine draws first.</summary>
-        public static float SoftEdge(Vector3 corner, Vector3 camera, float softFactor, float strength)
+        /// <summary>ps_soft_edge (6,893 vanilla chains), as CA's ps_main reads it: a particle fades in, linearly, over
+        /// <see cref="SoftDistance"/> in front of what lies behind it. Here against the preview's ground, world y = 0: the gap is
+        /// how far the ray from the camera through a quad corner runs on before it reaches the ground, and a corner under the ground
+        /// is hidden, as terrain hides it. Against the solid scene, Shaders/Particle fades each pixel by its view depth in front of
+        /// the depth the engine draws first. size: the particle's smaller side, metres.</summary>
+        public static float SoftEdge(Vector3 corner, Vector3 camera, float softFactor, float strength, float size)
         {
             if (softFactor <= 0)
                 return 1;
@@ -137,8 +137,14 @@ namespace GameWorld.Core.Vfx
                 return 0;
             var ray = corner - camera;
             var down = ray.LengthSquared() > 1e-12f ? -Vector3.Normalize(ray).Y : 0;
-            return down <= 0 ? 1 : MathF.Pow(Math.Clamp(corner.Y / down / softFactor, 0, 1), strength);
+            return down <= 0 ? 1 : Math.Clamp(corner.Y / down / SoftDistance(softFactor, strength, size), 0, 1);
         }
+
+        /// <summary>How far ps_soft_edge fades over, metres: soft_factor (1.5 in 1,684 vanilla chains, 1 in 1,489, 0.2 to 5), shrunk
+        /// for a particle under a metre across by scale_strength (1 in 6,610), soft_factor x lerp(1, its smaller side, strength),
+        /// and a millimetre more, as CA's ps_main has it.</summary>
+        public static float SoftDistance(float softFactor, float strength, float size) =>
+            softFactor * MathHelper.Lerp(1, Math.Clamp(size, 0, 1), strength) + 0.001f;
 
         /// <summary>DEFERRED_DECAL (568 vanilla emitters), DEFERRED_DECAL_EMISSIVE (399) and SEA_OVERLAY (11) project onto what lies
         /// under them, and none carries an orientation_mode. The preview lays each quad flat on its ground, world y = 0, under the
