@@ -5,6 +5,7 @@ using GameWorld.Core.Utility;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Shared.Core.PackFiles;
+using System.Runtime.CompilerServices;
 
 namespace GameWorld.Core.Vfx
 {
@@ -112,7 +113,7 @@ namespace GameWorld.Core.Vfx
                 effect.Parameters["InverseSceneSize"].SetValue(new Vector2(1f / scene!.Width, 1f / scene.Height));
                 effect.Parameters["Reach"].SetValue(new Vector2(parameters.Projection.M11, parameters.Projection.M22) * (VfxConventions.DistortionMetres / 2));
             }
-            device.BlendState = settings.Distortion ? BlendState.AlphaBlend : settings.Light ? BlendState.Additive : BlendFor(settings);
+            device.BlendState = BlendFor(device, settings);
             foreach (var pass in effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
@@ -317,10 +318,21 @@ namespace GameWorld.Core.Vfx
                 : new Color(new Vector4(rgb * brightness, alpha));
         }
 
+        // The app draws its scene onto nothing and lays it over the background by its alpha, so a particle's alpha is what it
+        // hides: nothing for light it adds, its own alpha for one laid over. MonoGame's Additive and NonPremultiplied write that
+        // alpha times itself, which blacked the background out under a light pool's unlit corners.
         // ponytail: a straight-alpha chain with a mixed additive_blend_mul is rounded to alpha or additive;
         // premultiply its texture on load if one turns up that needs the mix.
-        public static BlendState BlendFor(EmitterSettings s) =>
-            s.Premultiplied ? BlendState.AlphaBlend : s.AdditiveMul >= 0.5f ? BlendState.Additive : BlendState.NonPremultiplied;
+        public static BlendState BlendFor(GraphicsDevice device, EmitterSettings s) =>
+            s.Distortion || (s.Premultiplied && !s.Light) ? BlendState.AlphaBlend : Straight(device)[s.Light || s.AdditiveMul >= 0.5f ? 1 : 0];
+
+        // Laid over, then added. One pair per device: MonoGame binds a state to the first device it is set on.
+        static readonly ConditionalWeakTable<GraphicsDevice, BlendState[]> s_straight = new();
+        static BlendState[] Straight(GraphicsDevice device) => s_straight.GetValue(device, _ =>
+        [
+            new BlendState { ColorSourceBlend = Blend.SourceAlpha, ColorDestinationBlend = Blend.InverseSourceAlpha, AlphaSourceBlend = Blend.One, AlphaDestinationBlend = Blend.InverseSourceAlpha },
+            new BlendState { ColorSourceBlend = Blend.SourceAlpha, ColorDestinationBlend = Blend.One, AlphaSourceBlend = Blend.Zero, AlphaDestinationBlend = Blend.One },
+        ]);
 
         /// <summary>Loads a chain's texture from the loaded packs. Missing or undecodable: null (drawn white) and one log line.</summary>
         public static Func<GraphicsDevice, string, Texture2D?> PackTextureLoader(IPackFileService packFileService, Action<string> log) => (device, path) =>

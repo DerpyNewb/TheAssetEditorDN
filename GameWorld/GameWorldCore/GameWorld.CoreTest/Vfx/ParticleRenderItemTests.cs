@@ -55,13 +55,13 @@ namespace GameWorld.Core.Test.Vfx
             _service.Release();
         }
 
-        // Draws onto mid grey and returns one pixel from the middle.
-        Vector4 Render(Action draw)
+        // Draws onto mid grey, or the background given, and returns one pixel from the middle.
+        Vector4 Render(Action draw, Color? background = null)
         {
             // Preserved as the app's are: a distortion copies the target and draws on, and a discarded one comes back cleared.
             using var target = new RenderTarget2D(_device, 4, 4, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
             _device.SetRenderTarget(target);
-            _device.Clear(new Color(128, 128, 128, 255));
+            _device.Clear(background ?? new Color(128, 128, 128, 255));
             _device.DepthStencilState = DepthStencilState.None;
             _device.RasterizerState = RasterizerState.CullNone;
             draw();
@@ -88,6 +88,38 @@ namespace GameWorld.Core.Test.Vfx
                 Assert.That(pixel.Y, Is.EqualTo(greenAndBlue).Within(0.02));
                 Assert.That(pixel.Z, Is.EqualTo(greenAndBlue).Within(0.02));
             });
+        }
+
+        // The app draws its scene onto nothing and lays it over the background by its alpha, so over nothing a particle's
+        // alpha is what it hides of the background: half for one laid over at half, none for light it adds.
+        [TestCase(false, 0f, 0.5f, Description = "straight-alpha texture, alpha blend")]
+        [TestCase(false, 1f, 0f, Description = "straight-alpha texture, additive")]
+        [TestCase(true, 0f, 0.5f, Description = "premultiplied, alpha blend")]
+        [TestCase(true, 1f, 0f, Description = "premultiplied, additive")]
+        public void OverNothing_AParticleHidesWhatItCovers(bool premultiplied, float additiveMul, float alpha)
+        {
+            var settings = new EmitterSettings { Premultiplied = premultiplied, AdditiveMul = additiveMul };
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera, settings, _white, [RedHalfAlpha]), Color.Transparent);
+            Assert.That(pixel.W, Is.EqualTo(alpha).Within(0.02));
+        }
+
+        // A light's pool and a heat haze hide nothing over nothing: the pool's unlit corners and a haze with no scene behind
+        // it blacked out the background.
+        [Test]
+        public void OverNothing_ALightOrAHazeHidesNothing()
+        {
+            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
+                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+            var light = new ParticleState(new Vector3(0, 20, 0), Vector3.Zero, new Vector2(40, 40), 0, new Vector3(0.4f, 0, 0), 1, 0, 0);
+            var pool = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity),
+                new EmitterSettings { Decal = true, Light = true }, _white, [light]), Color.Transparent);
+            var normal = new Texture2D(_device, 1, 1);
+            normal.SetData(new[] { new Color(255, 128, 255, 255) });
+            using var cache = new VfxTextureCache((_, _) => normal);
+            using var item = new ParticleRenderItem(OneParticle("normal", distortion: true), cache, () => Shader);
+            var haze = Render(() => item.Draw(_device, View, RenderingTechnique.Normal), Color.Transparent);
+            Assert.That(new[] { pool.W, haze.W }, Is.All.EqualTo(0).Within(0.01));
         }
 
         // A colour of 4 lights a quarter-grey texel fully: a vertex colour alone stops at 1 and would leave it a quarter.

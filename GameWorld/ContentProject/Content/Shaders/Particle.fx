@@ -121,13 +121,13 @@ DistortionOutput DistortionVS(in VertexShaderInput input)
 }
 
 // The normal map's red and green, 0.5 still and green up, shift the scene behind the quad, faded by the particle's alpha.
+// The scene's own alpha moves with it, so a haze over nothing hides nothing of the background.
 float4 DistortionPS(DistortionOutput input) : COLOR
 {
 	float2 bend = tex2D(TextureSampler, input.Uv).rg * 2 - 1;
 	float a = input.Colour.a;
 	float2 offset = float2(bend.x, -bend.y) * a * Reach / max(input.Depth, 0.01);
-	float3 scene = tex2D(SceneSampler, input.Position.xy * InverseSceneSize + offset).rgb;
-	return float4(scene * a, a);
+	return tex2D(SceneSampler, input.Position.xy * InverseSceneSize + offset) * a;
 }
 
 // DEFERRED_DYNAMIC_LIGHT, as the pool it casts on the ground: Uv spans the light's diameter and Extra.x is its height
