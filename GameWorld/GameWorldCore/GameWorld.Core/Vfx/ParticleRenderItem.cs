@@ -95,7 +95,7 @@ namespace GameWorld.Core.Vfx
         }
 
         /// <summary>The light particles alive now, in the world: each reaches as far as the particle is wide, as CA's does, in its colour times
-        /// its alpha, on the models' sun scale at CA's share of it (VfxConventions.LightShare), as LightPS draws the pool.</summary>
+        /// its alpha, on the models' sun scale at CA's share of it (VfxConventions.LightShare), as DrawGroundLight lights the ground with them.</summary>
         public IEnumerable<PointLight> Lights() => _simulator.AllEmitters.Where(x => x.Settings.Light).SelectMany(e =>
         {
             var brightness = VfxConventions.Blend(e.Settings.AdditiveMul).Brightness;
@@ -106,23 +106,15 @@ namespace GameWorld.Core.Vfx
             CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null, bool glow = false,
             Texture2D? scene = null, Texture2D? normalMap = null)
         {
-            // A distortion bends what is drawn already, and adds no light to bloom.
-            if (settings.Distortion && (glow || scene == null))
+            // A distortion bends what is drawn already, and adds no light to bloom. A light particle draws nothing of its own: the
+            // engine draws the light all of them put on the ground at once (DrawGroundLight).
+            if ((settings.Distortion && (glow || scene == null)) || settings.Light)
                 return;
             // A lit particle's colour is light the sun and sky put on it, as a model's is, and blooms no more than a model's does;
             // it is drawn black there, so it still hides the glow behind it by its alpha, as unlit smoke does.
             var lit = settings.Lit && !glow;
             if (glow && settings.Lit)
                 states = states.Select(p => p with { Colour = Vector3.Zero }).ToList();
-            // A light's pool is light on the ground, which blooms no more than a lit model does. Its alpha is how strong it is, past
-            // 1 (the Bale Taurus's leg lights are at 20), so it goes into the colour, at CA's share of the sun as Lights() hands it
-            // the scene, and the Scale below carries it past 1.
-            if (settings.Light)
-            {
-                if (glow)
-                    return;
-                states = states.Select(p => p with { Colour = p.Colour * p.Alpha * VfxConventions.LightShare, Alpha = 1 }).ToList();
-            }
             (states, var scale) = Hdr(settings, states, glow);
             var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
@@ -153,17 +145,12 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["UseGradient"].SetValue(settings.Gradient != null ? 1f : 0f);
             effect.Parameters["GradientMapsAlpha"].SetValue(settings.GradientMapsAlpha ? 1f : 0f);
             effect.Parameters["GradientRamp"].SetValue(Ramp(settings));
-            effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : settings.Light ? "Light" : "ParticleDrawing"];
-            if (settings.Light)
-            {
-                effect.Parameters["LightScale"].SetValue(VfxConventions.GroundAlbedo * SunStrength(parameters));
-                CommonShaderParameters.SetPointLights(effect, parameters.PointLights);
-            }
-            // ps_soft_edge against the solid scene's depth, when the engine drew it; a decal or a light lies on the ground instead.
+            effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : "ParticleDrawing"];
+            // ps_soft_edge against the solid scene's depth, when the engine drew it; a decal lies on the ground instead.
             // The glow pass draws onto a target holding only the emissive models' depth, so there the scene's depth hides what lies
             // behind a plain model.
             var depth = parameters.SceneDepth;
-            var soft = depth != null && settings.SoftEdge > 0 && !settings.Decal && !settings.Light;
+            var soft = depth != null && settings.SoftEdge > 0 && !settings.Decal;
             var occlude = depth != null && glow;
             effect.Parameters["UseSceneDepth"].SetValue(soft ? 1f : 0f);
             effect.Parameters["Occlude"].SetValue(occlude ? 1f : 0f);
@@ -185,6 +172,35 @@ namespace GameWorld.Core.Vfx
             {
                 pass.Apply();
                 device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertices.Length / 3);
+            }
+        }
+
+        /// <summary>The light the scene's light particles (CommonShaderParameters.PointLights, every item's Lights()) put on the
+        /// ground, y = 0, drawn once over all the ground they reach, under the particles: CA adds up its deferred lights before its
+        /// one tone map, so where several reach, the ground takes their sum. Lights at or under the ground light none of it.</summary>
+        public static void DrawGroundLight(GraphicsDevice device, Effect effect, CommonShaderParameters parameters)
+        {
+            var ground = VfxConventions.Decal(Vector3.Zero).Y;
+            var lights = parameters.PointLights.Take(CommonShaderParameters.MaxPointLights).ToList();
+            var over = lights.Where(x => x.Position.Y > ground).ToList();
+            if (over.Count == 0)
+                return;
+            var (left, right) = (over.Min(x => x.Position.X - x.Radius), over.Max(x => x.Position.X + x.Radius));
+            var (back, front) = (over.Min(x => x.Position.Z - x.Radius), over.Max(x => x.Position.Z + x.Radius));
+            VfxVertex Corner(float x, float z) => new(new Vector3(x, ground, z), Color.White, Vector2.Zero, Vector4.Zero);
+            VfxVertex[] vertices = [Corner(left, back), Corner(right, back), Corner(right, front), Corner(left, back), Corner(right, front), Corner(left, front)];
+
+            effect.CurrentTechnique = effect.Techniques["Light"];
+            effect.Parameters["WorldViewProjection"].SetValue(parameters.View * parameters.Projection);
+            effect.Parameters["WorldView"].SetValue(parameters.View);
+            effect.Parameters["World"].SetValue(Matrix.Identity);
+            effect.Parameters["LightScale"].SetValue(VfxConventions.GroundAlbedo * SunStrength(parameters));
+            CommonShaderParameters.SetPointLights(effect, lights);
+            device.BlendState = Straight(device)[1];
+            foreach (var pass in effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, 2);
             }
         }
 
@@ -287,22 +303,12 @@ namespace GameWorld.Core.Vfx
         static int AddQuad(VfxVertex[] vertices, int n, EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame, float fade)
         {
             var toWorld = camera.ToWorld ?? Matrix.Identity;
-            var light = Vector4.Zero;
             if (s.Decal)
-            {
-                var world = Vector3.Transform(p.Position, toWorld);
-                light = new Vector4(world, p.Size.X);
-                p = p with { Position = Vector3.Transform(VfxConventions.Decal(world), Matrix.Invert(toWorld)) };
-            }
+                p = p with { Position = Vector3.Transform(VfxConventions.Decal(Vector3.Transform(p.Position, toWorld)), Matrix.Invert(toWorld)) };
             var (across, up, height) = Axes(s, camera, p, frame, toWorld);
             var width = p.Size.X;
             var grow = VfxConventions.MinPixelGrowth(Math.Min(width, height), Vector3.Distance(camera.Position, p.Position), camera.PixelScale, s.MinPixels);
             (width, height) = (width * grow, height * grow);
-            // A light reaches as far as the particle is wide (ps_main_deferred_dynamic_light's v4.x) all round the particle, whatever
-            // its height and pivot, so its pool is a square twice that wide about it.
-            if (s.Light)
-                (width, height) = (width * 2, width * 2);
-            var pivot = s.Light ? new Vector2(0.5f) : s.Pivot;
             var alpha = Faded(s, camera, p, fade);
             var colour = VertexColour(s, p.Colour, alpha);
             var (uv, next) = (UvRect(s, p.Cell), UvRect(s, p.NextCell));
@@ -310,10 +316,7 @@ namespace GameWorld.Core.Vfx
             VfxVertex Corner(float x, float y)
             {
                 var (u, v) = VfxConventions.QuadUv(x, y, p.FlipU, p.FlipV, s.UvTurn);
-                var position = p.Position + across * ((x - pivot.X) * width) + up * ((y - pivot.Y) * height);
-                // Extra is a light's place in the world and its reach.
-                if (s.Light)
-                    return new(position, colour, new Vector2(u, v), light);
+                var position = p.Position + across * ((x - s.Pivot.X) * width) + up * ((y - s.Pivot.Y) * height);
                 var soft = s.SoftEdge > 0 && !s.Decal ? VertexColour(s, p.Colour, alpha * VfxConventions.SoftEdge(Vector3.Transform(position, toWorld), eye, s.SoftEdge, s.SoftStrength, Math.Min(width, height))) : colour;
                 return new(position, soft, new Vector2(uv.X + u * uv.Z, uv.Y + v * uv.W), new Vector4(next.X + u * next.Z, next.Y + v * next.W, p.CellBlend, p.Crush), new Vector2(width, height));
             }
@@ -422,7 +425,7 @@ namespace GameWorld.Core.Vfx
         // ponytail: a straight-alpha chain with a mixed additive_blend_mul is rounded to alpha or additive;
         // premultiply its texture on load if one turns up that needs the mix.
         public static BlendState BlendFor(GraphicsDevice device, EmitterSettings s) =>
-            s.Distortion || (s.Premultiplied && !s.Light) ? BlendState.AlphaBlend : Straight(device)[s.Light || s.AdditiveMul >= 0.5f ? 1 : 0];
+            s.Distortion || s.Premultiplied ? BlendState.AlphaBlend : Straight(device)[s.AdditiveMul >= 0.5f ? 1 : 0];
 
         // Laid over, added, and depth only. One set per device: MonoGame binds a state to the first device it is set on.
         static readonly ConditionalWeakTable<GraphicsDevice, BlendState[]> s_straight = new();

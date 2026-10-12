@@ -290,16 +290,15 @@ float4 DistortionPS(DistortionOutput input) : COLOR
 	return tex2D(SceneSampler, input.Position.xy * InverseSceneSize + offset) * a;
 }
 
-// DEFERRED_DYNAMIC_LIGHT, as the light it casts on the ground: the quad bounds its reach, and Extra is where the light is in
-// the world (xyz) and how far it reaches (w). Colours are the light's times its alpha at CA's share of the sun; LightScale
-// brings them to the light a ground of VfxConventions.GroundAlbedo takes, on the models' sun scale, which goes to the screen
-// through their tone map, so a pool reads as lit ground does and not as paint laid on. CA adds up every light reaching a
-// spot before its tone map, so each pool sums the scene's lights there (PointLights, the engine's list of this frame's
-// light particles), tone maps the sum and draws its own share of it: where pools overlap, the shares add up to that one sum.
-// ponytail: past CommonShaderParameters.MaxPointLights, a pool left off the list counts only itself; rank the list if a scene needs more.
+// DEFERRED_DYNAMIC_LIGHT, as the light it casts on the ground: ParticleRenderItem.DrawGroundLight draws one quad over the ground
+// the scene's light particles reach (PointLights, the engine's list of this frame's), and each pixel adds up all of them, as CA
+// adds up its deferred lights before its one tone map. Colours are each light's times its alpha at CA's share of the sun;
+// LightScale brings them to the light a ground of VfxConventions.GroundAlbedo takes, on the models' sun scale, which goes to
+// the screen through their tone map, so the ground reads as lit and not as paint laid on.
 float LightScale = 0;
-float4 PointLights[16];
-float4 PointLightColours[16];
+// As many as CommonShaderParameters.MaxPointLights.
+float4 PointLights[64];
+float4 PointLightColours[64];
 int PointLightCount = 0;
 
 // A light of this colour at light.xyz, reaching light.w, on the ground at position.
@@ -312,12 +311,10 @@ float3 OnGround(float4 light, float3 colour, float3 position)
 
 float4 LightPS(VertexShaderOutput input) : COLOR
 {
-	float3 own = OnGround(input.Extra, input.Colour.rgb, input.WorldPosition);
 	float3 all = 0;
 	for (int i = 0; i < PointLightCount; i++)
 		all += OnGround(PointLights[i], PointLightColours[i].rgb, input.WorldPosition);
-	all = max(all, own);
-	return float4(Gamma(saturate(Uncharted2ToneMapping(all * LightScale))) * own / max(all, 0.000001), 1);
+	return float4(Gamma(saturate(Uncharted2ToneMapping(all * LightScale))), 1);
 }
 
 technique ParticleDrawing

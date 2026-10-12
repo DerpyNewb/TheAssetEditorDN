@@ -338,6 +338,10 @@ namespace GameWorld.Core.Components.Rendering
                 var blendState = device.BlendState;
                 device.DepthStencilState = DepthStencilState.DepthRead;
                 device.RasterizerState = RasterizerState.CullNone;
+                // The light every light particle puts on the ground, once for all of them and under them; it blooms no more than a
+                // lit model does.
+                if (renderingTechnique == RenderingTechnique.Normal)
+                    ParticleRenderItem.DrawGroundLight(device, _resourceLibrary.GetStaticEffect(ShaderTypes.Particle), commonShaderParameters);
                 foreach (var item in _renderItems[RenderBuckedId.Transparent])
                     item.Draw(device, commonShaderParameters, renderingTechnique);
                 device.BlendState = blendState;

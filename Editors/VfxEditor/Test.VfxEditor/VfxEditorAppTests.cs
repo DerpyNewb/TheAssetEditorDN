@@ -687,21 +687,8 @@ namespace Test.VfxEditor
         [Test]
         public void The_engine_hands_its_light_particles_to_the_solid_scene()
         {
-            const string Key = "linear,linear,-0.05,0.0,0.05,0.0,0";
-            const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
-            var light = "\r\n\t\t<emitter type=\"continuous_mesh\" id=\"glow\">"
-                + "<property name=\"InfiniteLife\" quality=\"0\" value=\"true\"/>"
-                + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>"
-                + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
-                + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
-                + "<property name=\"ParticleInitialScale\" quality=\"0\">" + string.Format(Constant, "6.0") + "</property>"
-                + $"<property name=\"EmitterPosition\" quality=\"0\">far,0,0;0.0,1.5,{Key}|none,0,0;0.0,0.0,{Key}:x,0;1,1|y,0;1,1|z,0;0,0</property>"
-                + "\r\n\t\t</emitter>";
-            var red = "<behaviour_chain id=\"glow\"><quality value=\"0\">"
-                + $"<modifier fragment=\"vs_colour\"><property name=\"curve_colour\" type=\"curve\">one,0,0;0.0,1.0,{Key}|none,0,0;0.0,0.0,{Key}:r,0;0,0|g,0;1,1|b,0;1,1</property></modifier>"
-                + "</quality></behaviour_chain>";
-            const string Stack = "<effect_render_stack id=\"glow\"><property name=\"scene_view_type\" quality=\"0\" value=\"DEFERRED_DYNAMIC_LIGHT\"/></effect_render_stack>";
-            var (runner, preview) = ShowRigidModel(chains: red, emitters: light, stacks: Stack);
+            var (light, red, stack) = RedLight();
+            var (runner, preview) = ShowRigidModel(chains: red, emitters: light, stacks: stack);
             var engine = runner.GetRequiredServiceInCurrentEditorScope<RenderEngineComponent>();
             var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
             var seen = new List<CommonShaderParameters>();
@@ -718,6 +705,55 @@ namespace Test.VfxEditor
                 Assert.That(lit.Radius, Is.EqualTo(6f).Within(0.01f));
                 Assert.That((lit.Colour.X, lit.Colour.Y, lit.Colour.Z), Is.EqualTo((2500 / 60000f, 0f, 0f)));
             });
+        }
+
+        // A red DEFERRED_DYNAMIC_LIGHT particle 1.5 m in front of the origin, 6 m across: its emitter, chain and render stack.
+        static (string Emitters, string Chains, string Stacks) RedLight()
+        {
+            const string Key = "linear,linear,-0.05,0.0,0.05,0.0,0";
+            const string Constant = "x_min,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1|x_max,0,0;0.0,{0},linear,linear,-0.05,0.0,0.05,0.0,1:x,0;0,1";
+            var light = "\r\n\t\t<emitter type=\"continuous_mesh\" id=\"glow\">"
+                + "<property name=\"InfiniteLife\" quality=\"0\" value=\"true\"/>"
+                + "<property name=\"MaximumParticles\" quality=\"0\" value=\"1\"/>"
+                + "<property name=\"EmissionRateCurve\" quality=\"0\">" + string.Format(Constant, "60.0") + "</property>"
+                + "<property name=\"ParticleLifeTime\" quality=\"0\">" + string.Format(Constant, "100.0") + "</property>"
+                + "<property name=\"ParticleInitialScale\" quality=\"0\">" + string.Format(Constant, "6.0") + "</property>"
+                + $"<property name=\"EmitterPosition\" quality=\"0\">far,0,0;0.0,1.5,{Key}|none,0,0;0.0,0.0,{Key}:x,0;1,1|y,0;1,1|z,0;0,0</property>"
+                + "\r\n\t\t</emitter>";
+            var red = "<behaviour_chain id=\"glow\"><quality value=\"0\">"
+                + $"<modifier fragment=\"vs_colour\"><property name=\"curve_colour\" type=\"curve\">one,0,0;0.0,1.0,{Key}|none,0,0;0.0,0.0,{Key}:r,0;0,0|g,0;1,1|b,0;1,1</property></modifier>"
+                + "</quality></behaviour_chain>";
+            return (light, red, "<effect_render_stack id=\"glow\"><property name=\"scene_view_type\" quality=\"0\" value=\"DEFERRED_DYNAMIC_LIGHT\"/></effect_render_stack>");
+        }
+
+        // ...and the engine draws the light they put on the ground, once for all of them: seen from above, the ground round Karl
+        // Franz goes red under the red light, where with none it stays the background.
+        [Test]
+        public void The_engine_lights_the_ground_under_its_light_particles()
+        {
+            Xna.Color[] Frame(string emitters, string chains, string stacks)
+            {
+                var (runner, _) = ShowRigidModel(chains: chains, emitters: emitters, stacks: stacks);
+                runner.GetRequiredServiceInCurrentEditorScope<ArcBallCamera>().ViewMatrixOverride = Xna.Matrix.CreateLookAt(new Vector3(0, 12, 0), Vector3.Zero, Vector3.Forward);
+                var engine = runner.GetRequiredServiceInCurrentEditorScope<RenderEngineComponent>();
+                var device = runner.ServiceProvider.GetRequiredService<IWpfGame>().GraphicsDevice;
+                using var target = new RenderTarget2D(device, 64, 64, false, SurfaceFormat.Color, DepthFormat.Depth24);
+                device.SetRenderTarget(target);
+                // Raised 2 m, so the light stands over the ground rather than on it.
+                var item = runner.GetRequiredServiceInCurrentEditorScope<SceneManager>().RootNode.Children.OfType<VfxEffectNode>().Single().RenderItem;
+                item.World = Xna.Matrix.CreateTranslation(0, 2, 0);
+                engine.AddRenderItem(RenderBuckedId.Transparent, item);
+                engine.Draw(new Xna.GameTime());
+                device.SetRenderTarget(null);
+                var pixels = new Xna.Color[64 * 64];
+                target.GetData(pixels);
+                return pixels;
+            }
+            var (light, red, stack) = RedLight();
+            var unlit = Frame("", "", "");
+            var lit = Frame(light, red, stack);
+            var ground = Enumerable.Range(0, unlit.Length).Where(i => unlit[i] == unlit[0]).ToList();
+            Assert.That(ground.Average(i => lit[i].R), Is.GreaterThan(ground.Average(i => unlit[i].R) + 3));
         }
 
         // ...and a model takes that light: Karl Franz grows redder under a light eight times red (light colours run past 1), by how
@@ -748,6 +784,18 @@ namespace Test.VfxEditor
                 Assert.That(Red(15), Is.EqualTo(dark).Within(0.5));
                 Assert.That(Red(30), Is.GreaterThan(dark + 20));
             });
+        }
+
+        // ...and takes every light in the scene, as many as a Bale Taurus carries (35): the one light that reaches him, after
+        // 34 that do not, still lights him.
+        [Test]
+        public void A_model_takes_every_light_in_the_scene()
+        {
+            var (runner, _) = ShowRigidModel();
+            var far = Enumerable.Range(0, 34).Select(i => new PointLight(new Vector3(100 + i, 0, 0), 1, new Vector3(8, 0, 0)));
+            var lit = DrawEffect(runner, DepthStencilState.Default, [.. far, new PointLight(new Vector3(0, 0, 1.5f), 3, new Vector3(8, 0, 0))]).Where(x => x.A > 0).Average(x => x.R);
+            var dark = DrawEffect(runner, DepthStencilState.Default).Where(x => x.A > 0).Average(x => x.R);
+            Assert.That(lit, Is.GreaterThan(dark + 20));
         }
 
         // Soft particles fade against the solid scene, so with particles to draw the engine first draws its view depth: Karl Franz's

@@ -72,9 +72,10 @@ namespace GameWorld.Core.Test.Vfx
                 device.Clear(Color.Transparent);
                 device.DepthStencilState = DepthStencilState.DepthRead;
                 device.RasterizerState = RasterizerState.CullNone;
-                // The frame's lights, as the engine hands them every draw: each light's pool sums them.
+                // The frame's lights, as the engine hands them every draw, and the ground light it draws once from them.
                 var scene = parameters with { PointLights = items.SelectMany(x => x.Lights()).Take(CommonShaderParameters.MaxPointLights).ToList() };
                 lights = scene.PointLights.Count;
+                ParticleRenderItem.DrawGroundLight(device, shader, scene);
                 foreach (var item in items)
                     item.Draw(device, scene, RenderingTechnique.Normal);
                 foreach (var item in items)

@@ -241,16 +241,12 @@ namespace GameWorld.Core.Test.Vfx
 
         static float Encode(float x) => x <= 0.0031308f ? 12.92f * x : 1.055f * MathF.Pow(x, 1 / 2.4f) - 0.055f;
 
-        // A light's pool and a heat haze hide nothing over nothing: the pool's unlit corners and a haze with no scene behind
+        // The ground light and a heat haze hide nothing over nothing: the light's unlit corners and a haze with no scene behind
         // it blacked out the background.
         [Test]
         public void OverNothing_ALightOrAHazeHidesNothing()
         {
-            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
-                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
-            var light = new ParticleState(new Vector3(0, 20, 0), Vector3.Zero, new Vector2(40, 40), 0, new Vector3(0.4f, 0, 0), 1, 0, 0);
-            var pool = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity),
-                new EmitterSettings { Decal = true, Light = true }, _white, [light]), Color.Transparent);
+            var pool = Render(() => ParticleRenderItem.DrawGroundLight(_device, Shader, Above([new PointLight(new Vector3(0, 20, 0), 40, new Vector3(0.4f, 0, 0) * VfxConventions.LightShare)])), Color.Transparent);
             var normal = new Texture2D(_device, 1, 1);
             normal.SetData(new[] { new Color(255, 128, 255, 255) });
             using var cache = new VfxTextureCache((_, _) => normal);
@@ -427,73 +423,66 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
-        // A dynamic light lights the ground under it as CA's ps_main_deferred_dynamic_light does: its colour times its alpha, which
-        // is not held to 1, times 2500, on the scale of the models' sun (20000 x 3 at intensity 1, both taking sin^2(0.5 deg)), on a
-        // mid-grey ground of albedo 0.18, through the models' tone map. It reaches as far from the light as the particle is
-        // wide, falling off as (1 - d/r)^2, as CA's does with its smooth falloff. Over black, seen from above, a white light 40 m
-        // across: a quarter of its reach up it lights the centre at 0.5625 of its strength, at alpha 1 and at the Bale Taurus's
-        // 20; half its reach up, at 0.25; its reach up, not at all.
+        // Seen from above, 5 m up, with the scene's light particles as the engine hands them (Lights() of every item).
+        static CommonShaderParameters Above(IEnumerable<PointLight> lights) => new(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
+            Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One) { PointLights = lights.ToList() };
+
+        // A white light particle at this alpha, as Lights() hands it the scene: colour x alpha at CA's share of the sun.
+        static PointLight White(Vector3 at, float reach, float alpha) => new(at, reach, Vector3.One * alpha * VfxConventions.LightShare);
+
+        // The light CA's ps_main_deferred_dynamic_light puts on the ground: colour x alpha x 2500 on the scale of the models' sun
+        // (20000 x 3 at intensity 1, both taking sin^2(0.5 deg)), on a mid-grey ground of albedo 0.18, through the models' tone map.
+        static float Expected(float lit) => Encode(Math.Clamp(Uncharted2(0.18f * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * lit), 0, 1));
+
+        // A dynamic light lights the ground under it, its alpha not held to 1, reaching as far from the light as the particle is
+        // wide and falling off as (1 - d/r)^2, as CA's does with its smooth falloff. Over black, a white light 40 m across: a quarter
+        // of its reach up it lights the centre at 0.5625 of its strength, at alpha 1 and at the Bale Taurus's 20; half its reach up,
+        // at 0.25; its reach up, not at all.
         [TestCase(10f, 1f, 0.5625f)]
         [TestCase(10f, 20f, 0.5625f)]
         [TestCase(20f, 20f, 0.25f)]
         [TestCase(40f, 20f, 0f)]
         public void Light_LightsTheGroundUnderIt(float height, float alpha, float fall)
         {
-            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
-                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
-            var camera = ParticleRenderItem.CameraAxes.From(down, Matrix.Identity);
-            var light = new ParticleState(new Vector3(0, height, 0), Vector3.Zero, new Vector2(40, 40), 0, Vector3.One, alpha, 0, 0);
-            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, camera, new EmitterSettings { Decal = true, Light = true }, _white, [light]), Color.Black);
-            var lit = 0.18f * alpha * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * fall;
-            Assert.That(pixel.X, Is.EqualTo(Encode(Math.Clamp(Uncharted2(lit), 0, 1))).Within(0.01), $"lit {lit}");
+            var pixel = Render(() => ParticleRenderItem.DrawGroundLight(_device, Shader, Above([White(new Vector3(0, height, 0), 40, alpha)])), Color.Black);
+            Assert.That(pixel.X, Is.EqualTo(Expected(alpha * fall)).Within(0.01));
         }
 
-        // A light reaches as far as its particle is wide all round it, whatever the particle's height and pivot. Over black, seen
-        // from above, a white light 40 m wide and 20 m up, 6 m off to one side: as flat as 4 m, or pivoted on its corner, it still
-        // lights the ground under the camera.
-        [TestCase(0f, 6f, 4f, 0.5f)]
-        [TestCase(6f, 0f, 40f, 0f)]
-        public void Light_ReachesAllRoundWhateverItsHeightAndPivot(float x, float z, float height, float pivot)
+        // ...all round it, by how squarely the ground meets it: one 20 m up and 6 m off to either side lights the ground under the
+        // camera.
+        [TestCase(0f, 6f)]
+        [TestCase(6f, 0f)]
+        public void Light_LightsTheGroundAllRound(float x, float z)
         {
-            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
-                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
-            var light = new ParticleState(new Vector3(x, 20, z), Vector3.Zero, new Vector2(40, height), 0, Vector3.One, 20, 0, 0);
-            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity),
-                new EmitterSettings { Decal = true, Light = true, Pivot = new Vector2(pivot) }, _white, [light]), Color.Black);
+            var pixel = Render(() => ParticleRenderItem.DrawGroundLight(_device, Shader, Above([White(new Vector3(x, 20, z), 40, 20)])), Color.Black);
             var d = MathF.Sqrt(6 * 6 + 20 * 20);
-            var lit = 0.18f * 20 * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * MathF.Pow(1 - d / 40, 2) * (20 / d);
-            Assert.That(pixel.X, Is.EqualTo(Encode(Math.Clamp(Uncharted2(lit), 0, 1))).Within(0.01), $"lit {lit}");
+            Assert.That(pixel.X, Is.EqualTo(Expected(20 * MathF.Pow(1 - d / 40, 2) * (20 / d))).Within(0.01));
         }
 
-        // CA adds up every light reaching a spot of ground and tone maps the sum once; pools tone mapped one by one and added after
-        // ran the Bale Taurus's four overlapping leg lights to white. Over black, seen from above, white lights 40 m wide and 20 m up
-        // at alpha 20, which the engine also hands the scene (CommonShaderParameters.PointLights): four on one spot light it as one
-        // light four times as strong; one there and one 100 m off, out of reach, light it as the one alone.
-        [TestCase(4, 0)]
-        [TestCase(1, 1)]
-        public void Light_PoolsOnOneSpotAddUpBeforeTheToneMap(int overhead, int away)
+        // CA adds up every light reaching a spot of ground and tone maps the sum once: lights tone mapped one by one and added after
+        // ran the Bale Taurus's leg lights to white. Lights 40 m wide and 20 m up: four at alpha 20 on one spot light it as one light
+        // four times as strong; one there and one 100 m off, out of reach, as the one alone; and the 35 a Bale Taurus stands among,
+        // at alpha 1, as 35 times one, every one counted once.
+        [TestCase(4, 0, 20f)]
+        [TestCase(1, 1, 20f)]
+        [TestCase(35, 0, 1f)]
+        public void Light_AllTheLightsOnASpotAddUpBeforeTheToneMap(int overhead, int away, float alpha)
         {
-            var at = Enumerable.Repeat(new Vector3(0, 20, 0), overhead).Concat(Enumerable.Repeat(new Vector3(100, 20, 0), away)).ToList();
-            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
-                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One)
-            { PointLights = at.Select(x => new PointLight(x, 40, Vector3.One * 20 * VfxConventions.LightShare)).ToList() };
-            var lights = at.Select(x => new ParticleState(x, Vector3.Zero, new Vector2(40, 40), 0, Vector3.One, 20, 0, 0)).ToList();
-            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity),
-                new EmitterSettings { Decal = true, Light = true }, _white, lights), Color.Black);
-            var lit = overhead * 0.18f * 20 * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * 0.25f;
-            Assert.That(pixel.X, Is.EqualTo(Encode(Math.Clamp(Uncharted2(lit), 0, 1))).Within(0.01), $"lit {lit}");
+            var at = Enumerable.Repeat(new Vector3(0, 20, 0), overhead).Concat(Enumerable.Repeat(new Vector3(100, 20, 0), away));
+            var pixel = Render(() => ParticleRenderItem.DrawGroundLight(_device, Shader, Above(at.Select(x => White(x, 40, alpha)))), Color.Black);
+            Assert.That(pixel.X, Is.EqualTo(Expected(overhead * alpha * 0.25f)).Within(0.01));
         }
 
-        // A light's colour is light on the ground and on models, which blooms no more than a lit model does: the Bale Taurus's,
-        // white at alpha 20, adds nothing to the glow pass.
-        [Test]
-        public void Light_AddsNothingToTheGlowPass()
+        // A light particle draws nothing of its own, in either pass: the engine draws the light all of them put on the ground at once
+        // (DrawGroundLight), and light blooms no more than a lit model does.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Light_AParticleDrawsNothingItself(bool glow)
         {
-            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
-                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+            var down = Above([]);
             var light = new ParticleState(new Vector3(0, 1, 0), Vector3.Zero, new Vector2(40, 40), 0, Vector3.One, 20, 0, 0);
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity),
-                new EmitterSettings { Decal = true, Light = true }, _white, [light], glow: true), Color.Black);
+                new EmitterSettings { Decal = true, Light = true }, _white, [light], glow: glow), Color.Black);
             Assert.That(pixel.X, Is.EqualTo(0).Within(0.01));
         }
 

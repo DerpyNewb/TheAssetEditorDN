@@ -29,8 +29,9 @@ float3 TintColour = float3(1, 1, 1);
 float4 ModelColour = float4(1, 1, 1, 1);
 
 // The VFX preview's light particles (CommonShaderParameters.PointLights): position and reach (xyz, w), and colour.
-float4 PointLights[16];
-float4 PointLightColours[16];
+// As many as CommonShaderParameters.MaxPointLights.
+float4 PointLights[64];
+float4 PointLightColours[64];
 int PointLightCount = 0;
 
 // Light i's colour where it reaches position, falling off as its pool on the ground does (LightFalloff), and the way to it.

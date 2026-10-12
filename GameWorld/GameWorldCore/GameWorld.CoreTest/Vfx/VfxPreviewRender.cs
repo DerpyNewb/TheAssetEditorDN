@@ -66,7 +66,7 @@ namespace GameWorld.Core.Test.Vfx
                     foreach (var (view, eye, up) in views)
                     {
                         var parameters = new CommonShaderParameters(Matrix.CreateLookAt(eye, lookAt, up),
-                            Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 500), eye, lookAt, 0, 0, 0, 1, [], Vector3.One);
+                            Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 500), eye, lookAt, 0, 0, 0, 1, [], Vector3.One) { PointLights = item.Lights().ToList() };
                         device.SetRenderTarget(target);
                         device.Clear(Color.Transparent);
                         device.BlendState = BlendState.Opaque;
@@ -74,6 +74,7 @@ namespace GameWorld.Core.Test.Vfx
                         DrawGrid(device, lines, parameters);
                         device.DepthStencilState = DepthStencilState.DepthRead;
                         device.RasterizerState = RasterizerState.CullNone;
+                        ParticleRenderItem.DrawGroundLight(device, shader, parameters);
                         item.Draw(device, parameters, RenderingTechnique.Normal);
                         // Laid over the background by its alpha, as the app lays its scene.
                         device.SetRenderTarget(picture);

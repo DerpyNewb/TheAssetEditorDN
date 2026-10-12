@@ -25,7 +25,8 @@ namespace GameWorld.Core.Rendering
         /// the first <see cref="MaxPointLights"/>.</summary>
         public IReadOnlyList<PointLight> PointLights { get; init; } = [];
 
-        public const int MaxPointLights = 16;
+        // A Bale Taurus standing carries 35.
+        public const int MaxPointLights = 64;
 
         /// <summary>Hands an effect that takes them (PointLightCount, PointLights, PointLightColours) the first
         /// <see cref="MaxPointLights"/> lights.</summary>
