@@ -290,12 +290,19 @@ float4 DistortionPS(DistortionOutput input) : COLOR
 }
 
 // DEFERRED_DYNAMIC_LIGHT, as the pool it casts on the ground: Uv spans the light's diameter and Extra.x is its height
-// over the ground in radii, so the falloff runs on the true distance from the light.
+// over the ground in radii, so the falloff runs on the true distance from the light. The colour is the light's times its
+// alpha; LightScale brings it to the light a ground of VfxConventions.GroundAlbedo square to it takes, on the models' sun
+// scale, which goes to the screen through their tone map, so a pool reads as lit ground does and not as paint laid on.
+float LightScale = 0;
+
 float4 LightPS(VertexShaderOutput input) : COLOR
 {
 	float2 planar = input.Uv * 2 - 1;
-	float fall = saturate(1 - dot(planar, planar) - input.Extra.x * input.Extra.x);
-	return float4(input.Colour.rgb * (Premultiplied > 0 ? 1 : input.Colour.a) * fall * fall, 1);
+	float reach = dot(planar, planar) + input.Extra.x * input.Extra.x;
+	float fall = saturate(1 - reach);
+	float facing = saturate(input.Extra.x / max(sqrt(reach), 0.0001));
+	float3 lit = input.Colour.rgb * LightScale * facing * fall * fall;
+	return float4(Gamma(saturate(Uncharted2ToneMapping(lit))), 1);
 }
 
 technique ParticleDrawing

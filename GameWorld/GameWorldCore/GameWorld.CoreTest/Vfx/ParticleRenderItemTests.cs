@@ -427,19 +427,36 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
-        // A dynamic light lights the ground under it: a pool as wide as the particle, falling off with the distance from the
-        // light as (1 - (d/r)^2)^2. Seen from above, a light half its radius up lights the centre 0.5625 of its colour; one a
-        // radius up lights nothing.
-        [TestCase(10f, 0.502f + 0.4f * 0.5625f)]
-        [TestCase(20f, 0.502f)]
-        public void Light_LightsTheGroundUnderIt(float height, float red)
+        // A dynamic light lights the ground under it as CA's ps_main_deferred_dynamic_light does: its colour times its alpha, which
+        // is not held to 1, times 2500, on the scale of the models' sun (20000 x 3 at intensity 1, both taking sin^2(0.5 deg)), on a
+        // mid-grey ground of albedo 0.18, through the models' tone map. A pool as wide as the particle, falling off with the
+        // distance from the light as (1 - (d/r)^2)^2. Over black, seen from above: a white light half its radius up lights the
+        // centre at 0.5625 of its strength, at alpha 1 and at the Bale Taurus's 20; one a radius up lights nothing.
+        [TestCase(10f, 1f, 0.5625f)]
+        [TestCase(10f, 20f, 0.5625f)]
+        [TestCase(20f, 20f, 0f)]
+        public void Light_LightsTheGroundUnderIt(float height, float alpha, float fall)
         {
             var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
                 Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
             var camera = ParticleRenderItem.CameraAxes.From(down, Matrix.Identity);
-            var light = new ParticleState(new Vector3(0, height, 0), Vector3.Zero, new Vector2(40, 40), 0, new Vector3(0.4f, 0, 0), 1, 0, 0);
-            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, camera, new EmitterSettings { Decal = true, Light = true }, _white, [light]));
-            Assert.That(new[] { pixel.X, pixel.Y }, Is.EqualTo(new[] { red, 0.502f }).Within(0.01));
+            var light = new ParticleState(new Vector3(0, height, 0), Vector3.Zero, new Vector2(40, 40), 0, Vector3.One, alpha, 0, 0);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, camera, new EmitterSettings { Decal = true, Light = true }, _white, [light]), Color.Black);
+            var lit = 0.18f * alpha * 2500 * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2) * fall;
+            Assert.That(pixel.X, Is.EqualTo(Encode(Math.Clamp(Uncharted2(lit), 0, 1))).Within(0.01), $"lit {lit}");
+        }
+
+        // A light's colour is light on the ground and on models, which blooms no more than a lit model does: the Bale Taurus's,
+        // white at alpha 20, adds nothing to the glow pass.
+        [Test]
+        public void Light_AddsNothingToTheGlowPass()
+        {
+            var down = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 5, 0), Vector3.Zero, Vector3.Forward),
+                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 5, 0), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+            var light = new ParticleState(new Vector3(0, 1, 0), Vector3.Zero, new Vector2(40, 40), 0, Vector3.One, 20, 0, 0);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity),
+                new EmitterSettings { Decal = true, Light = true }, _white, [light], glow: true), Color.Black);
+            Assert.That(pixel.X, Is.EqualTo(0).Within(0.01));
         }
 
         // DISTORTION draws the scene behind it shifted by its normal map. A red-and-blue split seen from 1 m: a full +x normal

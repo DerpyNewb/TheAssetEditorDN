@@ -94,12 +94,12 @@ namespace GameWorld.Core.Vfx
             device.SamplerStates[0] = samplerState;
         }
 
-        /// <summary>The light particles alive now, in the world: each reaches as far as its pool, half its size, in its colour at its
-        /// alpha, as LightPS draws the pool.</summary>
+        /// <summary>The light particles alive now, in the world: each reaches as far as its pool, half its size, in its colour times
+        /// its alpha, on the models' sun scale at CA's share of it (VfxConventions.LightShare), as LightPS draws the pool.</summary>
         public IEnumerable<PointLight> Lights() => _simulator.AllEmitters.Where(x => x.Settings.Light).SelectMany(e =>
         {
             var brightness = VfxConventions.Blend(e.Settings.AdditiveMul).Brightness;
-            return ParticleSimulator.States(e).Select(p => new PointLight(Vector3.Transform(p.Position, World), p.Size.X / 2, p.Colour * p.Alpha * brightness));
+            return ParticleSimulator.States(e).Select(p => new PointLight(Vector3.Transform(p.Position, World), p.Size.X / 2, p.Colour * p.Alpha * brightness * VfxConventions.LightShare));
         });
 
         public static void DrawEmitter(GraphicsDevice device, Effect effect, CommonShaderParameters parameters, Matrix world,
@@ -114,6 +114,14 @@ namespace GameWorld.Core.Vfx
             var lit = settings.Lit && !glow;
             if (glow && settings.Lit)
                 states = states.Select(p => p with { Colour = Vector3.Zero }).ToList();
+            // A light's pool is light on the ground, which blooms no more than a lit model does. Its alpha is how strong it is, past
+            // 1 (the Bale Taurus's leg lights are at 20), so it goes into the colour, which the Scale below carries past 1.
+            if (settings.Light)
+            {
+                if (glow)
+                    return;
+                states = states.Select(p => p with { Colour = p.Colour * p.Alpha, Alpha = 1 }).ToList();
+            }
             (states, var scale) = Hdr(settings, states, glow);
             var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
@@ -145,6 +153,8 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["GradientMapsAlpha"].SetValue(settings.GradientMapsAlpha ? 1f : 0f);
             effect.Parameters["GradientRamp"].SetValue(Ramp(settings));
             effect.CurrentTechnique = effect.Techniques[settings.Distortion ? "Distortion" : settings.Light ? "Light" : "ParticleDrawing"];
+            if (settings.Light)
+                effect.Parameters["LightScale"].SetValue(VfxConventions.GroundAlbedo * SunStrength(parameters) * VfxConventions.LightShare);
             // ps_soft_edge against the solid scene's depth, when the engine drew it; a decal or a light lies on the ground instead.
             // The glow pass draws onto a target holding only the emissive models' depth, so there the scene's depth hides what lies
             // behind a plain model.
@@ -181,9 +191,11 @@ namespace GameWorld.Core.Vfx
         {
             var turn = Matrix.CreateRotationY(p.DirLightRotationRadians_Y) * Matrix.CreateRotationX(p.DirLightRotationRadians_X);
             var toSun = Vector3.Normalize(Vector3.TransformNormal(Vector3.Normalize(new Vector3(0.1f, 0.1f, 1)), turn));
-            var sky = MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2);
-            return (toSun, p.LightColour * (20000 * 3 * p.LightIntensityMult * sky), p.LightColour * (0.261f * p.LightIntensityMult));
+            return (toSun, p.LightColour * SunStrength(p), p.LightColour * (0.261f * p.LightIntensityMult));
         }
+
+        /// <summary>The light a face square to the sun takes, before the light colour: 20000 x 3 x the intensity x sin^2(0.5 deg).</summary>
+        public static float SunStrength(CommonShaderParameters p) => 20000 * 3 * p.LightIntensityMult * MathF.Pow(MathF.Sin(MathHelper.ToRadians(0.5f)), 2);
 
         // A vertex colour stops at 1 and the shader's Scale does not: an HDR emitter's colours are divided by the
         // brightest of them and the draw multiplied back, so a colour of 4 lights a quarter-grey texel fully. Past 255 even

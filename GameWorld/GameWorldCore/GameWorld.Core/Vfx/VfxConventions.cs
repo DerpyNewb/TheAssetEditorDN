@@ -220,6 +220,15 @@ namespace GameWorld.Core.Vfx
         /// <summary>additive_blend_mul: 0 blends by alpha, 1 adds, between mixes the two; above 1 it also brightens.</summary>
         public static (float AlphaWeight, float Brightness) Blend(float additiveMul) => (1 - Math.Clamp(additiveMul, 0, 1), Math.Max(1, additiveMul));
 
+        /// <summary>A DEFERRED_DYNAMIC_LIGHT particle's share of the models' sun per unit of colour times alpha: CA's
+        /// ps_main_deferred_dynamic_light lights with colour x alpha x 2500 where the models' sun is get_sun_colour() x
+        /// unchartedSunFactor, 20000 x 3, both then taking sin^2(0.5 deg). Read off the shader, not assumed.</summary>
+        public const float LightShare = 2500f / 60000f;
+
+        /// <summary>The ground a light's pool lies on, which the preview does not draw: a mid grey of albedo 0.18. CA's light lights
+        /// the terrain's own albedo out of its gbuffer.</summary>
+        public const float GroundAlbedo = 0.18f;
+
         /// <summary>velocity_stretch_mul lengthens a velocity-aligned quad by speed x multiplier, up to velocity_stretch_cap times.</summary>
         public static float Stretch(float speed, float multiplier, float cap) => Math.Clamp(1 + speed * multiplier, 1, cap > 0 ? cap : float.MaxValue);
 

@@ -681,8 +681,9 @@ namespace Test.VfxEditor
         }
 
         // A DEFERRED_DYNAMIC_LIGHT particle lights the solid scene, not only the ground its pool lies on: the engine hands the
-        // solid draws every light particle alive this frame, where it is, as wide as its pool and in its colour. A red light 1.5 m
-        // in front of Karl Franz, 6 m across.
+        // solid draws every light particle alive this frame, where it is, as wide as its pool, and as strong as CA's
+        // ps_main_deferred_dynamic_light makes it: its colour times its alpha times 2500, where the models' sun is 20000 x 3, so a
+        // light of colour 1 is a 24th of the sun. A red light 1.5 m in front of Karl Franz, 6 m across.
         [Test]
         public void The_engine_hands_its_light_particles_to_the_solid_scene()
         {
@@ -715,7 +716,7 @@ namespace Test.VfxEditor
             {
                 Assert.That(lit.Position.Z, Is.EqualTo(1.5f).Within(0.01f), string.Join("; ", preview.Lines));
                 Assert.That(lit.Radius, Is.EqualTo(3f).Within(0.01f));
-                Assert.That((lit.Colour.X, lit.Colour.Y, lit.Colour.Z), Is.EqualTo((1f, 0f, 0f)));
+                Assert.That((lit.Colour.X, lit.Colour.Y, lit.Colour.Z), Is.EqualTo((2500 / 60000f, 0f, 0f)));
             });
         }
 
