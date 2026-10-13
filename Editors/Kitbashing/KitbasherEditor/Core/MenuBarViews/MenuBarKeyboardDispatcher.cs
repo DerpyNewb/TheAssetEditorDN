@@ -12,6 +12,10 @@ namespace Editors.KitbasherEditor.Core.MenuBarViews
         private readonly Func<bool> _isVisible;
         private readonly Func<IKeyboardHandler?> _getHandler;
 
+        // Hotkeys fire on release. A combination counts by the modifiers held when its key went down, so Ctrl+Z still undoes when
+        // Ctrl is let go first; a release whose press was not seen counts what is held now.
+        private readonly Dictionary<Key, ModifierKeys> _modifiersAtPress = new();
+
         public MenuBarKeyboardDispatcher(Func<bool> isVisible, Func<IKeyboardHandler?> getHandler)
         {
             _isVisible = isVisible;
@@ -23,6 +27,9 @@ namespace Editors.KitbasherEditor.Core.MenuBarViews
         /// </summary>
         public bool HandleKeyUp(Key key, Key systemKey, ModifierKeys modifiers, bool isSourceTextBox)
         {
+            if (_modifiersAtPress.Remove(key, out var atPress))
+                modifiers = atPress;
+
             if (!_isVisible())
                 return false;
 
@@ -43,6 +50,8 @@ namespace Editors.KitbasherEditor.Core.MenuBarViews
         /// </summary>
         public bool HandleKeyDown(Key key, Key systemKey, ModifierKeys modifiers, bool isSourceTextBox)
         {
+            _modifiersAtPress[key] = modifiers;
+
             if (!_isVisible())
                 return false;
 

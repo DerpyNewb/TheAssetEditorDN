@@ -166,6 +166,28 @@ namespace Test.KitbashEditor.Keyboard
             Assert.That(count2, Is.EqualTo(1), "Active tab should receive the key event.");
         }
 
+        // Hotkeys fire on release, and Ctrl+Z with Ctrl let go first released Z with nothing held: the undo never ran. A
+        // combination counts by what was held when its key went down; a release with no press seen counts what is held now.
+        [Test]
+        public void HandleKeyUp_CountsTheModifiersHeldWhenTheKeyWentDown()
+        {
+            var hotkeyHandler = new ActionHotkeyHandler();
+            hotkeyHandler.Register(new MenuAction
+            {
+                Hotkey = new Hotkey(Key.Z, ModifierKeys.Control),
+                ActionTriggeredCallback = () => _keyReleasedCount++
+            });
+            _handler = new CountingKeyboardHandler(hotkeyHandler, () => _keyDownCount++);
+            _dispatcher = new MenuBarKeyboardDispatcher(() => _isVisible, () => _handler);
+
+            _dispatcher.HandleKeyDown(Key.Z, Key.Z, ModifierKeys.Control, isSourceTextBox: false);
+            _dispatcher.HandleKeyUp(Key.Z, Key.Z, ModifierKeys.None, isSourceTextBox: false);
+            Assert.That(_keyReleasedCount, Is.EqualTo(1), "Ctrl let go before Z lost the combination");
+
+            _dispatcher.HandleKeyUp(Key.Z, Key.Z, ModifierKeys.None, isSourceTextBox: false);
+            Assert.That(_keyReleasedCount, Is.EqualTo(1), "a press counted for a second release");
+        }
+
         private static IKeyboardHandler CreateCountingHandler(Action onKeyReleased)
         {
             var hotkeys = new ActionHotkeyHandler();
