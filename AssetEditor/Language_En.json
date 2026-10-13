@@ -888,7 +888,7 @@
 
   "KitbashTool.MainView.PivotAtOrigin": "Pivot at world origin",
   "KitbashTool.MainView.PivotAtOrigin.Tooltip": "Rotate and scale about the world origin, where a weapon hangs from its bone, instead of the selection's centre",
-  "KitbashTool.MainView.VertexFalloff": "Vertex Fall-of:",
+  "KitbashTool.MainView.VertexFalloff": "Vertex falloff:",
   "KitbashTool.Bmi.CheckAllChildren": "Check all children",
   "KitbashTool.Bmi.UncheckAllChildren": "Un-check all children",
   "KitbashTool.Bmi.ScaleFactor": "Scale factor:",

@@ -28,6 +28,7 @@
 
                 <b:Interaction.Behaviors>
                     <behaviors:TextBoxInputBehavior InputMode="DecimalInput"/>
+                    <behaviors:NumberScrubBehavior/>
                 </b:Interaction.Behaviors>
             </TextBox>
 

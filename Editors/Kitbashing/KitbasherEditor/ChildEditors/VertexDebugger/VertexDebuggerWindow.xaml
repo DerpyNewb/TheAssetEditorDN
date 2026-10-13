@@ -24,6 +24,7 @@
             <TextBox Width="100" Text="{Binding DebugScale.TextValue, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
                 <b:Interaction.Behaviors>
                     <behaviors:TextBoxInputBehavior InputMode="DecimalInput"/>
+                    <behaviors:NumberScrubBehavior/>
                 </b:Interaction.Behaviors>
             </TextBox>
 

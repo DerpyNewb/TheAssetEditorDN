@@ -9,7 +9,7 @@
     xmlns:basedialogs="clr-namespace:Shared.Ui.BaseDialogs;assembly=Shared.Ui" 
     xmlns:mathviews="clr-namespace:CommonControls.MathViews;assembly=Shared.Ui" 
     xmlns:colourpickerbutton="clr-namespace:Shared.Ui.BaseDialogs.ColourPickerButton;assembly=Shared.Ui"
-    xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+    xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui" xmlns:b="http://schemas.microsoft.com/xaml/behaviors" xmlns:behaviors="clr-namespace:Shared.Ui.Common.Behaviors;assembly=Shared.Ui"
     mc:Ignorable="d"
     ContentRendered="Window_OnContentRendered"
     ResizeMode="NoResize"
@@ -33,15 +33,27 @@
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.CameraYaw}" LabelWidth="200">
-                <TextBox Margin="2" Text="{Binding CameraYaw, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+                <TextBox Margin="2" Text="{Binding CameraYaw, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                    <b:Interaction.Behaviors>
+                        <behaviors:NumberScrubBehavior/>
+                    </b:Interaction.Behaviors>
+                </TextBox>
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.CameraPitch}" LabelWidth="200">
-                <TextBox Margin="2" Text="{Binding CameraPitch, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+                <TextBox Margin="2" Text="{Binding CameraPitch, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                    <b:Interaction.Behaviors>
+                        <behaviors:NumberScrubBehavior/>
+                    </b:Interaction.Behaviors>
+                </TextBox>
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.CameraZoom}" LabelWidth="200">
-                <TextBox Margin="2" Text="{Binding CameraZoom, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+                <TextBox Margin="2" Text="{Binding CameraZoom, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                    <b:Interaction.Behaviors>
+                        <behaviors:NumberScrubBehavior/>
+                    </b:Interaction.Behaviors>
+                </TextBox>
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.CameraTarget}" LabelWidth="200">
@@ -65,19 +77,35 @@
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.LightIntensity}" LabelWidth="200">
-                <TextBox Margin="2" Text="{Binding LightIntensity, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+                <TextBox Margin="2" Text="{Binding LightIntensity, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                    <b:Interaction.Behaviors>
+                        <behaviors:NumberScrubBehavior/>
+                    </b:Interaction.Behaviors>
+                </TextBox>
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.EnvLightRotation}" LabelWidth="200">
-                <TextBox Margin="2" Text="{Binding EnvLightRotationY, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+                <TextBox Margin="2" Text="{Binding EnvLightRotationY, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                    <b:Interaction.Behaviors>
+                        <behaviors:NumberScrubBehavior Mode="Integer"/>
+                    </b:Interaction.Behaviors>
+                </TextBox>
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.DirectLightRotationX}" LabelWidth="200">
-                <TextBox Margin="2" Text="{Binding DirectLightRotationX, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+                <TextBox Margin="2" Text="{Binding DirectLightRotationX, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                    <b:Interaction.Behaviors>
+                        <behaviors:NumberScrubBehavior Mode="Integer"/>
+                    </b:Interaction.Behaviors>
+                </TextBox>
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.DirectLightRotationY}" LabelWidth="200">
-                <TextBox Margin="2" Text="{Binding DirectLightRotationY, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+                <TextBox Margin="2" Text="{Binding DirectLightRotationY, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                    <b:Interaction.Behaviors>
+                        <behaviors:NumberScrubBehavior Mode="Integer"/>
+                    </b:Interaction.Behaviors>
+                </TextBox>
             </basedialogs:AeAttribute>
 
             <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.PhotoStudio.DoubleImageResolution}" LabelWidth="200">

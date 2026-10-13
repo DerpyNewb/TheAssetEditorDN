@@ -823,7 +823,7 @@
     "AudioProjectEditor.Tooltips.ShowModdedStatesOnly":  "Shows only modded states in the drop downs rather than modded states and vanilla states.",
     "KitbashTool.MainView.PivotAtOrigin":  "Pivot à l'origine du monde",
     "KitbashTool.MainView.PivotAtOrigin.Tooltip":  "Tourner et redimensionner autour de l'origine du monde, là où une arme pend à son os, au lieu du centre de la sélection",
-    "KitbashTool.MainView.VertexFalloff":  "Vertex Fall-of:",
+    "KitbashTool.MainView.VertexFalloff":  "Atténuation des sommets :",
     "KitbashTool.Bmi.CheckAllChildren":  "Check all children",
     "KitbashTool.Bmi.UncheckAllChildren":  "Un-check all children",
     "KitbashTool.Bmi.ScaleFactor":  "Scale factor:",
