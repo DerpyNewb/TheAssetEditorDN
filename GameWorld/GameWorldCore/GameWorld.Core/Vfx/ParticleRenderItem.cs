@@ -146,6 +146,7 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["Premultiplied"].SetValue(settings.Premultiplied ? 1f : 0f);
             var (alphaWeight, brightness) = VfxConventions.Blend(settings.AdditiveMul);
             effect.Parameters["Overlay"].SetValue(settings.Overlay ? 1f : 0f);
+            effect.Parameters["OverlayGlow"].SetValue(glow ? 1f : 0f);
             effect.Parameters["OverlayBrightness"].SetValue(brightness);
             effect.Parameters["OverlayAlphaWeight"].SetValue(alphaWeight);
             effect.Parameters["CrushSharp"].SetValue(settings.CrushSharp ? 1f : 0f);
@@ -230,7 +231,9 @@ namespace GameWorld.Core.Vfx
         static (IReadOnlyList<ParticleState>, float) Hdr(EmitterSettings s, IReadOnlyList<ParticleState> states, bool glow)
         {
             var brightness = VfxConventions.Blend(s.AdditiveMul).Brightness;
-            if (glow)
+            // An overlay is not linear in its colour, so an overlay chain keeps its whole colour and the shader takes the part of
+            // the overlaid colour over 1.
+            if (glow && !s.Overlay)
                 states = states.Select(p => p with { Colour = VfxConventions.Glow(p.Colour * brightness) / brightness }).ToList();
             var top = states.Select(p => Math.Max(p.Colour.X, Math.Max(p.Colour.Y, p.Colour.Z)) * brightness).DefaultIfEmpty(1).Max();
             var scale = Math.Clamp(top, 1, 255);

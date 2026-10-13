@@ -26,6 +26,8 @@ float Premultiplied = 1;
 float Overlay = 0;
 float OverlayBrightness = 1;
 float OverlayAlphaWeight = 1;
+// The glow pass: an overlay chain's colour arrives whole, and what lies over 1 of the overlaid colour glows (VfxConventions.Glow).
+float OverlayGlow = 0;
 // ps_alpha_crush sharp_transition.
 float CrushSharp = 0;
 // ps_gradient: whether the chain has one, its alpha_mapping, and its strip at 16 points from 0 to 1.
@@ -267,8 +269,8 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	if (Overlay > 0)
 	{
 		float3 overlaid = BlendOverlay(UseGradient > 0 ? rgb : saturate(Linear(rgb)), input.Colour.rgb);
-		rgb = Lit > 0
-			? Gamma(saturate(Uncharted2ToneMapping(overlaid * ParticleLight(Normal(input), input.Size.x))))
+		rgb = OverlayGlow > 0 ? max(Gamma(overlaid) * OverlayBrightness - 1, 0)
+			: Lit > 0 ? Gamma(saturate(Uncharted2ToneMapping(overlaid * ParticleLight(Normal(input), input.Size.x))))
 			: Gamma(saturate(overlaid)) * OverlayBrightness;
 		a *= input.Colour.a;
 		return float4(Premultiplied > 0 ? rgb * a : rgb, Premultiplied > 0 && Lit == 0 ? a * OverlayAlphaWeight : a);

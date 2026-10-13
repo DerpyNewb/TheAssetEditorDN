@@ -116,6 +116,30 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // The glow pass blooms what lies over 1, and an overlay of no colour is not black: a texel overlaid with nothing keeps its
+        // brightness. So an overlay chain glows by its whole overlaid colour's part over 1, not by overlaying the part of its
+        // colour over 1. A white flame core in an orange (1, 0.5, 0) tint adds nothing, unlit or lit. A mid-grey texel glows red
+        // only, and only past 1: under a (4, 0, 0) tint, or under the orange at additive_blend_mul 2 (red 0.69 x 2).
+        [TestCase(255, 1f, 0.5f, 0f, false, false)]
+        [TestCase(255, 1f, 0.5f, 0f, true, false)]
+        [TestCase(128, 4f, 0f, 0f, false, true)]
+        [TestCase(128, 1f, 0.5f, 2f, false, true)]
+        public void OverlayColour_GlowsOnlyOverOne(int texel, float red, float green, float additive, bool lit, bool redGlows)
+        {
+            using var texture = new Texture2D(_device, 1, 1);
+            texture.SetData(new[] { new Color(texel, texel, texel, 255) });
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var core = RedHalfAlpha with { Colour = new Vector3(red, green, 0), Alpha = 1 };
+            var settings = new EmitterSettings { Overlay = true, AdditiveMul = additive, Lighting = lit ? new ParticleLighting(0.8f, 0, 0.4f, 0, 0.8f) : null };
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera, settings, texture, [core], glow: true), Color.Black);
+            Assert.Multiple(() =>
+            {
+                Assert.That(pixel.X, redGlows ? Is.GreaterThan(0.1f) : Is.EqualTo(0).Within(0.01));
+                Assert.That(pixel.Y, Is.EqualTo(0).Within(0.01));
+                Assert.That(pixel.Z, Is.EqualTo(0).Within(0.01));
+            });
+        }
+
         // 122 of vanilla's 448 overlay chains are lit: the overlaid colour is the albedo, under the sky's 0.261 from a white ambient
         // cube. The grey texel decodes to 0.216; overlaid with (1, 0.5, 0) that is (0.432, 0.216, 0).
         [Test]
