@@ -23,7 +23,8 @@
         public string SoundFile { get; set; }
         public float BlendInTime { get; set; }
         public float SelectionWeight { get; set; }
-        public int WeaponBools { get; set; }
+        // Which weapon bones the slot shows, bit N for be_prop_N. A set that carries none (a campaign set) shows them all.
+        public int WeaponBools { get; set; } = 0b111111;
 
         string GetDisplayName()
         {

@@ -95,6 +95,33 @@ namespace Test.AnimationMeta
             Assert.That(later, Is.Not.EqualTo(start), "no bone moved in 400ms of the slot's animation");
         }
 
+        // A slot of the animation set says which weapon bones it shows (bit N for be_prop_N), and the game hides the weapons on
+        // the rest: STAND_NO_WEAPON shows none, and a Doomseeker's STAND_IDLE_1 only his left flail, the right one replaced by
+        // the flail its animated prop swings. SuperView drew every weapon in every slot.
+        [Test]
+        public void AnimationSlot_ShowsOnlyTheWeaponBonesItFlags()
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == @"animations/database/battle/bin/hu17_dlc16_throt.bin");
+            var weapons = SceneNodeHelper.GetChildrenOfType<SlotNode>(superView.SceneObjects[0].Data.ModelNode)
+                .Where(x => x.AttachmentBoneName?.StartsWith("be_prop_") == true && x.Children.Count > 0).ToList();
+            var attack = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+
+            // Throt's set shows every weapon in the slots the test pack carries, so ATTACK_5 is given the flags of a slot
+            // that shows only his first weapon bone, then of one that shows all six.
+            var kept = weapons[0].AttachmentBoneName;
+            attack.WeaponBools = 1 << int.Parse(kept["be_prop_".Length..]);
+            selection.FragmentSlotList.SelectedItem = attack;
+            var onlyFirst = weapons.Where(x => x.IsVisible).Select(x => x.AttachmentBoneName).ToList();
+
+            selection.FragmentSlotList.SelectedItem = null;
+            attack.WeaponBools = 0b111111;
+            selection.FragmentSlotList.SelectedItem = attack;
+            Assert.That((weapons.Count > 1, onlyFirst, weapons.All(x => x.IsVisible)), Is.EqualTo((true, new List<string> { kept }, true)));
+        }
+
         // A skeleton with no battle animation table (Glottkin's only set is cam_lord_glt01_dlc29_ghurk.bin) still lists its
         // campaign animation set, and a slot from it plays with the set's persistent meta. Its hand poses and docks take the
         // battle slot names the meta's HandPose and DockEquipment tags look up.
@@ -133,6 +160,9 @@ namespace Test.AnimationMeta
             Assert.That(superView.MetaEditor.ParsedFile, Is.Not.Null);
             Assert.That((selection.MetaDataName, selection.MetaDataPersistName), Is.EqualTo((attack.MetaFile, persist.MetaFile)));
             Assert.That(selection.FragmentSlotList.PossibleValues.Select(x => x.SlotName), Is.SupersetOf(new[] { "HAND_POSE_GRIP", "DOCK_EQUIPMENT_RIGHT_HAND_2" }));
+            // A campaign set has no weapon flags, so its slots hide no weapon.
+            var weapons = SceneNodeHelper.GetChildrenOfType<SlotNode>(superView.SceneObjects[0].Data.ModelNode).Where(x => x.AttachmentBoneName?.StartsWith("be_prop_") == true).ToList();
+            Assert.That((weapons.Count > 0, weapons.All(x => x.IsVisible)), Is.EqualTo((true, true)), "a campaign slot hid a weapon");
         }
 
         [Test]

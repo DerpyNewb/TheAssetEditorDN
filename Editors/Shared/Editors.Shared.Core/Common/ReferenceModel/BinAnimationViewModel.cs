@@ -2,6 +2,7 @@
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GameWorld.Core.Animation;
+using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Services;
 using Shared.Core.Commands;
 using Shared.Core.Events;
@@ -167,6 +168,18 @@ namespace Editors.Shared.Core.Common.ReferenceModel
                 { 
                     persistMeta = _pfs.FindFile(persistFlying.MetaFile);
                     persistFullpath = persistFlying.MetaFile;
+                }
+            }
+
+            // The slot shows only the weapon bones it flags (bit N, be_prop_N), as in game: STAND_NO_WEAPON none, a Doomseeker's
+            // STAND_IDLE_1 his left flail, the right one replaced by the flail his animated prop swings.
+            var weaponBones = value?.WeaponBools ?? 0b111111;
+            if (_sceneObject.ModelNode != null)
+            {
+                foreach (var weapon in SceneNodeHelper.GetChildrenOfType<SlotNode>(_sceneObject.ModelNode))
+                {
+                    if (weapon.AttachmentBoneName?.StartsWith("be_prop_") == true && int.TryParse(weapon.AttachmentBoneName["be_prop_".Length..], out var bone))
+                        weapon.IsVisible = (weaponBones >> bone & 1) == 1;
                 }
             }
 
