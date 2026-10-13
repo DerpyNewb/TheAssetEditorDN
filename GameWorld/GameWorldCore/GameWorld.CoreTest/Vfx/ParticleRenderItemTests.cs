@@ -116,15 +116,15 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
-        // The glow pass blooms what lies over 1, and an overlay of no colour is not black: a texel overlaid with nothing keeps its
-        // brightness. So an overlay chain glows by its whole overlaid colour's part over 1, not by overlaying the part of its
-        // colour over 1. A white flame core in an orange (1, 0.5, 0) tint adds nothing, unlit or lit. A mid-grey texel glows red
-        // only, and only past 1: under a (4, 0, 0) tint, or under the orange at additive_blend_mul 2 (red 0.69 x 2).
+        // An overlay chain feeds the glow pass as any chain does, by what it draws (GlowPass_IsCAsBrightPass), and what it draws is
+        // its overlaid colour held to 1, as CA holds it to the texel's alpha, times its additive_blend_mul. So no tint makes it
+        // glow, not even (40, 0, 0) over a mid-grey texel, which overlays to 17; a white core in an orange tint glows white at
+        // additive_blend_mul 8 (luminance 8), not at 0, and lit, not at all.
         [TestCase(255, 1f, 0.5f, 0f, false, false)]
         [TestCase(255, 1f, 0.5f, 0f, true, false)]
-        [TestCase(128, 4f, 0f, 0f, false, true)]
-        [TestCase(128, 1f, 0.5f, 2f, false, true)]
-        public void OverlayColour_GlowsOnlyOverOne(int texel, float red, float green, float additive, bool lit, bool redGlows)
+        [TestCase(128, 40f, 0f, 0f, false, false)]
+        [TestCase(255, 1f, 0.5f, 8f, false, true)]
+        public void OverlayColour_GlowsOnlyByItsBrightness(int texel, float red, float green, float additive, bool lit, bool glows)
         {
             using var texture = new Texture2D(_device, 1, 1);
             texture.SetData(new[] { new Color(texel, texel, texel, 255) });
@@ -132,12 +132,7 @@ namespace GameWorld.Core.Test.Vfx
             var core = RedHalfAlpha with { Colour = new Vector3(red, green, 0), Alpha = 1 };
             var settings = new EmitterSettings { Overlay = true, AdditiveMul = additive, Lighting = lit ? new ParticleLighting(0.8f, 0, 0.4f, 0, 0.8f) : null };
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera, settings, texture, [core], glow: true), Color.Black);
-            Assert.Multiple(() =>
-            {
-                Assert.That(pixel.X, redGlows ? Is.GreaterThan(0.1f) : Is.EqualTo(0).Within(0.01));
-                Assert.That(pixel.Y, Is.EqualTo(0).Within(0.01));
-                Assert.That(pixel.Z, Is.EqualTo(0).Within(0.01));
-            });
+            Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.All.EqualTo(glows ? 1 : 0).Within(0.02));
         }
 
         // 122 of vanilla's 448 overlay chains are lit: the overlaid colour is the albedo, under the sky's 0.261 from a white ambient
@@ -239,7 +234,7 @@ namespace GameWorld.Core.Test.Vfx
         public void Lighting_ALitQuadAddsNothingToTheGlowPass()
         {
             var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
-            var quad = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(4), 1, 0, 0);
+            var quad = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(40), 1, 0, 0);
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera,
                 new EmitterSettings { Lighting = new ParticleLighting(0.8f, 0, 0.4f, 10, 0.8f) }, _white, [quad], glow: true), Color.Black);
             Assert.That(pixel.X, Is.EqualTo(0).Within(0.01));
@@ -251,7 +246,7 @@ namespace GameWorld.Core.Test.Vfx
         public void Lighting_ALitQuadHidesTheGlowBehindIt()
         {
             var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
-            var fire = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(4, 0, 0), 1, 0, 0);
+            var fire = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(40, 0, 0), 1, 0, 0);
             var puff = fire with { Colour = new Vector3(4) };
             var pixel = Render(() =>
             {
@@ -343,23 +338,30 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.X, Is.EqualTo(1).Within(0.02));
         }
 
-        // The glow pass adds only what lies over 1, here onto mid grey: 1.25 leaves a quarter, 0.8 nothing.
-        [TestCase(1.25f, 0.752f)]
-        [TestCase(0.8f, 0.502f)]
-        public void GlowPass_DrawsWhatLiesOverOne(float colour, float red)
+        // The glow pass is CA's bloom bright pass (fx_hdr_tone_mapper's ps_high_pass_luminance_cutoff): what a particle adds,
+        // weighed by how far its luminance lies over bloom_threshold, 4, times bloom_particle_strength, 0.5. Here a grey added onto
+        // mid grey: 4.2 adds 4.2 x 0.2 x 0.5; 4, a chaos fire's brightness on a white texel, adds nothing, nor does 1.25. A
+        // straight-alpha particle adds its colour times its alpha: 7 at alpha 0.6 adds as 4.2 does, 6.5 at alpha 0.6 nothing.
+        [TestCase(4.2f, 1f, true, 0.922f)]
+        [TestCase(4f, 1f, true, 0.502f)]
+        [TestCase(1.25f, 1f, true, 0.502f)]
+        [TestCase(7f, 0.6f, false, 0.922f)]
+        [TestCase(6.5f, 0.6f, false, 0.502f)]
+        public void GlowPass_IsCAsBrightPass(float colour, float alpha, bool premultiplied, float red)
         {
             var effect = Shader;
             var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
-            var particle = RedHalfAlpha with { Colour = new Vector3(colour, 0, 0), Alpha = 1 };
-            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, new EmitterSettings { AdditiveMul = 1 }, _white, [particle], glow: true));
+            var particle = RedHalfAlpha with { Colour = new Vector3(colour), Alpha = alpha };
+            var settings = new EmitterSettings { AdditiveMul = 1, Premultiplied = premultiplied };
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera, settings, _white, [particle], glow: true));
             Assert.That(pixel.X, Is.EqualTo(red).Within(0.02));
         }
 
-        // The app's emissive pass, which it blooms: an effect draws there too, a tint of 2 leaving white.
+        // The app's emissive pass, which it blooms: an effect draws there too, a tint of 10 leaving white.
         [Test]
         public void TheEmissivePass_DrawsTheEffectsGlow()
         {
-            using var item = new ParticleRenderItem(OneParticle(null, new Vector4(2, 2, 2, 1)), NoTextures(), () => Shader);
+            using var item = new ParticleRenderItem(OneParticle(null, new Vector4(10, 10, 10, 1)), NoTextures(), () => Shader);
             var pixel = Render(() => item.Draw(_device, View, RenderingTechnique.Emissive));
             Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.All.EqualTo(1).Within(0.02));
         }
@@ -421,7 +423,7 @@ namespace GameWorld.Core.Test.Vfx
             depth.SetData(Enumerable.Repeat(sceneDepth, 16).ToArray());
             var level = Level(depth, false);
             var camera = ParticleRenderItem.CameraAxes.From(level, Matrix.Identity);
-            var quad = new ParticleState(new Vector3(0, 10, 0), Vector3.Zero, new Vector2(10, 10), 0, new Vector3(4, 0, 0), 1, 0, 0);
+            var quad = new ParticleState(new Vector3(0, 10, 0), Vector3.Zero, new Vector2(10, 10), 0, new Vector3(40, 0, 0), 1, 0, 0);
             var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, level, Matrix.Identity, camera, new EmitterSettings { Premultiplied = false }, _white, [quad], glow: true), Color.Black);
             Assert.That(pixel.X > 0.5f, Is.EqualTo(glows), $"red {pixel.X}");
         }

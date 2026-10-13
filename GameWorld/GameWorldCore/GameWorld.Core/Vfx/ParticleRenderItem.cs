@@ -118,7 +118,7 @@ namespace GameWorld.Core.Vfx
             var lit = settings.Lit && !glow;
             if (glow && settings.Lit)
                 states = states.Select(p => p with { Colour = Vector3.Zero }).ToList();
-            (states, var scale) = Hdr(settings, states, glow);
+            (states, var scale) = Hdr(settings, states);
             var vertices = settings.Trail ? Ribbon(settings, camera, states, frame) : Quads(settings, camera, states, frame);
             if (vertices.Length == 0)
                 return;
@@ -146,7 +146,9 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["Premultiplied"].SetValue(settings.Premultiplied ? 1f : 0f);
             var (alphaWeight, brightness) = VfxConventions.Blend(settings.AdditiveMul);
             effect.Parameters["Overlay"].SetValue(settings.Overlay ? 1f : 0f);
-            effect.Parameters["OverlayGlow"].SetValue(glow ? 1f : 0f);
+            effect.Parameters["Glow"].SetValue(glow ? 1f : 0f);
+            effect.Parameters["BloomThreshold"].SetValue(VfxConventions.BloomThreshold);
+            effect.Parameters["BloomStrength"].SetValue(VfxConventions.BloomParticleStrength);
             effect.Parameters["OverlayBrightness"].SetValue(brightness);
             effect.Parameters["OverlayAlphaWeight"].SetValue(alphaWeight);
             effect.Parameters["CrushSharp"].SetValue(settings.CrushSharp ? 1f : 0f);
@@ -227,14 +229,10 @@ namespace GameWorld.Core.Vfx
 
         // A vertex colour stops at 1 and the shader's Scale does not: an HDR emitter's colours are divided by the
         // brightest of them and the draw multiplied back, so a colour of 4 lights a quarter-grey texel fully. Past 255 even
-        // the faintest texel a byte holds saturates. glow: only what lies over 1, which the app's emissive pass blooms.
-        static (IReadOnlyList<ParticleState>, float) Hdr(EmitterSettings s, IReadOnlyList<ParticleState> states, bool glow)
+        // the faintest texel a byte holds saturates. The glow pass takes the whole colour; the shader weighs what it draws.
+        static (IReadOnlyList<ParticleState>, float) Hdr(EmitterSettings s, IReadOnlyList<ParticleState> states)
         {
             var brightness = VfxConventions.Blend(s.AdditiveMul).Brightness;
-            // An overlay is not linear in its colour, so an overlay chain keeps its whole colour and the shader takes the part of
-            // the overlaid colour over 1.
-            if (glow && !s.Overlay)
-                states = states.Select(p => p with { Colour = VfxConventions.Glow(p.Colour * brightness) / brightness }).ToList();
             var top = states.Select(p => Math.Max(p.Colour.X, Math.Max(p.Colour.Y, p.Colour.Z)) * brightness).DefaultIfEmpty(1).Max();
             var scale = Math.Clamp(top, 1, 255);
             return scale > 1 ? (states.Select(p => p with { Colour = p.Colour / scale }).ToList(), scale) : (states, 1);

@@ -26,8 +26,11 @@ float Premultiplied = 1;
 float Overlay = 0;
 float OverlayBrightness = 1;
 float OverlayAlphaWeight = 1;
-// The glow pass: an overlay chain's colour arrives whole, and what lies over 1 of the overlaid colour glows (VfxConventions.Glow).
-float OverlayGlow = 0;
+// The glow pass, as CA's bloom bright pass: what a particle draws, weighed by how far the luminance of what it adds to the
+// scene lies over the threshold, times the particles' strength (VfxConventions.BloomThreshold).
+float Glow = 0;
+float BloomThreshold = 4;
+float BloomStrength = 0.5;
 // ps_alpha_crush sharp_transition.
 float CrushSharp = 0;
 // ps_gradient: whether the chain has one, its alpha_mapping, and its strip at 16 points from 0 to 1.
@@ -205,6 +208,15 @@ float3 ParticleLight(float3 n, float width)
 	return lerp(sun * SunColour, Scattering.www, saturate(Scattering.w)) + texCUBE(AmbientSampler, n).rgb * AmbientColour;
 }
 
+// Straight alpha adds its colour times its alpha, premultiplied its colour as drawn (ParticleRenderItem.BlendFor).
+float4 Bright(float4 drawn)
+{
+	float3 added = Premultiplied > 0 ? drawn.rgb : drawn.rgb * drawn.a;
+	if (Glow > 0)
+		drawn.rgb *= saturate(dot(added, float3(0.2126, 0.7152, 0.0722)) - BloomThreshold) * BloomStrength;
+	return drawn;
+}
+
 float4 Ramp(float t)
 {
 	float x = saturate(t) * 15;
@@ -269,11 +281,11 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	if (Overlay > 0)
 	{
 		float3 overlaid = BlendOverlay(UseGradient > 0 ? rgb : saturate(Linear(rgb)), input.Colour.rgb);
-		rgb = OverlayGlow > 0 ? max(Gamma(overlaid) * OverlayBrightness - 1, 0)
-			: Lit > 0 ? Gamma(saturate(Uncharted2ToneMapping(overlaid * ParticleLight(Normal(input), input.Size.x))))
+		rgb = Lit > 0
+			? Gamma(saturate(Uncharted2ToneMapping(overlaid * ParticleLight(Normal(input), input.Size.x))))
 			: Gamma(saturate(overlaid)) * OverlayBrightness;
 		a *= input.Colour.a;
-		return float4(Premultiplied > 0 ? rgb * a : rgb, Premultiplied > 0 && Lit == 0 ? a * OverlayAlphaWeight : a);
+		return Bright(float4(Premultiplied > 0 ? rgb * a : rgb, Premultiplied > 0 && Lit == 0 ? a * OverlayAlphaWeight : a));
 	}
 
 	// ps_lighting: the colour is linear, the texture's decoded (a gradient's strip is linear already), times the vertex colour,
@@ -283,10 +295,10 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 		float3 albedo = (UseGradient > 0 ? rgb : saturate(Linear(rgb))) * input.Colour.rgb;
 		rgb = Gamma(saturate(Uncharted2ToneMapping(albedo * ParticleLight(Normal(input), input.Size.x))));
 		a *= input.Colour.a;
-		return float4(Premultiplied > 0 ? rgb * a : rgb, a);
+		return Bright(float4(Premultiplied > 0 ? rgb * a : rgb, a));
 	}
 
-	return float4(Premultiplied > 0 ? rgb * a : rgb, a) * input.Colour;
+	return Bright(float4(Premultiplied > 0 ? rgb * a : rgb, a) * input.Colour);
 }
 
 struct DistortionOutput

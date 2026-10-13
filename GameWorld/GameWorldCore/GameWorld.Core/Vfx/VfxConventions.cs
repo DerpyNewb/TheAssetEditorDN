@@ -118,11 +118,17 @@ namespace GameWorld.Core.Vfx
         /// <summary>A particle's colour is HDR. curve_colour's fourth output, brightness, and ps_emissive's emissive_mul (556 vanilla
         /// chains, 1 to 21 and past) are read as plain multipliers on the unlit colour; a negative brightness is 0. Brightness keys
         /// are 1 in 10,338 places, 0 in 597 (286 of 13,353 curves fade to dark), and run past 50 to 5,000. How far the game's
-        /// exposure brings those values down is not measured: the preview draws them saturated and blooms what lies over 1.</summary>
+        /// exposure brings those values down is not measured: the preview draws them saturated and blooms them as
+        /// <see cref="BloomThreshold"/> says.</summary>
         public static float Hdr(float brightness, float emissiveMul) => Math.Max(0, brightness) * emissiveMul;
 
-        /// <summary>The part of a colour that glows, drawn into the app's bloom pass: what lies over 1.</summary>
-        public static Vector3 Glow(Vector3 colour) => Vector3.Max(colour - Vector3.One, Vector3.Zero);
+        /// <summary>CA's bloom bright pass, fx_hdr_tone_mapper's ps_high_pass_luminance_cutoff: a pixel feeds the bloom by its
+        /// colour times saturate(luminance - g_bloom_threshold), times g_bloom_particle_strength where particles are. The glow pass
+        /// weighs what each particle draws so: 4 is bloom_threshold in 83 of the 126 lighting blocks of vanilla's
+        /// weather/battle environments (4.5 in 34, 1 to 4.7 in the rest), 0.5 bloom_particle_strength in all 126. CA weighs the
+        /// whole scene, so particles over 4 only where they overlap glow there and not here.</summary>
+        public const float BloomThreshold = 4f;
+        public const float BloomParticleStrength = 0.5f;
 
         /// <summary>ps_soft_edge (6,893 vanilla chains), as CA's ps_main reads it: a particle fades in, linearly, over
         /// <see cref="SoftDistance"/> in front of what lies behind it. Here against the preview's ground, world y = 0: the gap is
