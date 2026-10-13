@@ -19,9 +19,7 @@
                               Width="405" 
                              Text="{Binding SkeletonFileName.Value,  UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
                         <TextBox.ToolTip>
-                            <ToolTip>
-                                {loc:Loc FbxSettings.NotImplementedYet}
-                            </ToolTip>
+                            <ToolTip Content="{loc:Loc FbxSettings.NotImplementedYet}"/>
                         </TextBox.ToolTip>
                     </TextBox>
 
@@ -29,9 +27,7 @@
                             ToolTipService.ShowOnDisabled="true"                            
                             Click="{s:MethodBinding BrowseButtonClicked}">
                         <Button.ToolTip>
-                            <ToolTip>
-                                {loc:Loc FbxSettings.NotImplementedYet}
-                            </ToolTip>
+                            <ToolTip Content="{loc:Loc FbxSettings.NotImplementedYet}"/>
                         </Button.ToolTip>
                     </Button>
 
@@ -44,11 +40,11 @@
                              Text="{Binding SkeletonName.Value,  UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
                         <TextBox.ToolTip>
                             <TextBlock>
-                                {loc:Loc FbxSettings.Tooltips.SkeletonNameLine1}
+                                <Run Text="{loc:Loc FbxSettings.Tooltips.SkeletonNameLine1}"/>
                                 <LineBreak />
-                                {loc:Loc FbxSettings.Tooltips.SkeletonNameLine2}
+                                <Run Text="{loc:Loc FbxSettings.Tooltips.SkeletonNameLine2}"/>
                                 <LineBreak />
-                                {loc:Loc FbxSettings.Tooltips.SkeletonNameLine3}
+                                <Run Text="{loc:Loc FbxSettings.Tooltips.SkeletonNameLine3}"/>
                             </TextBlock>
                         </TextBox.ToolTip>
                     </TextBox>

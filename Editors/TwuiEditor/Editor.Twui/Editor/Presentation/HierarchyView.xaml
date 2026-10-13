@@ -15,8 +15,8 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0">
-            <Button DockPanel.Dock="Right" Width="100">{loc:Loc TwuiEditor.HierarchyView.Filter}</Button>
-            <TextBox DockPanel.Dock="Left">{loc:Loc TwuiEditor.HierarchyView.SearchPlaceholder}</TextBox>
+            <Button DockPanel.Dock="Right" Width="100" Content="{loc:Loc TwuiEditor.HierarchyView.Filter}"/>
+            <TextBox DockPanel.Dock="Left" Text="{loc:Loc TwuiEditor.HierarchyView.SearchPlaceholder}"/>
         </DockPanel>
 
         <TreeView Grid.Row="1" ItemsSource="{Binding ParsedTwuiFile.Componenets, UpdateSourceTrigger=PropertyChanged}">
