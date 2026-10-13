@@ -84,7 +84,7 @@ namespace Editors.UnitSimulator
             // goes back into the list before the mount's is picked from it.
             Rider.Data.SkeletonChanged += _ => KeepEditedTables(Rider);
             Mount.Data.SkeletonChanged += _ => KeepEditedTables(Mount);
-            Mount.Data.SkeletonChanged += _ => SelectMountTable();
+            Mount.Data.SkeletonChanged += _ => { if (_wantedMountTable != null) LinkStatus = SelectMountTable(); };
 
             eventHub.Register<SceneObjectUpdateEvent>(this, e => PartOf(e.Owner)?.LoadAndRebuild());
             eventHub.Register<MetaDataAttributeChangedEvent>(this, _ => RebuildMetas());
@@ -135,20 +135,24 @@ namespace Editors.UnitSimulator
             _wantedMountTable = mountTable;
             if (skeleton != null)
                 SceneObjectEditor.SetSkeleton(Mount.Data, skeleton);
-            SelectMountTable();
-            return "";
+            return SelectMountTable();
         }
 
         // A part's table list is read again whenever its skeleton changes (a model picked after the link, say), and that clears it. The
-        // rider's MountBin still names the table, so it is picked again.
-        protected void SelectMountTable()
+        // rider's MountBin still names the table, so it is picked again. A model of another skeleton lists other tables: empty when
+        // picked, else that.
+        string SelectMountTable()
         {
             if (_wantedMountTable == null)
-                return;
+                return "";
             var tables = Mount.FragAndSlotSelection.FragmentList;
             var match = tables.PossibleValues.FirstOrDefault(x => x.FullPath == _wantedMountTable.FullPath);
-            if (match != null && tables.SelectedItem != match)
+            if (match == null)
+                return $"The mount's skeleton is {Path.GetFileNameWithoutExtension(Mount.Data.SkeletonName.Value)}, and its table {_wantedMountTable.Name} " +
+                    $"is for {_wantedMountTable.SkeletonName}. Pick a {_wantedMountTable.SkeletonName} model for the mount.";
+            if (tables.SelectedItem != match)
                 tables.SelectedItem = match;
+            return "";
         }
 
         void OnMountSlotChanged(AnimationBinEntryGenericFormat? mountSlot)
@@ -312,14 +316,14 @@ namespace Editors.UnitSimulator
             slots.SelectedItem = slots.PossibleValues.FirstOrDefault(x => x.SlotName == slotName);
         }
 
-        // A part's table list is read from the packs again when its skeleton changes. An edited, unsaved table takes its place there,
-        // or the next edit would go to a fresh copy and one save would overwrite the other.
+        // A part's table list is read from the packs again when its skeleton changes, a copy per pack holding the animpack. One copy of
+        // each is kept, the saved one if any, and an edited, unsaved table takes its place: the next edit has to go to the copy the last
+        // save wrote, or that save is overwritten by the next.
         void KeepEditedTables(SceneObjectViewModel part)
         {
             var tables = part.FragAndSlotSelection.FragmentList;
-            if (!tables.PossibleValues.Any(x => _editedTables.ContainsKey(x.FullPath)))
-                return;
-            tables.UpdatePossibleValues(tables.PossibleValues.Select(x => _editedTables.TryGetValue(x.FullPath, out var edited) ? edited : x).ToList());
+            tables.UpdatePossibleValues(AnimTableEdits.OneCopyEach(_pfs, tables.PossibleValues)
+                .Select(x => _editedTables.TryGetValue(x.FullPath, out var edited) ? edited : x).ToList());
         }
 
         public bool HasUnsavedChanges

@@ -2,6 +2,7 @@ using Editors.UnitSimulator.Tables;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
 using Shared.GameFormats.AnimationPack;
 using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
@@ -137,6 +138,29 @@ namespace Test.UnitSimulator
         {
             var pfs = VanillaGame.Load().PackFileService;
             Assert.That(AnimTableEdits.Save(pfs, new Mock<IFileSaveService>().Object, VanillaGame.Tables(pfs)[VanillaGame.KnightTable]), Is.EqualTo("No editable pack is selected."));
+        }
+
+        // Two tables of one animpack saved one after the other, with a pack that also holds the animpack loaded after the editable one
+        // (an animation mod carrying CA's animpack): the second save has to start from the editable pack's copy, which holds the first.
+        [Test]
+        public void Save_StartsFromTheEditablePacksCopy_WhenAPackLoadedLaterHasTheAnimpack()
+        {
+            var runner = VanillaGame.Load();
+            var pfs = runner.PackFileService;
+            var editable = runner.CreateOutputPack();
+            var mod = runner.CreateEmptyPackFile("derpy_test_animation_mod", false);
+            pfs.AddFilesToPack(mod, [new NewPackFileEntry(@"animations\database\battle\bin", PackFile.CreateFromBytes("animation_tables__.animpack", Bytes(pfs, VanillaGame.TablesAnimPack)))]);
+            var saver = runner.ServiceProvider.GetRequiredService<IFileSaveService>();
+            var tables = VanillaGame.Tables(pfs);
+
+            AnimTableEdits.SetMountBin(tables[VanillaGame.KnightTable], "derpy_first");
+            Assert.That(AnimTableEdits.Save(pfs, saver, tables[VanillaGame.KnightTable]), Is.Null);
+            AnimTableEdits.SetMountBin(tables[VanillaGame.WarhorseTable], "derpy_second");
+            Assert.That(AnimTableEdits.Save(pfs, saver, tables[VanillaGame.WarhorseTable]), Is.Null);
+
+            var saved = AnimTableEdits.ReadEntries(pfs.FindFile(VanillaGame.TablesAnimPack, editable)!.DataSource.ReadData()).ToDictionary(x => x.Name, x => x.Data);
+            Assert.That(new AnimationBinWh3(VanillaGame.KnightTable, saved[VanillaGame.KnightTable]).MountBin, Is.EqualTo("derpy_first"));
+            Assert.That(new AnimationBinWh3(VanillaGame.WarhorseTable, saved[VanillaGame.WarhorseTable]).MountBin, Is.EqualTo("derpy_second"));
         }
 
         [Test]

@@ -13,9 +13,29 @@ namespace Editors.UnitSimulator.Tables
         /// <summary>The loaded battle table of this name (a rider table's MountBin names its mount's), or null.</summary>
         // ponytail: reads every animpack on each call, under a second for vanilla's three; cache by pack if picking a rider table drags.
         public static IAnimationBinGenericFormat? FindByName(IPackFileService pfs, string name) =>
-            PackFileServiceUtility.GetAllAnimPacks(pfs)
-                .SelectMany(x => AnimationPackSerializer.Load(x, pfs).GetGenericAnimationSets())
+            OneCopyEach(pfs, PackFileServiceUtility.GetAllAnimPacks(pfs).SelectMany(x => AnimationPackSerializer.Load(x, pfs).GetGenericAnimationSets()))
                 .FirstOrDefault(x => x.Name == name);
+
+        /// <summary>The tables with one copy of each path. A table is listed once per pack holding its animpack, and CA ships some in two
+        /// animpacks; the copy kept is the editable pack's, which a save writes to, else the last loaded, which is the one FindFile gives.</summary>
+        public static List<IAnimationBinGenericFormat> OneCopyEach(IPackFileService pfs, IEnumerable<IAnimationBinGenericFormat> tables)
+        {
+            var editable = pfs.GetEditablePack();
+            var editableAnimPacks = new Dictionary<string, List<IAnimationBinGenericFormat>?>();
+            List<IAnimationBinGenericFormat>? InEditable(string? animPack)
+            {
+                if (editable == null || animPack == null)
+                    return null;
+                if (!editableAnimPacks.TryGetValue(animPack, out var sets))
+                    editableAnimPacks[animPack] = sets = pfs.FindFile(animPack, editable) is { } file ? AnimationPackSerializer.Load(file, pfs).GetGenericAnimationSets() : null;
+                return sets;
+            }
+
+            return tables.GroupBy(x => x.FullPath)
+                .Select(copies => copies.Count() == 1 ? copies.First()
+                    : copies.Select(x => InEditable(x.PackFileReference?.FileName)?.FirstOrDefault(y => y.FullPath == copies.Key)).FirstOrDefault(x => x != null) ?? copies.Last())
+                .ToList();
+        }
 
         public static AnimationBinEntry Row(AnimationBinWh3 table, int slotId) =>
             table.AnimationTableEntries.FirstOrDefault(x => x.AnimationId == (uint)slotId) ?? throw new ArgumentException($"{table.FileName} has no slot {slotId}");
@@ -107,16 +127,18 @@ namespace Editors.UnitSimulator.Tables
         }
 
         /// <summary>Writes the table into the animpack it came from, at that animpack's path in the editable pack. Null when saved, else
-        /// why not: the table is in a CA pack, or no editable pack is selected.</summary>
+        /// why not: the table is in a CA pack, or no editable pack is selected. The animpack spliced is the editable pack's copy when it
+        /// has one, so a second table saved keeps the first; a pack loaded later holding the animpack would otherwise be read instead.</summary>
         public static string? Save(IPackFileService pfs, IFileSaveService saver, AnimationBinWh3 table)
         {
             var animPackPath = table.Parent?.FileName;
-            var animPack = animPackPath == null ? null : pfs.FindFile(animPackPath);
+            var editable = pfs.GetEditablePack();
+            var animPack = animPackPath == null ? null : (editable == null ? null : pfs.FindFile(animPackPath, editable)) ?? pfs.FindFile(animPackPath);
             if (animPackPath == null || animPack == null)
                 return $"{table.Name}: the animpack it came from is not loaded.";
             if (pfs.GetPackFileContainer(animPack)?.IsCaPackFile == true)
                 return $"{table.Name} is in a CA pack, which cannot be saved. Copy {animPackPath} into your pack and edit that copy.";
-            if (pfs.GetEditablePack() == null)
+            if (editable == null)
                 return "No editable pack is selected.";
             try
             {

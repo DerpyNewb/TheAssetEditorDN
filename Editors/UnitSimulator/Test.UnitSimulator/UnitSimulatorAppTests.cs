@@ -101,6 +101,25 @@ namespace Test.UnitSimulator
             Assert.That(sim.Rider.Data.AnimationClip, Is.Null);
         }
 
+        // A mount model of another skeleton leaves the linked table out of the mount's list and the Pairing tab empty: the panel says why,
+        // and a model of the table's skeleton links it again.
+        [Test]
+        public void AMountOfAnotherSkeleton_SaysWhichTheTableNeeds()
+        {
+            var runner = VanillaGame.Load();
+            var sim = Open(runner);
+            PickRiderTable(runner, sim, "humanoid01", VanillaGame.KnightTable);
+            var editor = runner.ScopeRepository.GetRequiredService<SceneObjectEditor>(sim);
+
+            editor.SetSkeleton(sim.Mount.Data, runner.PackFileService.FindFile(@"animations\skeletons\humanoid01.anim")!);
+            Assert.That(sim.Pairs, Is.Empty);
+            Assert.That(sim.LinkStatus, Does.Contain("hr1_warhorse").And.Contain("horse01"));
+
+            editor.SetSkeleton(sim.Mount.Data, runner.PackFileService.FindFile(@"animations\skeletons\horse01.anim")!);
+            Assert.That(sim.LinkStatus, Is.Empty);
+            Assert.That(sim.Mount.FragAndSlotSelection.FragmentList.SelectedItem?.FullPath, Is.EqualTo(VanillaGame.WarhorseTable));
+        }
+
         // Review Focus 3: a mount model picked after the link rebuilds the mount's table list, which clears its selection.
         [Test]
         public void TheMountsTable_IsPickedAgain_WhenItsSkeletonChanges()
