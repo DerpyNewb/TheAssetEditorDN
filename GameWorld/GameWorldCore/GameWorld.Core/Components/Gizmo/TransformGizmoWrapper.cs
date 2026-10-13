@@ -35,6 +35,9 @@ namespace GameWorld.Core.Components.Gizmo
         Matrix _totalGizomTransform = Matrix.Identity;
         bool _invertedWindingOrder = false;
 
+        // ApplyTransform turns about the object centre or, for any other pivot, the world origin; the undo must turn about the same.
+        bool _pivotAtOrigin = false;
+
         public TransformGizmoWrapper(IUiCommandFactory commandFactory, List<MeshObject> effectedObjects, ISelectionState vertexSelectionState, IScopedLogger scopedLogger)
         {
             _logger = scopedLogger.ForContext<TransformGizmoWrapper>();
@@ -113,7 +116,7 @@ namespace GameWorld.Core.Components.Gizmo
                 //   MessageBox.Show("Transform debug check - Please inform the creator of the tool that you got this message. Would also love it if you tried undoing your last command to see if that works..\n E-001");
                 transformVertexCommand.InvertWindingOrder = _invertedWindingOrder;
                 transformVertexCommand.Transform = _totalGizomTransform;
-                transformVertexCommand.PivotPoint = Position;
+                transformVertexCommand.PivotPoint = _pivotAtOrigin ? Vector3.Zero : Position;
                 commandManager.ExecuteCommand(_activeCommand);
                 _activeCommand = null;
             }
@@ -146,7 +149,7 @@ namespace GameWorld.Core.Components.Gizmo
             {
                 transformVertexCommand.InvertWindingOrder = _invertedWindingOrder;
                 transformVertexCommand.Transform = _totalGizomTransform;
-                transformVertexCommand.PivotPoint = Position;
+                transformVertexCommand.PivotPoint = _pivotAtOrigin ? Vector3.Zero : Position;
                 commandManager.ExecuteCommand(_activeCommand);
                 _activeCommand = null;
                 return;
@@ -238,6 +241,7 @@ namespace GameWorld.Core.Components.Gizmo
 
         void ApplyTransform(Matrix transform, PivotType pivotType, GizmoMode gizmoMode)
         {
+            _pivotAtOrigin = pivotType != PivotType.ObjectCenter;
             transform.Decompose(out var scale, out var rot, out var trans);
 
             if (_selectionState is BoneSelectionState boneSelectionState)

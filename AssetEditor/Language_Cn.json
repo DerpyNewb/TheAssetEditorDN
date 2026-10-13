@@ -886,7 +886,8 @@
   "AudioProjectEditor.Tooltips.AddRowShortcut": "快捷键: Ctrl + Q",
   "AudioProjectEditor.Tooltips.ShowModdedStatesOnly": "在下拉菜单中仅显示 Mod 状态，而非 Mod 状态和原版状态。",
 
-  "KitbashTool.MainView.Apply": "应用",
+  "KitbashTool.MainView.PivotAtOrigin": "以世界原点为轴心",
+  "KitbashTool.MainView.PivotAtOrigin.Tooltip": "绕世界原点(武器挂在骨骼上的位置)旋转和缩放,而不是绕选中物体的中心",
   "KitbashTool.MainView.VertexFalloff": "顶点衰减:",
   "KitbashTool.Bmi.CheckAllChildren": "选中所有子级",
   "KitbashTool.Bmi.UncheckAllChildren": "取消选中所有子级",

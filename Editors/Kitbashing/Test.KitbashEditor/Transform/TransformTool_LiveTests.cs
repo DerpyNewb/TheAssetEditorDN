@@ -151,6 +151,40 @@ namespace Test.KitbashEditor.Transform
             Assert.That(_commands.CanUndo(), Is.False);
         }
 
+        // A weapon scaled about its own centre slides its grip off the hand; about the world origin, where it hangs from its bone,
+        // the grip stays put. The undo must turn about the same point, or each new value starts from a model that has drifted.
+        // Y, because Karl's centre is a metre above the origin and an undo about the wrong point drifts by half of that.
+        [Test]
+        public void ScaleAboutTheWorldOrigin_ScalesFromIt_AndEachValueStartsFromTheModelAsItWas()
+        {
+            SelectMesh();
+            var before = Vertex(0);
+            _tool.SetMode(TransformMode.Scale);
+            _tool.PivotAtOrigin = true;
+
+            _tool.Vector3.Y.TextValue = "2";
+            AreClose(Vertex(0), before * new Vector3(1, 2, 1));
+            _tool.Vector3.Y.TextValue = "3";
+            AreClose(Vertex(0), before * new Vector3(1, 3, 1));
+
+            _commands.Undo();
+            AreClose(Vertex(0), before);
+        }
+
+        [Test]
+        public void ChangingThePivot_ReshapesTheScaleAlreadyTyped()
+        {
+            SelectMesh();
+            var before = Vertex(0);
+            _tool.SetMode(TransformMode.Scale);
+            _tool.Vector3.Y.TextValue = "2";
+
+            _tool.PivotAtOrigin = true;
+
+            AreClose(Vertex(0), before * new Vector3(1, 2, 1));
+            Assert.That(_tool.Vector3.Y.Value, Is.EqualTo(2));
+        }
+
         // The falloff spreads a vertex move over its neighbours; changing it reshapes the move already typed.
         [Test]
         public void ChangingTheFalloff_ReshapesTheMoveAlreadyTyped()

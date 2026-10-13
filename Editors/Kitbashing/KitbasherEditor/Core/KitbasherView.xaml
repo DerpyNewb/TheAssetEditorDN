@@ -106,6 +106,10 @@
                                 IsEnabled="{Binding MenuBar.TransformTool.CanTransform, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
 
+                        <CheckBox Margin="2" Content="{loc:Loc KitbashTool.MainView.PivotAtOrigin}" ToolTip="{loc:Loc KitbashTool.MainView.PivotAtOrigin.Tooltip}"
+                                  IsChecked="{Binding MenuBar.TransformTool.PivotAtOrigin, Mode=TwoWay}"
+                                  Visibility="{Binding MenuBar.TransformTool.ShowPivot, Converter={StaticResource BoolToCollapsedConverter}}"/>
+
                         <DockPanel Margin="2" Visibility="{Binding MenuBar.TransformTool.ShowVertexFalloff.Value, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource BoolToCollapsedConverter}}">
                             <TextBlock Text="{loc:Loc KitbashTool.MainView.VertexFalloff}" DockPanel.Dock="Left" Margin="0,0,4,0"/>
                             <TextBox  DockPanel.Dock="Right"

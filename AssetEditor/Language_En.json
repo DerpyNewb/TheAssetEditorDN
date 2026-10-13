@@ -886,7 +886,8 @@
   "AudioProjectEditor.Tooltips.AddRowShortcut": "Shortcut: Ctrl + Q",
   "AudioProjectEditor.Tooltips.ShowModdedStatesOnly": "Shows only modded states in the drop downs rather than modded states and vanilla states.",
 
-  "KitbashTool.MainView.Apply": "Apply",
+  "KitbashTool.MainView.PivotAtOrigin": "Pivot at world origin",
+  "KitbashTool.MainView.PivotAtOrigin.Tooltip": "Rotate and scale about the world origin, where a weapon hangs from its bone, instead of the selection's centre",
   "KitbashTool.MainView.VertexFalloff": "Vertex Fall-of:",
   "KitbashTool.Bmi.CheckAllChildren": "Check all children",
   "KitbashTool.Bmi.UncheckAllChildren": "Un-check all children",

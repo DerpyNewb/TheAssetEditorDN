@@ -50,6 +50,14 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
 
         public NotifyAttr<bool> ShowVertexFalloff { get; set; } = new NotifyAttr<bool>(false);
 
+        // Rotate and scale about the world origin rather than the selection's centre: a weapon hangs from its bone there, so
+        // its grip stays in the hand. Changing it reshapes the edit already typed.
+        bool _pivotAtOrigin;
+        public bool PivotAtOrigin { get { return _pivotAtOrigin; } set { SetAndNotifyWhenChanged(ref _pivotAtOrigin, value, _ => Preview()); } }
+
+        bool _showPivot;
+        public bool ShowPivot { get { return _showPivot; } set { SetAndNotify(ref _showPivot, value); } }
+
         public TransformToolViewModel(SelectionManager selectionManager, CommandManager commandExecutor, IUiCommandFactory commandFactory, IEventHub eventHub, IScopedLogger scopedLogger)
         {
             VertexMovementFalloff = new NotifyAttr<DoubleViewModel>(new DoubleViewModel());
@@ -93,6 +101,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
         {
             _activeMode = mode;
             IsVisible = _activeMode != TransformMode.None;
+            ShowPivot = _activeMode is TransformMode.Rotate or TransformMode.Scale;
 
             if (_activeMode == TransformMode.Rotate)
                 Text = "Rotate:";
@@ -146,23 +155,25 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             if (_activeMode == TransformMode.Scale ? value == new Vector3(1) || value.X * value.Y * value.Z == 0 : value == new Vector3(0))
                 return false;
 
+            var pivot = _pivotAtOrigin ? PivotType.WorldOrigin : PivotType.ObjectCenter;
+
             if (_activeMode == TransformMode.Rotate)
             {
                 transform.Start(_commandExecutor);
                 transform.GizmoRotateEvent(
                     Matrix.CreateRotationX(MathHelper.ToRadians((float)_vector3.X.Value)) *
                     Matrix.CreateRotationY(MathHelper.ToRadians((float)_vector3.Y.Value)) *
-                    Matrix.CreateRotationZ(MathHelper.ToRadians((float)_vector3.Z.Value)), PivotType.ObjectCenter);
+                    Matrix.CreateRotationZ(MathHelper.ToRadians((float)_vector3.Z.Value)), pivot);
             }
             else if (_activeMode == TransformMode.Translate)
             {
                 transform.Start(_commandExecutor);
-                transform.GizmoTranslateEvent(new Vector3((float)_vector3.X.Value, (float)_vector3.Y.Value, (float)_vector3.Z.Value), PivotType.ObjectCenter);
+                transform.GizmoTranslateEvent(new Vector3((float)_vector3.X.Value, (float)_vector3.Y.Value, (float)_vector3.Z.Value), pivot);
             }
             else if (_activeMode == TransformMode.Scale)
             {
                 transform.Start(_commandExecutor);
-                transform.GizmoScaleEvent(new Vector3((float)_vector3.X.Value - 1, (float)_vector3.Y.Value - 1, (float)_vector3.Z.Value - 1), PivotType.ObjectCenter);    // -1 due to weirdness inside the function
+                transform.GizmoScaleEvent(new Vector3((float)_vector3.X.Value - 1, (float)_vector3.Y.Value - 1, (float)_vector3.Z.Value - 1), pivot);    // -1 due to weirdness inside the function
             }
 
             transform.Stop(_commandExecutor);
