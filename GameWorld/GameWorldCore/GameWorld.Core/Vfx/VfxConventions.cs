@@ -237,7 +237,8 @@ namespace GameWorld.Core.Vfx
         public static float Stretch(float speed, float multiplier, float cap) => Math.Clamp(1 + speed * multiplier, 1, cap > 0 ? cap : float.MaxValue);
 
         /// <summary>vs_animated_texture: no_loops is how many times the strip plays over a particle's life
-        /// (using_particle_lifetime) or per second (fixed_animation_speed); without loop it holds the last cell. cell_blend (4,408
+        /// (using_particle_lifetime) or per second (fixed_animation_speed), running from its start to its end over the life, as
+        /// CA's lerps it by the life fraction; without loop it holds the last cell. cell_blend (4,408
         /// of 4,935 vanilla flipbooks) mixes each cell into the next by how far the particle is between them; the next after the
         /// last is the first when the strip loops, the last again when it holds.</summary>
         /// <summary>vs_animated_texture's rows, as CA's has them: row_restricted plays the cells of row row_restriction;

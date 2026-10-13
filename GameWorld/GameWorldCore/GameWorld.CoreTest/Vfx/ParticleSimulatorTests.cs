@@ -474,6 +474,20 @@ namespace GameWorld.Core.Test.Vfx
         public void FlipbookCell_OfSixtyFour(float lifeFraction, float age, float loops, bool fixedSpeed, bool loop, int expected) =>
             Assert.That(VfxConventions.FlipbookFrame(64, lifeFraction, age, loops, fixedSpeed, loop).Cell, Is.EqualTo(expected));
 
+        // no_loops runs from its start to its end over the particle's life, as CA's lerps it by the life fraction, the same for
+        // every particle: by life fraction u the strip has played u x lerp(start, end, u) times, or age x lerp(start, end, u) at a
+        // fixed speed. 1 to 3 over a 2 s life, read off 15 particles of different ages.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Flipbook_LoopsRunFromStartToEndOverLife(bool fixedSpeed)
+        {
+            var s = Steady(x => { x.ParticleLife = C(2); x.Animated = true; x.CellsX = 16; x.Loops = new Vector2(1, 3); x.FixedSpeed = fixedSpeed; });
+            var emitter = Run(s, 1.5f).Emitters[0];
+            var expected = emitter.Particles.Select(p => p.Age / p.Life).Select(v => (int)(Fraction((fixedSpeed ? v * 2 : v) * (1 + 2 * v)) * 16));
+            Assert.That(ParticleSimulator.States(emitter).Select(x => x.Cell), Is.EqualTo(expected));
+            static float Fraction(float x) => x - MathF.Floor(x);
+        }
+
         // cell_blend: a quarter of the way through cell 2 of 4 is a quarter of the way to cell 3; the last cell runs into the
         // first when the strip loops and into itself when it holds.
         [TestCase(0.5625f, true, 2, 3, 0.25f)]
