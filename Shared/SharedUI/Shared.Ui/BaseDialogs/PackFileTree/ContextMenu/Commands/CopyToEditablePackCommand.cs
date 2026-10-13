@@ -1,4 +1,5 @@
-﻿using Serilog;
+﻿using System.IO;
+using Serilog;
 using Shared.Core.ErrorHandling;
 using Shared.Core.PackFiles;
 using Shared.Core.Services;
@@ -46,12 +47,21 @@ namespace Shared.Ui.BaseDialogs.PackFileTree.ContextMenu.Commands
 
             using (standardDialogs.ShowWaitCursor())
             {
-                var files = _node.GetAllChildFileNodes();
-                _logger.Here().Information($"Copying {files.Count} file(s) from '{CommandLoggingHelper.DescribeNode(_node)}' to editable pack '{CommandLoggingHelper.DescribePack(editablePack)}'");
-                foreach (var file in files)
-                    packFileService.CopyFileFromOtherPackFile(container, file.GetFullPath(), editablePack);
+                var paths = _node.GetAllChildFileNodes().Select(x => x.GetFullPath()).ToList();
+                // A model's textures come from the .wsmodel beside it (WsModelMaterialProvider finds it by the model's path); the
+                // paths stored in the model can be stale. So a copied model brings that .wsmodel, unless the editable pack has one.
+                foreach (var model in paths.Where(x => x.EndsWith(".rigid_model_v2", StringComparison.OrdinalIgnoreCase)).ToList())
+                {
+                    var wsModel = Path.ChangeExtension(model, ".wsmodel");
+                    if (!paths.Contains(wsModel, StringComparer.OrdinalIgnoreCase) && packFileService.FindFile(wsModel, container) != null && packFileService.FindFile(wsModel, editablePack) == null)
+                        paths.Add(wsModel);
+                }
 
-                _logger.Here().Information($"Copied {files.Count} file(s) from '{CommandLoggingHelper.DescribeNode(_node)}' to editable pack '{CommandLoggingHelper.DescribePack(editablePack)}'");
+                _logger.Here().Information($"Copying {paths.Count} file(s) from '{CommandLoggingHelper.DescribeNode(_node)}' to editable pack '{CommandLoggingHelper.DescribePack(editablePack)}'");
+                foreach (var path in paths)
+                    packFileService.CopyFileFromOtherPackFile(container, path, editablePack);
+
+                _logger.Here().Information($"Copied {paths.Count} file(s) from '{CommandLoggingHelper.DescribeNode(_node)}' to editable pack '{CommandLoggingHelper.DescribePack(editablePack)}'");
             }
         }
     }

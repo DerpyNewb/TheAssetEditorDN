@@ -92,5 +92,47 @@ namespace Shared.UiTest.BaseDialogs.PackFileTree.ContextMenu.Commands
             Assert.That(file0, Is.Not.Null);
             Assert.That(file1, Is.Not.Null);
         }
+
+        // A model's .wsmodel is found by the model's own path, so a model renamed alone lost its textures to the paths stored in
+        // it. The .wsmodel that names the model is renamed with it and pointed at the new name.
+        [Test]
+        public void Execute_RenamingAModel_TakesItsWsModelAlong()
+        {
+            var container = AddPackFiles(false, "modfile", "c:\\mymod.pack", ["props\\gun.rigid_model_v2"]);
+            _packFileService.SetEditablePack(container);
+            _packFileService.AddFilesToPack(container, [new NewPackFileEntry("props", PackFile.CreateFromASCII("gun.wsmodel", WsModel("Props/gun.rigid_model_v2")))]);
+
+            Rename(container, "props\\gun.rigid_model_v2", "pistol.rigid_model_v2");
+
+            var wsModel = container.FindFile("props\\pistol.wsmodel");
+            Assert.That(container.FindFile("props\\gun.wsmodel"), Is.Null);
+            Assert.That(System.Text.Encoding.UTF8.GetString(wsModel!.DataSource.ReadData()), Is.EqualTo(WsModel("props\\pistol.rigid_model_v2")));
+        }
+
+        [Test]
+        public void Execute_RenamingAModel_LeavesAWsModelThatNamesAnother()
+        {
+            var container = AddPackFiles(false, "modfile", "c:\\mymod.pack", ["props\\gun.rigid_model_v2"]);
+            _packFileService.SetEditablePack(container);
+            _packFileService.AddFilesToPack(container, [new NewPackFileEntry("props", PackFile.CreateFromASCII("gun.wsmodel", WsModel("props/cannon.rigid_model_v2")))]);
+
+            Rename(container, "props\\gun.rigid_model_v2", "pistol.rigid_model_v2");
+
+            var wsModel = container.FindFile("props\\gun.wsmodel");
+            Assert.That(container.FindFile("props\\pistol.wsmodel"), Is.Null);
+            Assert.That(System.Text.Encoding.UTF8.GetString(wsModel!.DataSource.ReadData()), Is.EqualTo(WsModel("props/cannon.rigid_model_v2")));
+        }
+
+        static string WsModel(string geometry) => $"<model version=\"1\">\r\n  <geometry>{geometry}</geometry>\r\n  <materials>\r\n  </materials>\r\n</model>";
+
+        void Rename(IPackFileContainer container, string path, string newName)
+        {
+            var node = TreeNodeHelper.FindNode(PackFileBrowser(), container, path);
+            var dialogs = new Mock<IStandardDialogs>();
+            dialogs.Setup(x => x.ShowTextInputDialog("Rename file", node.Name)).Returns(new TextInputDialogResult(true, newName));
+            var command = new RenameNodeCommand(_packFileService, dialogs.Object, MockScopedLogger.Create());
+            command.Configure(node);
+            command.Execute();
+        }
     }
 }

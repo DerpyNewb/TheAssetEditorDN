@@ -63,5 +63,41 @@ namespace Shared.UiTest.BaseDialogs.PackFileTree.ContextMenu.Commands
             var copiedFile = target.FindFile("folder\\file.txt");
             Assert.That(copiedFile, Is.Not.Null);
         }
+
+        // A model's textures come from the .wsmodel beside it, so a model copied alone read the paths stored in the model itself,
+        // which can name folders that hold nothing (CA's sorcerer prophet weapons name a hu1c/chs folder).
+        [Test]
+        public void Execute_CopyingAModel_BringsItsWsModel()
+        {
+            var source = AddPackFiles(false, "source", "c:\\source.pack", ["props\\gun.rigid_model_v2", "props\\gun.wsmodel", "props\\other.wsmodel"]);
+            var target = AddPackFiles(false, "target", "c:\\target.pack", []);
+            _packFileService.SetEditablePack(target);
+
+            Copy(TreeNodeHelper.FindNode(PackFileBrowser(), source, "props\\gun.rigid_model_v2"));
+
+            Assert.That((target.FindFile("props\\gun.wsmodel") != null, target.FindFile("props\\other.wsmodel") != null), Is.EqualTo((true, false)));
+        }
+
+        [Test]
+        public void Execute_CopyingAModel_KeepsTheWsModelAlreadyInTheEditablePack()
+        {
+            var source = AddPackFiles(false, "source", "c:\\source.pack", ["props\\gun.rigid_model_v2", "props\\gun.wsmodel"]);
+            var target = AddPackFiles(false, "target", "c:\\target.pack", ["props\\gun.wsmodel"]);
+            var mine = target.FindFile("props\\gun.wsmodel");
+            _packFileService.SetEditablePack(target);
+
+            Copy(TreeNodeHelper.FindNode(PackFileBrowser(), source, "props\\gun.rigid_model_v2"));
+
+            Assert.That(target.FindFile("props\\gun.wsmodel"), Is.SameAs(mine));
+        }
+
+        void Copy(TreeNode node)
+        {
+            var dialogs = new Mock<IStandardDialogs>();
+            dialogs.Setup(x => x.ShowWaitCursor()).Returns(new Mock<IWaitCursor>().Object);
+            var command = new CopyToEditablePackCommand(_packFileService, dialogs.Object, MockScopedLogger.Create());
+            command.Configure(node);
+            command.Execute();
+        }
     }
 }

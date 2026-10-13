@@ -1,6 +1,10 @@
-﻿using Serilog;
+﻿using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
+using Serilog;
 using Shared.Core.ErrorHandling;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 using Shared.Core.Services;
 using Shared.Ui.BaseDialogs.PackFileTree.Utility;
 
@@ -74,13 +78,37 @@ namespace Shared.Ui.BaseDialogs.PackFileTree.ContextMenu.Commands
                         return;
 
                     _logger.Here().Information($"Renaming file '{currentPath}' to '{newFileName}'");
+                    var oldPath = _node.GetFullPath();
                     packFileService.RenameFile(container, packFile, newFileName);
+                    RenameWsModel(container, oldPath, newFileName);
                 }
                 else
                 {
                     _logger.Here().Information($"Rename file cancelled for '{currentPath}'");
                 }
             }
+        }
+
+        // A model's .wsmodel is found by the model's own path (WsModelMaterialProvider), so a model renamed alone lost its textures
+        // to the paths stored in it. The .wsmodel beside it that names it goes with it. SaveFile writes the editable pack, so only there.
+        void RenameWsModel(IPackFileContainer container, string oldModelPath, string newFileName)
+        {
+            static bool IsModel(string path) => path.EndsWith(".rigid_model_v2", StringComparison.OrdinalIgnoreCase);
+            static string Normal(string path) => path.Trim().Replace('/', '\\').ToLowerInvariant();
+            if (!IsModel(oldModelPath) || !IsModel(newFileName) || container != packFileService.GetEditablePack())
+                return;
+            var wsModel = packFileService.FindFile(Path.ChangeExtension(oldModelPath, ".wsmodel"), container);
+            if (wsModel == null)
+                return;
+            var text = Encoding.UTF8.GetString(wsModel.DataSource.ReadData());
+            var geometry = Regex.Match(text, "<geometry>(.*?)</geometry>").Groups[1];
+            if (!geometry.Success || Normal(geometry.Value) != Normal(oldModelPath))
+                return;
+
+            var newModelPath = Path.Combine(Path.GetDirectoryName(oldModelPath) ?? "", newFileName);
+            packFileService.SaveFile(wsModel, Encoding.UTF8.GetBytes(text.Remove(geometry.Index, geometry.Length).Insert(geometry.Index, newModelPath)));
+            packFileService.RenameFile(container, wsModel, Path.ChangeExtension(newFileName, ".wsmodel"));
+            _logger.Here().Information($"Renamed '{Path.ChangeExtension(oldModelPath, ".wsmodel")}' with its model; its geometry is now '{newModelPath}'");
         }
     }
 }
