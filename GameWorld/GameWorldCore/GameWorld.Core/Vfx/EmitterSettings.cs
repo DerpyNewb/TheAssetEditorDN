@@ -157,6 +157,10 @@ namespace GameWorld.Core.Vfx
         public VfxCurve? FieldTightness { get; set; }
         public VfxCurve? FieldPosition { get; set; }
         public VfxCurve? FieldOrientation { get; set; }
+        /// <summary>Vectorfield{Size,Position,Orientation}LoopAnim: those curves wrap over the emitter's life, as EmitterPositionLoopAnim's does.</summary>
+        public bool LoopFieldSize { get; set; }
+        public bool LoopFieldPosition { get; set; }
+        public bool LoopFieldOrientation { get; set; }
         /// <summary>continuous_rigid: the models a particle may be, and its orientation and spin about X and Y (Angle and Spin are Z).</summary>
         public IReadOnlyList<VfxRigidEntry> Rigid { get; set; } = [];
         /// <summary>ParticleRelativeSpawnOrientation RELATIVE_TO_TERRAIN_NORMAL: the model, or an Object3D quad, stands on the ground (VfxConventions.RigidFrame).</summary>
@@ -292,6 +296,9 @@ namespace GameWorld.Core.Vfx
                 s.FieldTightness = ParseCurve(s, P("VectorFieldTightness"));
                 s.FieldPosition = ParseCurve(s, P("VectorFieldPosition"));
                 s.FieldOrientation = ParseCurve(s, P("VectorFieldOrientation"));
+                s.LoopFieldSize = Flag("VectorfieldSizeLoopAnim");
+                s.LoopFieldPosition = Flag("VectorfieldPositionLoopAnim");
+                s.LoopFieldOrientation = Flag("VectorfieldOrientationLoopAnim");
             }
             if (Number("EffectedByWindFactor", 0) != 0 || Number("WindVarianceFactor", 0) != 0)
                 s.Skipped.Add("wind is not simulated in step 1");

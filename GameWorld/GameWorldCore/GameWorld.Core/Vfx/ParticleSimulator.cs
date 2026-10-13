@@ -502,11 +502,12 @@ namespace GameWorld.Core.Vfx
             var s = e.Settings;
             if (s.Field == null)
                 return null;
-            var u = VfxConventions.EmitterTime(age, e.Life, false);
-            var size = s.FieldSize?.Evaluate(0, u, e.RTransform) ?? 0;
+            float U(bool loop) => VfxConventions.EmitterTime(age, e.Life, loop);
+            var size = s.FieldSize?.Evaluate(0, U(s.LoopFieldSize), e.RTransform) ?? 0;
             if (!(size > 0))
                 return null;
-            var frame = VfxConventions.Rotation(Vector(s.FieldOrientation, u, e.RTransform)) * Matrix.CreateTranslation(Vector(s.FieldPosition, u, e.RTransform));
+            var frame = VfxConventions.Rotation(Vector(s.FieldOrientation, U(s.LoopFieldOrientation), e.RTransform))
+                * Matrix.CreateTranslation(Vector(s.FieldPosition, U(s.LoopFieldPosition), e.RTransform));
             var toParticles = s.Space switch
             {
                 SimulationSpace.LocalPositionRotation => frame,

@@ -258,6 +258,15 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((Read(emitter, SmokeChain).Single().DirectionOnTerrain, Read(Emitter("smoke"), SmokeChain).Single().DirectionOnTerrain), Is.EqualTo((onTerrain, false)));
         }
 
+        [Test]
+        public void VectorFieldLoopFlags_AreRead()
+        {
+            var looped = Read(Emitter("smoke", """<property name="VectorFieldStrId" quality="0" value="vfx/vectorfields/00_turbulence_8_xyz.dds"/><property name="VectorfieldSizeLoopAnim" quality="0" value="true"/><property name="VectorfieldPositionLoopAnim" quality="0" value="true"/><property name="VectorfieldOrientationLoopAnim" quality="0" value="true"/>"""), SmokeChain).Single();
+            var plain = Read(Emitter("smoke"), SmokeChain).Single();
+            Assert.That((looped.LoopFieldSize, looped.LoopFieldPosition, looped.LoopFieldOrientation, plain.LoopFieldSize, plain.LoopFieldPosition, plain.LoopFieldOrientation),
+                Is.EqualTo((true, true, true, false, false, false)));
+        }
+
         // ParticleRelativeSpawnOrientation is read on a quad emitter too: a 3D quad stands on the ground as a rigid model does.
         [Test]
         public void RelativeSpawnOrientation_IsReadOnAQuadEmitter()

@@ -393,6 +393,36 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(particles.Select(p => p.Velocity.X - p.Age), Is.All.EqualTo(0).Within(1e-3));
         }
 
+        // Vectorfield{Size,Position,Orientation}LoopAnim wrap their curves over the emitter's life, as EmitterPositionLoopAnim and
+        // EmitterOrientationLoopAnim wrap the emitter's own; unset, they hold at the end. An emitter living 1 s spawns on, and the
+        // particles born after it are pushed up only while the curve is wrapped back to where it pushes: Size 4 to 0 (none at the
+        // end), Position -1 to 1 m across a field pushing only in its upper half (out of it at the end), Orientation 0 to 90
+        // degrees about X (pushing sideways at the end).
+        [TestCase("size", false)]
+        [TestCase("size", true)]
+        [TestCase("position", false)]
+        [TestCase("position", true)]
+        [TestCase("orientation", false)]
+        [TestCase("orientation", true)]
+        public void VectorFieldCurves_LoopOverTheEmittersLife(string curve, bool loop)
+        {
+            var uniform = VfxVectorField.Read(VfxTestFiles.Field(2, 2, 2, (_, _, _) => Vector3.UnitY))!;
+            var half = VfxVectorField.Read(VfxTestFiles.Field(4, 1, 1, (x, _, _) => new Vector3(0, x >= 2 ? 1 : 0, 0)))!;
+            var s = Steady(x =>
+            {
+                (x.LifeTime, x.Field, x.FieldStrength, x.FieldSize) = ((1, 1), curve == "position" ? half : uniform, C(1), C(4));
+                if (curve == "size")
+                    (x.FieldSize, x.LoopFieldSize) = (Ramp(4, 0), loop);
+                if (curve == "position")
+                    (x.FieldPosition, x.LoopFieldPosition) = (Ramp(-1, 1), loop);
+                if (curve == "orientation")
+                    (x.FieldOrientation, x.LoopFieldOrientation) = (Ramp(0, 90), loop);
+            });
+            var late = Run(s, 1.9f).Emitters[0].Particles.Where(p => p.Age is > 0.1f and < 0.8f).ToList();
+            Assert.That(late, Is.Not.Empty);
+            Assert.That(late.Max(p => p.Velocity.Y / p.Age), loop ? Is.GreaterThan(0.05f) : Is.LessThan(0.01f));
+        }
+
         // ps_alpha_crush: each particle carries its crush level, off the curve over its life.
         [Test]
         public void AlphaCrush_IsCarriedByEachParticle()
