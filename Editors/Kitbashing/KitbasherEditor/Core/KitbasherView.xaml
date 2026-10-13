@@ -102,11 +102,8 @@
                     <StackPanel Orientation="Vertical">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding MenuBar.TransformTool.Text, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Margin="2,0,2,0"/>
-                            <mathviews:Vector3View Width="200" Vector3="{Binding MenuBar.TransformTool.Vector3, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
-                                <Button Content="{loc:Loc KitbashTool.MainView.Apply}"
-                                    Width="50"
-                                    Command="{Binding MenuBar.TransformTool.ApplyCommand}"
-                                    IsEnabled="{Binding MenuBar.TransformTool.ButtonEnabled, UpdateSourceTrigger=PropertyChanged}"/> 
+                            <mathviews:Vector3View Width="200" Vector3="{Binding MenuBar.TransformTool.Vector3, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                IsEnabled="{Binding MenuBar.TransformTool.CanTransform, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
 
                         <DockPanel Margin="2" Visibility="{Binding MenuBar.TransformTool.ShowVertexFalloff.Value, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource BoolToCollapsedConverter}}">

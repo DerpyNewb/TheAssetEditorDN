@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using GameWorld.Core.Commands;
 using GameWorld.Core.Components.Gizmo;
 using GameWorld.Core.Components.Selection;
@@ -29,10 +28,13 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
         private readonly IUiCommandFactory _commandFactory;
         private readonly IScopedLogger _scopedLogger;
 
-        public System.Windows.Input.ICommand ApplyCommand { get; set; }
+        // The box holds the edit's total and moves the model as it is typed. Each change undoes the last preview and applies the
+        // total again, so an edit is one undo step; anything else that changes the model or the selection ends the edit.
+        bool _previewOnTop;
+        bool _previewing;
 
-        bool _buttonEnabled = false;
-        public bool ButtonEnabled { get { return _buttonEnabled; } set { SetAndNotify(ref _buttonEnabled, value); } }
+        bool _canTransform = false;
+        public bool CanTransform { get { return _canTransform; } set { SetAndNotify(ref _canTransform, value); } }
 
 
         bool _isVisible = false;
@@ -50,20 +52,22 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
 
         public TransformToolViewModel(SelectionManager selectionManager, CommandManager commandExecutor, IUiCommandFactory commandFactory, IEventHub eventHub, IScopedLogger scopedLogger)
         {
-            ApplyCommand = new RelayCommand(ApplyTransform);
-
             VertexMovementFalloff = new NotifyAttr<DoubleViewModel>(new DoubleViewModel());
             VertexMovementFalloff.Value.PropertyChanged += VertexMovementFalloffChanged;
             _selectionManager = selectionManager;
             _commandExecutor = commandExecutor;
             _commandFactory = commandFactory;
             _scopedLogger = scopedLogger;
+            _vector3.OnValueChanged += _ => Preview();
             eventHub.Register<SelectionChangedEvent>(this, Handle);
+            // Another command ends the edit. An undo of the preview ends it through the selection, which that undo restores.
+            eventHub.Register<CommandStackChangedEvent>(this, _ => EndEditUnlessPreviewing());
         }
 
+        // The preview was weighted by the old falloff, so it comes off before the weights change and goes back on with the new ones.
         public void VertexMovementFalloffChanged(object sender, PropertyChangedEventArgs e)
         {
-            _selectionManager.UpdateVertexSelectionFallof((float)VertexMovementFalloff.Value.Value);
+            Preview(() => _selectionManager.UpdateVertexSelectionFallof((float)VertexMovementFalloff.Value.Value));
         }
 
         private void SelectionChanged(ISelectionState state)
@@ -71,15 +75,15 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             ShowVertexFalloff.Value = false;
             if (state.Mode == GeometrySelectionMode.Face)
             {
-                ButtonEnabled = false;
+                CanTransform = false;
             }
             else
             {
                 if (state is ObjectSelectionState objectSelectionState)
-                    ButtonEnabled = objectSelectionState.SelectionCount() != 0;
+                    CanTransform = objectSelectionState.SelectionCount() != 0;
                 else if (state is VertexSelectionState vertexSelectionState)
                 {
-                    ButtonEnabled = vertexSelectionState.SelectionCount() != 0;
+                    CanTransform = vertexSelectionState.SelectionCount() != 0;
                     ShowVertexFalloff.Value = true;
                 }
             }
@@ -97,14 +101,50 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             else if (_activeMode == TransformMode.Translate)
                 Text = "Translate:";
 
-            SetDefaultValue();
+            EndEdit();
         }
 
-        void ApplyTransform()
+        void Preview(Action? changeBeforeApply = null)
+        {
+            _previewing = true;
+            try
+            {
+                if (_previewOnTop)
+                    _commandExecutor.Undo();
+                changeBeforeApply?.Invoke();
+                _previewOnTop = ApplyTransform();
+            }
+            finally
+            {
+                _previewing = false;
+            }
+        }
+
+        void EndEditUnlessPreviewing()
+        {
+            if (!_previewing)
+                EndEdit();
+        }
+
+        void EndEdit()
+        {
+            _previewOnTop = false;
+            _vector3.DisableCallbacks = true;
+            SetDefaultValue();
+            _vector3.DisableCallbacks = false;
+        }
+
+        bool ApplyTransform()
         {
             var transform = TransformGizmoWrapper.CreateFromSelectionState(_selectionManager.GetState(), _commandFactory, _scopedLogger);
             if (transform == null || _activeMode == TransformMode.None)
-                return;
+                return false;
+
+            // Nothing to undo for a box at rest, and a scale with a 0 in it flattens the model past what its undo can invert:
+            // typing 0.5 passes through 0, so that step is skipped and the next one applies.
+            var value = _vector3.GetAsVector3();
+            if (_activeMode == TransformMode.Scale ? value == new Vector3(1) || value.X * value.Y * value.Z == 0 : value == new Vector3(0))
+                return false;
 
             if (_activeMode == TransformMode.Rotate)
             {
@@ -126,7 +166,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             }
 
             transform.Stop(_commandExecutor);
-            SetDefaultValue();
+            return true;
         }
 
         void SetDefaultValue()
@@ -139,6 +179,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
 
         void Handle(SelectionChangedEvent notification)
         {
+            EndEditUnlessPreviewing();
             SelectionChanged(notification.NewState);
         }
     }
