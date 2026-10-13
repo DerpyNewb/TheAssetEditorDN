@@ -307,6 +307,15 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // vs_translation's restriction 3 turns a quad as a 3D object, so like a rigid particle it draws its X and Y turn.
+        [Test]
+        public void Object3DQuads_TurnOnEveryAxis()
+        {
+            var swipe = Steady(x => { x.Orientation = QuadOrientation.Object3D; x.TurnXy = (new Vector2(90, 20), new Vector2(90, 20)); });
+            var turned = new Vector2(MathHelper.ToRadians(90), MathHelper.ToRadians(20));
+            Assert.That(States(Run(swipe, 1)).Select(x => Vector2.Distance(x.TurnXy, turned)), Is.Not.Empty.And.All.LessThan(1e-5f));
+        }
+
         // Minutes into a clock a float time cannot hold a 1e-5 s tolerance. Asked for the same time twice, the simulator must
         // not start again from nothing: a paused persistent effect did, every frame.
         [Test]

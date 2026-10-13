@@ -740,6 +740,44 @@ namespace GameWorld.Core.Test.Vfx
                 Assert.That(corners.Max(v => Axis(v, other)) - corners.Min(v => Axis(v, other)), Is.GreaterThan(9f), $"spans axis {other}");
         }
 
+        // vs_translation's restriction, as CA's gs_translation builds the quad, under a camera whose up leans 45 degrees toward
+        // +Z, so a camera-facing quad lies across no axis. 1 stands it on the world's Y and spreads it along the camera's right
+        // (+X), so it lies across Z whatever the camera's position (the name-read Vertical turns to the particle instead). 2
+        // lays it in the world's XZ plane: with the effect turned 90 degrees about X, that is the model's XY. 3 turns it by
+        // the particle's X, Y and Z and then its emitter, as a rigid particle turns.
+        [TestCase(QuadOrientation.Upright, 0f, 0f, 0f, 2)]
+        [TestCase(QuadOrientation.Flat, 0f, 0f, 0f, 1)]
+        [TestCase(QuadOrientation.Flat, 0f, 0f, 90f, 2)]
+        [TestCase(QuadOrientation.Object3D, 0f, 0f, 0f, 2)]
+        [TestCase(QuadOrientation.Object3D, 90f, 0f, 0f, 1)]
+        [TestCase(QuadOrientation.Object3D, 0f, 90f, 0f, 0)]
+        public void Restrictions_LieFlatAcrossTheirAxis(QuadOrientation mode, float turnX, float frameAboutY, float worldAboutX, int flat)
+        {
+            var world = Matrix.CreateRotationX(MathHelper.ToRadians(worldAboutX));
+            var camera = ParticleRenderItem.CameraAxes.From(View, world) with { Position = new Vector3(10, 10, 0), Up = Vector3.Normalize(new Vector3(0, 1, 1)) };
+            var particle = RedHalfAlpha with { TurnXy = new Vector2(MathHelper.ToRadians(turnX), 0) };
+            var frame = Matrix.CreateRotationY(MathHelper.ToRadians(frameAboutY));
+            var corners = ParticleRenderItem.Quads(new EmitterSettings { Orientation = mode }, camera, [particle], frame).Select(v => v.Position).ToList();
+            float Axis(Vector3 v, int i) => i == 0 ? v.X : i == 1 ? v.Y : v.Z;
+            Assert.That(corners.Max(v => Math.Abs(Axis(v, flat))), Is.LessThan(1e-3f));
+            foreach (var other in new[] { 0, 1, 2 }.Where(i => i != flat))
+                Assert.That(corners.Max(v => Axis(v, other)) - corners.Min(v => Axis(v, other)), Is.GreaterThan(9f), $"spans axis {other}");
+        }
+
+        // On the ground (ParticleRelativeSpawnOrientation RELATIVE_TO_TERRAIN_NORMAL) a 3D quad keeps only its emitter's heading,
+        // as a rigid model does: under an emitter tipped 90 degrees about X it stays in the XY plane, where it would otherwise
+        // turn with the emitter into XZ.
+        [TestCase(true, 2)]
+        [TestCase(false, 1)]
+        public void Object3DQuads_OnTheGround_KeepOnlyTheEmittersHeading(bool onGround, int flat)
+        {
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var s = new EmitterSettings { Orientation = QuadOrientation.Object3D, RigidOnTerrain = onGround };
+            var corners = ParticleRenderItem.Quads(s, camera, [RedHalfAlpha], Matrix.CreateRotationX(MathHelper.PiOver2)).Select(v => v.Position).ToList();
+            float Axis(Vector3 v, int i) => i == 0 ? v.X : i == 1 ? v.Y : v.Z;
+            Assert.That(corners.Max(v => Math.Abs(Axis(v, flat))), Is.LessThan(1e-3f));
+        }
+
         // ParticleCullDistances fades a particle in from x to y metres from the camera and out from z to w; CullDistances does
         // the same to the whole emitter by its own distance. Seen from 3 m, the middle of a 2..4 band is half faded.
         [Test]

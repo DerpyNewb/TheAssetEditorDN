@@ -432,12 +432,14 @@ namespace GameWorld.Core.Vfx
                 p.FlipU = Next() < s.FlipU;
             if (s.FlipV > 0)
                 p.FlipV = Next() < s.FlipV;
-            if (s.Rigid.Count > 0)
+            // A rigid model, or a quad turned as a 3D object, turns about X and Y as well as Z.
+            if (s.Rigid.Count > 0 || s.Orientation == QuadOrientation.Object3D)
             {
                 Vector2 Draw2((Vector2 Min, Vector2 Max) range) => new(MathHelper.Lerp(range.Min.X, range.Max.X, Next()), MathHelper.Lerp(range.Min.Y, range.Max.Y, Next()));
                 p.TurnXy = Draw2(s.TurnXy) * (MathF.PI / 180);
                 p.SpinXy = s.SpinSignXy * Draw2(s.SpinXy) * (MathF.PI / 180);
-                p.Model = Math.Min((int)(Next() * s.Rigid.Count), s.Rigid.Count - 1);
+                if (s.Rigid.Count > 0)
+                    p.Model = Math.Min((int)(Next() * s.Rigid.Count), s.Rigid.Count - 1);
             }
             p.Id = e.NextId++;
             e.Particles.Add(p);

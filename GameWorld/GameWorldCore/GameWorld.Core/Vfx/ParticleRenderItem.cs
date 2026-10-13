@@ -339,11 +339,23 @@ namespace GameWorld.Core.Vfx
         static (Vector3 Across, Vector3 Up, float Height) Axes(EmitterSettings s, CameraAxes camera, ParticleState p, Matrix frame, Matrix toWorld)
         {
             var (sin, cos) = MathF.SinCos(p.Angle);
-            if (s.Decal)
+            // vs_translation's restriction, as CA's gs_translation builds the quad: Flat lies in the world's XZ plane, as a decal
+            // does; Upright stands on the world's Y and spreads along the camera's right; Object3D turns by the particle's X, Y
+            // and Z and then its emitter, as a rigid particle turns.
+            if (s.Decal || s.Orientation is QuadOrientation.Flat or QuadOrientation.Upright)
             {
                 var toModel = Matrix.Invert(toWorld);
-                Vector3 Flat(Vector3 axis) => Vector3.Normalize(Vector3.TransformNormal(axis, toModel));
-                return (Flat(new Vector3(cos, 0, -sin)), Flat(new Vector3(sin, 0, cos)), p.Size.Y);
+                Vector3 World(Vector3 axis) => Vector3.Normalize(Vector3.TransformNormal(axis, toModel));
+                if (s.Decal || s.Orientation == QuadOrientation.Flat)
+                    return (World(new Vector3(cos, 0, -sin)), World(new Vector3(sin, 0, cos)), p.Size.Y);
+                var worldUp = World(Vector3.Up);
+                return (camera.Right * cos + worldUp * sin, worldUp * cos - camera.Right * sin, p.Size.Y);
+            }
+            if (s.Orientation == QuadOrientation.Object3D)
+            {
+                var turn = Matrix.CreateRotationX(p.TurnXy.X) * Matrix.CreateRotationY(p.TurnXy.Y) * Matrix.CreateRotationZ(p.Angle)
+                    * VfxConventions.RigidFrame(frame, s.RigidOnTerrain);
+                return (Vector3.TransformNormal(Vector3.UnitX, turn), Vector3.TransformNormal(Vector3.UnitY, turn), p.Size.Y);
             }
             if (s.Orientation == QuadOrientation.Horizontal)
                 return (new Vector3(cos, 0, -sin), new Vector3(sin, 0, cos), p.Size.Y);

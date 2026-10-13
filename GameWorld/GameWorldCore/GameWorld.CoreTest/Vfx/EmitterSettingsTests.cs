@@ -203,6 +203,27 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((sparks.Orientation, sparks.Skipped.Any(x => x.Contains("orientation_mode"))), Is.EqualTo((expected, false)));
         }
 
+        // vs_translation's restriction, from CA's fx/particle_vfx_library.hlsl: "CameraFacing=0,Vertical,Horizontal,3D". 948
+        // vanilla chains set it off 0, and every one of them drew camera-facing.
+        [TestCase("0", QuadOrientation.CameraFacing)]
+        [TestCase("1", QuadOrientation.Upright)]
+        [TestCase("2", QuadOrientation.Flat)]
+        [TestCase("3", QuadOrientation.Object3D)]
+        public void Restriction_IsRead(string restriction, QuadOrientation expected)
+        {
+            const string pivot = """<property name="pivot_y" type="float" value="0.25"/>""";
+            var smoke = Read(Emitter("smoke"), SmokeChain.Replace(pivot, pivot + $"""<property name="restriction" type="int" value="{restriction}"/>""")).Single();
+            Assert.That(smoke.Orientation, Is.EqualTo(expected));
+        }
+
+        // ParticleRelativeSpawnOrientation is read on a quad emitter too: a 3D quad stands on the ground as a rigid model does.
+        [Test]
+        public void RelativeSpawnOrientation_IsReadOnAQuadEmitter()
+        {
+            var onGround = Read(Emitter("smoke", """<property name="ParticleRelativeSpawnOrientation" quality="0" value="RELATIVE_TO_TERRAIN_NORMAL"/>"""), SmokeChain).Single();
+            Assert.That((onGround.RigidOnTerrain, Read(Emitter("smoke"), SmokeChain).Single().RigidOnTerrain), Is.EqualTo((true, false)));
+        }
+
         [Test]
         public void UnknownOrientationMode_DrawsCameraFacing_AndSaysSo()
         {

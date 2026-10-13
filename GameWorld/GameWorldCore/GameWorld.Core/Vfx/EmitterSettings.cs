@@ -5,7 +5,9 @@ namespace GameWorld.Core.Vfx
 {
     public enum SimulationSpace { World, LocalPositionRotation, LocalPositionOnly }
 
-    public enum QuadOrientation { CameraFacing, VelocityAligned, Horizontal, Vertical, LocalHorizontal, LocalVertical }
+    // The first six come from vs_translation_velocity_v2's orientation_mode; Upright, Flat and Object3D are vs_translation's
+    // restriction 1, 2 and 3 (CA's "Vertical, Horizontal, 3D").
+    public enum QuadOrientation { CameraFacing, VelocityAligned, Horizontal, Vertical, LocalHorizontal, LocalVertical, Upright, Flat, Object3D }
 
     /// <summary>ps_lighting: how much sunlight small (Rayleigh) and large (Henyey-Greenstein) particles scatter, the large ones'
     /// directionality (g), how far the light is drawn toward emissive, and the average size the light crosses.</summary>
@@ -147,7 +149,7 @@ namespace GameWorld.Core.Vfx
         public VfxCurve? FieldOrientation { get; set; }
         /// <summary>continuous_rigid: the models a particle may be, and its orientation and spin about X and Y (Angle and Spin are Z).</summary>
         public IReadOnlyList<VfxRigidEntry> Rigid { get; set; } = [];
-        /// <summary>ParticleRelativeSpawnOrientation RELATIVE_TO_TERRAIN_NORMAL: the model stands on the ground (VfxConventions.RigidFrame).</summary>
+        /// <summary>ParticleRelativeSpawnOrientation RELATIVE_TO_TERRAIN_NORMAL: the model, or an Object3D quad, stands on the ground (VfxConventions.RigidFrame).</summary>
         public bool RigidOnTerrain { get; set; }
         public (Vector2 Min, Vector2 Max) TurnXy { get; set; }
         public (Vector2 Min, Vector2 Max) SpinXy { get; set; }
@@ -247,10 +249,10 @@ namespace GameWorld.Core.Vfx
             s.SpinDeceleration = ParseCurve(s, P("ParticleSpinDeceleration"));
             s.Forces = [ParseCurve(s, P("ForceA")), ParseCurve(s, P("ForceB")), ParseCurve(s, P("ForceC"))];
 
+            s.RigidOnTerrain = P("ParticleRelativeSpawnOrientation")?.Value == "RELATIVE_TO_TERRAIN_NORMAL";
             if (resolved.Emitter.Type == "continuous_rigid")
             {
                 s.Rigid = resolved.Emitter.Rigid ?? [];
-                s.RigidOnTerrain = P("ParticleRelativeSpawnOrientation")?.Value == "RELATIVE_TO_TERRAIN_NORMAL";
                 if (s.Rigid.Count == 0)
                     NotDrawn(s, "its RigidData names no model, so there is nothing to draw");
             }
@@ -386,6 +388,16 @@ namespace GameWorld.Core.Vfx
             };
             if (!known)
                 s.Skipped.Add($"orientation_mode \"{mode}\" is drawn camera-facing in step 1");
+            // Without a velocity modifier the quad turns by vs_translation's restriction: CA's particle_vfx_library.hlsl names
+            // 0 to 3 "CameraFacing, Vertical, Horizontal, 3D".
+            if (velocity == null)
+                s.Orientation = (int)Number(translation, "restriction", 0) switch
+                {
+                    1 => QuadOrientation.Upright,
+                    2 => QuadOrientation.Flat,
+                    3 => QuadOrientation.Object3D,
+                    _ => QuadOrientation.CameraFacing,
+                };
 
             var animated = chain.Find("vs_animated_texture");
             var cells = chain.Find("vs_cell_texture");
