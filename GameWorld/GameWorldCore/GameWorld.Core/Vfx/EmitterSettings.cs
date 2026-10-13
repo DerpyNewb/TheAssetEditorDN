@@ -426,6 +426,7 @@ namespace GameWorld.Core.Vfx
                 s.RowRestricted = Flag(animated, "row_restricted");
                 s.Row = (int)Number(animated, "row_restriction", 0);
                 s.RandomRow = Flag(animated, "randomize_row");
+                s.RandomCell = Flag(animated, "randomize_cell");
             }
             else if (cells != null)
             {

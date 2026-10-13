@@ -502,6 +502,23 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((frame.Cell, frame.Next), Is.EqualTo((cell, next)));
         }
 
+        // randomize_cell on a flipbook starts each particle that far along its strip, as CA's offset is its random_unary, before
+        // the strip wraps or holds: 0.5 of life and 0.3 is 0.8 of 16 cells; 0.75 and 0.5 wraps to 0.25 when looping and holds the
+        // last cell when not; with randomize_row too the one random picks the row and the start in it (0.6: row 2, 2.4 of 4).
+        // Two loops play the strip twice as fast from the same start: 0.25 of life is 0.5 of the strip, and 0.3 on is 0.8 again.
+        [TestCase(true, false, 0.5f, 1f, 0.3f, 12, 13, 0.8f)]
+        [TestCase(true, false, 0.75f, 1f, 0.5f, 4, 5, 0f)]
+        [TestCase(false, false, 0.75f, 1f, 0.5f, 15, 15, 1f)]
+        [TestCase(true, true, 0f, 1f, 0.6f, 10, 11, 0.4f)]
+        [TestCase(true, false, 0.25f, 2f, 0.3f, 12, 13, 0.8f)]
+        public void FlipbookFrame_StartsAtTheParticlesRandomCell(bool loop, bool randomRow, float lifeFraction, float loops, float random, int cell, int next, float blend)
+        {
+            var s = new EmitterSettings { Animated = true, CellsX = 4, CellsY = 4, RandomCell = true, FlipbookLoop = loop, RowRestricted = randomRow, RandomRow = randomRow };
+            var frame = VfxConventions.FlipbookFrame(s, lifeFraction, 0, loops, random);
+            Assert.That((frame.Cell, frame.Next), Is.EqualTo((cell, next)));
+            Assert.That(frame.Blend, Is.EqualTo(blend).Within(2e-3));
+        }
+
         // ...and each particle draws its own row: one cell per row, one row each, so the cells are the rows.
         [Test]
         public void FlipbookRows_ARandomRowPerParticle()

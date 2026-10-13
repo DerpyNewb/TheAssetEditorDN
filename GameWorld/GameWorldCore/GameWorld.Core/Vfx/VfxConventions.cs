@@ -242,18 +242,19 @@ namespace GameWorld.Core.Vfx
         /// last is the first when the strip loops, the last again when it holds.</summary>
         /// <summary>vs_animated_texture's rows, as CA's has them: row_restricted plays the cells of row row_restriction;
         /// randomize_row starts on the row the particle's random fraction picks and, without row_restricted, plays the whole sheet
-        /// from there. CA's cell then runs off the sheet; it is taken round to the first, as a repeating texture would.</summary>
+        /// from there. CA's cell then runs off the sheet; it is taken round to the first, as a repeating texture would.
+        /// randomize_cell starts the particle that far along its strip, by the same random fraction.</summary>
         public static (int Cell, int Next, float Blend) FlipbookFrame(EmitterSettings s, float lifeFraction, float ageSeconds, float loops, float random)
         {
             var cells = s.CellsX * s.CellsY;
-            var (cell, next, blend) = FlipbookFrame(s.RowRestricted ? s.CellsX : cells, lifeFraction, ageSeconds, loops, s.FixedSpeed, s.FlipbookLoop);
+            var (cell, next, blend) = FlipbookFrame(s.RowRestricted ? s.CellsX : cells, lifeFraction, ageSeconds, loops, s.FixedSpeed, s.FlipbookLoop, s.RandomCell ? random : 0);
             var start = (s.RandomRow ? Math.Min((int)(random * s.CellsY), s.CellsY - 1) : s.RowRestricted ? s.Row : 0) * s.CellsX;
             return ((start + cell) % cells, (start + next) % cells, blend);
         }
 
-        public static (int Cell, int Next, float Blend) FlipbookFrame(int cells, float lifeFraction, float ageSeconds, float loops, bool fixedSpeed, bool loop)
+        public static (int Cell, int Next, float Blend) FlipbookFrame(int cells, float lifeFraction, float ageSeconds, float loops, bool fixedSpeed, bool loop, float offset = 0)
         {
-            var f = (fixedSpeed ? ageSeconds : lifeFraction) * loops;
+            var f = (fixedSpeed ? ageSeconds : lifeFraction) * loops + offset;
             f = loop ? f - MathF.Floor(f) : Math.Clamp(f, 0, 0.9999f);
             var position = f * cells;
             var cell = Math.Min((int)position, cells - 1);

@@ -232,6 +232,13 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((read.RowRestricted, read.Row, read.RandomRow, plain.RowRestricted, plain.Row, plain.RandomRow), Is.EqualTo((true, 2, true, false, 0, false)));
         }
 
+        [Test]
+        public void FlipbookRandomCell_IsRead()
+        {
+            var random = SmokeChain.Replace("""<property name="loop" type="bool" value="true"/>""", """<property name="loop" type="bool" value="true"/><property name="randomize_cell" type="bool" value="true"/>""");
+            Assert.That((Read(Emitter("smoke"), random).Single().RandomCell, Read(Emitter("smoke"), SmokeChain).Single().RandomCell), Is.EqualTo((true, false)));
+        }
+
         // ParticleRelativeSpawnOrientation is read on a quad emitter too: a 3D quad stands on the ground as a rigid model does.
         [Test]
         public void RelativeSpawnOrientation_IsReadOnAQuadEmitter()
