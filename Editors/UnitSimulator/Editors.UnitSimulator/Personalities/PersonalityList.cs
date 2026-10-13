@@ -54,6 +54,11 @@ namespace Editors.UnitSimulator.Personalities
         [ObservableProperty] PersonalityChoice? _selectedChoice;
         [ObservableProperty] string _setLandUnit = "";
         [ObservableProperty] PersonalityPart? _selected;
+        // ponytail: the folder is remembered for the app's run, not across runs.
+        static string _lastExportFolder = "";
+        [ObservableProperty] string _exportFolder = _lastExportFolder;
+        [ObservableProperty] string _exportName = "";
+        [ObservableProperty] string _exportStatus = "";
 
         /// <param name="createPart">id and header in, a new part in the host's scene out.</param>
         public PersonalityList(IPackFileService pfs, SceneObjectEditor editor, IStandardDialogs dialogs, SceneObjectViewModel mount,
@@ -98,6 +103,24 @@ namespace Editors.UnitSimulator.Personalities
             var picked = _dialogs.DisplayBrowseDialog([".anim"]);
             if (picked.Result && picked.File != null)
                 UseTechSkeleton(_pfs.GetFullPath(picked.File));
+        }
+
+        [RelayCommand]
+        void Export()
+        {
+            var problem = PersonalityExport.Write(ExportFolder.Trim(), ExportName.Trim(), Parts, Rows.ExportVersion(PersonalityRows.Personalities), Rows.ExportVersion(PersonalityRows.Junctions));
+            if (problem == null)
+                _lastExportFolder = ExportFolder.Trim();
+            ExportStatus = problem ?? $"Written: {PersonalityRows.Personalities}/{ExportName.Trim()}.tsv and {PersonalityRows.Junctions}/{ExportName.Trim()}.tsv under {ExportFolder.Trim()}. Import them in RPFM.";
+        }
+
+        // A folder on disk, not in a pack: DisplayBrowseFolderDialog browses the packs' folders.
+        [RelayCommand]
+        void BrowseExportFolder()
+        {
+            var picked = _dialogs.ShowSystemFolderBrowserDialog();
+            if (picked.Result && !string.IsNullOrWhiteSpace(picked.FolderPath))
+                ExportFolder = picked.FolderPath;
         }
 
         /// <summary>Adds the personality from one file's row, with the first junction row naming it if there is one.</summary>
