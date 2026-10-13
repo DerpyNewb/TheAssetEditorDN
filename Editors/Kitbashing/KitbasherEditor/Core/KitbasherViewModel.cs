@@ -6,6 +6,7 @@ using Editors.KitbasherEditor.Services;
 using Editors.KitbasherEditor.ViewModels.SceneExplorer;
 using Editors.KitbasherEditor.ViewModels.SceneNodeEditor;
 using GameWorld.Core.Components;
+using GameWorld.Core.Components.Selection;
 using GameWorld.Core.Services;
 using GameWorld.Core.WpfWindow;
 using KitbasherEditor.ViewModels.MenuBarViews;
@@ -58,7 +59,8 @@ namespace Editors.KitbasherEditor.ViewModels
             FocusSelectableObjectService focusSelectableObjectComponent,
             IComponentInserter componentInserter,
             SkeletonChangedHandler skeletonChangedHandler, 
-            SceneNodeEditorViewModel sceneNodeEditorView)
+            SceneNodeEditorViewModel sceneNodeEditorView,
+            SelectionComponent selectionComponent)
         {
             _logger = scopedLogger.ForContext<KitbasherViewModel>();
 
@@ -78,6 +80,9 @@ namespace Editors.KitbasherEditor.ViewModels
             eventHub.Register<CommandStackChangedEvent>(this, OnCommandStackChanged);
             skeletonChangedHandler.Subscribe(eventHub);
             
+            // Kitbash has no bone tools: its toolbar knows object, face and vertex mode, and a click in bone mode asks for an animation
+            selectionComponent.AllowBoneSelection = false;
+
             // Ensure all game components are added to the editor
             componentInserter.Execute();
         }

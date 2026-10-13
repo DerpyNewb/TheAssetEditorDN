@@ -267,8 +267,15 @@ namespace GameWorld.Core.Components.Selection
             return false;
         }
 
+        // Bone mode is for editors that pose bones (the keyframe editor fills the animation it needs). One that does not can
+        // turn it off, so F9 does nothing there.
+        public bool AllowBoneSelection { get; set; } = true;
+
         public bool SetBoneSelectionMode()
         {
+            if (!AllowBoneSelection)
+                return false;
+
             var selectionState = _selectionManager.GetState();
             if (_selectionManager.GetState().Mode != GeometrySelectionMode.Bone)
             {
