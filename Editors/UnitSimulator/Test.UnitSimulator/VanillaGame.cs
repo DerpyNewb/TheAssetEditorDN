@@ -9,16 +9,17 @@ using Test.TestingUtility.Shared;
 
 namespace Test.UnitSimulator
 {
-    // The game's three anim packs from the data folder in WH3_DATA, as Test.VfxEditor's VanillaVfx loads vfx_desc.pack; a test using
-    // them is skipped without it. They hold every battle table, skeleton and animation these tests read.
+    // The game's three anim packs from the data folder in WH3_DATA, and with withDb its DB and model packs, as Test.VfxEditor's VanillaVfx
+    // loads vfx_desc.pack; a test using them is skipped without it. They hold every table, skeleton, model and animation these tests read.
     static class VanillaGame
     {
         public const string KnightTable = "animations/database/battle/bin/hu1_empire_hr1_warhorse_lance_sword_shield.bin";
         public const string WarhorseTable = "animations/database/battle/bin/hr1_warhorse.bin";
         public const string TablesAnimPack = "animations/database/battle/bin/animation_tables__.animpack";
 
-        // asCaPacks marks the packs as CA's, as the app loads them, for the tests of what a CA pack refuses.
-        public static AssetEditorTestRunner Load(bool asCaPacks = false)
+        // asCaPacks marks the packs as CA's, as the app loads them, for the tests of what a CA pack refuses. withDb adds db.pack and
+        // the model packs, for the personalities: their tables, variant meshes and tech skeletons. Only the packs' indexes are read.
+        public static AssetEditorTestRunner Load(bool asCaPacks = false, bool withDb = false)
         {
             var dataFolder = Environment.GetEnvironmentVariable("WH3_DATA");
             Assume.That(dataFolder != null && Directory.Exists(dataFolder), "set WH3_DATA");
@@ -26,7 +27,10 @@ namespace Test.UnitSimulator
             var runner = new AssetEditorTestRunner();
             runner.CreateCaContainer();
             var loader = runner.ServiceProvider.GetRequiredService<IPackFileContainerLoader>();
-            foreach (var pack in new[] { "anim.pack", "anim2.pack", "anim_3.pack" })
+            var packs = new List<string> { "anim.pack", "anim2.pack", "anim_3.pack" };
+            if (withDb)
+                packs.AddRange(["db.pack", "variants.pack", "variants2.pack", "variants3.pack", "variants4.pack", "variants5.pack", "warmachines.pack"]);
+            foreach (var pack in packs)
             {
                 var container = loader.CreateFromPackFile(PackFileContainerType.Normal, Path.Combine(dataFolder!, pack), true);
                 container.IsCaPackFile = asCaPacks;
