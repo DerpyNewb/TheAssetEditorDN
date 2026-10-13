@@ -16,6 +16,11 @@ namespace Editors.UnitSimulator.Tables
             OneCopyEach(pfs, PackFileServiceUtility.GetAllAnimPacks(pfs).SelectMany(x => AnimationPackSerializer.Load(x, pfs).GetGenericAnimationSets()))
                 .FirstOrDefault(x => x.Name == name);
 
+        /// <summary>Every loaded battle table by name, one copy each (OneCopyEach), read once; FindByName reads every animpack per call.</summary>
+        public static Dictionary<string, IAnimationBinGenericFormat> AllByName(IPackFileService pfs) =>
+            OneCopyEach(pfs, PackFileServiceUtility.GetAllAnimPacks(pfs).SelectMany(x => AnimationPackSerializer.Load(x, pfs).GetGenericAnimationSets()))
+                .GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
+
         /// <summary>The tables with one copy of each path. A table is listed once per pack holding its animpack, and CA ships some in two
         /// animpacks; the copy kept is the editable pack's, which a save writes to, else the last loaded, which is the one FindFile gives.</summary>
         public static List<IAnimationBinGenericFormat> OneCopyEach(IPackFileService pfs, IEnumerable<IAnimationBinGenericFormat> tables)

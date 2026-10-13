@@ -21,6 +21,14 @@ namespace Test.UnitSimulator
 
         static byte[] Bytes(IPackFileService pfs, string path) => pfs.FindFile(path)!.DataSource.ReadData();
 
+        [Test]
+        public void AllByName_HoldsEachTableOnce_UnderItsName()
+        {
+            var tables = AnimTableEdits.AllByName(VanillaGame.Load().PackFileService);
+            Assert.That(tables["hu1_empire_hr1_warhorse_lance_sword_shield"].FullPath, Is.EqualTo(VanillaGame.KnightTable));
+            Assert.That(tables["hr1_warhorse"].FullPath, Is.EqualTo(VanillaGame.WarhorseTable));
+        }
+
         // AnimationBinWh3 writes every string lower-cased, and CA left capitals in two mounted tables' anim paths: Katarin's
         // (.../horse01/Katarin/...) and the Kislev Patriarch's (.../bear01/Patriarch/...). Every other byte of every table comes back as it was.
         [Test]
