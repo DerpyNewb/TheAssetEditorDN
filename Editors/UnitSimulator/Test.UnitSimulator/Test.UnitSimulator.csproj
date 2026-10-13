@@ -23,6 +23,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Testing\Shared\Test.TestingUtility.csproj" />
+        <ProjectReference Include="..\Editors.UnitSimulator\Editors.UnitSimulator.csproj" />
     </ItemGroup>
 
     <ItemGroup>
