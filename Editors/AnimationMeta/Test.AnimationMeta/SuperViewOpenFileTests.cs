@@ -233,6 +233,39 @@ namespace Test.AnimationMeta
             Assert.That((both.All(bar.Contains), both.Any(side.Contains)), Is.EqualTo((true, false)));
         }
 
+        // The render settings' numbers drag like the meta editor's: press on Light intensity, drag a hundred pixels right, and the
+        // light the scene draws with doubles while the mouse is still down. The rotations drag in whole degrees.
+        [Test, Apartment(ApartmentState.STA)]
+        public void RenderSettings_NumbersDragLikeTheMetaEditors()
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+            app.Resources["CustomWindowStyle"] = new System.Windows.Style(typeof(System.Windows.Window));
+            var store = _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.Rendering.SceneRenderParametersStore>();
+            store.LightIntensityMult = 1;
+            var window = new GameWorld.Core.Utility.RenderSettingsDialog.RenderSettingsWindow(
+                _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.Rendering.RenderEngineComponent>(), store,
+                _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.Grid.GridComponent>());
+
+            (window.ShowActivated, window.ShowInTaskbar, window.Left) = (false, false, -10000);
+            window.Show();
+            try
+            {
+                var scrubs = Descendants(window).OfType<System.Windows.Controls.TextBox>()
+                    .Select(x => Microsoft.Xaml.Behaviors.Interaction.GetBehaviors(x).OfType<Shared.Ui.Common.Behaviors.NumberScrubBehavior>().SingleOrDefault()).ToList();
+                var light = scrubs.FirstOrDefault();
+                light?.Begin(0);
+                light?.Move(100, System.Windows.Input.ModifierKeys.None);
+                Assert.That((store.LightIntensityMult, scrubs.Select(x => x?.Mode)), Is.EqualTo((2f, new Shared.Ui.Common.Behaviors.ScrubMode?[]
+                    { Shared.Ui.Common.Behaviors.ScrubMode.Decimal, Shared.Ui.Common.Behaviors.ScrubMode.Integer, Shared.Ui.Common.Behaviors.ScrubMode.Integer, Shared.Ui.Common.Behaviors.ScrubMode.Integer })));
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
         // A screenshot is the next frame at twice the view's size, named after the file, saved where PhotoStudio saves its own.
         [Test]
         public void AScreenshotSavesTheNextFrameAtTwiceItsSize()

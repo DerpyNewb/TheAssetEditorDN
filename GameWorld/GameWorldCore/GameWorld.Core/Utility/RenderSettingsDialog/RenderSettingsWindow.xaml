@@ -7,6 +7,8 @@
         xmlns:basedialogs="clr-namespace:Shared.Ui.BaseDialogs;assembly=Shared.Ui" 
         xmlns:colourpickerbutton="clr-namespace:Shared.Ui.BaseDialogs.ColourPickerButton;assembly=Shared.Ui"
         xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+        xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:behaviors="clr-namespace:Shared.Ui.Common.Behaviors;assembly=Shared.Ui"
         mc:Ignorable="d"
           ContentRendered="Window_OnContentRendered"
         ResizeMode="NoResize"
@@ -43,7 +45,11 @@
         </basedialogs:AeAttribute>
 
         <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.RenderSettings.LightIntensity}" LabelWidth="150">
-            <TextBox Margin="2" Text="{Binding LightIntensity, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+            <TextBox Margin="2" Text="{Binding LightIntensity, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                <b:Interaction.Behaviors>
+                    <behaviors:NumberScrubBehavior/>
+                </b:Interaction.Behaviors>
+            </TextBox>
         </basedialogs:AeAttribute>
 
         <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.RenderSettings.LightColour}" LabelWidth="150">
@@ -53,15 +59,27 @@
         </basedialogs:AeAttribute>
 
         <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.RenderSettings.EnvLightRotationX}" LabelWidth="150">
-            <TextBox Margin="2" Text="{Binding EnvLightRotationY, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+            <TextBox Margin="2" Text="{Binding EnvLightRotationY, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                <b:Interaction.Behaviors>
+                    <behaviors:NumberScrubBehavior Mode="Integer"/>
+                </b:Interaction.Behaviors>
+            </TextBox>
         </basedialogs:AeAttribute>
 
         <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.RenderSettings.DirectLightRotationX}" LabelWidth="150">
-            <TextBox Margin="2" Text="{Binding DirectLightRotationX, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+            <TextBox Margin="2" Text="{Binding DirectLightRotationX, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                <b:Interaction.Behaviors>
+                    <behaviors:NumberScrubBehavior Mode="Integer"/>
+                </b:Interaction.Behaviors>
+            </TextBox>
         </basedialogs:AeAttribute>
 
         <basedialogs:AeAttribute DockPanel.Dock="Top" LabelText="{loc:Loc KitbashTool.RenderSettings.DirectLightRotationY}" LabelWidth="150">
-            <TextBox Margin="2" Text="{Binding DirectLightRotationY, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
+            <TextBox Margin="2" Text="{Binding DirectLightRotationY, UpdateSourceTrigger=LostFocus}" MaxLength="8"  VerticalContentAlignment="Center" Width="100" HorizontalAlignment="Left" HorizontalContentAlignment="Right">
+                <b:Interaction.Behaviors>
+                    <behaviors:NumberScrubBehavior Mode="Integer"/>
+                </b:Interaction.Behaviors>
+            </TextBox>
         </basedialogs:AeAttribute>
     </DockPanel>
 </Window>

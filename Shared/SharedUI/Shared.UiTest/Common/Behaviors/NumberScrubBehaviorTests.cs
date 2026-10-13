@@ -96,13 +96,15 @@ namespace Shared.UiTest.Common.Behaviors
 
         class Holder { public string Value { get; set; } = "1.65"; }
 
-        // The number reaches what the box is bound to while the mouse is still down, so whatever shows it follows the drag.
-        [Test]
-        public void Drag_UpdatesTheBoundValueAsItGoes()
+        // The number reaches what the box is bound to while the mouse is still down, so whatever shows it follows the drag; a box
+        // that hands typed text over only when it loses focus (the render settings' light boxes) does too, though it never has focus.
+        [TestCase(UpdateSourceTrigger.PropertyChanged)]
+        [TestCase(UpdateSourceTrigger.LostFocus)]
+        public void Drag_UpdatesTheBoundValueAsItGoes(UpdateSourceTrigger trigger)
         {
             var holder = new Holder();
             var (box, scrub) = Box("");
-            box.SetBinding(TextBox.TextProperty, new Binding(nameof(Holder.Value)) { Source = holder, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
+            box.SetBinding(TextBox.TextProperty, new Binding(nameof(Holder.Value)) { Source = holder, Mode = BindingMode.TwoWay, UpdateSourceTrigger = trigger });
             scrub.Begin(0);
             scrub.Move(100, ModifierKeys.None);
             Assert.That(holder.Value, Is.EqualTo("3.3"));

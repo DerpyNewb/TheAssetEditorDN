@@ -78,6 +78,8 @@ namespace Shared.Ui.Common.Behaviors
             _value += (x - _lastX) * _step * scale;
             _lastX = x;
             AssociatedObject.Text = _value.ToString(Mode == ScrubMode.Integer ? "0" : "0.####", CultureInfo.CurrentCulture);
+            // A box bound to update on LostFocus never has focus while it scrubs, so it is pushed here.
+            AssociatedObject.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
         }
 
         /// <summary>The mouse comes up: a click, not a drag, starts typing in the box.</summary>
