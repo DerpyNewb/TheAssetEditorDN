@@ -26,12 +26,40 @@ namespace Test.AnimationMeta
             var offset = new Vector3(0.5f, 0.1f, 0.1f);
             var rule = new CopyRootTransform(new Provider(main), 1, offset, offsetRotation, 1.5f);
 
-            var skin = AnimationSampler.Sample(0, 0, prop, new AnimationClip(BindPose(prop), prop), [rule]).BoneTransforms[1].WorldTransform;
+            var clip = new AnimationClip(BindPose(prop), prop);
+            Assert.That(CopyRootTransform.RootFollowsBone(prop, clip, main.GetWorldTransform(1)), Is.False, "a root at the prop's own origin is in the bone's space");
+            var skin = AnimationSampler.Sample(0, 0, prop, clip, [rule]).BoneTransforms[1].WorldTransform;
 
             // A vertex of the cannon mesh, in the prop model's own space.
             var vertex = new Vector3(0.1f, 0.2f, 2f);
             var expected = Vector3.Transform(vertex, Matrix.CreateScale(1.5f) * Matrix.CreateFromQuaternion(offsetRotation) * Matrix.CreateTranslation(offset) * main.GetWorldTransform(1));
             Assert.That(Vector3.Distance(Vector3.Transform(vertex, skin), expected), Is.LessThan(1e-4));
+        }
+
+        // Most vanilla props are animated in the main model's space instead, their root riding the attach bone: 121 of 156
+        // surveyed with a bone, the Doomseeker's flail on be_prop_1 among them. Such a prop stays where its animation puts it,
+        // the tag's Position still moving it in the bone's space; carried to the bone a second time, the flail hung a hand's
+        // length out to his side.
+        [TestCase(0f)]
+        [TestCase(0.2f)]
+        public void PropAnimatedInModelSpace_StaysWhereItsAnimationPutsIt(float offsetZ)
+        {
+            var attachRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathHelper.PiOver2);
+            var hand = new Vector3(0.5f, 0.7f, 0.1f);
+            var main = CreateSkeleton([("animroot", -1, Vector3.Zero, Quaternion.Identity), ("be_prop_1", 0, hand, attachRotation)]);
+            var prop = CreateSkeleton([("root", -1, hand, attachRotation), ("axe_base_0", 0, new Vector3(0, -0.3f, 0), Quaternion.Identity)]);
+            var clip = new AnimationClip(BindPose(prop), prop);
+            Assert.That(CopyRootTransform.RootFollowsBone(prop, clip, main.GetWorldTransform(1)), Is.True, "a root on the bone is in the model's space");
+
+            var offset = new Vector3(0, 0, offsetZ);
+            var rule = new CopyRootTransform(new Provider(main), 1, offset, Quaternion.Identity, 1, rootFollowsBone: true);
+            var skin = AnimationSampler.Sample(0, 0, prop, clip, [rule]).BoneTransforms[1].WorldTransform;
+
+            // The handle as animated (the clip is the bind pose), moved by Position along the bone's axes.
+            var animated = prop.GetWorldTransform(1).Translation;
+            var handle = Vector3.Transform(animated, skin);
+            var expected = animated + Vector3.Transform(offset, attachRotation);
+            Assert.That(Vector3.Distance(handle, expected), Is.LessThan(1e-4), $"handle at {handle}, animated at {animated}");
         }
 
         static AnimationFile BindPose(GameSkeleton skeleton)
