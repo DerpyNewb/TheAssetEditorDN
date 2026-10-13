@@ -8,6 +8,8 @@ using Editors.Shared.Core.Common.BaseControl;
 using Editors.Shared.Core.Common.ReferenceModel;
 using Editors.UnitSimulator.Pairing;
 using Editors.UnitSimulator.Parts;
+using Editors.UnitSimulator.Personalities;
+using GameWorld.Core.Components;
 using Editors.UnitSimulator.Tables;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
@@ -15,6 +17,7 @@ using Shared.Core.Events;
 using Shared.Core.Events.Scoped;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Utility;
+using Shared.Core.Services;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.Animation;
 using Shared.GameFormats.AnimationMeta.Definitions;
@@ -35,11 +38,14 @@ namespace Editors.UnitSimulator
         readonly Dictionary<string, ClipLength?> _lengths = [];
         // Edited, unsaved tables by path. The instance here is the one saved, whatever a part's list holds.
         readonly Dictionary<string, AnimationBinWh3> _editedTables = [];
+        readonly PersonalityPlacement? _placement;
 
         public override Type EditorViewModelType => typeof(Views.EditorView);
 
         public SceneObjectViewModel Mount { get; }
         public SceneObjectViewModel Rider { get; }
+        /// <summary>The battle_personalities riders on the mount's attach bones.</summary>
+        public PersonalityList Personalities { get; }
         public PartMeta MountMeta { get; }
         public PartMeta RiderMeta { get; }
 
@@ -55,7 +61,10 @@ namespace Editors.UnitSimulator
             IFileSaveService fileSaver,
             IEventHub eventHub,
             IUiCommandFactory uiCommandFactory,
-            MetaDataFileParser metaDataFileParser)
+            MetaDataFileParser metaDataFileParser,
+            SceneManager sceneManager,
+            AnimationsContainerComponent animations,
+            IStandardDialogs dialogs)
             : base(hostParameters)
         {
             DisplayName = "Unit Simulator";
@@ -87,6 +96,24 @@ namespace Editors.UnitSimulator
             eventHub.Register<MetaDataAttributeChangedEvent>(this, _ => RebuildMetas());
             eventHub.Register<SelecteMetaDataAttributeChangedEvent>(this, _ => RebuildMetas());
             eventHub.Register<ScopedFileSavedEvent>(this, OnFileSaved);
+
+            // ponytail: a removed part stays in the animation player's list; AnimationPlayerViewModel has no unregister.
+            Personalities = new PersonalityList(pfs, SceneObjectEditor, dialogs, Mount,
+                (id, header) =>
+                {
+                    var part = _sceneObjectViewModelBuilder.CreateAsset(id, true, header, Color.Black, null);
+                    SceneObjects.Add(part);
+                    return part;
+                },
+                part =>
+                {
+                    SceneObjects.Remove(part);
+                    GameWorld?.RemoveComponent(part.Data);
+                    sceneManager.RootNode.RemoveObject(part.Data.ParentNode);
+                    animations.Remove(part.Data.Player);
+                    part.Dispose();
+                });
+            _placement = GameWorld?.AddComponent(new PersonalityPlacement(Personalities));
 
             // The metas' props always play, so the models under them have to; off, a model stands in its bind pose.
             Player.IsEnabled.Value = true;
@@ -291,6 +318,8 @@ namespace Editors.UnitSimulator
             _eventHub.UnRegister(this);
             MountMeta.Dispose();
             RiderMeta.Dispose();
+            if (_placement != null)
+                GameWorld?.RemoveComponent(_placement);
             base.Close();
         }
     }
