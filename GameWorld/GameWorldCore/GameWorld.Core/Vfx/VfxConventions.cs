@@ -245,6 +245,15 @@ namespace GameWorld.Core.Vfx
         /// randomize_row starts on the row the particle's random fraction picks and, without row_restricted, plays the whole sheet
         /// from there. CA's cell then runs off the sheet; it is taken round to the first, as a repeating texture would.
         /// randomize_cell starts the particle that far along its strip, by the same random fraction.</summary>
+        /// <summary>vs_vertex_alpha's alpha_START_offset and alpha_END_offset, as CA's map_range has them: curve_alpha is read at the life
+        /// fraction squeezed into the window from the start offset to 1 less the end offset, each lerped by the particle's alpha random,
+        /// and holds its ends outside it.</summary>
+        public static float AlphaLife(float life, Vector2 start, Vector2 end, float random)
+        {
+            var (from, to) = (MathHelper.Lerp(start.X, start.Y, random), 1 - MathHelper.Lerp(end.X, end.Y, random));
+            return Math.Clamp((life - from) / Math.Max(to - from, 1e-6f), 0, 1);
+        }
+
         public static (int Cell, int Next, float Blend) FlipbookFrame(EmitterSettings s, float lifeFraction, float ageSeconds, float loops, float random)
         {
             var cells = s.CellsX * s.CellsY;

@@ -554,7 +554,7 @@ namespace GameWorld.Core.Vfx
             var size = p.Size * scale * (s.Scale == null ? Vector2.One : new Vector2(s.Scale.Evaluate(0, v, p.RScale, 1), s.Scale.Evaluate(1, v, p.RScale, 1)));
             var colour = Vector(s.Colour, v, p.RColour, 1) * new Vector3(p.Tint.X, p.Tint.Y, p.Tint.Z) * new Vector3(e.Tint.X, e.Tint.Y, e.Tint.Z)
                 * VfxConventions.Hdr(s.Colour?.Evaluate(3, v, p.RColour, 1) ?? 1, s.EmissiveMul);
-            var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W * e.Tint.W;
+            var alpha = p.Alpha * (s.Alpha?.Evaluate(0, VfxConventions.AlphaLife(v, s.AlphaStartOffset, s.AlphaEndOffset, p.RAlpha), p.RAlpha, 1) ?? 1) * p.Tint.W * e.Tint.W;
             var cells = s.CellsX * s.CellsY;
             var (cell, next, blend) = s.Animated ? VfxConventions.FlipbookFrame(s, v, p.Age, MathHelper.Lerp(s.Loops.X, s.Loops.Y, v), p.RCell)
                 : (s.RandomCell ? Math.Min((int)(p.RCell * cells), cells - 1) : s.Cell, 0, 0f);

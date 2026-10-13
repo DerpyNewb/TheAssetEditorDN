@@ -108,6 +108,9 @@ namespace GameWorld.Core.Vfx
         public VfxCurve? SpinDeceleration { get; set; }
         public VfxCurve?[] Forces { get; set; } = [];
         public VfxCurve? Alpha { get; set; }
+        /// <summary>vs_vertex_alpha's alpha_START_offset and alpha_END_offset (VfxConventions.AlphaLife); zero without them.</summary>
+        public Vector2 AlphaStartOffset { get; set; }
+        public Vector2 AlphaEndOffset { get; set; }
         public VfxCurve? Colour { get; set; }
         /// <summary>ps_emissive's emissive_mul; 1 without one.</summary>
         public float EmissiveMul { get; set; } = 1;
@@ -375,7 +378,10 @@ namespace GameWorld.Core.Vfx
             s.FlipU = Number(flip, "flip_u", 0);
             s.FlipV = Number(flip, "flip_v", 0);
             s.UvTurn = flip?.Properties.GetValueOrDefault("uv_orientation")?.Value switch { "90_degrees_ccw" => 1, "90_degrees_cw" => -1, _ => 0 };
-            s.Alpha = ParseCurve(s, chain.Find("vs_vertex_alpha")?.Properties.GetValueOrDefault("curve_alpha"));
+            var vertexAlpha = chain.Find("vs_vertex_alpha");
+            s.Alpha = ParseCurve(s, vertexAlpha?.Properties.GetValueOrDefault("curve_alpha"));
+            s.AlphaStartOffset = vertexAlpha?.Properties.GetValueOrDefault("alpha_START_offset")?.Float2(Vector2.Zero) ?? Vector2.Zero;
+            s.AlphaEndOffset = vertexAlpha?.Properties.GetValueOrDefault("alpha_END_offset")?.Float2(Vector2.Zero) ?? Vector2.Zero;
             s.Colour = ParseCurve(s, chain.Find("vs_colour")?.Properties.GetValueOrDefault("curve_colour"));
 
             var velocity = chain.Find("vs_translation_velocity_v2");

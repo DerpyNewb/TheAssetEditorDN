@@ -466,6 +466,29 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(state.Alpha, Is.EqualTo(1 - life).Within(1e-3));
         }
 
+        // vs_vertex_alpha's alpha offsets squeeze curve_alpha into the window from the start offset to 1 less the end offset, each
+        // lerped by the particle's alpha random, as CA's map_range has it, and hold its ends outside: frost_wyrm's end offset of
+        // 0.8 plays the whole curve in the first fifth of the life; ostankya's start of -0.3 stretches it past the birth.
+        [TestCase(0.1f, 0f, 0f, 0.8f, 0.8f, 0f, 0.5f)]
+        [TestCase(0.5f, 0f, 0f, 0.8f, 0.8f, 0f, 1f)]
+        [TestCase(0.5f, 0.3f, 0.3f, 0f, 0f, 0f, 0.2857f)]
+        [TestCase(0.2f, 0.3f, 0.3f, 0f, 0f, 0f, 0f)]
+        [TestCase(0.35f, -0.3f, -0.3f, 0f, 0f, 0f, 0.5f)]
+        [TestCase(0.6f, 0f, 0.4f, 0f, 0f, 0.5f, 0.5f)]
+        [TestCase(0.3f, 0f, 0f, 0.2f, 0.6f, 0.5f, 0.5f)]
+        public void AlphaLife_SqueezesTheCurveIntoItsWindow(float life, float startMin, float startMax, float endMin, float endMax, float random, float expected) =>
+            Assert.That(VfxConventions.AlphaLife(life, new Vector2(startMin, startMax), new Vector2(endMin, endMax), random), Is.EqualTo(expected).Within(1e-3));
+
+        // ...on the particle: curve_alpha 1 to 0 with an end offset of 0.5 is gone by half its life.
+        [Test]
+        public void AlphaOffsets_ReachTheParticle()
+        {
+            var s = Steady(x => { x.MaxParticles = 1; x.ParticleLife = C(2); x.Alpha = Ramp(1, 0); x.AlphaEndOffset = new Vector2(0.5f, 0.5f); });
+            var simulator = Run(s, 0.5f);
+            var p = simulator.Emitters[0].Particles.Single();
+            Assert.That(States(simulator).Single().Alpha, Is.EqualTo(Math.Max(0, 1 - p.Age / p.Life / 0.5f)).Within(1e-3));
+        }
+
         [TestCase(0.5f, 0f, 1f, false, true, 32)]
         [TestCase(0.5f, 0f, 0.5f, false, true, 16)]
         [TestCase(0f, 0.25f, 2f, true, true, 32, Description = "fixed speed: loops per second")]

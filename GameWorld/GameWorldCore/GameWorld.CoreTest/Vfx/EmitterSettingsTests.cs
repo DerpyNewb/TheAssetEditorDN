@@ -239,6 +239,17 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((Read(Emitter("smoke"), random).Single().RandomCell, Read(Emitter("smoke"), SmokeChain).Single().RandomCell), Is.EqualTo((true, false)));
         }
 
+        [Test]
+        public void AlphaOffsets_AreRead()
+        {
+            var offsets = SmokeChain.Replace("""<modifier fragment="ps_lighting">""", """<modifier fragment="vs_vertex_alpha">"""
+                + """<property name="alpha_START_offset" type="float2" value="float2(0.1,0.3)"/><property name="alpha_END_offset" type="float2" value="float2(0.7,0.8)"/>"""
+                + """</modifier><modifier fragment="ps_lighting">""");
+            var (read, plain) = (Read(Emitter("smoke"), offsets).Single(), Read(Emitter("smoke"), SmokeChain).Single());
+            Assert.That((read.AlphaStartOffset, read.AlphaEndOffset, plain.AlphaStartOffset, plain.AlphaEndOffset),
+                Is.EqualTo((new Vector2(0.1f, 0.3f), new Vector2(0.7f, 0.8f), Vector2.Zero, Vector2.Zero)));
+        }
+
         // ParticleRelativeSpawnOrientation is read on a quad emitter too: a 3D quad stands on the ground as a rigid model does.
         [Test]
         public void RelativeSpawnOrientation_IsReadOnAQuadEmitter()
