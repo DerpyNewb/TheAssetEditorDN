@@ -14,10 +14,16 @@ namespace Editors.UnitSimulator.Personalities
     {
         /// <summary>As the other FromTech, from the file: a tech folder also holds destruction animations, proxies and turret parts
         /// (TechSkeletonTests 1a), refused on their bone table before their frames are read, which need not hold one per bone.</summary>
-        public static (List<AttachBone> Bones, string? Problem) FromTech(GameSkeleton animation, AnimationFile tech, string techPath) =>
-            Differs(animation, tech.Bones.Length, i => (tech.Bones[i].Name, tech.Bones[i].ParentId)) is { } bone
-                ? ([], NotBuiltOn(techPath, animation, bone))
-                : FromTech(animation, new GameSkeleton(tech, null), techPath);
+        public static (List<AttachBone> Bones, string? Problem) FromTech(GameSkeleton animation, AnimationFile tech, string techPath)
+        {
+            if (Differs(animation, tech.Bones.Length, i => (tech.Bones[i].Name, tech.Bones[i].ParentId)) is { } bone)
+                return ([], NotBuiltOn(techPath, animation, bone));
+            // GameSkeleton reads every bone's bind pose from frame 0.
+            GameSkeleton built;
+            try { built = new GameSkeleton(tech, null); }
+            catch (ArgumentOutOfRangeException) { return ([], $"{techPath}: no frame 0 with a pose for each of its {tech.Bones.Length} bones."); }
+            return FromTech(animation, built, techPath);
+        }
 
         /// <summary>The tech skeleton's ap_ bones, or none and why the tech skeleton is not built on this animation skeleton.</summary>
         public static (List<AttachBone> Bones, string? Problem) FromTech(GameSkeleton animation, GameSkeleton tech, string techPath)

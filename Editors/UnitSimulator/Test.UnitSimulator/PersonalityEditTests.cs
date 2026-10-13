@@ -41,6 +41,22 @@ namespace Test.UnitSimulator
             Assert.That(priest.Status, Is.Empty);
         }
 
+        // The table picker sets Table on every keystroke: the model is the variant's and is not loaded again for it.
+        [Test]
+        public void ATableTypedIn_LeavesTheModelAsItWas()
+        {
+            var (_, sim) = PersonalityTests.OpenOn(PersonalityTests.CasketModel);
+            var priest = PersonalityTests.AddByKey(sim, PersonalityTests.CasketRider);
+            var loads = 0;
+            priest.Part.Data.MeshChanged += _ => loads++;
+
+            priest.Table = "hu1_tomb_skeleton_sword_and_shi";
+            priest.Table = "hu1_tomb_skeleton_sword_and_shield";
+
+            Assert.That(loads, Is.EqualTo(0));
+            Assert.That(priest.Status, Is.Empty);
+        }
+
         [Test]
         public void AVariantChanged_ReloadsTheModel()
         {

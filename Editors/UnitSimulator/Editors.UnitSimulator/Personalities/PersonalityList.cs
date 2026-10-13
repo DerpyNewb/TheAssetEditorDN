@@ -36,18 +36,20 @@ namespace Editors.UnitSimulator.Personalities
         string _techNote = "";
         int _created;
 
-        public PersonalityRows Rows => _rows ??= new PersonalityRows(_pfs);
+        public PersonalityRows Rows => _rows ?? LoadRows();
         Dictionary<string, IAnimationBinGenericFormat> Tables => _tables ??= AnimTableEdits.AllByName(_pfs);
         /// <summary>The man_animations_table picker's list: every loaded battle table.</summary>
         public IEnumerable<string> TableNames => Tables.Keys.Order(StringComparer.Ordinal);
         public IEnumerable<string> VariantNames => Rows.VariantNames;
 
         public ObservableCollection<PersonalityPart> Parts { get; } = [];
-        public string[] AttachTypes { get; } = ["autonomous_rider", "officer", "additional_officer"];
+        static readonly string[] Attaches = ["autonomous_rider", "officer", "additional_officer"];
+        [ObservableProperty] ObservableCollection<string> _attachTypes = new(Attaches);
         [ObservableProperty] ObservableCollection<string> _boneNames = [NoBone];
         [ObservableProperty] ObservableCollection<string> _techSkeletons = [];
         [ObservableProperty] string? _selectedTechSkeleton;
         [ObservableProperty] string _techStatus = "";
+        [ObservableProperty] string _dbStatus = "";
         [ObservableProperty] string _status = "";
         [ObservableProperty] string _search = "";
         [ObservableProperty] ObservableCollection<PersonalityChoice> _choices = [];
@@ -72,6 +74,13 @@ namespace Editors.UnitSimulator.Personalities
             _removePart = removePart;
             mount.Data.SkeletonChanged += _ => RefreshBones();
             mount.Data.MeshChanged += _ => FindTechSkeletons();
+        }
+
+        PersonalityRows LoadRows()
+        {
+            _rows = new PersonalityRows(_pfs);
+            DbStatus = string.Join(" ", _rows.Problems.Select(x => $"Skipped {x}"));
+            return _rows;
         }
 
         // ponytail: the first 200 matches are shown; a longer search narrows it. Page the list if 200 is ever too few.
@@ -140,6 +149,7 @@ namespace Editors.UnitSimulator.Personalities
             Load(part);
             Check(part);
             MarkCopies(part);
+            ListPartValues();
             Status = "";
         }
 
@@ -149,9 +159,18 @@ namespace Editors.UnitSimulator.Personalities
             {
                 case nameof(PersonalityPart.Bone):
                     Check(part);
+                    if (!BoneNames.Contains(part.Bone))
+                        ListPartValues();
                     break;
-                case nameof(PersonalityPart.Table) or nameof(PersonalityPart.Variant):
-                    Load(part);
+                case nameof(PersonalityPart.Attach):
+                    if (!AttachTypes.Contains(part.Attach))
+                        ListPartValues();
+                    break;
+                case nameof(PersonalityPart.Table):
+                    LoadTable(part);
+                    break;
+                case nameof(PersonalityPart.Variant):
+                    LoadModel(part);
                     break;
                 case nameof(PersonalityPart.Key):
                     MarkCopies(part);
@@ -200,31 +219,42 @@ namespace Editors.UnitSimulator.Personalities
         /// <summary>Gives the part its variant's model and its table, on the table's own skeleton, playing STAND.</summary>
         public void Load(PersonalityPart part)
         {
-            var problems = new List<string>();
-            var data = part.Part.Data;
+            LoadModel(part);
+            LoadTable(part);
+        }
+
+        // Each half on its own: the pickers set Table and Variant on every keystroke.
+        void LoadModel(PersonalityPart part)
+        {
             var variant = Rows.Variant(part.Variant);
             var modelPath = variant == null ? "" : $@"variantmeshes\variantmeshdefinitions\{variant.Text("variant_filename")}.variantmeshdefinition";
             if (variant == null)
-                problems.Add($"No loaded variants table has the variant {part.Variant}.");
+                part.ModelStatus = $"No loaded variants table has the variant {part.Variant}.";
             else if (_pfs.FindFile(modelPath) is not { } model)
-                problems.Add($"The variant {part.Variant} names {modelPath.Replace('\\', '/')}, which no loaded pack has.");
+                part.ModelStatus = $"The variant {part.Variant} names {modelPath.Replace('\\', '/')}, which no loaded pack has.";
             else
-                _editor.SetMesh(data, model, false);
+            {
+                _editor.SetMesh(part.Part.Data, model, false);
+                part.ModelStatus = "";
+            }
+        }
 
+        void LoadTable(PersonalityPart part)
+        {
             if (!Tables.TryGetValue(part.Table, out var table))
-                problems.Add($"No loaded animpack has the table {part.Table}.");
+                part.TableStatus = $"No loaded animpack has the table {part.Table}.";
             else if (_pfs.FindFile($@"animations\skeletons\{table.SkeletonName}.anim") is not { } skeleton)
-                problems.Add($"The table {part.Table} uses the skeleton {table.SkeletonName}, which no loaded pack has.");
+                part.TableStatus = $"The table {part.Table} uses the skeleton {table.SkeletonName}, which no loaded pack has.";
             else
             {
                 // The skeleton first: a part's table list is read again for each new skeleton.
-                _editor.SetSkeleton(data, skeleton);
+                _editor.SetSkeleton(part.Part.Data, skeleton);
                 var tables = part.Part.FragAndSlotSelection.FragmentList;
                 tables.SelectedItem = tables.PossibleValues.FirstOrDefault(x => x.FullPath == table.FullPath);
                 var slots = part.Part.FragAndSlotSelection.FragmentSlotList;
                 slots.SelectedItem = slots.PossibleValues.FirstOrDefault(x => x.SlotName == "STAND") ?? slots.PossibleValues.FirstOrDefault();
+                part.TableStatus = "";
             }
-            part.LoadStatus = string.Join(" ", problems);
         }
 
         /// <summary>A tech skeleton browsed to, offered beside the ones the variants rows give, and picked.</summary>
@@ -293,10 +323,23 @@ namespace Editors.UnitSimulator.Personalities
                 }
             }
             _bones = bones;
-            BoneNames = new([NoBone, .. bones.Select(x => x.Name).Distinct()]);
+            ListPartValues();
             TechStatus = string.Join(" ", new[] { problem ?? "", _techNote }.Where(x => x != ""));
             foreach (var part in Parts)
                 Check(part);
+        }
+
+        // The pickers' lists: the mount's bones and the three attach types, each with every part's own value too. A WPF picker whose list
+        // loses the shown part's value writes null into it, so a mount swapped under a selected part would erase its bone.
+        void ListPartValues()
+        {
+            var own = Parts.Select(x => x.Bone).Where(x => !string.IsNullOrEmpty(x));
+            string[] bones = [NoBone, .. _bones.Select(x => x.Name).Concat(own).Distinct()];
+            if (!bones.SequenceEqual(BoneNames))
+                BoneNames = new(bones);
+            string[] attaches = [.. Attaches.Concat(Parts.Select(x => x.Attach).Where(x => !string.IsNullOrEmpty(x))).Distinct()];
+            if (!attaches.SequenceEqual(AttachTypes))
+                AttachTypes = new(attaches);
         }
 
         void Check(PersonalityPart part) =>

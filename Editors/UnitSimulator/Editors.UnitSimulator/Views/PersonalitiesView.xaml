@@ -5,6 +5,7 @@
         <StackPanel Margin="5">
             <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
                        Text="Riders the DB puts on a bone of the mount: battle_personalities rows, attached by land_units_to_battle_personalities_junctions. Each plays its own table. The bones are read from the mount model's tech skeleton."/>
+            <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding DbStatus}" Margin="0,0,0,8"/>
 
             <TextBlock Text="Tech skeleton"/>
             <DockPanel Margin="0,0,0,2">

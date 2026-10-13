@@ -119,6 +119,21 @@ namespace Test.UnitSimulator
             Assert.That(second.Part.Data.Offset, Is.EqualTo(first.Part.Data.Offset));
         }
 
+        // A mod's table file the extract cannot decode (cut short here) is skipped and named, and the mount still loads.
+        [Test]
+        public void AnUnreadableDbFile_IsSkippedAndNamed_AndTheMountStillLoads()
+        {
+            var runner = VanillaGame.Load(withDb: true);
+            var file = MadeUpDb.File(PersonalityRows.Personalities, 12, ["derpy_test_cut", "hu1_liche_priest_staff_and_sword", "", "", "", false, false, false]);
+            MadeUpDb.AddPack(runner, "derpy_test_cut", PersonalityRows.Personalities, "derpy_test_cut", file[..^3]);
+
+            var (_, sim) = OpenOn(CasketModel, runner);
+
+            Assert.That(sim.Personalities.DbStatus, Does.Contain("derpy_test_cut"));
+            Assert.That(sim.Personalities.TechSkeletons, Is.EqualTo(new[] { CasketTech }));
+            Assert.That(sim.Personalities.Rows.Copies(CasketRider), Is.Not.Empty);
+        }
+
         [Test]
         public void AVariantATableAndABoneNoPackHas_AreEachNamed()
         {

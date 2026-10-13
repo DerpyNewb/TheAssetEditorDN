@@ -57,6 +57,9 @@ namespace Test.UnitSimulator
                     if (!tech.Bones[i].Name.StartsWith("ap_", StringComparison.Ordinal) || tech.Bones[i].ParentId < -1 || tech.Bones[i].ParentId >= animation.Length)
                         problems.Add($"{path}: bone {i}, {tech.Bones[i].Name} under {tech.Bones[i].ParentId}, is not an ap_ bone on an animated one or the root");
                 added += tech.Bones.Length - animation.Length;
+                // The tab builds each file it offers as a GameSkeleton, which reads every bone's pose from frame 0.
+                try { _ = new GameSkeleton(tech, null); }
+                catch (ArgumentOutOfRangeException) { problems.Add($"{path}: no frame 0 with a pose for every bone"); }
             }
 
             TestContext.Out.WriteLine($"{folders.Count} tech folders, {byFolder.Count(x => x.Value.Count == 0)} with no .anim in the loaded packs, " +

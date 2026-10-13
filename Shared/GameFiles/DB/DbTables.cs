@@ -1,3 +1,4 @@
+using System.IO;
 using Shared.Core.PackFiles;
 
 namespace Shared.GameFormats.DB
@@ -14,7 +15,8 @@ namespace Shared.GameFormats.DB
     /// kept once per file: which copy the game keeps is not measured (docs/superpowers/specs/2026-10-13-unit-simulator-personalities-design.md, 3.6).</summary>
     public static class DbTables
     {
-        public static List<DbRow> Read(IPackFileService pfs, string table)
+        /// <param name="problems">With a list, a file that does not decode is skipped and named in it; without one, it throws.</param>
+        public static List<DbRow> Read(IPackFileService pfs, string table, List<string>? problems = null)
         {
             var folder = @"db\" + table;
             var rows = new List<DbRow>();
@@ -28,8 +30,15 @@ namespace Shared.GameFormats.DB
                     if (container.FindFile(path) is not { } file)
                         continue;
                     var shown = path.Replace('\\', '/');
-                    var (version, read) = DbTableReader.Read(file.DataSource.ReadData(), table, $"{container.Name}: {shown}");
-                    rows.AddRange(read.Select(x => new DbRow(x, version, container.Name, shown)));
+                    try
+                    {
+                        var (version, read) = DbTableReader.Read(file.DataSource.ReadData(), table, $"{container.Name}: {shown}");
+                        rows.AddRange(read.Select(x => new DbRow(x, version, container.Name, shown)));
+                    }
+                    catch (InvalidDataException e) when (problems != null)
+                    {
+                        problems.Add(e.Message);
+                    }
                 }
             }
             return rows;

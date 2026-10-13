@@ -13,6 +13,8 @@ namespace Editors.UnitSimulator.Personalities
         public const string Variants = "variants_tables";
 
         public List<DbRow> All { get; }
+        /// <summary>The table files that did not decode, skipped (each names its pack, file, table and version).</summary>
+        public List<string> Problems { get; } = [];
         readonly ILookup<string, DbRow> _byKey;
         readonly List<DbRow> _junctions;
         readonly List<DbRow> _variants;
@@ -20,10 +22,10 @@ namespace Editors.UnitSimulator.Personalities
 
         public PersonalityRows(IPackFileService pfs)
         {
-            All = DbTables.Read(pfs, Personalities);
+            All = DbTables.Read(pfs, Personalities, Problems);
             _byKey = All.ToLookup(x => x.Text("key"));
-            _junctions = DbTables.Read(pfs, Junctions);
-            _variants = DbTables.Read(pfs, Variants);
+            _junctions = DbTables.Read(pfs, Junctions, Problems);
+            _variants = DbTables.Read(pfs, Variants, Problems);
         }
 
         public List<DbRow> Copies(string key) => [.. _byKey[key]];

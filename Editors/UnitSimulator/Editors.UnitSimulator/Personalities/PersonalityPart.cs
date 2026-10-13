@@ -21,12 +21,13 @@ namespace Editors.UnitSimulator.Personalities
         [ObservableProperty] string _bone;
         [ObservableProperty] int _engineArticulationIndex;
         [ObservableProperty] bool _jettisonRider;
-        [ObservableProperty, NotifyPropertyChangedFor(nameof(Status))] string _loadStatus = "";
+        [ObservableProperty, NotifyPropertyChangedFor(nameof(Status))] string _modelStatus = "";
+        [ObservableProperty, NotifyPropertyChangedFor(nameof(Status))] string _tableStatus = "";
         [ObservableProperty, NotifyPropertyChangedFor(nameof(Status))] string _boneStatus = "";
         [ObservableProperty] string _copies = "";
 
         /// <summary>What of its rows was not found, or empty.</summary>
-        public string Status => string.Join(" ", new[] { LoadStatus, BoneStatus }.Where(x => x != ""));
+        public string Status => string.Join(" ", new[] { ModelStatus, TableStatus, BoneStatus }.Where(x => x != ""));
 
         public string BattleEntity => Source.Text("battle_entity");
         public string BattleEntityStats => Source.Text("battle_entity_stats");

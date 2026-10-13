@@ -41,6 +41,18 @@ namespace Test.UnitSimulator
             Assert.That(bones[0].Parent, Is.EqualTo(tech.GetParentBoneIndex(tech.GetBoneIndexByName("ap_riderposition_0"))));
         }
 
+        // A tech file whose bone table passes but which holds no frame 0. TechSkeletonTests 1a builds all 120 vanilla ones; a mod's need not.
+        [Test]
+        public void ATechFileWithNoFrame_IsNamed_NotThrown()
+        {
+            var pfs = VanillaGame.Load(withDb: true).PackFileService;
+            var tech = AnimationFile.Create(pfs.FindFile(CasketTech)!);
+            tech.AnimationParts[0].DynamicFrames.Clear();
+            var (bones, problem) = AttachBones.FromTech(Skeleton(pfs, @"animations\skeletons\casket_souls01.anim"), tech, CasketTech);
+            Assert.That(bones, Is.Empty);
+            Assert.That(problem, Does.Contain("tmb_casket_of_souls_01"));
+        }
+
         // Computed two ways (OnAnimation), the whole matrix: the rider takes the bone's turn as well as its place.
         [Test]
         public void AtTheBindPose_AnApBone_IsItsTechMatrixOnTheAnimationSkeleton()
