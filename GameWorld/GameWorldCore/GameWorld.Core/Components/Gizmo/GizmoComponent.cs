@@ -186,9 +186,10 @@ namespace GameWorld.Core.Components.Gizmo
             _gizmo.ScaleModifier = 1;
         }
 
+        // Half size is the floor: below it the steps of 0.5 reach 0, where the gizmo vanishes, and then turn it inside out
         public void ModifyGizmoScale(float v)
         {
-            _gizmo.ScaleModifier += v;
+            _gizmo.ScaleModifier = Math.Max(0.5f, _gizmo.ScaleModifier + v);
         }
 
         public void Dispose()
