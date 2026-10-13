@@ -216,6 +216,13 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(smoke.Orientation, Is.EqualTo(expected));
         }
 
+        [Test]
+        public void OverlayColour_IsRead()
+        {
+            var overlaid = SmokeChain.Replace("""value="true"/></modifier>""", """value="true"/><property name="overlay_colour" type="bool" value="true"/></modifier>""");
+            Assert.That((Read(Emitter("smoke"), overlaid).Single().Overlay, Read(Emitter("smoke"), SmokeChain).Single().Overlay), Is.EqualTo((true, false)));
+        }
+
         // ParticleRelativeSpawnOrientation is read on a quad emitter too: a 3D quad stands on the ground as a rigid model does.
         [Test]
         public void RelativeSpawnOrientation_IsReadOnAQuadEmitter()

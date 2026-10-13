@@ -21,6 +21,11 @@ float4x4 World;
 // A vertex colour stops at 1: an HDR emitter's colours arrive divided by Scale and are multiplied back here.
 float Scale = 1;
 float Premultiplied = 1;
+// ps_texture overlay_colour: the vertex colour comes straight and is overlaid on the texture; the chain's additive brightness
+// and alpha weight (VfxConventions.Blend) go on after.
+float Overlay = 0;
+float OverlayBrightness = 1;
+float OverlayAlphaWeight = 1;
 // ps_alpha_crush sharp_transition.
 float CrushSharp = 0;
 // ps_gradient: whether the chain has one, its alpha_mapping, and its strip at 16 points from 0 to 1.
@@ -138,6 +143,13 @@ float3 Gamma(float3 x)
 	return float3(Gamma(x.r), Gamma(x.g), Gamma(x.b));
 }
 
+// CA's process_texture_colour calls blend_overlay(texture, colour), which no shipped CA source defines: this is the standard
+// overlay, with the texture as the base.
+float3 BlendOverlay(float3 base, float3 blend)
+{
+	return lerp(2 * base * blend, 1 - 2 * (1 - base) * (1 - blend), step(0.5, base));
+}
+
 // The quad's own plane, on the side facing the camera, as CA's billboard faces it.
 float3 Facing(float3 worldPosition)
 {
@@ -247,6 +259,19 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 			a *= saturate((scene - input.Depth) / (SoftFactor * lerp(1, saturate(min(input.Size.x, input.Size.y)), SoftStrength) + 0.001));
 		if (Occlude > 0 && scene < input.Depth)
 			a = 0;
+	}
+
+	// ps_texture overlay_colour, as CA's process_texture_colour has it: the colour is overlaid on the texture, in linear as CA's
+	// colours are, rather than multiplied in; the alpha still multiplies. Lit, the overlaid colour is the albedo (a lit chain has
+	// no additive blend, so no brightness or alpha weight).
+	if (Overlay > 0)
+	{
+		float3 overlaid = BlendOverlay(UseGradient > 0 ? rgb : saturate(Linear(rgb)), input.Colour.rgb);
+		rgb = Lit > 0
+			? Gamma(saturate(Uncharted2ToneMapping(overlaid * ParticleLight(Normal(input), input.Size.x))))
+			: Gamma(saturate(overlaid)) * OverlayBrightness;
+		a *= input.Colour.a;
+		return float4(Premultiplied > 0 ? rgb * a : rgb, Premultiplied > 0 && Lit == 0 ? a * OverlayAlphaWeight : a);
 	}
 
 	// ps_lighting: the colour is linear, the texture's decoded (a gradient's strip is linear already), times the vertex colour,

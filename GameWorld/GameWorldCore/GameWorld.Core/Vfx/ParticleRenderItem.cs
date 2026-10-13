@@ -144,6 +144,10 @@ namespace GameWorld.Core.Vfx
             effect.Parameters["Scale"].SetValue(scale);
             effect.Parameters["Texture"].SetValue(texture);
             effect.Parameters["Premultiplied"].SetValue(settings.Premultiplied ? 1f : 0f);
+            var (alphaWeight, brightness) = VfxConventions.Blend(settings.AdditiveMul);
+            effect.Parameters["Overlay"].SetValue(settings.Overlay ? 1f : 0f);
+            effect.Parameters["OverlayBrightness"].SetValue(brightness);
+            effect.Parameters["OverlayAlphaWeight"].SetValue(alphaWeight);
             effect.Parameters["CrushSharp"].SetValue(settings.CrushSharp ? 1f : 0f);
             effect.Parameters["UseGradient"].SetValue(settings.Gradient != null ? 1f : 0f);
             effect.Parameters["GradientMapsAlpha"].SetValue(settings.GradientMapsAlpha ? 1f : 0f);
@@ -423,15 +427,16 @@ namespace GameWorld.Core.Vfx
         /// <summary>
         /// Premultiplied chains: (rgb x a, a x alphaWeight) under one premultiplied blend, so alpha and additive
         /// particles mix in one sorted draw. The 825 straight-alpha chains draw their plain colour under a
-        /// straight-alpha or additive blend instead. A lit chain's colour comes straight, since the shader lights it first.
+        /// straight-alpha or additive blend instead. A lit chain's colour comes straight, since the shader lights it first, and so
+        /// does an overlay chain's, since the shader overlays it on the texture before the brightness and alpha weight go on.
         /// </summary>
         public static Color VertexColour(EmitterSettings s, Vector3 rgb, float alpha)
         {
             var (alphaWeight, brightness) = VfxConventions.Blend(s.AdditiveMul);
             alpha = Math.Clamp(alpha, 0, 1);
-            return s.Premultiplied && !s.Lit
+            return s.Premultiplied && !s.Lit && !s.Overlay
                 ? new Color(new Vector4(rgb * alpha * brightness, alpha * alphaWeight))
-                : new Color(new Vector4(rgb * brightness, alpha));
+                : new Color(new Vector4(s.Overlay ? rgb : rgb * brightness, alpha));
         }
 
         // The app draws its scene onto nothing and lays it over the background by its alpha, so a particle's alpha is what it

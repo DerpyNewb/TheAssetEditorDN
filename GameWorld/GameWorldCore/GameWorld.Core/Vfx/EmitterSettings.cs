@@ -116,6 +116,8 @@ namespace GameWorld.Core.Vfx
         // Look
         public string? Texture { get; set; }
         public bool Premultiplied { get; set; } = true;
+        /// <summary>ps_texture's overlay_colour: the colour is overlaid on the texture instead of multiplied in.</summary>
+        public bool Overlay { get; set; }
         public float AdditiveMul { get; set; }
         /// <summary>ps_normal: the ps_texture normal map that shapes a lit chain's light; null without ps_normal.</summary>
         public string? NormalMap { get; set; }
@@ -343,6 +345,7 @@ namespace GameWorld.Core.Vfx
             else if (texture == null && s.Draws && s.Rigid.Count == 0 && !s.Light)
                 NotDrawn(s, "the chain has no ps_texture, so nothing is drawn: in vanilla only sound carriers lack one");
             s.Premultiplied = texture?.Properties.GetValueOrDefault("pre_multiplied_alpha")?.IsTrue ?? true;
+            s.Overlay = texture?.Properties.GetValueOrDefault("overlay_colour")?.IsTrue ?? false;
             if (!s.Distortion && chain.Find("ps_normal") != null && texture?.Textures.GetValueOrDefault("normal") is { Length: > 0 } normalMap)
                 s.NormalMap = normalMap;
             var lighting = chain.Find("ps_lighting");

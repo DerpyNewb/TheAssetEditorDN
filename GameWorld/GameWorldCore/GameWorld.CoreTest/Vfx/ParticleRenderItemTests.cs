@@ -90,6 +90,57 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // ps_texture's overlay_colour: CA's process_texture_colour overlays the colour on the texture instead of multiplying it in,
+        // and the alpha still multiplies. A mid-grey texel (0.216 linear, under the overlay's half) under a (1, 0.5, 0) colour:
+        // 2 x 0.216 x 1 = 0.432 red, 0.216 green, none blue, back to the screen's gamma (0.690, 0.502, 0). The same blend in
+        // gamma, or with the colour as the base, gives full red; a multiply gives (0.502, 0.251, 0). At half alpha over grey
+        // the premultiplied colour is that half covering the background's half. An additive_blend_mul of 2 doubles the overlaid
+        // colour after the blend and hides none of the background: 2 x 0.25 x (0.690, 0.502, 0) over all of the grey.
+        [TestCase(true, 1f, 0f, 0.690f, 0.502f, 0f)]
+        [TestCase(false, 1f, 0f, 0.502f, 0.251f, 0f)]
+        [TestCase(true, 0.5f, 0f, 0.596f, 0.502f, 0.251f)]
+        [TestCase(true, 0.25f, 2f, 0.847f, 0.753f, 0.502f)]
+        public void OverlayColour_OverlaysTheColourOnTheTexture(bool overlay, float alpha, float additive, float red, float green, float blue)
+        {
+            using var grey = new Texture2D(_device, 1, 1);
+            grey.SetData(new[] { new Color(128, 128, 128, 255) });
+            var particle = RedHalfAlpha with { Colour = new Vector3(1, 0.5f, 0), Alpha = alpha };
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, View, Matrix.Identity, camera,
+                new EmitterSettings { Overlay = overlay, AdditiveMul = additive }, grey, [particle]));
+            Assert.Multiple(() =>
+            {
+                Assert.That(pixel.X, Is.EqualTo(red).Within(0.02));
+                Assert.That(pixel.Y, Is.EqualTo(green).Within(0.02));
+                Assert.That(pixel.Z, Is.EqualTo(blue).Within(0.02));
+            });
+        }
+
+        // 122 of vanilla's 448 overlay chains are lit: the overlaid colour is the albedo, under the sky's 0.261 from a white ambient
+        // cube. The grey texel decodes to 0.216; overlaid with (1, 0.5, 0) that is (0.432, 0.216, 0).
+        [Test]
+        public void OverlayColour_IsTheAlbedoOfALitChain()
+        {
+            using var sky = new TextureCube(_device, 1, false, SurfaceFormat.Color);
+            foreach (var face in Enum.GetValues<CubeMapFace>())
+                sky.SetData(face, new[] { Color.White });
+            using var grey = new Texture2D(_device, 1, 1);
+            grey.SetData(new[] { new Color(128, 128, 128, 255) });
+            var effect = Shader;
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var quad = new ParticleState(Vector3.Zero, Vector3.Zero, new Vector2(10, 10), 0, new Vector3(1, 0.5f, 0), 1, 0, 0);
+            effect.Parameters["AmbientCube"].SetValue(sky);
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, effect, View, Matrix.Identity, camera,
+                new EmitterSettings { Lighting = new ParticleLighting(0, 0, 0.4f, 0, 0.6f), Overlay = true }, grey, [quad]));
+            effect.Parameters["AmbientCube"].SetValue((TextureCube?)null);
+            var texel = MathF.Pow((128 / 255f + 0.055f) / 1.055f, 2.4f);
+            Assert.Multiple(() =>
+            {
+                Assert.That(pixel.X, Is.EqualTo(Encode(Uncharted2(2 * texel * 0.261f))).Within(0.01));
+                Assert.That(pixel.Y, Is.EqualTo(Encode(Uncharted2(texel * 0.261f))).Within(0.01));
+            });
+        }
+
         // The app draws its scene onto nothing and lays it over the background by its alpha, so over nothing a particle's
         // alpha is what it hides of the background: half for one laid over at half, none for light it adds.
         [TestCase(false, 0f, 0.5f, Description = "straight-alpha texture, alpha blend")]
