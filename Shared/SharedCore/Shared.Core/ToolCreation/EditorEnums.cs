@@ -24,6 +24,7 @@
         BMD_Editor,
         Csc_Editor,
         Vfx_Editor,
+        UnitSimulator_Editor,
         None,
     }
 }

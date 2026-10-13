@@ -1,0 +1,41 @@
+<UserControl x:Class="Editors.UnitSimulator.Views.EditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:meta="clr-namespace:Editors.AnimationMeta.Presentation.View;assembly=Editors.AnimationMeta">
+    <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Margin="5" Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding LinkStatus}"/>
+        <TabControl>
+            <TabItem Header="Pairing">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Margin="5" TextWrapping="Wrap"
+                               Text="One row per slot of the mount's table. The rider plays RIDER_ and the mount slot's name. Click a row to play the pair."/>
+                    <ItemsControl DockPanel.Dock="Top" Margin="5,0,5,5" ItemsSource="{Binding MountRiderTags}"/>
+                    <Expander DockPanel.Dock="Bottom" Margin="5" Header="Rider-only slots: pick these on the Rider panel while the mount plays its own">
+                        <ListBox ItemsSource="{Binding RiderOnlySlots}" MaxHeight="160"/>
+                    </Expander>
+                    <DataGrid Margin="5,0" ItemsSource="{Binding Pairs}" SelectedItem="{Binding SelectedPair, Mode=TwoWay}"
+                              AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Mount slot" Binding="{Binding MountSlot}"/>
+                            <DataGridTextColumn Header="Rider slot" Binding="{Binding RiderSlot}"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}"/>
+                            <DataGridTextColumn Header="Length" Binding="{Binding Detail}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Mount meta">
+                <TabControl>
+                    <TabItem Header="Persistent"><meta:MainEditorView DataContext="{Binding MountMeta.Persistent}"/></TabItem>
+                    <TabItem Header="Slot"><meta:MainEditorView DataContext="{Binding MountMeta.Slot}"/></TabItem>
+                </TabControl>
+            </TabItem>
+            <TabItem Header="Rider meta">
+                <TabControl>
+                    <TabItem Header="Persistent"><meta:MainEditorView DataContext="{Binding RiderMeta.Persistent}"/></TabItem>
+                    <TabItem Header="Slot"><meta:MainEditorView DataContext="{Binding RiderMeta.Slot}"/></TabItem>
+                </TabControl>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

@@ -1,5 +1,8 @@
+using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 using Shared.GameFormats.AnimationPack;
 using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
+using Test.TestingUtility.Shared;
 
 namespace Test.UnitSimulator
 {
@@ -18,6 +21,18 @@ namespace Test.UnitSimulator
                     AnimationRefs = [new() { AnimationFile = anim, AnimationMetaFile = "", AnimationSoundMetaFile = "" }],
                 });
             return table;
+        }
+
+        // The tables in one animpack in a new editable pack, as a mod ships them. Add it before giving a part its skeleton: a part
+        // lists its tables when its skeleton changes.
+        public static IPackFileContainer AddToEditablePack(AssetEditorTestRunner runner, string animPackName, params AnimationBinWh3[] tables)
+        {
+            var animPack = new AnimationPackFileDatabase(animPackName);
+            foreach (var table in tables)
+                animPack.AddFile(table);
+            var pack = runner.CreateOutputPack();
+            runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry(@"animations\database\battle\bin", PackFile.CreateFromBytes(animPackName, AnimationPackSerializer.ConvertToBytes(animPack)))]);
+            return pack;
         }
     }
 }
