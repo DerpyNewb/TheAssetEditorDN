@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:meta="clr-namespace:Editors.AnimationMeta.Presentation.View;assembly=Editors.AnimationMeta">
     <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Margin="5" Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding LinkStatus}"/>
         <TabControl>
             <TabItem Header="Pairing">
                 <DockPanel>
@@ -58,10 +57,6 @@
                             <TextBox Text="{Binding SlotWeight}" Width="60"/>
                         </StackPanel>
                         <Button Content="Apply to this slot" Command="{Binding ApplySlotEditCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,0,0,12"/>
-
-                        <TextBlock Text="The rider table's MountBin: the name of its mount's table"/>
-                        <TextBox Text="{Binding RiderMountBin, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,4"/>
-                        <Button Content="Apply MountBin" Command="{Binding ApplyMountBinCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,0,0,12"/>
 
                         <Button Content="Add the selected Pairing row's missing rider slot, copied from the rider's current slot"
                                 Command="{Binding AddMissingRiderSlotCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,0,0,12"/>

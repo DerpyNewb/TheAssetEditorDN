@@ -74,23 +74,14 @@ namespace Test.UnitSimulator
             var bytes = Bytes(VanillaGame.Load().PackFileService, VanillaGame.TablesAnimPack);
             var before = AnimTableEdits.ReadEntries(bytes).ToList();
             var knight = new AnimationBinWh3(VanillaGame.KnightTable, before.Single(x => x.Name == VanillaGame.KnightTable).Data);
-            AnimTableEdits.SetMountBin(knight, "derpy_test_mount");
+            AnimTableEdits.SetBlendAndWeight(knight, 1901, 0.5f, 3);
 
             var after = AnimTableEdits.ReadEntries(AnimTableEdits.Splice(bytes, VanillaGame.KnightTable, knight.ToByteArray())).ToList();
             Assert.That(after.Select(x => x.Name), Is.EqualTo(before.Select(x => x.Name)));
             for (var i = 0; i < before.Count; i++)
                 if (before[i].Name != VanillaGame.KnightTable)
                     Assert.That(after[i].Data, Is.EqualTo(before[i].Data), before[i].Name);
-            Assert.That(new AnimationBinWh3(VanillaGame.KnightTable, after.Single(x => x.Name == VanillaGame.KnightTable).Data).MountBin, Is.EqualTo("derpy_test_mount"));
-        }
-
-        [Test]
-        public void SetMountBin_LeavesEveryRowAlone()
-        {
-            var table = Rider();
-            var rows = Rows(table);
-            AnimTableEdits.SetMountBin(table, "other");
-            Assert.That((table.MountBin, Rows(table)), Is.EqualTo(("other", rows)));
+            Assert.That(AnimTableEdits.Row(new AnimationBinWh3(VanillaGame.KnightTable, after.Single(x => x.Name == VanillaGame.KnightTable).Data), 1901).BlendIn, Is.EqualTo(0.5f));
         }
 
         [Test]
@@ -161,14 +152,15 @@ namespace Test.UnitSimulator
             var saver = runner.ServiceProvider.GetRequiredService<IFileSaveService>();
             var tables = VanillaGame.Tables(pfs);
 
-            AnimTableEdits.SetMountBin(tables[VanillaGame.KnightTable], "derpy_first");
+            AnimTableEdits.SetBlendAndWeight(tables[VanillaGame.KnightTable], 1901, 0.5f, 3);
             Assert.That(AnimTableEdits.Save(pfs, saver, tables[VanillaGame.KnightTable]), Is.Null);
-            AnimTableEdits.SetMountBin(tables[VanillaGame.WarhorseTable], "derpy_second");
+            var horseSlot = (int)tables[VanillaGame.WarhorseTable].AnimationTableEntries[0].AnimationId;
+            AnimTableEdits.SetBlendAndWeight(tables[VanillaGame.WarhorseTable], horseSlot, 0.75f, 2);
             Assert.That(AnimTableEdits.Save(pfs, saver, tables[VanillaGame.WarhorseTable]), Is.Null);
 
             var saved = AnimTableEdits.ReadEntries(pfs.FindFile(VanillaGame.TablesAnimPack, editable)!.DataSource.ReadData()).ToDictionary(x => x.Name, x => x.Data);
-            Assert.That(new AnimationBinWh3(VanillaGame.KnightTable, saved[VanillaGame.KnightTable]).MountBin, Is.EqualTo("derpy_first"));
-            Assert.That(new AnimationBinWh3(VanillaGame.WarhorseTable, saved[VanillaGame.WarhorseTable]).MountBin, Is.EqualTo("derpy_second"));
+            Assert.That(AnimTableEdits.Row(new AnimationBinWh3(VanillaGame.KnightTable, saved[VanillaGame.KnightTable]), 1901).BlendIn, Is.EqualTo(0.5f));
+            Assert.That(AnimTableEdits.Row(new AnimationBinWh3(VanillaGame.WarhorseTable, saved[VanillaGame.WarhorseTable]), horseSlot).BlendIn, Is.EqualTo(0.75f));
         }
 
         [Test]
@@ -178,13 +170,13 @@ namespace Test.UnitSimulator
             var pfs = runner.PackFileService;
             var editable = runner.CreateOutputPack();
             var knight = VanillaGame.Tables(pfs)[VanillaGame.KnightTable];
-            AnimTableEdits.SetMountBin(knight, "derpy_test_mount");
+            AnimTableEdits.SetBlendAndWeight(knight, 1901, 0.5f, 3);
 
             Assert.That(AnimTableEdits.Save(pfs, runner.ServiceProvider.GetRequiredService<IFileSaveService>(), knight), Is.Null);
 
             var saved = pfs.FindFile(VanillaGame.TablesAnimPack, editable)!.DataSource.ReadData();
             var entry = AnimTableEdits.ReadEntries(saved).Single(x => x.Name == VanillaGame.KnightTable).Data;
-            Assert.That(new AnimationBinWh3(VanillaGame.KnightTable, entry).MountBin, Is.EqualTo("derpy_test_mount"));
+            Assert.That(AnimTableEdits.Row(new AnimationBinWh3(VanillaGame.KnightTable, entry), 1901).BlendIn, Is.EqualTo(0.5f));
         }
     }
 }

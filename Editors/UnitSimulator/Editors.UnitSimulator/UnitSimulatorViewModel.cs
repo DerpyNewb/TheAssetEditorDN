@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.AnimationMeta.Presentation;
@@ -25,8 +24,9 @@ using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
 
 namespace Editors.UnitSimulator
 {
-    /// <summary>A rider on its mount, played the way the game pairs them: the rider's table names its mount's (MountBin), the mount's
-    /// slot X plays the rider's RIDER_X, and both play from one origin on one clock. docs/superpowers/specs/2026-10-13-unit-simulator-design.md.</summary>
+    /// <summary>A rider on its mount, played the way the game pairs them: the mount's slot X plays the rider's RIDER_X, both from one
+    /// origin on one clock. Both tables are picked by hand: WH3 does not read a table's MountBin
+    /// (docs/superpowers/specs/2026-10-13-unit-simulator-personalities-design.md). docs/superpowers/specs/2026-10-13-unit-simulator-design.md.</summary>
     public partial class UnitSimulatorViewModel : EditorHostBase, ISaveableEditor
     {
         readonly IPackFileService _pfs;
@@ -35,7 +35,6 @@ namespace Editors.UnitSimulator
         readonly Dictionary<string, ClipLength?> _lengths = [];
         // Edited, unsaved tables by path. The instance here is the one saved, whatever a part's list holds.
         readonly Dictionary<string, AnimationBinWh3> _editedTables = [];
-        IAnimationBinGenericFormat? _wantedMountTable;
 
         public override Type EditorViewModelType => typeof(Views.EditorView);
 
@@ -44,7 +43,6 @@ namespace Editors.UnitSimulator
         public PartMeta MountMeta { get; }
         public PartMeta RiderMeta { get; }
 
-        [ObservableProperty] string _linkStatus = "";
         [ObservableProperty] ObservableCollection<PairRow> _pairs = [];
         [ObservableProperty] ObservableCollection<string> _riderOnlySlots = [];
         [ObservableProperty] ObservableCollection<string> _mountRiderTags = [];
@@ -81,10 +79,9 @@ namespace Editors.UnitSimulator
             Rider.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += _ => LoadSlotFields();
             Mount.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += _ => LoadSlotFields();
             // The part's BinAnimationViewModel subscribed first, so its table list is already rebuilt when these run; an edited table
-            // goes back into the list before the mount's is picked from it.
+            // goes back into the list.
             Rider.Data.SkeletonChanged += _ => KeepEditedTables(Rider);
             Mount.Data.SkeletonChanged += _ => KeepEditedTables(Mount);
-            Mount.Data.SkeletonChanged += _ => { if (_wantedMountTable != null) LinkStatus = SelectMountTable(); };
 
             eventHub.Register<SceneObjectUpdateEvent>(this, e => PartOf(e.Owner)?.LoadAndRebuild());
             eventHub.Register<MetaDataAttributeChangedEvent>(this, _ => RebuildMetas());
@@ -109,50 +106,10 @@ namespace Editors.UnitSimulator
             RiderMeta.OnSaved(e, _pfs, SceneObjectEditor);
         }
 
-        protected void OnRiderTableChanged(IAnimationBinGenericFormat? riderTable)
+        void OnRiderTableChanged(IAnimationBinGenericFormat? _)
         {
-            _wantedMountTable = null;
-            LinkStatus = riderTable == null ? "" : LinkMount(riderTable);
             RefreshPairs();
             LoadSlotFields();
-        }
-
-        // The rider's table names its mount's. The mount is given that table's skeleton when it has another or none, so a rider can be
-        // looked at before any mount model is picked; the model can be picked after. Empty when linked, else why not.
-        string LinkMount(IAnimationBinGenericFormat riderTable)
-        {
-            if (string.IsNullOrEmpty(riderTable.MountBin))
-                return $"{riderTable.Name} names no mount: its MountBin is empty.";
-            if (AnimTableEdits.FindByName(_pfs, riderTable.MountBin) is not { } mountTable)
-                return $"No loaded animpack has the mount table {riderTable.MountBin}.";
-
-            var needsSkeleton = Path.GetFileNameWithoutExtension(Mount.Data.SkeletonName.Value) != mountTable.SkeletonName;
-            var skeleton = needsSkeleton ? _pfs.FindFile($@"animations\skeletons\{mountTable.SkeletonName}.anim") : null;
-            if (needsSkeleton && skeleton == null)
-                return $"The mount table {mountTable.Name} uses the skeleton {mountTable.SkeletonName}, which no loaded pack has.";
-
-            // Set first: the new skeleton's SkeletonChanged picks the table once the part's list is read for it.
-            _wantedMountTable = mountTable;
-            if (skeleton != null)
-                SceneObjectEditor.SetSkeleton(Mount.Data, skeleton);
-            return SelectMountTable();
-        }
-
-        // A part's table list is read again whenever its skeleton changes (a model picked after the link, say), and that clears it. The
-        // rider's MountBin still names the table, so it is picked again. A model of another skeleton lists other tables: empty when
-        // picked, else that.
-        string SelectMountTable()
-        {
-            if (_wantedMountTable == null)
-                return "";
-            var tables = Mount.FragAndSlotSelection.FragmentList;
-            var match = tables.PossibleValues.FirstOrDefault(x => x.FullPath == _wantedMountTable.FullPath);
-            if (match == null)
-                return $"The mount's skeleton is {Path.GetFileNameWithoutExtension(Mount.Data.SkeletonName.Value)}, and its table {_wantedMountTable.Name} " +
-                    $"is for {_wantedMountTable.SkeletonName}. Pick a {_wantedMountTable.SkeletonName} model for the mount.";
-            if (tables.SelectedItem != match)
-                tables.SelectedItem = match;
-            return "";
         }
 
         void OnMountSlotChanged(AnimationBinEntryGenericFormat? mountSlot)
@@ -215,7 +172,6 @@ namespace Editors.UnitSimulator
         [ObservableProperty] string _slotSound = "";
         [ObservableProperty] float _slotBlend;
         [ObservableProperty] float _slotWeight;
-        [ObservableProperty] string _riderMountBin = "";
         [ObservableProperty] string _tableStatus = "";
 
         SceneObjectViewModel EditedPart => EditPart == "Mount" ? Mount : Rider;
@@ -230,7 +186,6 @@ namespace Editors.UnitSimulator
             SlotSound = slot?.SoundFile ?? "";
             SlotBlend = slot?.BlendInTime ?? 0;
             SlotWeight = slot?.SelectionWeight ?? 0;
-            RiderMountBin = Rider.FragAndSlotSelection.FragmentList.SelectedItem?.MountBin ?? "";
         }
 
         [RelayCommand]
@@ -245,19 +200,6 @@ namespace Editors.UnitSimulator
             AnimTableEdits.SetFiles(table, slot, SlotAnim, SlotMeta, SlotSound);
             AnimTableEdits.SetBlendAndWeight(table, slot.SlotIndex, SlotBlend, SlotWeight);
             Edited(part, table);
-        }
-
-        [RelayCommand]
-        void ApplyMountBin()
-        {
-            if (Rider.FragAndSlotSelection.FragmentList.SelectedItem is not AnimationBinWh3 table)
-            {
-                TableStatus = "Pick the rider's table first.";
-                return;
-            }
-            AnimTableEdits.SetMountBin(table, RiderMountBin.Trim());
-            // Picking the table again links it to the mount it names now.
-            Edited(Rider, table);
         }
 
         [RelayCommand]

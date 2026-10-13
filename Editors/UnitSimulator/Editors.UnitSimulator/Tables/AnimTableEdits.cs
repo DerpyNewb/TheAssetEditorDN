@@ -10,13 +10,7 @@ namespace Editors.UnitSimulator.Tables
     /// <summary>Edits to a battle table, and the save that writes one back into its animpack with every other entry untouched.</summary>
     public static class AnimTableEdits
     {
-        /// <summary>The loaded battle table of this name (a rider table's MountBin names its mount's), or null.</summary>
-        // ponytail: reads every animpack on each call, under a second for vanilla's three; cache by pack if picking a rider table drags.
-        public static IAnimationBinGenericFormat? FindByName(IPackFileService pfs, string name) =>
-            OneCopyEach(pfs, PackFileServiceUtility.GetAllAnimPacks(pfs).SelectMany(x => AnimationPackSerializer.Load(x, pfs).GetGenericAnimationSets()))
-                .FirstOrDefault(x => x.Name == name);
-
-        /// <summary>Every loaded battle table by name, one copy each (OneCopyEach), read once; FindByName reads every animpack per call.</summary>
+        /// <summary>Every loaded battle table by name, one copy each (OneCopyEach). Reads every animpack: call it once and keep the result.</summary>
         public static Dictionary<string, IAnimationBinGenericFormat> AllByName(IPackFileService pfs) =>
             OneCopyEach(pfs, PackFileServiceUtility.GetAllAnimPacks(pfs).SelectMany(x => AnimationPackSerializer.Load(x, pfs).GetGenericAnimationSets()))
                 .GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
@@ -81,8 +75,6 @@ namespace Editors.UnitSimulator.Tables
             var at = table.AnimationTableEntries.FindIndex(x => x.AnimationId > row.AnimationId);
             table.AnimationTableEntries.Insert(at < 0 ? table.AnimationTableEntries.Count : at, row);
         }
-
-        public static void SetMountBin(AnimationBinWh3 table, string mountBin) => table.MountBin = mountBin;
 
         /// <summary>An animpack's entries, name and bytes, in file order: u32 count, then per entry a CA string, a u32 size and the data.</summary>
         public static IEnumerable<(string Name, byte[] Data)> ReadEntries(byte[] animPack)

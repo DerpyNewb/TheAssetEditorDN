@@ -22,7 +22,8 @@ namespace Test.UnitSimulator
                 MadeUpTables.Table("derpy_test_mount", "horse01", "", ("ATTACK_1", "m_a1.anim"), ("ATTACK_2", "m_a2.anim")),
                 MadeUpTables.Table("derpy_test_rider", "humanoid01", "derpy_test_mount", ("RIDER_ATTACK_1", "r_a1.anim")));
             var sim = UnitSimulatorAppTests.Open(runner);
-            UnitSimulatorAppTests.PickRiderTable(runner, sim, "humanoid01", RiderPath);
+            UnitSimulatorAppTests.PickTable(runner, sim, sim.Rider, "humanoid01", RiderPath);
+            UnitSimulatorAppTests.PickTable(runner, sim, sim.Mount, "horse01", MountPath);
             UnitSimulatorAppTests.PickMountSlot(sim, "ATTACK_1");
             return (runner, sim, pack);
         }
@@ -61,15 +62,6 @@ namespace Test.UnitSimulator
             Assert.That(sim.HasUnsavedChanges, Is.True);
         }
 
-        [Test]
-        public void AMountBinNoTableHas_IsNamed()
-        {
-            var (_, sim, _) = Open();
-            sim.RiderMountBin = "derpy_nothing";
-            sim.ApplyMountBinCommand.Execute(null);
-            Assert.That(sim.LinkStatus, Is.EqualTo("No loaded animpack has the mount table derpy_nothing."));
-        }
-
         // Review Focus 4.
         [Test]
         public void SavingWithNoEditablePack_KeepsTheEditAndSaysWhy()
@@ -101,7 +93,8 @@ namespace Test.UnitSimulator
                 pfs.AddFilesToPack(mod, [new NewPackFileEntry(@"animations\database\battle\bin", PackFile.CreateFromBytes("animation_tables__.animpack", pfs.FindFile(VanillaGame.TablesAnimPack)!.DataSource.ReadData()))]);
             }
             var sim = UnitSimulatorAppTests.Open(runner);
-            UnitSimulatorAppTests.PickRiderTable(runner, sim, "humanoid01", VanillaGame.KnightTable);
+            UnitSimulatorAppTests.PickTable(runner, sim, sim.Rider, "humanoid01", VanillaGame.KnightTable);
+            UnitSimulatorAppTests.PickTable(runner, sim, sim.Mount, "horse01", VanillaGame.WarhorseTable);
             UnitSimulatorAppTests.PickMountSlot(sim, "ATTACK_1");
             sim.SlotAnim = "animations/derpy/first.anim";
             sim.ApplySlotEditCommand.Execute(null);
