@@ -152,9 +152,11 @@ namespace GameWorld.Core.Vfx
         public static Vector3 Decal(Vector3 worldPosition) => new(worldPosition.X, 0.01f, worldPosition.Z);
 
         /// <summary>DISTORTION (685 vanilla emitters) draws no colour: its ps_texture names only a normal map, and its alpha curve
-        /// fades it. The preview shifts the scene behind the quad by the map's red and green (0.5 still, green up) times the alpha,
-        /// a full reading moving it this many metres at the quad's distance. The game's scale is not measured.</summary>
-        public const float DistortionMetres = 0.25f;
+        /// fades it. CA's ps_distortion_alphablend writes the map's x (alpha) and y (green) into a buffer, and fx_hdr_to_screen moves
+        /// the finished scene by this share of the view per unit of it, in screen space, at any distance. One particle of alpha a
+        /// and tilt t moves it DistortionShare x (a t)^2 x t: the particle writes a t as the buffer's cover, and the screen pass
+        /// weighs the shift by the cover. That weighing is read off both of CA's blend modes agreeing, not off the blend state.</summary>
+        public const float DistortionShare = 0.02f;
 
         /// <summary>continuous_rigid (2,925 vanilla emitters): each particle is a model, a wsmodel in 2,745 of 2,936 RigidData
         /// entries. PivotPoint is read as a share of the model's box (0.5, 0.5, 0.5 in 2,701 entries: its middle) put on the

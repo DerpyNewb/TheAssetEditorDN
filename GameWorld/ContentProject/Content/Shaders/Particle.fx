@@ -34,8 +34,8 @@ sampler2D TextureSampler = sampler_state
 	Texture = <Texture>;
 };
 
-// DISTORTION: the scene drawn so far, copied, its texel size, and how far a full normal shifts it at 1 m, in texture units
-// across and down (VfxConventions.DistortionMetres through the projection).
+// DISTORTION: the scene drawn so far, copied, its texel size, and the share of the view a full shift moves it, in texture
+// units across and down (VfxConventions.DistortionShare).
 Texture2D Scene;
 sampler2D SceneSampler = sampler_state
 {
@@ -267,7 +267,6 @@ struct DistortionOutput
 	float4 Position : SV_POSITION;
 	float4 Colour : COLOR0;
 	float2 Uv : TEXCOORD0;
-	float Depth : TEXCOORD1;
 };
 
 DistortionOutput DistortionVS(in VertexShaderInput input)
@@ -276,18 +275,20 @@ DistortionOutput DistortionVS(in VertexShaderInput input)
 	output.Position = mul(input.Position, WorldViewProjection);
 	output.Colour = input.Colour;
 	output.Uv = input.Uv;
-	output.Depth = output.Position.w;
 	return output;
 }
 
-// The normal map's red and green, 0.5 still and green up, shift the scene behind the quad, faded by the particle's alpha.
-// The scene's own alpha moves with it, so a haze over nothing hides nothing of the background.
+// CA's ps_distortion_alphablend and fx_hdr_to_screen: the map is DXT5nm, x in alpha and y in green (red is unused, and 255 in
+// shockwave_normal), made unit with z rebuilt. The particle's alpha times the tilt is its cover, and the pixel under it is read
+// from Reach x cover^2 x tilt away along the tilt. Written back whole, alpha too, so the scene moves and leaves no copy behind;
+// y is added down the screen as CA adds it. ponytail: one particle's shift; CA sums overlapping ones in its buffer first.
 float4 DistortionPS(DistortionOutput input) : COLOR
 {
-	float2 bend = tex2D(TextureSampler, input.Uv).rg * 2 - 1;
-	float a = input.Colour.a;
-	float2 offset = float2(bend.x, -bend.y) * a * Reach / max(input.Depth, 0.01);
-	return tex2D(SceneSampler, input.Position.xy * InverseSceneSize + offset) * a;
+	float2 xy = tex2D(TextureSampler, input.Uv).ag * 2 - 1;
+	float3 n = normalize(float3(xy, sqrt(max(1 - dot(xy, xy), 0))));
+	float cover = saturate(input.Colour.a) * length(n.xy);
+	float2 offset = n.xy * cover * cover * Reach;
+	return tex2D(SceneSampler, input.Position.xy * InverseSceneSize + offset);
 }
 
 // DEFERRED_DYNAMIC_LIGHT, as the light it casts on the ground: ParticleRenderItem.DrawGroundLight draws one quad over the ground

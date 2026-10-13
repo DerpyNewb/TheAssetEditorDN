@@ -487,31 +487,99 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.X, Is.EqualTo(0).Within(0.01));
         }
 
-        // DISTORTION draws the scene behind it shifted by its normal map. A red-and-blue split seen from 1 m: a full +x normal
-        // brings the blue half under the pixel, a flat one leaves it red.
-        [TestCase(255, 0f, 1f)]
-        [TestCase(128, 1f, 0f)]
-        public void Distortion_ShiftsTheSceneBehind(int normalX, float red, float blue)
+        // CA reads a distortion map's x from alpha and its y from green (ps_distortion_alphablend samples it .ywxz); red is unused, and
+        // is 255 in every texel of shockwave_normal.dds. Read as x, it moved the whole quad's scene sideways: the Slayer Pirates' rum
+        // haze laid a second dwarf beside the first.
+        [Test]
+        public void Distortion_ReadsXFromAlpha_NotRed()
         {
-            var close = new CommonShaderParameters(Matrix.CreateLookAt(new Vector3(0, 0, 1), Vector3.Zero, Vector3.Up),
-                Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 0, 1), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
-            var normal = new Texture2D(_device, 1, 1);
-            normal.SetData(new[] { new Color(normalX, 128, 255, 255) });
-            using var split = new Texture2D(_device, 4, 1);
-            split.SetData(new[] { Color.Red, Color.Red, Color.Blue, Color.Blue });
-            using var batch = new SpriteBatch(_device);
-            using var cache = new VfxTextureCache((_, _) => normal);
+            using var cache = new VfxTextureCache((_, _) => Dxt5nm(128));
             using var item = new ParticleRenderItem(OneParticle("normal", distortion: true), cache, () => Shader);
-            var pixel = Render(() =>
-            {
-                batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp);
-                batch.Draw(split, new Rectangle(0, 0, 4, 4), Color.White);
-                batch.End();
-                _device.DepthStencilState = DepthStencilState.None;
-                _device.RasterizerState = RasterizerState.CullNone;
-                item.Draw(_device, close, RenderingTechnique.Normal);
-            });
-            Assert.That(new[] { pixel.X, pixel.Z }, Is.EqualTo(new[] { red, blue }).Within(0.05));
+            Assert.That(Shift(HazeOver(item, At(5), Ramp)), Is.EqualTo(0).Within(0.5));
+        }
+
+        // fx_hdr_to_screen moves the finished scene by 0.02 of the view per unit of the distortion buffer, in screen space: the same
+        // share at any distance, however big the particle. A full tilt at full alpha is 0.02 of a view 512 wide.
+        [TestCase(1f)]
+        [TestCase(5f)]
+        public void Distortion_MovesAFixedShareOfTheView_AtAnyDistance(float distance)
+        {
+            using var cache = new VfxTextureCache((_, _) => Dxt5nm(255));
+            using var item = new ParticleRenderItem(OneParticle("normal", distortion: true), cache, () => Shader);
+            Assert.That(Shift(HazeOver(item, At(distance), Ramp)), Is.EqualTo(0.02f * 512).Within(0.5));
+        }
+
+        // The particle writes its alpha times its tilt, a, as the buffer's cover and a times the tilt as the shift; the buffer keeps
+        // what is left uncovered, and the screen pass weighs the shift by the cover, so one particle moves the scene 0.02 x a^2 x tilt.
+        [TestCase(1f, 255, 1f)]
+        [TestCase(0.5f, 255, 0.25f)]
+        [TestCase(1f, 191, 0.125f)]
+        public void Distortion_WeighsTheShiftByAlphaAndTilt(float alpha, int x, float share)
+        {
+            using var cache = new VfxTextureCache((_, _) => Dxt5nm(x));
+            using var item = new ParticleRenderItem(OneParticle("normal", new Vector4(1, 1, 1, alpha), distortion: true), cache, () => Shader);
+            Assert.That(Shift(HazeOver(item, At(5), Ramp)), Is.EqualTo(0.02f * 512 * share).Within(0.5));
+        }
+
+        // The screen pass moves each pixel; it does not lay a moved copy over the scene. At half alpha the haze moves the centre 2.6
+        // pixels, onto blue: a copy laid over at half alpha left it half red.
+        [Test]
+        public void Distortion_MovesThePixel_LeavesNoCopyBehind()
+        {
+            using var cache = new VfxTextureCache((_, _) => Dxt5nm(255));
+            using var item = new ParticleRenderItem(OneParticle("normal", new Vector4(1, 1, 1, 0.5f), distortion: true), cache, () => Shader);
+            var pixel = HazeOver(item, At(5), x => x <= HazeWidth / 2 ? Color.Red : Color.Blue);
+            Assert.That(new[] { pixel.R, pixel.B }, Is.EqualTo(new[] { 0, 255 }).Within(3));
+        }
+
+        // The app lays its scene over the background by alpha, so the scene's alpha moves with it: a model's edge moved over empty
+        // view leaves the background showing there, not the model where it was.
+        [Test]
+        public void Distortion_MovesTheScenesAlphaToo()
+        {
+            using var cache = new VfxTextureCache((_, _) => Dxt5nm(255));
+            using var item = new ParticleRenderItem(OneParticle("normal", distortion: true), cache, () => Shader);
+            var pixel = HazeOver(item, At(5), x => x <= HazeWidth / 2 ? Color.Red : Color.Transparent);
+            Assert.That(pixel.A, Is.EqualTo(0).Within(3));
+        }
+
+        // A DXT5nm normal map of one texel, as CA's are: x in alpha, y in green, red and blue unused.
+        Texture2D Dxt5nm(int x, int y = 128)
+        {
+            var normal = new Texture2D(_device, 1, 1);
+            normal.SetData(new[] { new Color(255, y, 0, x) });
+            return normal;
+        }
+
+        static CommonShaderParameters At(float distance) => new(Matrix.CreateLookAt(new Vector3(0, 0, distance), Vector3.Zero, Vector3.Up),
+            Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, 0.1f, 100), new Vector3(0, 0, distance), Vector3.Zero, 0, 0, 0, 1, [], Vector3.One);
+
+        const int HazeWidth = 512;
+
+        // A red ramp, 4 levels a pixel across the middle 64 of the view, 128 at the centre pixel: the red the centre ends up with
+        // says where the scene under it was read from.
+        static Color Ramp(int x) => new(Math.Clamp((x - HazeWidth / 2 + 32) * 4, 0, 255), 0, 0, 255);
+
+        static float Shift(Color centre) => centre.R / 4f - 32;
+
+        // The centre pixel of a view HazeWidth across, after a haze draws over a scene of these columns.
+        Color HazeOver(ParticleRenderItem item, CommonShaderParameters view, Func<int, Color> scene)
+        {
+            using var target = new RenderTarget2D(_device, HazeWidth, 8, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+            using var columns = new Texture2D(_device, HazeWidth, 1);
+            columns.SetData(Enumerable.Range(0, HazeWidth).Select(scene).ToArray());
+            using var batch = new SpriteBatch(_device);
+            _device.SetRenderTarget(target);
+            batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp);
+            batch.Draw(columns, new Rectangle(0, 0, HazeWidth, 8), Color.White);
+            batch.End();
+            _device.DepthStencilState = DepthStencilState.None;
+            _device.RasterizerState = RasterizerState.CullNone;
+            item.Draw(_device, view, RenderingTechnique.Normal);
+            _device.SetRenderTarget(null);
+            var pixels = new Color[HazeWidth * 8];
+            target.GetData(pixels);
+            return pixels[4 * HazeWidth + HazeWidth / 2];
         }
 
         // A rigid particle's model: its pivot (a share of its box) on the particle, scaled by its size, turned X, Y, then Z.
@@ -733,9 +801,7 @@ namespace GameWorld.Core.Test.Vfx
         [Test]
         public void Distortion_ShiftsTheEffectsOwnParticlesBehindIt()
         {
-            var normal = new Texture2D(_device, 1, 1);
-            normal.SetData(new[] { new Color(128, 128, 255, 255) });
-            using var cache = new VfxTextureCache((_, _) => normal);
+            using var cache = new VfxTextureCache((_, _) => Dxt5nm(128));
             using var item = new ParticleRenderItem(Particles(Filling(null, new Vector4(1, 0, 0, 1), z: -1), Filling("normal", distortion: true)), cache, () => Shader);
             var pixel = Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
             Assert.That(new[] { pixel.X, pixel.Y }, Is.EqualTo(new[] { 1f, 0f }).Within(0.02));
@@ -745,9 +811,7 @@ namespace GameWorld.Core.Test.Vfx
         [Test]
         public void Distortion_LeavesTheCallersSampler()
         {
-            var normal = new Texture2D(_device, 1, 1);
-            normal.SetData(new[] { new Color(128, 128, 255, 255) });
-            using var cache = new VfxTextureCache((_, _) => normal);
+            using var cache = new VfxTextureCache((_, _) => Dxt5nm(128));
             using var item = new ParticleRenderItem(OneParticle("normal", distortion: true), cache, () => Shader);
             SamplerState? after = null;
             Render(() =>

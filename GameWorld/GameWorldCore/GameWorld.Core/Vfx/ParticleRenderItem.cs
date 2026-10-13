@@ -165,7 +165,7 @@ namespace GameWorld.Core.Vfx
             {
                 effect.Parameters["Scene"].SetValue(scene);
                 effect.Parameters["InverseSceneSize"].SetValue(new Vector2(1f / scene!.Width, 1f / scene.Height));
-                effect.Parameters["Reach"].SetValue(new Vector2(parameters.Projection.M11, parameters.Projection.M22) * (VfxConventions.DistortionMetres / 2));
+                effect.Parameters["Reach"].SetValue(new Vector2(VfxConventions.DistortionShare));
             }
             device.BlendState = BlendFor(device, settings);
             foreach (var pass in effect.CurrentTechnique.Passes)
@@ -424,8 +424,9 @@ namespace GameWorld.Core.Vfx
         // alpha times itself, which blacked the background out under a light pool's unlit corners.
         // ponytail: a straight-alpha chain with a mixed additive_blend_mul is rounded to alpha or additive;
         // premultiply its texture on load if one turns up that needs the mix.
+        // A haze writes the scene back moved, alpha and all, as CA's screen pass moves each pixel; laid over, it left a second copy.
         public static BlendState BlendFor(GraphicsDevice device, EmitterSettings s) =>
-            s.Distortion || s.Premultiplied ? BlendState.AlphaBlend : Straight(device)[s.AdditiveMul >= 0.5f ? 1 : 0];
+            s.Distortion ? BlendState.Opaque : s.Premultiplied ? BlendState.AlphaBlend : Straight(device)[s.AdditiveMul >= 0.5f ? 1 : 0];
 
         // Laid over, added, and depth only. One set per device: MonoGame binds a state to the first device it is set on.
         static readonly ConditionalWeakTable<GraphicsDevice, BlendState[]> s_straight = new();
