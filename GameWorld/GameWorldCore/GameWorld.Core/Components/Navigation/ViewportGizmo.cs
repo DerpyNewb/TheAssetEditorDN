@@ -1,8 +1,10 @@
 ﻿using GameWorld.Core.Components.Input;
 using GameWorld.Core.Components.Rendering;
+using GameWorld.Core.Rendering;
 using GameWorld.Core.Rendering.RenderItems;
 using GameWorld.Core.Services;
 using GameWorld.Core.Utility;
+using GameWorld.Core.Vfx;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Shared.Core.Events;
@@ -17,6 +19,7 @@ namespace GameWorld.Core.Components.Navigation
         private readonly RenderEngineComponent _renderEngine;
         private readonly IEventHub _eventHub;
         private readonly IGraphicsResourceCreator _graphicsResourceCreator;
+        private readonly SceneRenderParametersStore _sceneParameters;
 
         // Gizmo size and position
         private const float GIZMO_SIZE = 70f;           // Display size (pixels)
@@ -26,6 +29,7 @@ namespace GameWorld.Core.Components.Navigation
         private const float LINE_THICKNESS = 2f;        // Axis line thickness
         private const float CIRCLE_RADIUS = 8f;         // Label circle radius
         private const float CENTER_RADIUS = 6f;         // Center indicator radius
+        private const float SUN_RADIUS = 5f;            // Sun marker radius, rays outside it
 
         // Colors (Blender style)
         private static readonly Color s_colorX = new(220, 60, 60);    // Red
@@ -34,6 +38,7 @@ namespace GameWorld.Core.Components.Navigation
         private static readonly Color s_colorHighlight = new(255, 200, 50); // Gold
         private static readonly Color s_colorOutline = new(40, 40, 40); // Dark outline
         private static readonly Color s_colorCenter = new(80, 80, 80); // Center circle
+        private static readonly Color s_colorSun = new(255, 214, 90); // Sun marker
 
         // Rendering
         private Texture2D _whiteTexture;
@@ -48,7 +53,8 @@ namespace GameWorld.Core.Components.Navigation
             IMouseComponent mouse, 
             RenderEngineComponent renderEngine,
             IEventHub eventHub,
-            IGraphicsResourceCreator graphicsResourceCreator)
+            IGraphicsResourceCreator graphicsResourceCreator,
+            SceneRenderParametersStore sceneParameters)
         {
             _deviceResolver = deviceResolver;
             _camera = camera;
@@ -56,6 +62,7 @@ namespace GameWorld.Core.Components.Navigation
             _renderEngine = renderEngine;
             _eventHub = eventHub;
             _graphicsResourceCreator = graphicsResourceCreator;
+            _sceneParameters = sceneParameters;
         }
 
         public override void Initialize()
@@ -162,6 +169,34 @@ namespace GameWorld.Core.Components.Navigation
             DrawAxesLines(axisDataList);
             DrawAxisEndpoints(axisDataList);
             DrawCenterIndicator();
+            DrawSun();
+        }
+
+        /// <summary>Where the sun marker sits: the way to the sun the models are lit from (ParticleRenderItem.Sun), seen through the
+        /// camera as the axes are, radius from the centre; and whether the sun is on the camera's side, lighting the face seen.</summary>
+        public static (Vector2 Screen, bool TowardCamera) SunMarker(CommonShaderParameters parameters, Vector2 centre, float radius)
+        {
+            var toSun = Vector3.TransformNormal(ParticleRenderItem.Sun(parameters).ToSun, parameters.View);
+            return (centre + new Vector2(-toSun.X, -toSun.Y) * radius, toSun.Z > 0);
+        }
+
+        // The light turns with the camera (CommonShaderParameterBuilder), so the marker is built from the same parameters the models get.
+        private void DrawSun()
+        {
+            var viewport = _deviceResolver.Device.Viewport;
+            var parameters = CommonShaderParameterBuilder.Build(_camera, _sceneParameters, viewport.Width, viewport.Height);
+            var (marker, towardCamera) = SunMarker(parameters, _screenPosition, GIZMO_SIZE / (AXIS_LENGTH * 2));
+
+            DrawThickLine(_screenPosition, marker, s_colorSun * 0.8f, LINE_THICKNESS);
+            for (var i = 0; i < 8; i++)
+            {
+                var ray = new Vector2(MathF.Cos(i * MathHelper.PiOver4), MathF.Sin(i * MathHelper.PiOver4));
+                DrawThickLine(marker + ray * (SUN_RADIUS + 2), marker + ray * (SUN_RADIUS + 5), s_colorSun, 1.5f);
+            }
+            // Solid lighting the face seen, hollow behind the model.
+            if (towardCamera)
+                DrawFilledCircle(marker, SUN_RADIUS, s_colorSun);
+            DrawCircleOutline(marker, SUN_RADIUS, towardCamera ? s_colorOutline * 0.8f : s_colorSun, 1.5f);
         }
 
         private void DrawAxesLines(List<AxisDrawData> axisDataList)
