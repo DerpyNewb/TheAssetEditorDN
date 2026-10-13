@@ -16,7 +16,8 @@ namespace GameWorld.Core.Vfx
         public float Alpha;
         public Vector4 Tint;
         public float Loops;
-        public int Cell;
+        // vs_cell_texture's random cell and vs_animated_texture's random row, from one draw, as CA's take one random_unary.
+        public float RCell;
         // One draw per over-life property, taken at spawn.
         public float RScale, RDeceleration, RSpinDeceleration, RForce, RAlpha, RColour, RStretch;
         // Drawn only when the emitter collides, so an emitter that does not keeps its random sequence.
@@ -403,7 +404,7 @@ namespace GameWorld.Core.Vfx
                 Spin = s.SpinSign * MathHelper.ToRadians(Draw(s.Spin)),
                 Tint = Vector4.Lerp(s.TintMin, s.TintMax, Next()),
                 Loops = MathHelper.Lerp(s.Loops.X, s.Loops.Y, Next()),
-                Cell = random.Next(Math.Max(1, s.CellsX * s.CellsY)),
+                RCell = (float)random.NextDouble(),
                 RScale = Next(),
                 RDeceleration = Next(),
                 RSpinDeceleration = Next(),
@@ -556,7 +557,9 @@ namespace GameWorld.Core.Vfx
             var colour = Vector(s.Colour, v, p.RColour, 1) * new Vector3(p.Tint.X, p.Tint.Y, p.Tint.Z) * new Vector3(e.Tint.X, e.Tint.Y, e.Tint.Z)
                 * VfxConventions.Hdr(s.Colour?.Evaluate(3, v, p.RColour, 1) ?? 1, s.EmissiveMul);
             var alpha = p.Alpha * (s.Alpha?.Evaluate(0, v, p.RAlpha, 1) ?? 1) * p.Tint.W * e.Tint.W;
-            var (cell, next, blend) = s.Animated ? VfxConventions.FlipbookFrame(s.CellsX * s.CellsY, v, p.Age, p.Loops, s.FixedSpeed, s.FlipbookLoop) : (s.RandomCell ? p.Cell : s.Cell, 0, 0f);
+            var cells = s.CellsX * s.CellsY;
+            var (cell, next, blend) = s.Animated ? VfxConventions.FlipbookFrame(s, v, p.Age, p.Loops, p.RCell)
+                : (s.RandomCell ? Math.Min((int)(p.RCell * cells), cells - 1) : s.Cell, 0, 0f);
             return new ParticleState(position, velocity, size, p.Angle, colour, alpha, s.Stretch?.Evaluate(0, v, p.RStretch) ?? 0, cell, p.FlipU, p.FlipV, next, s.CellBlend ? blend : 0,
                 s.AlphaCrush?.Evaluate(0, v, p.RAlpha) ?? 0, p.TurnXy, p.Model, p.Age);
         }

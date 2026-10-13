@@ -138,6 +138,11 @@ namespace GameWorld.Core.Vfx
         public Vector2 Loops { get; set; } = Vector2.One;
         public bool FixedSpeed { get; set; }
         public bool CellBlend { get; set; }
+        /// <summary>vs_animated_texture's row_restricted: the strip is one row of the sheet, row_restriction.</summary>
+        public bool RowRestricted { get; set; }
+        public int Row { get; set; }
+        /// <summary>vs_animated_texture's randomize_row: each particle starts on a random row.</summary>
+        public bool RandomRow { get; set; }
         /// <summary>The stack draws onto what lies under it (DEFERRED_DECAL, DEFERRED_DECAL_EMISSIVE, SEA_OVERLAY).</summary>
         public bool Decal { get; set; }
         /// <summary>The stack is DISTORTION: the chain's normal map shifts the scene behind it.</summary>
@@ -418,6 +423,9 @@ namespace GameWorld.Core.Vfx
                 s.Loops = animated.Properties.GetValueOrDefault("no_loops")?.Float2(Vector2.One) ?? Vector2.One;
                 s.FixedSpeed = animated.Properties.GetValueOrDefault("time_mode")?.Value == "fixed_animation_speed";
                 s.CellBlend = Flag(animated, "cell_blend");
+                s.RowRestricted = Flag(animated, "row_restricted");
+                s.Row = (int)Number(animated, "row_restriction", 0);
+                s.RandomRow = Flag(animated, "randomize_row");
             }
             else if (cells != null)
             {

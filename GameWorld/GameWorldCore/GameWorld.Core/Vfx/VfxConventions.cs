@@ -240,6 +240,17 @@ namespace GameWorld.Core.Vfx
         /// (using_particle_lifetime) or per second (fixed_animation_speed); without loop it holds the last cell. cell_blend (4,408
         /// of 4,935 vanilla flipbooks) mixes each cell into the next by how far the particle is between them; the next after the
         /// last is the first when the strip loops, the last again when it holds.</summary>
+        /// <summary>vs_animated_texture's rows, as CA's has them: row_restricted plays the cells of row row_restriction;
+        /// randomize_row starts on the row the particle's random fraction picks and, without row_restricted, plays the whole sheet
+        /// from there. CA's cell then runs off the sheet; it is taken round to the first, as a repeating texture would.</summary>
+        public static (int Cell, int Next, float Blend) FlipbookFrame(EmitterSettings s, float lifeFraction, float ageSeconds, float loops, float random)
+        {
+            var cells = s.CellsX * s.CellsY;
+            var (cell, next, blend) = FlipbookFrame(s.RowRestricted ? s.CellsX : cells, lifeFraction, ageSeconds, loops, s.FixedSpeed, s.FlipbookLoop);
+            var start = (s.RandomRow ? Math.Min((int)(random * s.CellsY), s.CellsY - 1) : s.RowRestricted ? s.Row : 0) * s.CellsX;
+            return ((start + cell) % cells, (start + next) % cells, blend);
+        }
+
         public static (int Cell, int Next, float Blend) FlipbookFrame(int cells, float lifeFraction, float ageSeconds, float loops, bool fixedSpeed, bool loop)
         {
             var f = (fixedSpeed ? ageSeconds : lifeFraction) * loops;

@@ -485,5 +485,29 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That((frame.Cell, frame.Next), Is.EqualTo((cell, next)));
             Assert.That(frame.Blend, Is.EqualTo(blend).Within(1e-4));
         }
+
+        // vs_animated_texture's rows on a 4 x 4 sheet, as CA's has them: row_restricted plays the 4 cells of row_restriction;
+        // randomize_row starts on the particle's random row, 0.6 of 4 rows being row 2, and without row_restricted plays the
+        // whole sheet from there, past the last cell round to the first.
+        [TestCase(false, 0, false, 0.6f, 0.5f, 8, 9, Description = "the whole sheet")]
+        [TestCase(true, 2, false, 0.6f, 0.5f, 10, 11, Description = "row 2 only")]
+        [TestCase(true, 2, false, 0.6f, 0.875f, 11, 8, Description = "row 2 loops inside the row")]
+        [TestCase(false, 0, true, 0.6f, 0.25f, 12, 13, Description = "from random row 2")]
+        [TestCase(true, 1, true, 0.6f, 0.5f, 10, 11, Description = "the random row overrides row_restriction")]
+        [TestCase(false, 0, true, 0.9f, 0.5f, 4, 5, Description = "from row 3, round past the last cell")]
+        public void FlipbookFrame_PlaysItsRow(bool restricted, int row, bool randomRow, float random, float lifeFraction, int cell, int next)
+        {
+            var s = new EmitterSettings { Animated = true, CellsX = 4, CellsY = 4, RowRestricted = restricted, Row = row, RandomRow = randomRow };
+            var frame = VfxConventions.FlipbookFrame(s, lifeFraction, 0, 1, random);
+            Assert.That((frame.Cell, frame.Next), Is.EqualTo((cell, next)));
+        }
+
+        // ...and each particle draws its own row: one cell per row, one row each, so the cells are the rows.
+        [Test]
+        public void FlipbookRows_ARandomRowPerParticle()
+        {
+            var s = Steady(x => { x.MaxParticles = 40; x.Animated = true; x.CellsX = 1; x.CellsY = 8; x.RowRestricted = true; x.RandomRow = true; });
+            Assert.That(States(Run(s, 2)).Select(x => x.Cell).Distinct().Count(), Is.GreaterThan(4));
+        }
     }
 }
