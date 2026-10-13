@@ -296,6 +296,55 @@ namespace Test.AnimationMeta
             }
         }
 
+        // A screenshot is the picture alone: no labels, no axis widget, no FPS or stats text, no wireframe or selected faces. Each
+        // overlay bucket gets an item that records when it is drawn; the screenshot frame draws only the model's, and the next
+        // frame, an ordinary one, draws them all again.
+        [Test]
+        public void AScreenshotDrawsNoGuides()
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var folder = Path.Combine(Path.GetTempPath(), "superview_shots_" + Guid.NewGuid().ToString("N"));
+            (superView.ScreenshotFolder, superView.OpenScreenshotFolder) = (folder, false);
+            try
+            {
+                var engine = _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.Rendering.RenderEngineComponent>();
+                var device = _runner.ServiceProvider.GetRequiredService<GameWorld.Core.WpfWindow.IWpfGame>().GraphicsDevice;
+                using var target = new Microsoft.Xna.Framework.Graphics.RenderTarget2D(device, 64, 48, false,
+                    Microsoft.Xna.Framework.Graphics.SurfaceFormat.Color, Microsoft.Xna.Framework.Graphics.DepthFormat.Depth24);
+                var drawn = new List<GameWorld.Core.Components.Rendering.RenderBuckedId>();
+                List<GameWorld.Core.Components.Rendering.RenderBuckedId> Frame()
+                {
+                    drawn.Clear();
+                    engine.Update(new GameTime());
+                    foreach (var bucket in Enum.GetValues<GameWorld.Core.Components.Rendering.RenderBuckedId>())
+                        engine.AddRenderItem(bucket, new RecordDraw(() => drawn.Add(bucket)));
+                    device.SetRenderTarget(target);
+                    engine.Draw(new GameTime());
+                    device.SetRenderTarget(null);
+                    return drawn.Distinct().Order().ToList();
+                }
+
+                superView.TakeScreenshotCommand.Execute(null);
+                var shot = Frame();
+                var next = Frame();
+                Assert.That((shot, next), Is.EqualTo((
+                    new[] { GameWorld.Core.Components.Rendering.RenderBuckedId.Normal, GameWorld.Core.Components.Rendering.RenderBuckedId.Transparent },
+                    Enum.GetValues<GameWorld.Core.Components.Rendering.RenderBuckedId>().Order().ToArray())));
+            }
+            finally
+            {
+                if (Directory.Exists(folder))
+                    Directory.Delete(folder, true);
+            }
+        }
+
+        sealed class RecordDraw(Action drawn) : GameWorld.Core.Components.Rendering.IRenderItem
+        {
+            public void Draw(Microsoft.Xna.Framework.Graphics.GraphicsDevice device, GameWorld.Core.Rendering.CommonShaderParameters parameters,
+                GameWorld.Core.Components.Rendering.RenderingTechnique renderingTechnique) => drawn();
+        }
+
         // Faction colours tint the parts the mask texture marks, as in game, so picking them in the render settings shows on the
         // model. The material that WH3 models load with had no tint, and the colours reached nothing.
         [Test]

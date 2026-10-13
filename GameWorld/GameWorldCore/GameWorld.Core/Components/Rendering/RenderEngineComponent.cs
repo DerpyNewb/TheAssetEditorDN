@@ -15,7 +15,8 @@ using Shared.Core.Settings;
 
 namespace GameWorld.Core.Components.Rendering
 {
-    public record SaveRenderImageSettings(string Name, bool OpenFolder, bool DrawLines, float ImageUpScaleFactor, string OutputFolder);
+    /// <summary>DrawGuides false saves the picture alone: no lines, grid, labels, axis widget, overlay text, wireframe or selected faces.</summary>
+    public record SaveRenderImageSettings(string Name, bool OpenFolder, bool DrawGuides, float ImageUpScaleFactor, string OutputFolder);
 
     public class RenderEngineComponent : BaseComponent, IDisposable
     {
@@ -151,7 +152,7 @@ namespace GameWorld.Core.Components.Rendering
             var spriteBatch = CommonSpriteBatch;
             var screenWidth = device.Viewport.Width;
             var screenHeight = device.Viewport.Height;
-            var drawLines = _saveRenderImageSettings == null ? true: _saveRenderImageSettings.DrawLines;
+            var drawGuides = _saveRenderImageSettings == null ? true: _saveRenderImageSettings.DrawGuides;
             var imageUpScale = _saveRenderImageSettings == null ? 1 : _saveRenderImageSettings.ImageUpScaleFactor;
 
             if (screenWidth <= 10 || screenHeight <= 10)
@@ -183,12 +184,13 @@ namespace GameWorld.Core.Components.Rendering
             device.SetRenderTarget(_normalRenderTarget);
             device.Clear(Color.Transparent);
 
-            // 2D drawing
-            Render2DObjects(device, commonShaderParameters);
+            // 2D drawing: every item in these buckets is an overlay (labels, the axis widget, FPS and stats text)
+            if (drawGuides)
+                Render2DObjects(device, commonShaderParameters);
 
             // 3D drawing - Normal scene
             device.DepthStencilState = DepthStencilState.Default;
-            Render3DObjects(commonShaderParameters, RenderingTechnique.Normal, drawLines);
+            Render3DObjects(commonShaderParameters, RenderingTechnique.Normal, drawGuides);
            
   
             // Draw the result to the backBuffer
@@ -204,7 +206,7 @@ namespace GameWorld.Core.Components.Rendering
                 device.SetRenderTarget(_emissiveRenderTarget);
                 device.Clear(Color.Transparent);
                 device.DepthStencilState = DepthStencilState.Default;
-                Render3DObjects(commonShaderParameters, RenderingTechnique.Emissive, drawLines);
+                Render3DObjects(commonShaderParameters, RenderingTechnique.Emissive, drawGuides);
 
                 // While re-sizing or changing view, there is a small chance that the
                 // bloomRenderTarget could be null
@@ -292,7 +294,7 @@ namespace GameWorld.Core.Components.Rendering
             }
         }
 
-        void Render3DObjects(CommonShaderParameters commonShaderParameters, RenderingTechnique renderingTechnique, bool drawLines)
+        void Render3DObjects(CommonShaderParameters commonShaderParameters, RenderingTechnique renderingTechnique, bool drawGuides)
         {
             var device = _deviceResolverComponent.Device;
 
@@ -300,7 +302,7 @@ namespace GameWorld.Core.Components.Rendering
 
             device.RasterizerState = _rasterStates[RasterizerStateEnum.Normal];
 
-            if (renderingTechnique == RenderingTechnique.Normal && _renderLines.Count != 0 && drawLines)
+            if (renderingTechnique == RenderingTechnique.Normal && _renderLines.Count != 0 && drawGuides)
             {
                 var shader = _resourceLibrary.GetStaticEffect(ShaderTypes.Line);
                 shader.Parameters["View"].SetValue(commonShaderParameters.View);
@@ -317,19 +319,19 @@ namespace GameWorld.Core.Components.Rendering
             foreach (var item in _renderItems[RenderBuckedId.Normal])
                 item.Draw(device, commonShaderParameters, renderingTechnique);
 
-            if (drawLines)
+            if (drawGuides)
             {
                 foreach (var item in _renderItems[RenderBuckedId.Grid])
                     item.Draw(device, commonShaderParameters, renderingTechnique);
+
+                device.RasterizerState = _rasterStates[RasterizerStateEnum.Wireframe];
+                foreach (var item in _renderItems[RenderBuckedId.Wireframe])
+                    item.Draw(device, commonShaderParameters, renderingTechnique);
+
+                device.RasterizerState = _rasterStates[RasterizerStateEnum.SelectedFaces];
+                foreach (var item in _renderItems[RenderBuckedId.Selection])
+                    item.Draw(device, commonShaderParameters, renderingTechnique);
             }
-
-            device.RasterizerState = _rasterStates[RasterizerStateEnum.Wireframe];
-            foreach (var item in _renderItems[RenderBuckedId.Wireframe])
-                item.Draw(device, commonShaderParameters, renderingTechnique);
-
-            device.RasterizerState = _rasterStates[RasterizerStateEnum.SelectedFaces];
-            foreach (var item in _renderItems[RenderBuckedId.Selection])
-                item.Draw(device, commonShaderParameters, renderingTechnique);
 
             // Particles: after everything solid, in both passes so what lies over 1 blooms, reading depth without writing it,
             // both faces; each item sets its blend.
