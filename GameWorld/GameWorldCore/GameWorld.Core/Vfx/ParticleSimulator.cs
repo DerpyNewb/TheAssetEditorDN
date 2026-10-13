@@ -481,6 +481,8 @@ namespace GameWorld.Core.Vfx
                 p.Velocity = (p.Velocity + force * dt) * VfxConventions.Drag(s.Deceleration?.Evaluate(0, v, p.RDeceleration) ?? 0, dt);
                 if (field != null && s.FieldTightness?.Evaluate(0, v, p.RForce) is > 0 and var tightness)
                     p.Velocity = Vector3.Lerp(p.Velocity, push, Math.Min(tightness, 1));
+                if (s.MaxSpeed > 0 && p.Velocity.LengthSquared() > s.MaxSpeed * s.MaxSpeed)
+                    p.Velocity = Vector3.Normalize(p.Velocity) * s.MaxSpeed;
                 p.Angle += p.Spin * dt;
                 p.TurnXy += p.SpinXy * dt;
                 var spinDrag = VfxConventions.Drag(s.SpinDeceleration?.Evaluate(0, v, p.RSpinDeceleration) ?? 0, dt);

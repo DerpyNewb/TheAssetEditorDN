@@ -423,6 +423,19 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(late.Max(p => p.Velocity.Y / p.Age), loop ? Is.GreaterThan(0.05f) : Is.LessThan(0.01f));
         }
 
+        // MaximumVelocity caps a particle's speed: all 31 vanilla uses are 1 m/s on particles launched still and carried by a
+        // force or a vector field, which would otherwise speed them up for as long as they live. A push of 5 m/s2 for a second
+        // stops at the cap, along its way; one of 0.5 m/s2 never reaches it and is left alone.
+        [TestCase(500f, 1f, true)]
+        [TestCase(50f, 1f, false)]
+        [TestCase(500f, 0f, false)]
+        public void MaximumVelocity_CapsTheSpeed(float force, float cap, bool capped)
+        {
+            var s = Steady(x => { x.MaxParticles = 1; x.Forces = [C(0.6f * force, 0.8f * force, 0)]; x.MaxSpeed = cap; });
+            var p = Run(s, 1).Emitters[0].Particles.Single();
+            Assert.That(p.Velocity.Length(), Is.EqualTo(capped ? cap : force * VfxConventions.ForceToMetres * p.Age).Within(1e-3));
+        }
+
         // ps_alpha_crush: each particle carries its crush level, off the curve over its life.
         [Test]
         public void AlphaCrush_IsCarriedByEachParticle()

@@ -267,6 +267,11 @@ namespace GameWorld.Core.Test.Vfx
                 Is.EqualTo((true, true, true, false, false, false)));
         }
 
+        [Test]
+        public void MaximumVelocity_IsRead() =>
+            Assert.That((Read(Emitter("smoke", """<property name="MaximumVelocity" quality="0" value="1.50"/>"""), SmokeChain).Single().MaxSpeed,
+                Read(Emitter("smoke"), SmokeChain).Single().MaxSpeed), Is.EqualTo((1.5f, 0f)));
+
         // ParticleRelativeSpawnOrientation is read on a quad emitter too: a 3D quad stands on the ground as a rigid model does.
         [Test]
         public void RelativeSpawnOrientation_IsReadOnAQuadEmitter()

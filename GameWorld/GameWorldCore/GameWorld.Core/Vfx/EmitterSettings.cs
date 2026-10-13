@@ -58,6 +58,8 @@ namespace GameWorld.Core.Vfx
         public (float Min, float Max) Spread { get; set; } = (90, 90);
         /// <summary>Metres the emitter moves per extra particle, on top of the rate; 0 is none.</summary>
         public float SpawnSpacing { get; set; }
+        /// <summary>MaximumVelocity: the most a particle's speed reaches, in m/s; 0 for no cap.</summary>
+        public float MaxSpeed { get; set; }
         /// <summary>SkipParticlePositionUpdate: particles stay where they spawned; their velocity still aligns and stretches them.</summary>
         public bool SkipPositionUpdate { get; set; }
         /// <summary>SpawnInheritedSpeed: the share of the emitter's own velocity a particle starts with.</summary>
@@ -242,6 +244,8 @@ namespace GameWorld.Core.Vfx
             s.Spread = Range("SpawnSpread", (90, 90));
             s.SkipPositionUpdate = Flag("SkipParticlePositionUpdate");
             s.SpawnSpacing = Math.Max(0, Number("SpawnSpacing", 0));
+            // CA ships no source for it; read as its name says, on 31 vanilla emitters whose particles start still.
+            s.MaxSpeed = Math.Max(0, Number("MaximumVelocity", 0));
 
             s.InitialSpeed = ParseCurve(s, P("ParticleInitialSpeed"));
             s.InitialScale = ParseCurve(s, P("ParticleInitialScale"));
