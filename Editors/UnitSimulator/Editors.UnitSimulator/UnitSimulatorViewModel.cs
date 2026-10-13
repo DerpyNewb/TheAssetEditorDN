@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.SuperView.Visualisation;
 using Editors.Shared.Core.Common;
@@ -14,11 +15,13 @@ using Microsoft.Xna.Framework;
 using Shared.Core.Events;
 using Shared.Core.Events.Scoped;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Utility;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.Animation;
 using Shared.GameFormats.AnimationMeta.Definitions;
 using Shared.GameFormats.AnimationMeta.Parsing;
 using Shared.GameFormats.AnimationPack;
+using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
 
 namespace Editors.UnitSimulator
 {
@@ -27,8 +30,11 @@ namespace Editors.UnitSimulator
     public partial class UnitSimulatorViewModel : EditorHostBase, ISaveableEditor
     {
         readonly IPackFileService _pfs;
+        readonly IFileSaveService _fileSaver;
         readonly IEventHub _eventHub;
         readonly Dictionary<string, ClipLength?> _lengths = [];
+        // Edited, unsaved tables by path. The instance here is the one saved, whatever a part's list holds.
+        readonly Dictionary<string, AnimationBinWh3> _editedTables = [];
         IAnimationBinGenericFormat? _wantedMountTable;
 
         public override Type EditorViewModelType => typeof(Views.EditorView);
@@ -48,6 +54,7 @@ namespace Editors.UnitSimulator
             IEditorHostParameters hostParameters,
             IServiceProvider services,
             IPackFileService pfs,
+            IFileSaveService fileSaver,
             IEventHub eventHub,
             IUiCommandFactory uiCommandFactory,
             MetaDataFileParser metaDataFileParser)
@@ -55,6 +62,7 @@ namespace Editors.UnitSimulator
         {
             DisplayName = "Unit Simulator";
             _pfs = pfs;
+            _fileSaver = fileSaver;
             _eventHub = eventHub;
 
             Mount = _sceneObjectViewModelBuilder.CreateAsset("Mount", true, "Mount", Color.Black, null);
@@ -70,7 +78,12 @@ namespace Editors.UnitSimulator
             Rider.FragAndSlotSelection.FragmentList.SelectedItemChanged += OnRiderTableChanged;
             Mount.FragAndSlotSelection.FragmentList.SelectedItemChanged += _ => RefreshPairs();
             Mount.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += OnMountSlotChanged;
-            // The part's BinAnimationViewModel subscribed first, so its table list is already rebuilt when this runs.
+            Rider.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += _ => LoadSlotFields();
+            Mount.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += _ => LoadSlotFields();
+            // The part's BinAnimationViewModel subscribed first, so its table list is already rebuilt when these run; an edited table
+            // goes back into the list before the mount's is picked from it.
+            Rider.Data.SkeletonChanged += _ => KeepEditedTables(Rider);
+            Mount.Data.SkeletonChanged += _ => KeepEditedTables(Mount);
             Mount.Data.SkeletonChanged += _ => SelectMountTable();
 
             eventHub.Register<SceneObjectUpdateEvent>(this, e => PartOf(e.Owner)?.LoadAndRebuild());
@@ -101,6 +114,7 @@ namespace Editors.UnitSimulator
             _wantedMountTable = null;
             LinkStatus = riderTable == null ? "" : LinkMount(riderTable);
             RefreshPairs();
+            LoadSlotFields();
         }
 
         // The rider's table names its mount's. The mount is given that table's skeleton when it has another or none, so a rider can be
@@ -190,17 +204,141 @@ namespace Editors.UnitSimulator
                 ? $"{x.Name} {scale.AnimationSpeedScale}: not applied, the preview cannot change one part's speed"
                 : $"{x.Name}: listed, its fields are not decoded");
 
+        public string[] PartNames { get; } = ["Rider", "Mount"];
+        [ObservableProperty] string _editPart = "Rider";
+        [ObservableProperty] string _slotAnim = "";
+        [ObservableProperty] string _slotMeta = "";
+        [ObservableProperty] string _slotSound = "";
+        [ObservableProperty] float _slotBlend;
+        [ObservableProperty] float _slotWeight;
+        [ObservableProperty] string _riderMountBin = "";
+        [ObservableProperty] string _tableStatus = "";
+
+        SceneObjectViewModel EditedPart => EditPart == "Mount" ? Mount : Rider;
+
+        partial void OnEditPartChanged(string value) => LoadSlotFields();
+
+        void LoadSlotFields()
+        {
+            var slot = EditedPart.FragAndSlotSelection.FragmentSlotList.SelectedItem;
+            SlotAnim = slot?.AnimationFile ?? "";
+            SlotMeta = slot?.MetaFile ?? "";
+            SlotSound = slot?.SoundFile ?? "";
+            SlotBlend = slot?.BlendInTime ?? 0;
+            SlotWeight = slot?.SelectionWeight ?? 0;
+            RiderMountBin = Rider.FragAndSlotSelection.FragmentList.SelectedItem?.MountBin ?? "";
+        }
+
+        [RelayCommand]
+        void ApplySlotEdit()
+        {
+            var part = EditedPart;
+            if (part.FragAndSlotSelection.FragmentList.SelectedItem is not AnimationBinWh3 table || part.FragAndSlotSelection.FragmentSlotList.SelectedItem is not { } slot)
+            {
+                TableStatus = $"Pick a table and a slot on the {EditPart} first.";
+                return;
+            }
+            AnimTableEdits.SetFiles(table, slot, SlotAnim, SlotMeta, SlotSound);
+            AnimTableEdits.SetBlendAndWeight(table, slot.SlotIndex, SlotBlend, SlotWeight);
+            Edited(part, table);
+        }
+
+        [RelayCommand]
+        void ApplyMountBin()
+        {
+            if (Rider.FragAndSlotSelection.FragmentList.SelectedItem is not AnimationBinWh3 table)
+            {
+                TableStatus = "Pick the rider's table first.";
+                return;
+            }
+            AnimTableEdits.SetMountBin(table, RiderMountBin.Trim());
+            // Picking the table again links it to the mount it names now.
+            Edited(Rider, table);
+        }
+
+        [RelayCommand]
+        void AddMissingRiderSlot()
+        {
+            if (SelectedPair is not { Status: PairStatus.RiderSlotMissing } row)
+            {
+                TableStatus = "Select a Pairing row whose rider slot is missing.";
+                return;
+            }
+            if (Rider.FragAndSlotSelection.FragmentList.SelectedItem is not AnimationBinWh3 table || Rider.FragAndSlotSelection.FragmentSlotList.SelectedItem is not { } current)
+            {
+                TableStatus = "Pick the rider slot to copy on the Rider panel first.";
+                return;
+            }
+            AnimTableEdits.AddSlot(table, row.RiderSlot, AnimTableEdits.Row(table, current.SlotIndex));
+            Edited(Rider, table);
+        }
+
+        [RelayCommand]
+        void SaveTables() => SaveEditedTables();
+
+        bool SaveEditedTables()
+        {
+            var problems = new List<string>();
+            foreach (var table in _editedTables.Values.ToList())
+            {
+                if (AnimTableEdits.Save(_pfs, _fileSaver, table) is { } problem)
+                    problems.Add(problem);
+                else
+                    _editedTables.Remove(table.FileName);
+            }
+            TableStatus = problems.Count == 0 ? "Tables saved." : string.Join(Environment.NewLine, problems);
+            OnPropertyChanged(nameof(HasUnsavedChanges));
+            return problems.Count == 0;
+        }
+
+        void Edited(SceneObjectViewModel part, AnimationBinWh3 table)
+        {
+            _editedTables[table.FileName] = table;
+            Reload(part);
+            RefreshPairs();
+            TableStatus = $"{table.Name} edited, not saved.";
+            OnPropertyChanged(nameof(HasUnsavedChanges));
+        }
+
+        // The slot list is built from the table's rows when the table is picked, so it is picked again to show the edit, and so is the slot.
+        static void Reload(SceneObjectViewModel part)
+        {
+            var tables = part.FragAndSlotSelection.FragmentList;
+            var slots = part.FragAndSlotSelection.FragmentSlotList;
+            var table = tables.SelectedItem;
+            var slotName = slots.SelectedItem?.SlotName;
+            tables.SelectedItem = null;
+            tables.SelectedItem = table;
+            slots.SelectedItem = slots.PossibleValues.FirstOrDefault(x => x.SlotName == slotName);
+        }
+
+        // A part's table list is read from the packs again when its skeleton changes. An edited, unsaved table takes its place there,
+        // or the next edit would go to a fresh copy and one save would overwrite the other.
+        void KeepEditedTables(SceneObjectViewModel part)
+        {
+            var tables = part.FragAndSlotSelection.FragmentList;
+            if (!tables.PossibleValues.Any(x => _editedTables.ContainsKey(x.FullPath)))
+                return;
+            tables.UpdatePossibleValues(tables.PossibleValues.Select(x => _editedTables.TryGetValue(x.FullPath, out var edited) ? edited : x).ToList());
+        }
+
         public bool HasUnsavedChanges
         {
-            get => MountMeta.HasUnsavedChanges || RiderMeta.HasUnsavedChanges;
+            get => MountMeta.HasUnsavedChanges || RiderMeta.HasUnsavedChanges || _editedTables.Count != 0;
             set
             {
                 MountMeta.HasUnsavedChanges = value;
                 RiderMeta.HasUnsavedChanges = value;
+                if (!value)
+                    _editedTables.Clear();
             }
         }
 
-        public bool Save() => MountMeta.Save() & RiderMeta.Save();
+        public bool Save()
+        {
+            var metas = MountMeta.Save() & RiderMeta.Save();
+            return SaveEditedTables() && metas;
+        }
 
         public override void Close()
         {
