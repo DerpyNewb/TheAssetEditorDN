@@ -175,6 +175,22 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
+        // ParticleRelativeSpawnDirection RELATIVE_TO_TERRAIN_NORMAL: the spawn direction is taken on the ground, the preview's flat
+        // one, keeping only the emitter's heading, as RigidFrame stands a rigid model there; without it the direction turns with the
+        // emitter. An emitter rolled 30 degrees and turned 90: up is (0, 0.866, 0.5) on it and straight up on the ground; +X is
+        // (0, 0.5, -0.866) on it and -Z, its heading, on the ground.
+        [TestCase(false, 90f, 0f, 0.866f, 0.5f)]
+        [TestCase(true, 90f, 0f, 1f, 0f)]
+        [TestCase(false, 0f, 0f, 0.5f, -0.866f)]
+        [TestCase(true, 0f, 0f, 0f, -1f)]
+        public void SpawnDirection_OnTerrain_KeepsOnlyTheEmittersHeading(bool onTerrain, float elevation, float x, float y, float z)
+        {
+            var s = Steady(e => { e.MaxParticles = 1; e.InitialSpeed = C(1); e.SpawnAngle = Vector2.Zero; e.Spread = (elevation, elevation); e.DirectionOnTerrain = onTerrain; });
+            var tilted = Matrix.CreateRotationZ(MathHelper.ToRadians(30)) * Matrix.CreateRotationY(MathHelper.PiOver2);
+            var velocity = Run(s, 1, _ => tilted).Emitters[0].Particles.Single().Velocity;
+            Assert.That(Vector3.Distance(velocity, new Vector3(x, y, z)), Is.LessThan(1e-3f), velocity.ToString());
+        }
+
         static List<EmitterRuntime> Children(ParticleSimulator simulator) => simulator.AllEmitters.Where(x => x.Settings.Name == "child").ToList();
 
         // OnParticleSpawn: each particle starts its own copy of the event's effect, which follows it (track_position): a still

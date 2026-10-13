@@ -161,6 +161,8 @@ namespace GameWorld.Core.Vfx
         public IReadOnlyList<VfxRigidEntry> Rigid { get; set; } = [];
         /// <summary>ParticleRelativeSpawnOrientation RELATIVE_TO_TERRAIN_NORMAL: the model, or an Object3D quad, stands on the ground (VfxConventions.RigidFrame).</summary>
         public bool RigidOnTerrain { get; set; }
+        /// <summary>ParticleRelativeSpawnDirection RELATIVE_TO_TERRAIN_NORMAL: the spawn direction is taken on the ground, keeping the emitter's heading.</summary>
+        public bool DirectionOnTerrain { get; set; }
         public (Vector2 Min, Vector2 Max) TurnXy { get; set; }
         public (Vector2 Min, Vector2 Max) SpinXy { get; set; }
         public Vector2 SpinSignXy { get; set; } = Vector2.One;
@@ -260,6 +262,8 @@ namespace GameWorld.Core.Vfx
             s.Forces = [ParseCurve(s, P("ForceA")), ParseCurve(s, P("ForceB")), ParseCurve(s, P("ForceC"))];
 
             s.RigidOnTerrain = P("ParticleRelativeSpawnOrientation")?.Value == "RELATIVE_TO_TERRAIN_NORMAL";
+            // CA ships no source for it; read as its orientation sibling is, on 249 vanilla emitters.
+            s.DirectionOnTerrain = P("ParticleRelativeSpawnDirection")?.Value == "RELATIVE_TO_TERRAIN_NORMAL";
             if (resolved.Emitter.Type == "continuous_rigid")
             {
                 s.Rigid = resolved.Emitter.Rigid ?? [];

@@ -389,6 +389,9 @@ namespace GameWorld.Core.Vfx
 
             // Which way, and how fast.
             var direction = VfxConventions.Direction(MathHelper.Lerp(s.SpawnAngle.X, s.SpawnAngle.Y, Next()), Draw(s.Spread));
+            // On the ground, keeping the emitter's heading: turned into the emitter's space here, as the world turns it back below.
+            if (s.DirectionOnTerrain)
+                direction = Vector3.TransformNormal(direction, VfxConventions.RigidFrame(world, true) * Matrix.Invert(VfxConventions.RigidFrame(world, false)));
             if (s.InheritedDirectionBlend > 0 && moving != Vector3.Zero)
                 direction = VfxConventions.InheritDirection(direction, Vector3.TransformNormal(moving, Matrix.Invert(world)), s.InheritedDirectionBlend);
             var velocity = direction * (s.InitialSpeed?.Evaluate(0, VfxConventions.EmitterTime(age, e.Life, s.LoopSpeed), Next()) ?? 0);

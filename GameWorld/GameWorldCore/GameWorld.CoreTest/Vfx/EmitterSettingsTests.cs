@@ -250,6 +250,14 @@ namespace GameWorld.Core.Test.Vfx
                 Is.EqualTo((new Vector2(0.1f, 0.3f), new Vector2(0.7f, 0.8f), Vector2.Zero, Vector2.Zero)));
         }
 
+        [TestCase("RELATIVE_TO_TERRAIN_NORMAL", true)]
+        [TestCase("DISABLED", false)]
+        public void RelativeSpawnDirection_IsRead(string value, bool onTerrain)
+        {
+            var emitter = Emitter("smoke", $"""<property name="ParticleRelativeSpawnDirection" quality="0" value="{value}"/>""");
+            Assert.That((Read(emitter, SmokeChain).Single().DirectionOnTerrain, Read(Emitter("smoke"), SmokeChain).Single().DirectionOnTerrain), Is.EqualTo((onTerrain, false)));
+        }
+
         // ParticleRelativeSpawnOrientation is read on a quad emitter too: a 3D quad stands on the ground as a rigid model does.
         [Test]
         public void RelativeSpawnOrientation_IsReadOnAQuadEmitter()
