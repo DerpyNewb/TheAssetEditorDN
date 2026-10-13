@@ -1,5 +1,8 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using Editors.KitbasherEditor.Core.MenuBarViews;
+using Editors.KitbasherEditor.ViewModels;
 using Shared.Core.PackFiles.Models;
 using Shared.Ui.BaseDialogs.PackFileTree;
 using Shared.Ui.Common;
@@ -15,6 +18,13 @@ namespace KitbasherEditor.Views
         public KitbasherView()
         {
             InitializeComponent();
+            PreviewKeyDown += HandKeyboardBackToTheViewport;
+        }
+
+        void HandKeyboardBackToTheViewport(object sender, KeyEventArgs e)
+        {
+            if (MenuBarKeyboardDispatcher.HandsKeyboardBack(e.Key, e.OriginalSource))
+                (DataContext as KitbasherViewModel)?.Scene?.GetFocusElement().Focus();
         }
 
         private void treeView_Drop(object sender, DragEventArgs e)

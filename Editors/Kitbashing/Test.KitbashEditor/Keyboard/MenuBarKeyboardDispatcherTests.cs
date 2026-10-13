@@ -188,6 +188,21 @@ namespace Test.KitbashEditor.Keyboard
             Assert.That(_keyReleasedCount, Is.EqualTo(1), "a press counted for a second release");
         }
 
+        // Kitbash's hotkeys skip plain keys typed into a text box, so after typing a value every one of them looked dead until a
+        // left click in the viewport, which also changed the selection. Enter or Escape in a one-line box hands the keyboard back.
+        [Test, Apartment(ApartmentState.STA)]
+        public void EnterOrEscapeInAOneLineBox_HandsTheKeyboardBack()
+        {
+            var box = new System.Windows.Controls.TextBox();
+            var notes = new System.Windows.Controls.TextBox { AcceptsReturn = true };
+
+            Assert.That(MenuBarKeyboardDispatcher.HandsKeyboardBack(Key.Enter, box), Is.True);
+            Assert.That(MenuBarKeyboardDispatcher.HandsKeyboardBack(Key.Escape, box), Is.True);
+            Assert.That(MenuBarKeyboardDispatcher.HandsKeyboardBack(Key.Enter, notes), Is.False, "Enter is a new line there");
+            Assert.That(MenuBarKeyboardDispatcher.HandsKeyboardBack(Key.W, box), Is.False);
+            Assert.That(MenuBarKeyboardDispatcher.HandsKeyboardBack(Key.Enter, new System.Windows.Controls.Button()), Is.False);
+        }
+
         private static IKeyboardHandler CreateCountingHandler(Action onKeyReleased)
         {
             var hotkeys = new ActionHotkeyHandler();

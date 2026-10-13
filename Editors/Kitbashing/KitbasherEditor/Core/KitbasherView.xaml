@@ -56,7 +56,7 @@
                             <Setter Property="Background" Value="#606060"/>
                         </Style>
                         <DataTemplate x:Key="sidebarDefaultTemplate">
-                            <Button ToolTip="{Binding Action.ToolTipAttribute.Value}" BorderThickness="0" Background="Transparent" Margin="2" Padding="6"
+                            <Button ToolTip="{Binding Action.ToolTipAttribute.Value}" BorderThickness="0" Background="Transparent" Margin="2" Padding="6" Focusable="False"
                                     IsEnabled="{Binding Action.IsActionEnabled.Value, UpdateSourceTrigger=PropertyChanged}"
                                     Command="{Binding Path=Action.Command}"
                                     Visibility="{Binding IsVisible.Value, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource BoolToCollapsedConverter}}">
@@ -64,7 +64,7 @@
                             </Button>
                         </DataTemplate>
                         <DataTemplate x:Key="sidebarRadioTemplate">
-                            <RadioButton ToolTip="{Binding Action.ToolTipAttribute.Value}" BorderThickness="0" Background="Transparent" Margin="2" Padding="6"
+                            <RadioButton ToolTip="{Binding Action.ToolTipAttribute.Value}" BorderThickness="0" Background="Transparent" Margin="2" Padding="6" Focusable="False"
                                          IsChecked="{Binding IsChecked.Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                          Command="{Binding Path=Action.Command}"
                                          GroupName="{Binding GroupName}"

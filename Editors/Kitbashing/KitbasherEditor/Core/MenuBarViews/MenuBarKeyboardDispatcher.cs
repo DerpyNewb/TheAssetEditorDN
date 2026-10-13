@@ -1,4 +1,5 @@
-﻿using System.Windows.Input;
+﻿using System.Windows.Controls;
+using System.Windows.Input;
 using Shared.Ui.Common.MenuSystem;
 
 namespace Editors.KitbasherEditor.Core.MenuBarViews
@@ -21,6 +22,10 @@ namespace Editors.KitbasherEditor.Core.MenuBarViews
             _isVisible = isVisible;
             _getHandler = getHandler;
         }
+
+        // Plain keys typed into a text box are the box's, so after typing a value every plain-key hotkey looked dead until a left
+        // click in the viewport, which also changed the selection. Enter or Escape in a one-line box hands the keyboard back.
+        public static bool HandsKeyboardBack(Key key, object? source) => key is Key.Enter or Key.Escape && source is TextBox { AcceptsReturn: false };
 
         /// <summary>
         /// Returns true if the event was dispatched to the handler.

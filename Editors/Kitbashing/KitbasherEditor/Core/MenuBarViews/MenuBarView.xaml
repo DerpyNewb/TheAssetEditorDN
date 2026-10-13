@@ -35,7 +35,7 @@
         </Style>
 
         <DataTemplate x:Key="defaultButtonTemplate">
-            <Button ToolTip="{Binding Action.ToolTipAttribute.Value}" BorderThickness="0" Background="Transparent" Margin="1" 
+            <Button ToolTip="{Binding Action.ToolTipAttribute.Value}" BorderThickness="0" Background="Transparent" Margin="1" Focusable="False"
                     IsEnabled="{Binding Action.IsActionEnabled.Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
                     Command="{Binding Path=Action.Command}" 
                     ToolTipService.ShowOnDisabled="True"
@@ -46,7 +46,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="radioButtonTemplate">
-            <RadioButton    ToolTip="{Binding  Action.ToolTipAttribute.Value}"  BorderThickness="0" Background="Transparent" Margin="1"
+            <RadioButton    ToolTip="{Binding  Action.ToolTipAttribute.Value}"  BorderThickness="0" Background="Transparent" Margin="1" Focusable="False"
                             IsChecked="{Binding IsChecked.Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
                             Command="{Binding Path=Action.Command}"
                             GroupName="{Binding GroupName}" 
