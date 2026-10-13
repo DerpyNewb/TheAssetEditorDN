@@ -1,0 +1,76 @@
+<UserControl x:Class="Editors.UnitSimulator.Views.EditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:meta="clr-namespace:Editors.AnimationMeta.Presentation.View;assembly=Editors.AnimationMeta">
+    <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Margin="5" Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding LinkStatus}"/>
+        <TabControl>
+            <TabItem Header="Pairing">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Margin="5" TextWrapping="Wrap"
+                               Text="One row per slot of the mount's table. The rider plays RIDER_ and the mount slot's name. Click a row to play the pair."/>
+                    <ItemsControl DockPanel.Dock="Top" Margin="5,0,5,5" ItemsSource="{Binding MountRiderTags}"/>
+                    <Expander DockPanel.Dock="Bottom" Margin="5" Header="Rider-only slots: pick these on the Rider panel while the mount plays its own">
+                        <ListBox ItemsSource="{Binding RiderOnlySlots}" MaxHeight="160"/>
+                    </Expander>
+                    <DataGrid Margin="5,0" ItemsSource="{Binding Pairs}" SelectedItem="{Binding SelectedPair, Mode=TwoWay}"
+                              AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Mount slot" Binding="{Binding MountSlot}"/>
+                            <DataGridTextColumn Header="Rider slot" Binding="{Binding RiderSlot}"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}"/>
+                            <DataGridTextColumn Header="Length" Binding="{Binding Detail}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Mount meta">
+                <TabControl>
+                    <TabItem Header="Persistent"><meta:MainEditorView DataContext="{Binding MountMeta.Persistent}"/></TabItem>
+                    <TabItem Header="Slot"><meta:MainEditorView DataContext="{Binding MountMeta.Slot}"/></TabItem>
+                </TabControl>
+            </TabItem>
+            <TabItem Header="Rider meta">
+                <TabControl>
+                    <TabItem Header="Persistent"><meta:MainEditorView DataContext="{Binding RiderMeta.Persistent}"/></TabItem>
+                    <TabItem Header="Slot"><meta:MainEditorView DataContext="{Binding RiderMeta.Slot}"/></TabItem>
+                </TabControl>
+            </TabItem>
+            <TabItem Header="Table">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="5">
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="Edits go on the table each part is playing. Save tables writes each into the animpack it came from, in your editable pack. A CA pack's table cannot be saved."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="Slot of the" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox ItemsSource="{Binding PartNames}" SelectedItem="{Binding EditPart}" Width="90"/>
+                        </StackPanel>
+                        <TextBlock Text=".anim"/>
+                        <TextBox Text="{Binding SlotAnim, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,4"/>
+                        <TextBlock Text=".anm.meta"/>
+                        <TextBox Text="{Binding SlotMeta, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,4"/>
+                        <TextBlock Text=".snd.meta"/>
+                        <TextBox Text="{Binding SlotSound, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,4"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="Blend in" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding SlotBlend}" Width="60" Margin="0,0,12,0"/>
+                            <TextBlock Text="Selection weight" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding SlotWeight}" Width="60"/>
+                        </StackPanel>
+                        <Button Content="Apply to this slot" Command="{Binding ApplySlotEditCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,0,0,12"/>
+
+                        <TextBlock Text="The rider table's MountBin: the name of its mount's table"/>
+                        <TextBox Text="{Binding RiderMountBin, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,4"/>
+                        <Button Content="Apply MountBin" Command="{Binding ApplyMountBinCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,0,0,12"/>
+
+                        <Button Content="Add the selected Pairing row's missing rider slot, copied from the rider's current slot"
+                                Command="{Binding AddMissingRiderSlotCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,0,0,12"/>
+
+                        <Button Content="Save tables" Command="{Binding SaveTablesCommand}" HorizontalAlignment="Left" Padding="8,2"/>
+                        <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding TableStatus}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

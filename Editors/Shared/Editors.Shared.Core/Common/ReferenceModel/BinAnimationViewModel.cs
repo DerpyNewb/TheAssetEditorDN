@@ -147,8 +147,10 @@ namespace Editors.Shared.Core.Common.ReferenceModel
 
             if (string.IsNullOrWhiteSpace(value?.AnimationFile) == false)
             {
+                // A table can name an .anim no loaded pack has (a mod's, not loaded); the part then plays nothing.
                 var file = _pfs.FindFile(value.AnimationFile);
-                animationReference = _skeletonAnimationLookUpHelper.FindAnimationRefFromPackFile(file);
+                if (file != null)
+                    animationReference = _skeletonAnimationLookUpHelper.FindAnimationRefFromPackFile(file);
             }
 
             if (string.IsNullOrWhiteSpace(value?.MetaFile) == false)
