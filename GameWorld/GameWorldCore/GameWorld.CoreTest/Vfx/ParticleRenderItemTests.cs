@@ -823,6 +823,29 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(after, Is.SameAs(SamplerState.AnisotropicWrap));
         }
 
+        // The particle shader's own samplers (the scene copy, the scene depth: clamped, point-filtered) stayed on the device after
+        // its passes, and the models take whatever the device holds: theirs drew striped, in every tab, since the device is shared.
+        [Test]
+        public void Draw_LeavesEverySamplerAsItFoundIt()
+        {
+            using var depth = new Texture2D(_device, 4, 4, false, SurfaceFormat.Single);
+            depth.SetData(Enumerable.Repeat(7f, 16).ToArray());
+            var soft = Filling(null);
+            soft.SoftEdge = 1;
+            using var cache = new VfxTextureCache((_, _) => Dxt5nm(128));
+            using var item = new ParticleRenderItem(Particles(soft, Filling("normal", distortion: true)), cache, () => Shader);
+            var after = new SamplerState[16];
+            Render(() =>
+            {
+                for (var i = 0; i < after.Length; i++)
+                    _device.SamplerStates[i] = SamplerState.AnisotropicWrap;
+                item.Draw(_device, View with { SceneDepth = depth }, RenderingTechnique.Normal);
+                for (var i = 0; i < after.Length; i++)
+                    after[i] = _device.SamplerStates[i];
+            });
+            Assert.That(after, Is.All.SameAs(SamplerState.AnisotropicWrap));
+        }
+
         static VfxTextureCache NoTextures() => new((_, _) => null);
 
         [Test]

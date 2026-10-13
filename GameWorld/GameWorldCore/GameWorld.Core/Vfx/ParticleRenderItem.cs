@@ -80,7 +80,9 @@ namespace GameWorld.Core.Vfx
 
             var glow = renderingTechnique == RenderingTechnique.Emissive;
             var blendState = device.BlendState;
-            var samplerState = device.SamplerStates[0];
+            // The shader's passes leave its own samplers on the device (the scene copy, the scene depth: clamped, point-filtered), and
+            // the models take whatever it holds, in every tab, since the device is shared: theirs drew striped. Each slot goes back.
+            var samplers = Enumerable.Range(0, SamplerSlots).Select(i => device.SamplerStates[i]).ToArray();
             device.SamplerStates[0] = SamplerState.LinearClamp;
             foreach (var (settings, states, frame) in emitters.Where(x => x.Settings.Rigid.Count == 0))
             {
@@ -91,7 +93,8 @@ namespace GameWorld.Core.Vfx
                 DrawEmitter(device, _shader(), parameters, World, camera, settings, TextureFor(device, settings.Texture), states, frame, glow, scene, normalMap);
             }
             device.BlendState = blendState;
-            device.SamplerStates[0] = samplerState;
+            for (var i = 0; i < samplers.Length; i++)
+                device.SamplerStates[i] = samplers[i];
         }
 
         /// <summary>The light particles alive now, in the world: each reaches as far as the particle is wide, as CA's does, in its colour times
@@ -427,6 +430,9 @@ namespace GameWorld.Core.Vfx
         // A haze writes the scene back moved, alpha and all, as CA's screen pass moves each pixel; laid over, it left a second copy.
         public static BlendState BlendFor(GraphicsDevice device, EmitterSettings s) =>
             s.Distortion ? BlendState.Opaque : s.Premultiplied ? BlendState.AlphaBlend : Straight(device)[s.AdditiveMul >= 0.5f ? 1 : 0];
+
+        // MonoGame's DirectX device has 16 sampler slots (GraphicsCapabilities.MaxTextureSlots).
+        const int SamplerSlots = 16;
 
         // Laid over, added, and depth only. One set per device: MonoGame binds a state to the first device it is set on.
         static readonly ConditionalWeakTable<GraphicsDevice, BlendState[]> s_straight = new();
