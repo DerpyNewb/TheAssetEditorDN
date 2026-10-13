@@ -113,9 +113,34 @@ namespace Editors.UnitSimulator.Personalities
             }
             var part = new PersonalityPart(_createPart($"Personality{++_created}", key), copy, junction, _bones.FirstOrDefault()?.Name ?? NoBone);
             Parts.Add(part);
+            part.PropertyChanged += (_, e) => OnPartChanged(part, e.PropertyName);
             Load(part);
             Check(part);
+            MarkCopies(part);
             Status = "";
+        }
+
+        void OnPartChanged(PersonalityPart part, string? property)
+        {
+            switch (property)
+            {
+                case nameof(PersonalityPart.Bone):
+                    Check(part);
+                    break;
+                case nameof(PersonalityPart.Table) or nameof(PersonalityPart.Variant):
+                    Load(part);
+                    break;
+                case nameof(PersonalityPart.Key):
+                    MarkCopies(part);
+                    break;
+            }
+        }
+
+        // Every loaded file with the part's key, or "new key": an export with a key a loaded file has replaces or duplicates that row.
+        void MarkCopies(PersonalityPart part)
+        {
+            var copies = Rows.Copies(part.Key);
+            part.Copies = copies.Count == 0 ? "new key" : "in " + string.Join(", ", copies.Select(x => $"{x.Pack}: {x.File}"));
         }
 
         /// <summary>Every junction row naming the land unit, each personality on its row's bone, with its row's values.</summary>
