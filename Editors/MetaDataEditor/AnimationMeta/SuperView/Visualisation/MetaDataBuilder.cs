@@ -24,6 +24,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
     {
         // Off, an EFFECT tag draws its locator and no particles.
         bool ShowVfx { get; set; }
+        // The battle entity's vfx_filter_id: an EFFECT tag whose id is neither 0 nor this is not drawn. Unset, the lowest id the metas carry.
+        int? VfxFilterId { get; set; }
         /// <summary>Lets go of what was loaded from these pack paths, so the next Create reads them again.</summary>
         void Forget(IEnumerable<string> paths);
         List<IMetaDataInstance> Create(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData, ParsedMetadataAttribute? selectedMetaDataAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment);
@@ -61,6 +63,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         private static Color s_selectedColor = Color.Red;
 
         public bool ShowVfx { get; set; } = true;
+        public int? VfxFilterId { get; set; }
 
         // A broken effect would log again on every rebuild (every click in the tag list); once is enough.
         private static readonly HashSet<string> s_loggedVfxMessages = [];
@@ -132,19 +135,27 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var usePersistent = metaData == null || metaData.GetItemsOfType<DisablePersistant_v10>().Count == 0;
             // DISABLE_PERSISTENT_VFX drops the persistent meta's effects and keeps the rest of it.
             var usePersistentVfx = metaData == null || metaData.GetItemsOfType<DisablePersistantVfx_v10>().Count == 0;
+            var vfxFilter = VfxFilterId ?? VfxFilterIds(persistent, metaData).FirstOrDefault();
             if (usePersistent)
             {
-                var metaDataPersistent = ApplyMetaData(persistent, selectedMetaDataAttribute, root, skeleton, rootPlayer, fragment, usePersistentVfx, persistent: true);
+                var metaDataPersistent = ApplyMetaData(persistent, selectedMetaDataAttribute, root, skeleton, rootPlayer, fragment, vfxFilter, usePersistentVfx, persistent: true);
                 output.AddRange(metaDataPersistent);
             }
 
-            var metaDataInstances = ApplyMetaData(metaData, selectedMetaDataAttribute,root, skeleton, rootPlayer, fragment);
+            var metaDataInstances = ApplyMetaData(metaData, selectedMetaDataAttribute,root, skeleton, rootPlayer, fragment, vfxFilter);
             output.AddRange(metaDataInstances);
 
             // Hand poses are keys across both files, so they are built from both at once.
             CreateHandPoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
             return output;
         }
+
+        // The vfx filter ids the two metas' EFFECT tags carry, lowest first, 0 (every entity) left out.
+        public static List<int> VfxFilterIds(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData) =>
+            [.. new[] { persistent, metaData }.SelectMany(x => x?.GetItemsOfType<IEffectMeta>() ?? []).Select(FilterOf).Where(x => x != 0).Distinct().Order()];
+
+        // EFFECT v11 and v12 carry the id; the older versions have none and play on every entity.
+        static int FilterOf(IEffectMeta effect) => effect is DecodedMetaEntryBase tag ? tag.Id : 0;
 
         // HandPoseId indexes these slots, in the order of the WH3 slot table.
         static readonly string[] s_handPoseSlots =
@@ -191,7 +202,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return AnimationSampler.Sample(0, 0, skeleton, new AnimationClip(AnimationFile.Create(file), skeleton));
         }
 
-        private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment, bool includeEffects = true, bool persistent = false)
+        private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment, int vfxFilter, bool includeEffects = true, bool persistent = false)
         {
             var output = new List<IMetaDataInstance>();
             if (file == null)
@@ -208,7 +219,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             output.AddRange(file.GetItemsOfType<SplashAttack_v10>().Select(meteDataItem => CreateSplashAttack(meteDataItem, root, $"SplashAttack_{Math.Round(meteDataItem.EndTime, 2)}", 0.1f, selectedAttribute)));
 
             if (includeEffects)
-                output.AddRange(file.GetItemsOfType<IEffectMeta>().Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent))));
+                output.AddRange(file.GetItemsOfType<IEffectMeta>().Where(x => FilterOf(x) == 0 || FilterOf(x) == vfxFilter).Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent))));
 
             foreach (var meteDataItem in file.GetItemsOfType<DockEquipment>())
                 CreateEquipmentDock(meteDataItem, fragment, skeleton, rootPlayer);

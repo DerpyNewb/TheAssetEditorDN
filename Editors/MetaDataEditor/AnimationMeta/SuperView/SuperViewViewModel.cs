@@ -34,6 +34,12 @@ namespace Editors.AnimationMeta.SuperView
         [ObservableProperty] MetaDataEditorViewModel _metaEditor;
         [ObservableProperty] int _selectedTabControllerIndex = 0;
         [ObservableProperty] bool _showVfx = true;
+
+        // The battle entity's vfx_filter_id, offered from the ids the metas' EFFECT tags carry: a tag whose id is neither 0 nor
+        // this does not play on that entity. Picked, it holds across animations; until then it is the lowest id the metas carry.
+        [ObservableProperty] List<int> _vfxFilterIds = [];
+        [ObservableProperty] int? _vfxFilterId;
+        bool _showingVfxFilter;
         public override Type EditorViewModelType => typeof(EditorView);
         public bool HasUnsavedChanges
         { 
@@ -123,6 +129,14 @@ namespace Editors.AnimationMeta.SuperView
             RecreateMetaDataInformation();
         }
 
+        partial void OnVfxFilterIdChanged(int? value)
+        {
+            if (_showingVfxFilter || value == null || value == _metaDataFactory.VfxFilterId)
+                return;
+            _metaDataFactory.VfxFilterId = value;
+            RecreateMetaDataInformation();
+        }
+
         private void OnFileSaved(ScopedFileSavedEvent evnt)
         {
             var newFile = _packFileService.FindFile(evnt.NewPath);
@@ -169,6 +183,13 @@ namespace Editors.AnimationMeta.SuperView
             foreach (var t in old.Except(_asset.Data.MetaDataItems))
                 t.CleanUp();
             _asset.Data.Player.Refresh();
+
+            var ids = MetaDataBuilder.VfxFilterIds(persist, meta);
+            var filter = _metaDataFactory.VfxFilterId ?? ids.FirstOrDefault();
+            _showingVfxFilter = true;
+            VfxFilterIds = filter == 0 || ids.Contains(filter) ? ids : [.. ids.Append(filter).Order()];
+            VfxFilterId = filter;
+            _showingVfxFilter = false;
         }
 
         private void OnSceneObjectUpdated(SceneObjectUpdateEvent e)

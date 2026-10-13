@@ -150,6 +150,26 @@ namespace Test.AnimationMeta
             Assert.That(_root.Children.OfType<VfxEffectNode>(), Is.Empty);
         }
 
+        // A tag's id is the vfx_filter_id of the battle entities it plays on (battle_entities_tables): 0 plays on every entity,
+        // any other id only on the entity with that filter. The Terracotta Sentinel's metas carry every effect twice, id 1 for
+        // the unit and id 2 for its Regiment of Renown, and SuperView drew both. Unset, the filter is the lowest id the two
+        // metas carry, the persistent one's included.
+        [TestCase(null, new[] { "Effect:every_entity", "Effect:filter_1" })]
+        [TestCase(2, new[] { "Effect:every_entity", "Effect:filter_2" })]
+        public void TaggedEffect_PlaysOnlyOnItsVfxFilter(int? filter, string[] drawn)
+        {
+            static Effect_v11 Filtered(string vfx, int id)
+            {
+                var tag = Tag(vfx);
+                tag.Id = id;
+                return tag;
+            }
+
+            _builder.VfxFilterId = filter;
+            Build(Meta(Filtered("filter_1", 1)), Meta(Filtered("every_entity", 0), Filtered("filter_2", 2)));
+            Assert.That(_root.Children.Select(x => x.Name), Is.EquivalentTo(drawn));
+        }
+
         [Test]
         public void DisablePersistentVfx_DropsThePersistentMetasEffects()
         {

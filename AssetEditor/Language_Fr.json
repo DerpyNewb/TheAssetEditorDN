@@ -386,6 +386,8 @@
     "TextureEditor.Labels.NumMipMaps":  "Num MipMaps",
     "MetadataEditor.Buttons.Refresh":  "Refresh",
     "SuperView.ShowVfx":  "Afficher les VFX",
+    "SuperView.VfxFilter":  "Filtre VFX :",
+    "SuperView.VfxFilter.Tooltip":  "Le vfx_filter_id de l'unité dans battle_entities. Une balise d'effet dont l'id n'est ni 0 ni celui-ci n'est pas jouée sur elle : une unité et son régiment de renom partagent souvent un même méta, avec les id 1 et 2.",
     "EditorHost.Menu.Lighting":  "Éclairage...",
     "EditorHost.Menu.Lighting.ToolTip":  "Les réglages de rendu de l'éditeur Kitbash : intensité, couleur et orientation de la lumière, qui éclaire les modèles et la fumée éclairée, et la grille",
     "EditorHost.Menu.Screenshot":  "Capture d'écran",
