@@ -1,7 +1,8 @@
 <UserControl x:Class="Editors.UnitSimulator.Views.EditorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:meta="clr-namespace:Editors.AnimationMeta.Presentation.View;assembly=Editors.AnimationMeta">
+             xmlns:meta="clr-namespace:Editors.AnimationMeta.Presentation.View;assembly=Editors.AnimationMeta"
+             xmlns:local="clr-namespace:Editors.UnitSimulator.Views">
     <DockPanel>
         <TabControl>
             <TabItem Header="Pairing">
@@ -22,6 +23,9 @@
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
+            </TabItem>
+            <TabItem Header="Personalities">
+                <local:PersonalitiesView DataContext="{Binding Personalities}"/>
             </TabItem>
             <TabItem Header="Mount meta">
                 <TabControl>

@@ -1,0 +1,73 @@
+<UserControl x:Class="Editors.UnitSimulator.Views.PersonalitiesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="5">
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                       Text="Riders the DB puts on a bone of the mount: battle_personalities rows, attached by land_units_to_battle_personalities_junctions. Each plays its own table. The bones are read from the mount model's tech skeleton."/>
+
+            <TextBlock Text="Tech skeleton"/>
+            <DockPanel Margin="0,0,0,2">
+                <Button DockPanel.Dock="Right" Content="Browse" Command="{Binding BrowseTechSkeletonCommand}" Padding="8,2" Margin="4,0,0,0"/>
+                <ComboBox ItemsSource="{Binding TechSkeletons}" SelectedItem="{Binding SelectedTechSkeleton}"/>
+            </DockPanel>
+            <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding TechStatus}" Margin="0,0,0,8"/>
+
+            <TextBlock Text="Add a personality: type part of its key"/>
+            <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"/>
+            <ListBox ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice}" DisplayMemberPath="Text" MaxHeight="160"/>
+            <Button Content="Add" Command="{Binding AddCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,4,0,8"/>
+
+            <TextBlock Text="Add every personality a land unit's junction rows name"/>
+            <DockPanel Margin="0,0,0,2">
+                <Button DockPanel.Dock="Right" Content="Add the set" Command="{Binding AddSetCommand}" Padding="8,2" Margin="4,0,0,0"/>
+                <TextBox Text="{Binding SetLandUnit, UpdateSourceTrigger=PropertyChanged}"/>
+            </DockPanel>
+            <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding Status}" Margin="0,0,0,8"/>
+
+            <TextBlock Text="Attached"/>
+            <ListBox ItemsSource="{Binding Parts}" SelectedItem="{Binding Selected}" DisplayMemberPath="Key" MaxHeight="160"/>
+            <Button Content="Remove" Command="{Binding RemoveCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,4,0,8"/>
+
+            <StackPanel DataContext="{Binding Selected}">
+                <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding Status}"/>
+                <TextBlock TextWrapping="Wrap" Text="{Binding Copies, StringFormat=This key: {0}}" Margin="0,0,0,6"/>
+
+                <TextBlock FontWeight="Bold" Text="battle_personalities row"/>
+                <TextBlock Text="key"/>
+                <TextBox Text="{Binding Key}"/>
+                <TextBlock Text="man_animations_table"/>
+                <ComboBox IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding DataContext.TableNames, RelativeSource={RelativeSource AncestorType=UserControl}}" Text="{Binding Table}"/>
+                <TextBlock Text="variant"/>
+                <ComboBox IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding DataContext.VariantNames, RelativeSource={RelativeSource AncestorType=UserControl}}" Text="{Binding Variant}"/>
+                <TextBlock Text="{Binding BattleEntity, StringFormat=battle_entity: {0}}"/>
+                <TextBlock Text="{Binding BattleEntityStats, StringFormat=battle_entity_stats: {0}}"/>
+                <TextBlock Text="{Binding AutonomousRiderHero, StringFormat=autonomous_rider_hero: {0}}"/>
+                <TextBlock Text="{Binding AutonomousRiderCanShootInMelee, StringFormat=autonomous_rider_can_shoot_in_melee: {0}}"/>
+                <TextBlock Text="{Binding CanOnlyBeUsedByDraught, StringFormat=can_only_be_used_by_draught: {0}}" Margin="0,0,0,6"/>
+
+                <TextBlock FontWeight="Bold" Text="Junction row"/>
+                <TextBlock Text="land_unit"/>
+                <TextBox Text="{Binding LandUnit}"/>
+                <TextBlock Text="attach"/>
+                <ComboBox ItemsSource="{Binding DataContext.AttachTypes, RelativeSource={RelativeSource AncestorType=UserControl}}" SelectedItem="{Binding Attach}"/>
+                <TextBlock Text="riders_attachment_point (empty: the origin)"/>
+                <ComboBox ItemsSource="{Binding DataContext.BoneNames, RelativeSource={RelativeSource AncestorType=UserControl}}" SelectedItem="{Binding Bone}"/>
+                <TextBlock Text="engine_articulation_index"/>
+                <TextBox Text="{Binding EngineArticulationIndex}" Width="60" HorizontalAlignment="Left"/>
+                <CheckBox Content="jettison_rider" IsChecked="{Binding JettisonRider}" Margin="0,4,0,8"/>
+            </StackPanel>
+
+            <TextBlock FontWeight="Bold" Text="Export TSV for RPFM"/>
+            <TextBlock Text="Folder"/>
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Browse" Command="{Binding BrowseExportFolderCommand}" Padding="8,2" Margin="4,0,0,0"/>
+                <TextBox Text="{Binding ExportFolder, UpdateSourceTrigger=PropertyChanged}"/>
+            </DockPanel>
+            <TextBlock Text="Table file name"/>
+            <TextBox Text="{Binding ExportName, UpdateSourceTrigger=PropertyChanged}"/>
+            <Button Content="Export" Command="{Binding ExportCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,4,0,0"/>
+            <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding ExportStatus}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
