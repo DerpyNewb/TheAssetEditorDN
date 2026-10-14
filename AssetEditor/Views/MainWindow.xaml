@@ -163,7 +163,8 @@
                 <views:CachedTabControl Grid.Row="1" Grid.Column="2" ItemsSource="{Binding EditorManager.CurrentEditorsList, UpdateSourceTrigger=PropertyChanged}" 
                         SelectedIndex="{Binding EditorManager.SelectedEditorIndex, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
                         ContentTemplateSelector="{StaticResource EditorSelector}" viewFactory:ToolFactoryParameter.ViewFactory="{Binding ToolsFactory}"
-                        x:Name="EditorsTabControl" BorderThickness="1, 1, 0, 0" >
+                        x:Name="EditorsTabControl" BorderThickness="1, 1, 0, 0"
+                        AllowDrop="True" DragOver="EditorsTabControl_DragOver" Drop="EditorsTabControl_Drop">
 
                     <views:CachedTabControl.Template>
                         <!-- [Crucial Fix]: TargetType must be strictly set to views:CachedTabControl to prevent rendering crashes or white screens -->

@@ -120,6 +120,24 @@ namespace AssetEditor.Views
             }
         }
 
+        // A file dragged from the pack tree onto the editor tabs opens as a double-click opens it, unless an editor
+        // inside took it first. The tree's drags allow Move only, and OLE drops a drop answered with anything else.
+        void EditorsTabControl_DragOver(object sender, DragEventArgs e)
+        {
+            if (DroppedFiles.PackFile(e.Data) == null)
+                return;
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+        }
+
+        void EditorsTabControl_Drop(object sender, DragEventArgs e)
+        {
+            if (DroppedFiles.PackFile(e.Data) is not { } file || DataContext is not MainViewModel viewModel)
+                return;
+            viewModel.OpenFile(file);
+            e.Handled = true;
+        }
+
         // A .pack dragged in from Windows opens as File > Open Packfile opens it.
         void Window_DragOver(object sender, DragEventArgs e)
         {

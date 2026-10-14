@@ -62,7 +62,7 @@ namespace AssetEditor.ViewModels
             CurrentGame = $"Current Game: {GameInformationDatabase.GetGameById(applicationSettingsService.CurrentSettings.CurrentGame).DisplayName}";
         }
 
-        void OpenFile(PackFile file) => _uiCommandFactory.Create<OpenEditorCommand>().Execute(file);
+        public void OpenFile(PackFile file) => _uiCommandFactory.Create<OpenEditorCommand>().Execute(file);
 
         public void OpenPack(string path) => _uiCommandFactory.Create<OpenPackCommand>().Open(path);
 
