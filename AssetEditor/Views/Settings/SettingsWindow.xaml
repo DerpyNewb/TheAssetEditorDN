@@ -7,13 +7,13 @@
           xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
         mc:Ignorable="d"
                 Title="{loc:Loc SettingsWindow.Title}"
-        SizeToContent="WidthAndHeight"
+        Width="900" Height="430"
         ContentRendered="Window_OnContentRendered"
         Style="{StaticResource CustomWindowStyle}"
         ResizeMode="NoResize">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 

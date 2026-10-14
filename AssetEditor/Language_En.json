@@ -13,6 +13,13 @@
   "SettingsWindow.GridSize": "Grid Size",
   "SettingsWindow.VertexSelectionColour": "Vertex Selection Colour",
   "SettingsWindow.SaveButton": "Save",
+  "SettingsWindow.Tab.General": "General",
+  "SettingsWindow.Tab.GameFolders": "Game folders",
+  "SettingsWindow.Group.LanguageAndLook": "Language and look",
+  "SettingsWindow.Group.Game": "Game",
+  "SettingsWindow.Group.Controls": "Controls",
+  "SettingsWindow.Group.Viewport": "3D view",
+  "SettingsWindow.Group.Kitbash": "Kitbash",
   "PackFileTree.ContextMenu.ChangeOutputLocation": "Change output location",
 
   "UpdaterWindow.Title": "Updater",

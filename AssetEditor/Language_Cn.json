@@ -13,6 +13,13 @@
   "SettingsWindow.GridSize": "网格大小",
   "SettingsWindow.VertexSelectionColour": "顶点选择颜色",
   "SettingsWindow.SaveButton": "保存",
+  "SettingsWindow.Tab.General": "常规",
+  "SettingsWindow.Tab.GameFolders": "游戏文件夹",
+  "SettingsWindow.Group.LanguageAndLook": "语言和外观",
+  "SettingsWindow.Group.Game": "游戏",
+  "SettingsWindow.Group.Controls": "操作",
+  "SettingsWindow.Group.Viewport": "3D 视图",
+  "SettingsWindow.Group.Kitbash": "Kitbash",
   "PackFileTree.ContextMenu.ChangeOutputLocation": "更改输出位置",
 
   "UpdaterWindow.Title": "更新器",
