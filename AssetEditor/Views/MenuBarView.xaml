@@ -31,6 +31,7 @@
 
                 <MenuItem Header="{loc:Loc MenuBar.File.OpenProjectFolder}" Command="{Binding MenuBar.OpenProjectFolderCommand}"/>
             
+                <MenuItem Header="{loc:Loc MenuBar.File.OpenPack}" Command="{Binding MenuBar.OpenPackCommand}" ToolTip="{loc:Loc MenuBar.File.OpenPack.ToolTip}"/>
                 <MenuItem Header="{loc:Loc MenuBar.File.ImportReferencePack}" Command="{Binding MenuBar.ImportReferencePackCommand}"/>
 
                 <MenuItem Header="{loc:Loc MenuBar.File.OpenGamePacks}">

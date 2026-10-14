@@ -25,6 +25,7 @@ namespace AssetEditor
             serviceCollection.AddTransient<OpenGamePackCommand>();
             serviceCollection.AddTransient<ImportPackAsAsProjectCommand>();
             serviceCollection.AddTransient<ImportReferencePackCommand>();
+            serviceCollection.AddTransient<OpenPackCommand>();
             serviceCollection.AddTransient<OpenProjectCommand>();
             serviceCollection.AddTransient<OpenSettingsDialogCommand>();
             serviceCollection.AddTransient<OpenUpdaterWindowCommand>();

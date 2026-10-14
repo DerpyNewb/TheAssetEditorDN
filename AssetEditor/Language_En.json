@@ -110,6 +110,8 @@
   "MenuBar.File.OpenProjectFolder": "Open Project",
   "MenuBar.File.ImportPackAsProject": "Create project from Packfile",
   "MenuBar.File.ImportReferencePack": "Import reference Packfile",
+  "MenuBar.File.OpenPack": "Open Packfile",
+  "MenuBar.File.OpenPack.ToolTip": "Open a .pack to edit it directly: Save writes back into the same file.",
   "MenuBar.File.OpenRecentPacks": "Open Recent",
   "MenuBar.File.OpenGamePacks": "Open Game files",
   "MenuBar.File.GameAttila": "Attila",

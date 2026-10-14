@@ -110,6 +110,8 @@
   "MenuBar.File.OpenProjectFolder": "打开项目",
   "MenuBar.File.ImportPackAsProject": "从 Packfile 创建项目",
   "MenuBar.File.ImportReferencePack": "导入参考 Packfile",
+  "MenuBar.File.OpenPack": "打开 Packfile",
+  "MenuBar.File.OpenPack.ToolTip": "打开 .pack 直接编辑：保存时写回同一个文件。",
   "MenuBar.File.OpenRecentPacks": "打开最近的 Pack",
   "MenuBar.File.OpenGamePacks": "打开游戏 Pack",
   "MenuBar.File.GameAttila": "阿提拉",
