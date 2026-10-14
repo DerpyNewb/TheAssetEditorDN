@@ -39,17 +39,17 @@ namespace Shared.Core.PackFiles.Serialization
             using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
             var pack = PackFileSerializerLoader.Load(packPath, stream.Length, reader, new CustomPackDuplicateFileResolver());
             if (pack.DamagedFiles.Count != 0 || pack.GetFileCount() != written.Count)
-                throw new InvalidDataException($"The saved pack holds {pack.GetFileCount()} readable files, not the {written.Count} written. Nothing was replaced.");
+                throw new InvalidDataException($"The new copy holds {pack.GetFileCount()} readable files, not the {written.Count} written. Nothing was replaced.");
 
             foreach (var file in written)
             {
                 if (pack.FindFile(file.Path)?.DataSource is not PackedFileSource source)
-                    throw new InvalidDataException($"The saved pack lacks {file.Path}. Nothing was replaced.");
+                    throw new InvalidDataException($"The new copy is missing {file.Path}. Nothing was replaced.");
                 var stored = new byte[source.Size];
                 stream.Seek(source.Offset, SeekOrigin.Begin);
                 stream.ReadExactly(stored);
                 if (!SHA256.HashData(stored).AsSpan().SequenceEqual(file.Hash))
-                    throw new InvalidDataException($"The saved pack's bytes for {file.Path} are not the ones written. Nothing was replaced.");
+                    throw new InvalidDataException($"In the new copy, {file.Path} does not hold the bytes written. Nothing was replaced.");
             }
         }
 
