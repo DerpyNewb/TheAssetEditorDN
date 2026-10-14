@@ -27,10 +27,34 @@
             <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding Status}" Margin="0,0,0,8"/>
 
             <TextBlock Text="Attached"/>
-            <ListBox ItemsSource="{Binding Parts}" SelectedItem="{Binding Selected}" DisplayMemberPath="Key" MaxHeight="160"/>
+            <ListBox ItemsSource="{Binding Parts}" SelectedItem="{Binding Selected}" DisplayMemberPath="ListText" MaxHeight="160"/>
             <Button Content="Remove" Command="{Binding RemoveCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,4,0,8"/>
 
+            <!-- The trigger on a Border: a Style on the TextBlock itself would replace the theme's, and its colour with it. -->
+            <Border Margin="0,0,0,8">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Selected}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="Pick a personality in the Attached list to see and edit its rows." TextWrapping="Wrap"/>
+            </Border>
+
             <StackPanel DataContext="{Binding Selected}">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
                 <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Text="{Binding Status}"/>
                 <TextBlock TextWrapping="Wrap" Text="{Binding Copies, StringFormat=This key: {0}}" Margin="0,0,0,6"/>
 
@@ -56,7 +80,8 @@
                 <ComboBox ItemsSource="{Binding DataContext.BoneNames, RelativeSource={RelativeSource AncestorType=UserControl}}" SelectedItem="{Binding Bone}"/>
                 <TextBlock Text="engine_articulation_index"/>
                 <TextBox Text="{Binding EngineArticulationIndex}" Width="60" HorizontalAlignment="Left"/>
-                <CheckBox Content="jettison_rider" IsChecked="{Binding JettisonRider}" Margin="0,4,0,8"/>
+                <!-- A TextBlock, not Content: a content control reads the underscore as an access key and hides it. -->
+                <CheckBox IsChecked="{Binding JettisonRider}" Margin="0,4,0,8"><TextBlock Text="jettison_rider"/></CheckBox>
             </StackPanel>
 
             <TextBlock FontWeight="Bold" Text="Export TSV for RPFM"/>

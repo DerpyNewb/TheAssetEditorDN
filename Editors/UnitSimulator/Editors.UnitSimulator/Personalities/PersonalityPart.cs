@@ -13,12 +13,12 @@ namespace Editors.UnitSimulator.Personalities
         /// <summary>The junction row it was added with, if any.</summary>
         public DbRow? SourceJunction { get; }
 
-        [ObservableProperty] string _key;
+        [ObservableProperty, NotifyPropertyChangedFor(nameof(ListText))] string _key;
         [ObservableProperty] string _table;
         [ObservableProperty] string _variant;
         [ObservableProperty] string _landUnit;
         [ObservableProperty] string _attach;
-        [ObservableProperty] string _bone;
+        [ObservableProperty, NotifyPropertyChangedFor(nameof(ListText))] string _bone;
         [ObservableProperty] int _engineArticulationIndex;
         [ObservableProperty] bool _jettisonRider;
         [ObservableProperty, NotifyPropertyChangedFor(nameof(Status))] string _modelStatus = "";
@@ -28,6 +28,9 @@ namespace Editors.UnitSimulator.Personalities
 
         /// <summary>What of its rows was not found, or empty.</summary>
         public string Status => string.Join(" ", new[] { ModelStatus, TableStatus, BoneStatus }.Where(x => x != ""));
+
+        /// <summary>The Attached list's line: the key and the bone it sits on.</summary>
+        public string ListText => Bone == "" ? $"{Key} at the origin" : $"{Key} on {Bone}";
 
         public string BattleEntity => Source.Text("battle_entity");
         public string BattleEntityStats => Source.Text("battle_entity_stats");

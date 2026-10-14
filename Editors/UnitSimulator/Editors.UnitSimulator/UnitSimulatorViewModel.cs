@@ -113,7 +113,7 @@ namespace Editors.UnitSimulator
                     animations.Remove(part.Data.Player);
                     part.Dispose();
                 });
-            _placement = GameWorld?.AddComponent(new PersonalityPlacement(Personalities));
+            _placement = GameWorld?.AddComponent(new PersonalityPlacement(Personalities, hostParameters.RenderEngine));
 
             // The metas' props always play, so the models under them have to; off, a model stands in its bind pose.
             Player.IsEnabled.Value = true;

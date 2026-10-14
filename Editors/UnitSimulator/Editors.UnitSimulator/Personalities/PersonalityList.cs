@@ -151,6 +151,7 @@ namespace Editors.UnitSimulator.Personalities
             MarkCopies(part);
             ListPartValues();
             Status = "";
+            Selected = part;
         }
 
         void OnPartChanged(PersonalityPart part, string? property)
@@ -196,6 +197,7 @@ namespace Editors.UnitSimulator.Personalities
                 return;
             }
             var problems = new List<string>();
+            var first = Parts.Count;
             foreach (var row in rows)
             {
                 var key = row.Text("battle_personality");
@@ -206,6 +208,8 @@ namespace Editors.UnitSimulator.Personalities
                 else
                     Add(copy, row);
             }
+            if (Parts.Count > first)
+                Selected = Parts[first];
             Status = string.Join(" ", problems);
         }
 
@@ -275,6 +279,16 @@ namespace Editors.UnitSimulator.Personalities
                 var bone = skeleton == null ? null : _bones.FirstOrDefault(x => x.Name == part.Bone);
                 part.Part.Data.Offset = bone == null ? Matrix.Identity : AttachBones.World(bone, skeleton!);
             }
+        }
+
+        /// <summary>Each bone a part sits on, once, where PlaceAll puts it: what the 3D view marks. A part at the origin, or on a bone
+        /// the mount lacks, has none.</summary>
+        public List<(string Bone, Matrix World)> Markers()
+        {
+            if (_mount.Data.Skeleton is not { } skeleton)
+                return [];
+            return Parts.Select(x => x.Bone).Distinct().Select(x => _bones.FirstOrDefault(b => b.Name == x)).OfType<AttachBone>()
+                .Select(x => (x.Name, AttachBones.World(x, skeleton))).ToList();
         }
 
         // The mount model's tech skeletons: every .anim in the tech folder of each variants row naming the model's file that is built on
