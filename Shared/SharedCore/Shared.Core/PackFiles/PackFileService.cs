@@ -324,8 +324,8 @@ namespace Shared.Core.PackFiles
             var reader = _packFileContainers.FirstOrDefault(x => x != container && x.SystemFilePath != null &&
                 string.Equals(Path.GetFullPath(x.SystemFilePath), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
             if (reader != null)
-                throw new IOException($"{Path.GetFileName(path)} is open in AssetEditor as '{reader.Name}', which reads its files from it as they are needed. " +
-                    "Saving over it would change what it reads. Close that pack first, or save somewhere else.");
+                throw new IOException($"{Path.GetFileName(path)} is open in AssetEditor as '{reader.Name}', which still reads files from it. " +
+                    "Close that pack first, or save somewhere else.");
 
             _logger.Here().Information($"Saving pack file container '{DescribeContainer(container)}' to '{path}' (CreateBackup:{createBackup}, Game:{gameInformation.DisplayName})");
             container.SaveToDisk(path, createBackup, gameInformation);
