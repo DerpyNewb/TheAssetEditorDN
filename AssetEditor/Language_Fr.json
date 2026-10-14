@@ -20,7 +20,7 @@
     "StartPanel.Heading":  "Comment voulez-vous travailler ?",
     "StartPanel.Project.Title":  "Projet",
     "StartPanel.Recommended":  "Recommandé",
-    "StartPanel.Project.Text":  "Vos fichiers restent dans un dossier. Enregistrer construit le .pack dans un dossier de sortie, et le pack d'origine n'est jamais écrasé.",
+    "StartPanel.Project.Text":  "Vos fichiers restent dans un dossier, et Enregistrer en construit un .pack dans le dossier de sortie que vous choisissez.",
     "StartPanel.NewProject":  "Nouveau projet",
     "StartPanel.OpenProject":  "Ouvrir un projet",
     "StartPanel.ProjectFromPack":  "Projet depuis un .pack",

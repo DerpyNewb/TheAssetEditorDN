@@ -20,7 +20,7 @@
   "StartPanel.Heading": "How do you want to work?",
   "StartPanel.Project.Title": "Project",
   "StartPanel.Recommended": "Recommended",
-  "StartPanel.Project.Text": "Your files stay loose in a folder. Save builds the .pack in an output folder, and the pack you started from is never overwritten.",
+  "StartPanel.Project.Text": "Your files stay loose in a folder, and Save builds a .pack from them in the output folder you choose.",
   "StartPanel.NewProject": "New project",
   "StartPanel.OpenProject": "Open project",
   "StartPanel.ProjectFromPack": "Project from a .pack",
