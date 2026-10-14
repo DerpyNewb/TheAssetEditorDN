@@ -23,7 +23,8 @@
         BorderThickness="{Binding RelativeSource={RelativeSource Mode=Self}, Path=WindowState, Converter={StaticResource windowStateToThicknessConverter}}"
         ResizeMode="CanResize"
         WindowStyle="None"
-        Title="{Binding ApplicationTitle, UpdateSourceTrigger=PropertyChanged}">
+        Title="{Binding ApplicationTitle, UpdateSourceTrigger=PropertyChanged}"
+        AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop">
 
     <WindowChrome.WindowChrome>
         <WindowChrome

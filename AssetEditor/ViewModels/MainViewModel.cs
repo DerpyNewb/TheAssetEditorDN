@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using System.Windows;
 using AssetEditor.Services;
+using AssetEditor.UiCommands;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shared.Core.Commands;
@@ -62,6 +63,8 @@ namespace AssetEditor.ViewModels
         }
 
         void OpenFile(PackFile file) => _uiCommandFactory.Create<OpenEditorCommand>().Execute(file);
+
+        public void OpenPack(string path) => _uiCommandFactory.Create<OpenPackCommand>().Open(path);
 
         [RelayCommand] private void Closing(IEditorInterface editor) 
         {

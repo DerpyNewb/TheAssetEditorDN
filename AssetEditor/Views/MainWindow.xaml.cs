@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using AssetEditor.ViewModels;
 using AssetEditor.WindowsTitleMenu;
 using Shared.Core.Settings;
 using Shared.Core.ToolCreation;
@@ -117,6 +118,25 @@ namespace AssetEditor.Views
             catch
             {
             }
+        }
+
+        // A .pack dragged in from Windows opens as File > Open Packfile opens it.
+        void Window_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop) == false)
+                return;
+            e.Effects = DroppedFiles.Packs(e.Data).Count != 0 ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        void Window_Drop(object sender, DragEventArgs e)
+        {
+            var packs = DroppedFiles.Packs(e.Data);
+            if (packs.Count == 0 || DataContext is not MainViewModel viewModel)
+                return;
+            foreach (var pack in packs)
+                viewModel.OpenPack(pack);
+            e.Handled = true;
         }
 
         private void OnSourceInitialized(object? sender, EventArgs e)
