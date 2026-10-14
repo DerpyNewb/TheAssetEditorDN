@@ -148,7 +148,7 @@ namespace Shared.Ui.Common
                     _window.Topmost = false;
                     if (!_cover.IsVisible)
                         _cover.Show();
-                    Cover(target, over);
+                    Cover(Native.Highest(target, look.Main), over);
                     if (!_window.IsVisible)
                         _window.Show();
                     Centre(over);
@@ -168,11 +168,11 @@ namespace Shared.Ui.Common
                 _shown = text;
             }
 
-            // The cover takes the window's place in the z-order, directly above it: over the frozen window, and under any app the user
-            // has put over it. The popup is owned by the cover, so it stays above it.
-            void Cover(IntPtr target, Native.RECT over)
+            // The cover goes into the z-order directly above the app's highest window: over the frozen window and any panel of the
+            // app's on it, and under any app the user has put over them. The popup is owned by the cover, so it stays above it.
+            void Cover(IntPtr highest, Native.RECT over)
             {
-                var above = Native.GetWindow(target, Native.GW_HWNDPREV);
+                var above = Native.GetWindow(highest, Native.GW_HWNDPREV);
                 var flags = Native.SWP_NOACTIVATE;
                 var after = IntPtr.Zero;
                 if (above == CoverHandle)
@@ -272,12 +272,14 @@ namespace Shared.Ui.Common
             [StructLayout(LayoutKind.Sequential)]
             public struct RECT { public int Left, Top, Right, Bottom; }
 
-            public const uint GW_HWNDPREV = 3;
+            public const uint GW_HWNDNEXT = 2, GW_HWNDPREV = 3;
             public const uint SWP_NOSIZE = 0x1, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10;
             public const int GWL_EXSTYLE = -20, WS_EX_TOPMOST = 0x8;
             const int WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000, DWMWA_EXTENDED_FRAME_BOUNDS = 9;
 
             [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr window, uint relation);
+            [DllImport("user32.dll")] static extern IntPtr GetTopWindow(IntPtr parent);
+            [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
             [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out RECT rect);
             [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
             [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr window);
@@ -293,6 +295,19 @@ namespace Shared.Ui.Common
                 if (DwmGetWindowAttribute(window, DWMWA_EXTENDED_FRAME_BOUNDS, out var frame, Marshal.SizeOf<RECT>()) == 0)
                     return frame;
                 return GetWindowRect(window, out var rect) ? rect : null;
+            }
+
+            /// <summary>The highest window in the z-order that is the target, or shown by the main window's thread: a panel or dialog of
+            /// the app's over the main window, such as the start panel.</summary>
+            public static IntPtr Highest(IntPtr target, IntPtr main)
+            {
+                var thread = GetWindowThreadProcessId(main, out _);
+                for (var window = GetTopWindow(IntPtr.Zero); window != IntPtr.Zero; window = GetWindow(window, GW_HWNDNEXT))
+                {
+                    if (window == target || (IsWindowVisible(window) && GetWindowThreadProcessId(window, out _) == thread))
+                        return window;
+                }
+                return target;
             }
 
             public static IntPtr Ghost(IntPtr hung)

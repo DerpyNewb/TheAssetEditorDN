@@ -219,6 +219,33 @@ namespace Shared.UiTest.Common
             }
         }
 
+        // Seen in the app: a load started while the start panel was up dimmed the main window under the panel, and the popup, on
+        // the main window's middle, was hidden behind it. A window of the app's own over the main window is covered too.
+        [Test, Apartment(ApartmentState.STA)]
+        public void AWindowOfTheAppOverTheMainWindow_IsCoveredToo_AndThePopupStaysOnTop()
+        {
+            var main = ShowMain();
+            var handle = new WindowInteropHelper(main).Handle;
+            var panel = new Window { Title = "panel", Owner = main, Left = 350, Top = 300, Width = 400, Height = 200, ShowActivated = false };
+            panel.Show();
+            var panelHandle = new WindowInteropHelper(panel).Handle;
+            Watch(() => main);
+            try
+            {
+                using (BusyWork.Doing("Opening a.pack"))
+                {
+                    Busy(800);
+                    Assert.That(NextShown(BusyPopup.CoverHandle), Is.EqualTo(panelHandle), Describe(BusyPopup.CoverHandle, handle));
+                    Assert.That(NextShown(BusyPopup.PopupHandle), Is.EqualTo(BusyPopup.CoverHandle), Describe(BusyPopup.PopupHandle, handle));
+                }
+            }
+            finally
+            {
+                panel.Close();
+                main.Close();
+            }
+        }
+
         [Test, Apartment(ApartmentState.STA)]
         public void WithTheMainWindowMinimised_NothingShows()
         {
