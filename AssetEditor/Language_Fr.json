@@ -22,7 +22,7 @@
     "StartPanel.Recommended":  "Recommandé",
     "StartPanel.Project.Text":  "Vos fichiers restent dans un dossier, et Enregistrer en construit un .pack dans le dossier de sortie que vous choisissez.",
     "StartPanel.Pack.Title":  "Modifier un .pack directement",
-    "StartPanel.Pack.Text":  "Comme en v0.45 : vous modifiez le .pack lui-même et Enregistrer écrit dedans. Le nouveau pack est relu avant de remplacer l'ancien.",
+    "StartPanel.Pack.Text":  "Comme en v0.45 : vous modifiez le .pack lui-même et Enregistrer écrit dedans. Le nouveau fichier est vérifié avant de remplacer l'ancien.",
     "StartPanel.DontShowAgain":  "Ne plus afficher (réactivable dans Settings > Général)",
     "StartPanel.Skip":  "Passer",
     "SettingsWindow.Tab.General":  "Général",

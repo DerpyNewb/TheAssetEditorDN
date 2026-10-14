@@ -22,7 +22,7 @@
   "StartPanel.Recommended": "推荐",
   "StartPanel.Project.Text": "文件以散文件形式保存在文件夹中，保存时会用它们在你选择的输出文件夹中生成 .pack。",
   "StartPanel.Pack.Title": "直接编辑 .pack",
-  "StartPanel.Pack.Text": "v0.45 的方式：直接编辑 .pack 本身，保存时写回该文件。新的 pack 会先重新读取校验，再替换旧文件。",
+  "StartPanel.Pack.Text": "v0.45 的方式：直接编辑 .pack 本身，保存时写回该文件。新文件会先校验，再替换旧文件。",
   "StartPanel.DontShowAgain": "不再显示（可在 设置 > 常规 中重新开启）",
   "StartPanel.Skip": "跳过",
   "SettingsWindow.Tab.General": "常规",
