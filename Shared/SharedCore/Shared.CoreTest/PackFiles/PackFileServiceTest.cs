@@ -41,6 +41,18 @@ namespace Shared.CoreTest.PackFiles
             eventHub.Verify(m => m.PublishGlobalEvent(new PackFileContainerAddedEvent(container)), Times.Once);
         }
 
+        // Recent Packs and Open Pack add with setToMainPackIfFirst; a reference pack or a damaged one is read-only.
+        [Test]
+        public void AddContainer_AReadOnlyPackAskedToBeEditable_IsAddedAndLeftReadOnly()
+        {
+            var pfs = CreateServiceWithCaPack();
+            var container = PackFileContainer.CreatePackFile("Reference", "reference_path", PackFileVersion.PFH5);
+            container.IsReadOnly = true;
+
+            Assert.That(pfs.AddContainer(container, true), Is.EqualTo(container));
+            Assert.That(pfs.GetEditablePack(), Is.Null);
+        }
+
         [Test]
         public void AddContainer_CaPackFileNotSet()
         {
