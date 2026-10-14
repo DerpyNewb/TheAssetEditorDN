@@ -49,9 +49,9 @@
                 </StackPanel>
                 <TextBlock Style="{StaticResource CardText}" Text="{loc:Loc StartPanel.Project.Text}"/>
                 <WrapPanel>
-                    <Button Style="{StaticResource Choice}" Content="{loc:Loc StartPanel.NewProject}" Command="{Binding NewProjectCommand}" IsDefault="True"/>
-                    <Button Style="{StaticResource Choice}" Content="{loc:Loc StartPanel.OpenProject}" Command="{Binding OpenProjectCommand}"/>
-                    <Button Style="{StaticResource Choice}" Content="{loc:Loc StartPanel.ProjectFromPack}" Command="{Binding ProjectFromPackCommand}"/>
+                    <Button Style="{StaticResource Choice}" Content="{loc:Loc MenuBar.File.NewPack}" Command="{Binding NewProjectCommand}" IsDefault="True"/>
+                    <Button Style="{StaticResource Choice}" Content="{loc:Loc MenuBar.File.OpenProjectFolder}" Command="{Binding OpenProjectCommand}"/>
+                    <Button Style="{StaticResource Choice}" Content="{loc:Loc MenuBar.File.ImportPackAsProject}" Command="{Binding ProjectFromPackCommand}"/>
                 </WrapPanel>
             </StackPanel>
         </Border>
