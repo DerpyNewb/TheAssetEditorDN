@@ -207,21 +207,7 @@ namespace Test.AnimationMeta
         {
             var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
             var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
-            // The app-level converters, as App.xaml declares them, which the test has no App.xaml to give it.
-            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
-            static Shared.Ui.Common.ValueConverters.BoolToVisibilityConverter Vis(System.Windows.Visibility t, System.Windows.Visibility f) => new() { TrueValue = t, FalseValue = f };
-            static Shared.Ui.Common.ValueConverters.BoolToColourConverter Brush(System.Windows.Media.Color t, System.Windows.Media.Color f) => new() { TrueValue = new(t), FalseValue = new(f) };
-            var (visible, hidden, collapsed) = (System.Windows.Visibility.Visible, System.Windows.Visibility.Hidden, System.Windows.Visibility.Collapsed);
-            app.Resources["BoolToCollapsedConverter"] = Vis(visible, collapsed);
-            app.Resources["BoolToHiddenConverter"] = Vis(visible, hidden);
-            app.Resources["InvBoolToHiddenConverter"] = Vis(hidden, visible);
-            app.Resources["NullToVisibilityConverter"] = new Shared.Ui.Common.ValueConverters.NullVisibilityConverter();
-            app.Resources["ColourConverter_black_red"] = Brush(System.Windows.Media.Colors.Black, System.Windows.Media.Colors.Red);
-            app.Resources["BoolToColour_white_red"] = Brush(System.Windows.Media.Colors.White, System.Windows.Media.Colors.Red);
-            app.Resources["BoolToColour_black_gray"] = Brush(System.Windows.Media.Colors.Black, System.Windows.Media.Colors.Gray);
-            app.Resources["BoolToColour_white_gray"] = Brush(System.Windows.Media.Colors.White, System.Windows.Media.Colors.Gray);
-            app.Resources["InvBoolConverter"] = new Shared.Ui.Common.ValueConverters.InverseBooleanConverter();
-            app.Resources["BoolToChangedPrefixStr"] = new Shared.Ui.Common.ValueConverters.BoolToStringConverter { TrueValue = "*" };
+            Test.TestingUtility.TestUtility.AppResources.Load();
             var view = new AnimationEditor.Common.BaseControl.EditorHostView { DataContext = superView };
             view.Measure(new System.Windows.Size(1400, 900));
             view.Arrange(new System.Windows.Rect(0, 0, 1400, 900));

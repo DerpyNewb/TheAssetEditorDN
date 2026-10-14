@@ -33,6 +33,22 @@ namespace Editors.Shared.Core.Common.BaseControl
         [ObservableProperty] GridLength _leftColumnWidth = new(0.75, GridUnitType.Star);
         [ObservableProperty] GridLength _rightColumnWidth = new(0.25, GridUnitType.Star);
 
+        // The right column's split between the scene content and the editor's own panel, as the splitter between them leaves it.
+        // Collapsed, the scene content is only its header and the panel takes the rest; opened, it has the height it was left at.
+        [ObservableProperty, NotifyPropertyChangedFor(nameof(SceneContentHeight))] bool _sceneContentExpanded = true;
+        [ObservableProperty] GridLength _editorPanelHeight = new(3, GridUnitType.Star);
+        GridLength _sceneContentOpenHeight = new(2, GridUnitType.Star);
+
+        public GridLength SceneContentHeight
+        {
+            get => SceneContentExpanded ? _sceneContentOpenHeight : GridLength.Auto;
+            set
+            {
+                _sceneContentOpenHeight = value;
+                OnPropertyChanged();
+            }
+        }
+
         public EditorHostBase(IEditorHostParameters inputParams)
         {
             GameWorld = inputParams.GameWorld;

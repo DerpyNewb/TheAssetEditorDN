@@ -53,17 +53,18 @@
                 </ControlTemplate>
             </GridSplitter.Template>
         </GridSplitter>
+        <!-- The scene content above, the editor's own panel below, and a splitter between them; each scrolls in its share -->
         <Grid Grid.Row="1" Grid.Column="2" Grid.RowSpan="3" >
+            <Grid.Resources>
+                <BooleanToVisibilityConverter x:Key="Shown"/>
+            </Grid.Resources>
             <Grid.RowDefinitions>
+                <RowDefinition Height="{Binding SceneContentHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 <RowDefinition Height="auto"/>
-                <RowDefinition Height="auto"/>
-                <RowDefinition Height="auto"/>
-                <RowDefinition Height="auto"/>
-                <RowDefinition Height="auto"/>
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="{Binding EditorPanelHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid.RowDefinitions>
 
-            <Expander  Grid.Row="2" IsExpanded="True">
+            <Expander x:Name="SceneContent" Grid.Row="0" IsExpanded="{Binding SceneContentExpanded}">
                 <Expander.Header>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock VerticalAlignment="Center">
@@ -72,7 +73,8 @@
                     </StackPanel>
                 </Expander.Header>
                 
-                <ListView ItemsSource="{Binding SceneObjects, UpdateSourceTrigger=PropertyChanged}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" BorderThickness="0">
+                <ListView ItemsSource="{Binding SceneObjects, UpdateSourceTrigger=PropertyChanged}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" BorderThickness="0"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.CanContentScroll="False">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -94,9 +96,19 @@
             </ListView>
             </Expander>
 
-            <Rectangle Grid.Row="3" Fill="LightGray" Height="3" Margin="2,2,2,2"/>
+            <GridSplitter x:Name="SceneSplitter" Grid.Row="1" Height="5" HorizontalAlignment="Stretch" ResizeDirection="Rows"
+                          ResizeBehavior="PreviousAndNext" ShowsPreview="False" Visibility="{Binding SceneContentExpanded, Converter={StaticResource Shown}}">
+                <GridSplitter.Template>
+                    <ControlTemplate TargetType="{x:Type GridSplitter}">
+                        <Grid>
+                            <Button Content="⋯" />
+                            <Rectangle Fill="#00FFFFFF" />
+                        </Grid>
+                    </ControlTemplate>
+                </GridSplitter.Template>
+            </GridSplitter>
 
-            <ScrollViewer  Grid.Row="4" Grid.RowSpan="2" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="EditorPanel" Grid.Row="2" VerticalScrollBarVisibility="Auto">
                 <DockPanel  DockPanel.Dock="Top">
                     <ContentControl Content="{Binding ., UpdateSourceTrigger=PropertyChanged}"       
                                     ContentTemplateSelector="{StaticResource EditorSelector}"/>
