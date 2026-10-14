@@ -83,5 +83,26 @@ namespace Shared.CoreTest.PackFiles.Models.Containers
             Assert.That(File.ReadAllBytes(_output), Is.EqualTo(bytes));
             Assert.That(File.Exists(_output + "_temp"), Is.False);
         }
+
+        // An open pack reads its files from its .pack as they are needed, by offset: a new pack under it reads back as other bytes.
+        [Test]
+        public void ABuildOverAPackOpenInTheEditor_IsRefusedByName_AndThatPackStillReadsItsFiles()
+        {
+            var (pfs, project) = Open();
+            pfs.SavePackContainer(project, _output, false, Wh3);
+            var bytes = File.ReadAllBytes(_output);
+            PackFileContainer open;
+            using (var stream = File.OpenRead(_output))
+            using (var reader = new BinaryReader(stream))
+                open = PackFileSerializerLoader.Load(_output, stream.Length, reader, new CaPackDuplicateFileResolver());
+            pfs.AddContainer(open, false);
+            AddFile(pfs, project, "added.txt");
+
+            Assert.That(() => pfs.SavePackContainer(project, Path.Combine(_dir, "out", ".", "BUILT.pack"), false, Wh3),
+                Throws.InstanceOf<IOException>().With.Message.Contains("built"));
+
+            Assert.That(File.ReadAllBytes(_output), Is.EqualTo(bytes));
+            Assert.That(open.FindFile(@"data\seed.txt")!.DataSource.ReadData(), Is.EqualTo("seed"u8.ToArray()));
+        }
     }
 }

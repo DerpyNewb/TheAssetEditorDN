@@ -320,6 +320,13 @@ namespace Shared.Core.PackFiles
             if (container.IsReadOnly)
                 throw new Exception("Can not save readonly pack file");
 
+            // An open pack reads its files from its .pack as they are needed, by offset: a new pack under it reads back as other bytes.
+            var reader = _packFileContainers.FirstOrDefault(x => x != container && x.SystemFilePath != null &&
+                string.Equals(Path.GetFullPath(x.SystemFilePath), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
+            if (reader != null)
+                throw new IOException($"{Path.GetFileName(path)} is open in AssetEditor as '{reader.Name}', which reads its files from it as they are needed. " +
+                    "Saving over it would change what it reads. Close that pack first, or save somewhere else.");
+
             _logger.Here().Information($"Saving pack file container '{DescribeContainer(container)}' to '{path}' (CreateBackup:{createBackup}, Game:{gameInformation.DisplayName})");
             container.SaveToDisk(path, createBackup, gameInformation);
             _logger.Here().Information($"Saved pack file container '{DescribeContainer(container)}' to '{path}'");
