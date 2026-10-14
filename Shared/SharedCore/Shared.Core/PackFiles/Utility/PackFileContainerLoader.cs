@@ -175,8 +175,8 @@ namespace Shared.Core.PackFiles.Utility
         {
             const int Listed = 20;
             var list = string.Join("\n", damaged.Take(Listed)) + (damaged.Count > Listed ? $"\n...and {damaged.Count - Listed} more" : "");
-            return $"{pack} is damaged: {damaged.Count} of its files run past the end of the pack, most likely because it was cut short while " +
-                $"saving or copying. They were left out and the pack opened read-only, so it cannot be saved over. Its other files can still " +
+            return $"{pack} is damaged: {damaged.Count} of its files run past the end of the file, so the pack is shorter than its own " +
+                $"file list says. They were left out and the pack opened read-only, so it cannot be saved over. Its other files can still " +
                 $"be viewed and extracted.\n\nLeft out:\n{list}";
         }
 
