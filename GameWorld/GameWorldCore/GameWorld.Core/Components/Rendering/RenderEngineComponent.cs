@@ -240,7 +240,9 @@ namespace GameWorld.Core.Components.Rendering
                     using Stream stream = File.Create(folder + "\\" + _saveRenderImageSettings.Name + "_" + DateTime.Now.Ticks + ".png");
 
                     _deviceResolverComponent.Device.SetRenderTarget(null);
-                    _screenRenderTarget.SaveAsPng(stream, _screenRenderTarget.Width, _screenRenderTarget.Height);
+                    var pixels = new Color[_screenRenderTarget.Width * _screenRenderTarget.Height];
+                    _screenRenderTarget.GetData(pixels);
+                    SavePng(stream, pixels, _screenRenderTarget.Width, _screenRenderTarget.Height);
 
                     if (_saveRenderImageSettings.OpenFolder)
                         DirectoryHelper.OpenOrFocusFolder(folder);
@@ -252,6 +254,29 @@ namespace GameWorld.Core.Components.Rendering
 
                 _saveRenderImageSettings = null;
             }
+        }
+
+        /// <summary>The frame as a PNG. The frame is premultiplied, as the viewport draws it, and a PNG's alpha is straight. Additive
+        /// light (particles, bloom) adds colour and no alpha, so over the empty background it is saved with alpha from its brightness:
+        /// over black the picture is the viewport's, and a viewer that reads the alpha no longer drops the light.</summary>
+        public static void SavePng(Stream stream, Color[] premultiplied, int width, int height)
+        {
+            var bgra = new byte[premultiplied.Length * 4];
+            for (var i = 0; i < premultiplied.Length; i++)
+            {
+                var c = premultiplied[i];
+                var a = Math.Max(c.A, Math.Max(c.R, Math.Max(c.G, c.B)));
+                if (a == 0)
+                    continue;
+                bgra[i * 4] = (byte)Math.Round(c.B * 255f / a);
+                bgra[i * 4 + 1] = (byte)Math.Round(c.G * 255f / a);
+                bgra[i * 4 + 2] = (byte)Math.Round(c.R * 255f / a);
+                bgra[i * 4 + 3] = a;
+            }
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(System.Windows.Media.Imaging.BitmapSource.Create(
+                width, height, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, bgra, width * 4)));
+            encoder.Save(stream);
         }
 
         private void Render2DObjects(GraphicsDevice device, CommonShaderParameters commonShaderParameters)
