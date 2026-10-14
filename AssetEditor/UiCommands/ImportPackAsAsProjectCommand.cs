@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using CommonControls.BaseDialogs;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
@@ -62,6 +63,7 @@ namespace AssetEditor.UiCommands
             var destinationFolder = window.SelectedFolderPath;
             var outputPackPath = Path.Combine(window.SelectedOutputFolderPath, projectFolderName + ".pack");
 
+            using var busy = BusyWork.Doing($"Creating the project {projectFolderName} from {Path.GetFileName(packFilePath)}");
             var packContainer = _packFileContainerLoader.CreateFromPackFile(PackFileContainerType.Normal, packFilePath, false);
             var allFiles = packContainer.GetAllFiles();
 

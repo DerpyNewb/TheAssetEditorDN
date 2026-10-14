@@ -6,6 +6,7 @@ using GameWorld.Core.Utility;
 using GameWorld.Core.WpfWindow;
 using Microsoft.Xna.Framework;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.GameFormats.Animation;
@@ -62,6 +63,7 @@ namespace Editors.Shared.Core.Common
         public void SetMesh(SceneObject sceneObject, PackFile file, bool updateSkeleton = true)
         {
             _logger.Here().Information($"Loading reference model - {_packFileService.GetFullPath(file)}");
+            using var busy = BusyWork.Doing($"Loading {file.Name}");
 
             var loadedNode = _complexMeshLoader.Load(file, sceneObject.Player, true, true);
             if (loadedNode == null)

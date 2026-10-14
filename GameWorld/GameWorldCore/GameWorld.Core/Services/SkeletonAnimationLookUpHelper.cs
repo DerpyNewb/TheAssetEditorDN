@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using Serilog;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
@@ -129,7 +130,8 @@ namespace GameWorld.Core.Services
                 return;
 
             var stopwatch = Stopwatch.StartNew();
-            _initialIndexTask.GetAwaiter().GetResult();
+            using (BusyWork.Doing("Indexing the game's animations"))
+                _initialIndexTask.GetAwaiter().GetResult();
             stopwatch.Stop();
 
             _logger.Here().Information(

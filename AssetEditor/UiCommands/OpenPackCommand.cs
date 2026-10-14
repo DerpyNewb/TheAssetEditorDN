@@ -1,4 +1,6 @@
-﻿using Shared.Core.Events;
+﻿using System.IO;
+using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
@@ -19,6 +21,8 @@ namespace AssetEditor.UiCommands
 
         public void Open(string path)
         {
+            // The pack tree is rebuilt after the load, still under this name.
+            using var busy = BusyWork.Doing($"Opening {Path.GetFileName(path)}");
             var container = packFileContainerLoader.CreateFromPackFile(PackFileContainerType.Normal, path, false);
             packFileService.AddContainer(container, true);
         }

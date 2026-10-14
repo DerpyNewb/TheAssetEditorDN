@@ -14,6 +14,7 @@ using Editors.Ipc;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.DevConfig;
 using Shared.Core.ErrorHandling;
+using Shared.Core.Misc;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.ErrorHandling;
@@ -47,6 +48,10 @@ namespace AssetEditor
 
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             Current.DispatcherUnhandledException += new DispatcherUnhandledExceptionEventHandler(DispatcherUnhandledExceptionHandler);
+
+            // Before anything loads: the game's packs load before there is a window to show anything in.
+            BusyPopup.Watch(Dispatcher);
+            using var starting = BusyWork.Doing("Starting AssetEditor");
 
             var forceValidateServiceScopes = Debugger.IsAttached;
             _serviceProvider = new DependencyInjectionConfig().Build(forceValidateServiceScopes);
@@ -148,6 +153,7 @@ namespace AssetEditor
 
         private void BuildGameFilesAudioCache()
         {
+            using var busy = BusyWork.Doing("Building the game's audio cache");
             try
             {
                 var audioRepository = _serviceProvider!.GetRequiredService<IAudioRepository>();

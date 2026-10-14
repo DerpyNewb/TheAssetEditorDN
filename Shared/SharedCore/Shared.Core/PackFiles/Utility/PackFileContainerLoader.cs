@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
+using Shared.Core.Misc;
 using Shared.Core.Events;
 using Shared.Core.PackFiles.ErrorHandling;
 using Shared.Core.PackFiles.Models;
@@ -69,6 +70,7 @@ namespace Shared.Core.PackFiles.Utility
                 throw new Exception($"Unable to find folder {packFileSystemPath}. Curret systempath is {loactionDir}");
             }
 
+            using var busy = BusyWork.Doing($"Opening the folder {Path.GetFileName(packFileSystemPath.TrimEnd('\\', '/'))}");
             var container = _systemFolderContainerFactory.Create(packFileSystemPath);
             if (container.PackFileSettings.GameVersion == null)
             {
@@ -81,6 +83,7 @@ namespace Shared.Core.PackFiles.Utility
         public IPackFileContainer CreateFromPackFile(PackFileContainerType type, string packFilePath, bool loadAsReadOnly)
         {
             var packfileName = Path.GetFileNameWithoutExtension(packFilePath);
+            using var busy = BusyWork.Doing($"Opening {Path.GetFileName(packFilePath)}");
             var container = CreateFromCollection(type, packFilePath, [packFilePath], packfileName, loadAsReadOnly, new CustomPackDuplicateFileResolver());
             container.PackFileSettings.GameVersion = _settingsService.CurrentSettings.CurrentGame;
             container.SaveSettings();
@@ -101,6 +104,7 @@ namespace Shared.Core.PackFiles.Utility
             }
 
             var gameDataFolder = gamePathInfo.Path;
+            using var busy = BusyWork.Doing($"Loading the packs of {gameName}");
             var fullPackFilePaths = ManifestHelper.GetPackFilesFromManifest(gameDataFolder, out var manifestFileFound);
 
             // When loading ca pack packs, we want to use the CA resolver as its faster. 
@@ -146,6 +150,7 @@ namespace Shared.Core.PackFiles.Utility
                 _standardDialogs.ShowDialogBox("Failed to load from cache - Generating new cache");
             }
 
+            using var building = type == PackFileContainerType.Database ? BusyWork.Doing($"Building the file cache for {createdPackFileName}") : null;
             using (_standardDialogs.ShowWaitCursor())
             {
                 var container = LoadPackFilesFromDisk(createdPackFileName, fullPackFilePaths, duplicateFileResolver);

@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Models.Containers;
@@ -327,6 +328,7 @@ namespace Shared.Core.PackFiles
                 throw new IOException($"{Path.GetFileName(path)} is open in AssetEditor as '{reader.Name}', which still reads files from it. " +
                     "Close that pack first, or save somewhere else.");
 
+            using var busy = BusyWork.Doing($"Saving {Path.GetFileName(path)}");
             _logger.Here().Information($"Saving pack file container '{DescribeContainer(container)}' to '{path}' (CreateBackup:{createBackup}, Game:{gameInformation.DisplayName})");
             container.SaveToDisk(path, createBackup, gameInformation);
             _logger.Here().Information($"Saved pack file container '{DescribeContainer(container)}' to '{path}'");

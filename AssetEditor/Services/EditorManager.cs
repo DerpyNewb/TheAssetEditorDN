@@ -1,9 +1,11 @@
 ﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Shared.Core.Events;
 using Shared.Core.Events.Global;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
@@ -61,6 +63,7 @@ namespace AssetEditor.Services
                 return null;
             }
 
+            NameUntilIdle($"Opening {file.Name}");
             var fullFileName = _packFileService.GetFullPath(file);
             var editorViewModel = _editorDatabase.Create(fullFileName, preferedEditor);
             if (editorViewModel == null)
@@ -100,12 +103,23 @@ namespace AssetEditor.Services
 
         public IEditorInterface Create(EditorEnums editor, Action<IEditorInterface>? onInitializeCallback = null)
         {
+            NameUntilIdle($"Opening the {editor.ToString().Replace('_', ' ')}");
             var editorViewModel = _editorDatabase.Create(editor);
             if (onInitializeCallback != null)
                 onInitializeCallback(editorViewModel);
 
             InsertEditorIntoTab(editorViewModel);
             return editorViewModel;
+        }
+
+        // Until the app is idle, not until the method returns: a 3D editor goes on loading once its view is loaded.
+        static void NameUntilIdle(string text)
+        {
+            var busy = BusyWork.Doing(text);
+            if (Application.Current?.Dispatcher is { } ui)
+                ui.BeginInvoke(busy.Dispose, DispatcherPriority.ContextIdle);
+            else
+                busy.Dispose();
         }
 
         public Window CreateWindow(PackFile packFile, EditorEnums? preferedEditor = null)

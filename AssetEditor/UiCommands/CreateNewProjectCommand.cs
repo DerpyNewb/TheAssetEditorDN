@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using CommonControls.BaseDialogs;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
@@ -51,6 +52,7 @@ namespace AssetEditor.UiCommands
 
             var outputPath = Path.Combine(window.SelectedOutputFolderPath, projectFolderName + ".pack");
 
+            using var busy = BusyWork.Doing($"Opening the project {projectFolderName}");
             var folderPack = _systemFolderContainerFactory.Create(window.SelectedFolderPath);
             folderPack.PackFileSettings.SaveLocationPath = outputPath;
             folderPack.PackFileSettings.EnablePackFileCorruptionDetection = window.EnablePackFileCorruptionDetection;

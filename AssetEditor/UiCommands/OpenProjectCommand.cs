@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Windows.Forms;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
@@ -51,6 +52,7 @@ namespace AssetEditor.UiCommands
                 return;
             }
 
+            using var busy = BusyWork.Doing($"Opening the project {Path.GetFileName(dialog.SelectedPath)}");
             var container = _systemFolderContainerFactory.Create(dialog.SelectedPath);
             if (container.PackFileSettings.GameVersion == null)
             {

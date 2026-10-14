@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using CommonControls.BaseDialogs;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Models.FileSources;
@@ -40,6 +41,7 @@ namespace Editors.Reports.DeepSearch
         public List<string> DeepSearch(string searchStr, bool caseSensetive)
         {
             _logger.Here().Information($"Searching for : '{searchStr}'");
+            using var busy = BusyWork.Doing($"Searching every pack for \"{searchStr}\"");
             var packFiles = _packFileService.GetAllPackfileContainers();
 
             var filesWithResult = new List<KeyValuePair<string, string>>();
