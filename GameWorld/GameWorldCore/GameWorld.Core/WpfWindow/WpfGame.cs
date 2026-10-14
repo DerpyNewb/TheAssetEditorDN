@@ -15,6 +15,7 @@ namespace GameWorld.Core.WpfWindow
     /// </summary>
     public class WpfGame : D3D11Host, IWpfGame
     {
+        private readonly ILogger _logger = Logging.Create<WpfGame>();
         WpfGraphicsDeviceService _deviceServiceHandle;
         private readonly ResourceLibrary _resourceLibrary;
         private readonly IStandardDialogs _exceptionService;
@@ -149,11 +150,17 @@ namespace GameWorld.Core.WpfWindow
                 Draw(time);
             }
 
-            catch(Exception ex) 
+            catch(Exception ex)
             {
+                // A frame can run inside a window message (a resize), where Windows refuses to create the dialog's window: the
+                // dialog threw in turn and took the app down. It opens once the frame is over, and the error is logged first.
+                _logger.Here().Error(ex, "A frame failed");
                 StopRendering();
-                _exceptionService.ShowExceptionWindow(ex);
-                StartRendering();
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _exceptionService.ShowExceptionWindow(ex);
+                    StartRendering();
+                });
             }
         }
 
