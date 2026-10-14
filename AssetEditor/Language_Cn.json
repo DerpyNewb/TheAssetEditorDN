@@ -18,7 +18,7 @@
   "SettingsWindow.ShowStartPanelTooltip": "每次打开时询问：使用项目，还是直接编辑 .pack。",
   "StartPanel.Title": "开始",
   "StartPanel.Heading": "你想以哪种方式工作？",
-  "StartPanel.Project.Title": "项目",
+  "StartPanel.Project.Title": "在项目中工作",
   "StartPanel.Recommended": "推荐",
   "StartPanel.Project.Text": "文件以散文件形式保存在文件夹中，保存时会用它们在你选择的输出文件夹中生成 .pack。",
   "StartPanel.Pack.Title": "直接编辑 .pack",

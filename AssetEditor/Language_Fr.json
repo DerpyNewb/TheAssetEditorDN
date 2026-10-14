@@ -18,7 +18,7 @@
     "SettingsWindow.ShowStartPanelTooltip":  "Demander à chaque ouverture : un projet, ou un .pack modifié directement.",
     "StartPanel.Title":  "Démarrage",
     "StartPanel.Heading":  "Comment voulez-vous travailler ?",
-    "StartPanel.Project.Title":  "Projet",
+    "StartPanel.Project.Title":  "Travailler dans un projet",
     "StartPanel.Recommended":  "Recommandé",
     "StartPanel.Project.Text":  "Vos fichiers restent dans un dossier, et Enregistrer en construit un .pack dans le dossier de sortie que vous choisissez.",
     "StartPanel.Pack.Title":  "Modifier un .pack directement",
