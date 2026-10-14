@@ -41,7 +41,8 @@ namespace Shared.Core.PackFiles.Serialization
                 if (output.Header.FileCount > int.MaxValue)
                     throw new Exception("Too many files in packfile!");
 
-                output.FileList = new Dictionary<string, PackFile>((int)output.Header.FileCount);
+                // Sized by what the file can hold, at five bytes an entry at least: a garbage count must not reserve gigabytes.
+                output.FileList = new Dictionary<string, PackFile>((int)Math.Min(output.Header.FileCount, packFileSize / 5));
 
                 var packedFileSourceParent = new PackedFileSourceParent()
                 {
@@ -66,6 +67,17 @@ namespace Shared.Core.PackFiles.Serialization
                         isCompressed = reader.ReadBoolean();
 
                     var fullPackedFileName = IOFunctions.ReadZeroTerminatedAscii(reader, fileNameBuffer).ToLower();
+                    if (reader.BaseStream.Position > output.Header.DataStart)
+                        throw Damaged(packFileSystemPath, $"its file list runs into its data at file {i + 1} of {output.Header.FileCount}");
+
+                    // A file whose data runs past the end of the pack is left out, and the pack stays read-only (DamagedFiles).
+                    if ((long)offset + size > packFileSize)
+                    {
+                        output.DamagedFiles.Add(fullPackedFileName);
+                        offset += size;
+                        continue;
+                    }
+
                     var packFileName = Path.GetFileName(fullPackedFileName);
                     var isEncrypted = output.Header.HasEncryptedData;
 
@@ -104,7 +116,16 @@ namespace Shared.Core.PackFiles.Serialization
                     offset += size;
                 }
 
+                if (output.DamagedFiles.Count != 0)
+                    s_logger.Here().Warning($"{packFileSystemPath} is damaged: {output.DamagedFiles.Count} files run past its end and were left out");
+
                 return output;
+            }
+            catch (Exception e) when (e is EndOfStreamException or IndexOutOfRangeException)
+            {
+                // The header or file list ends early, or a name runs past the name buffer: nothing in it can be placed.
+                s_logger.Here().Error($"Failed to load packfile {packFileSystemPath} - {e.Message}");
+                throw Damaged(packFileSystemPath, "its file list is cut short", e);
             }
             catch (Exception e)
             {
@@ -174,6 +195,9 @@ namespace Shared.Core.PackFiles.Serialization
         }
 
  
+
+        static InvalidDataException Damaged(string packFileSystemPath, string reason, Exception? inner = null) =>
+            new($"{Path.GetFileName(packFileSystemPath)} is damaged: {reason}. It was not loaded.", inner);
 
         private static byte[] DetectCompressionInfo(BinaryReader reader, long dataOffset, uint entrySize, bool isEncrypted)
         {

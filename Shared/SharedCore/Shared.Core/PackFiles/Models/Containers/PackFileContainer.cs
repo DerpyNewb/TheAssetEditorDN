@@ -14,7 +14,7 @@ namespace Shared.Core.PackFiles.Models.Containers
 
         public string Name { get; set; }
         public PFHeader Header { get; set; }
-        public bool IsReadOnly { get { return IsCaPackFile || field; } set; } = false;
+        public bool IsReadOnly { get { return IsCaPackFile || DamagedFiles.Count != 0 || field; } set; } = false;
         public bool IsCaPackFile { get; set; } = false;
         public string? SystemFilePath
         {
@@ -28,6 +28,9 @@ namespace Shared.Core.PackFiles.Models.Containers
         public PackFileSettings PackFileSettings { get; } = new();
         public PackFileContainerType ContainerType => PackFileContainerType.Normal;
         public long OriginalLoadByteSize { get; set; } = -1;
+        /// <summary>Files whose data runs past the end of the pack, left out when it loaded. A pack with any is read-only for good, so
+        /// nothing saves over what is left of it.</summary>
+        public List<string> DamagedFiles { get; } = [];
         public HashSet<string> SourcePackFilePaths { get; set; } = [];
         
         public Dictionary<string, PackFile> FileList { get; set; } = [];

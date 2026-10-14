@@ -53,6 +53,30 @@ namespace Shared.CoreTest.PackFiles.Utility
         private PackFileContainerLoader CreateLoader() => new PackFileContainerLoader(_settingsService, _dialogs.Object, _localizationManager, _cacheHelper, new SimpleSystemFolderContainerFactory());
 
         [Test]
+        public void ADamagedPackOpenedForEditing_OpensReadOnly_AndSaysSoOnce()
+        {
+            var path = Path.Combine(_tempGameDir, "Karl_and_celestialgeneral.pack");
+            using (var stream = new FileStream(path, FileMode.Open))
+                stream.SetLength(stream.Length - 100);
+
+            var pack = CreateLoader().CreateFromPackFile(PackFileContainerType.Normal, path, false);
+
+            Assert.That(pack.IsReadOnly, Is.True);
+            _dialogs.Verify(d => d.ShowDialogBox(It.Is<string>(m => m.Contains("Karl_and_celestialgeneral")), It.IsAny<string>()), Times.Once);
+        }
+
+        [Test]
+        public void AWholePackOpenedForEditing_IsEditable_AndSaysNothing()
+        {
+            var path = Path.Combine(_tempGameDir, "Karl_and_celestialgeneral.pack");
+
+            var pack = CreateLoader().CreateFromPackFile(PackFileContainerType.Normal, path, false);
+
+            Assert.That(pack.IsReadOnly, Is.False);
+            _dialogs.Verify(d => d.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        }
+
+        [Test]
         public void LoadAllCaFiles_MissingGameDirectory_ShowsErrorAndSkipsBuild()
         {
             _settingsService.CurrentSettings.GameDirectories.Clear();

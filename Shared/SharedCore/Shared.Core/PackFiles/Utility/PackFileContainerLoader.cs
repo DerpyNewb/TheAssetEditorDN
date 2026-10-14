@@ -152,6 +152,8 @@ namespace Shared.Core.PackFiles.Utility
                 container.Name = createdPackFileName;
                 container.IsReadOnly = loadAsReadOnly;
                 container.SystemFilePath = packFileSystemPath;
+                if (container.DamagedFiles.Count != 0)
+                    _standardDialogs.ShowDialogBox(DamagedMessage(Path.GetFileName(packFileSystemPath), container.DamagedFiles), "Damaged pack");
 
                 if (type == PackFileContainerType.Database)
                 {
@@ -168,6 +170,15 @@ namespace Shared.Core.PackFiles.Utility
 
 
 
+
+        static string DamagedMessage(string pack, List<string> damaged)
+        {
+            const int Listed = 20;
+            var list = string.Join("\n", damaged.Take(Listed)) + (damaged.Count > Listed ? $"\n...and {damaged.Count - Listed} more" : "");
+            return $"{pack} is damaged: {damaged.Count} of its files run past the end of the pack, most likely because it was cut short while " +
+                $"saving or copying. They were left out and the pack opened read-only, so it cannot be saved over. Its other files can still " +
+                $"be viewed and extracted.\n\nLeft out:\n{list}";
+        }
 
         private static PackFileContainer LoadPackFilesFromDisk(string createdPackFileName, List<string> fullPackFilePaths, IDuplicateFileResolver packfileResolver)
         {
