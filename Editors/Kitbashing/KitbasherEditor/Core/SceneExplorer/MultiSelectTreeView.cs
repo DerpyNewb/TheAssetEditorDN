@@ -162,7 +162,12 @@ namespace KitbasherEditor.Views
             if (notification.NewState is not ObjectSelectionState objectSelection)
                 return;
 
+            // A selection put back as it was (every undo of a transform box preview does it) is not a new one: announcing it
+            // rebuilt the mesh panel for the same mesh, 400 ms a scrub step.
+            var before = GetSelectedNodes(_nodes);
             ForEachNode(_nodes, objectSelection.CurrentSelection());
+            if (before.SequenceEqual(GetSelectedNodes(_nodes)))
+                return;
 
             SendNodeSelectionEvent();
         }
