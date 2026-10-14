@@ -464,16 +464,28 @@ namespace Shared.Core.PackFiles.Models.Containers
                 transientContainer.AddOrUpdateFile(relativePath, memFile);
             }
 
+            // As PackFileContainer.SaveToDisk: written beside it, read back, and only then put in its place in one step. Copying it
+            // over the last build could stop halfway, or write into the pack under whatever holds it open.
             using (SuppressWatcher())
             {
-                using (var fileStream = new FileStream(tempPath, FileMode.Create))
+                try
                 {
-                    using var writer = new BinaryWriter(fileStream);
-                    PackFileSerializerWriter.SaveToByteArray(path, transientContainer, writer, effectiveGameInformation);
-                }
+                    List<WrittenFile> written;
+                    using (var fileStream = new FileStream(tempPath, FileMode.Create))
+                    using (var writer = new BinaryWriter(fileStream))
+                        written = PackFileSerializerWriter.SaveToByteArray(path, transientContainer, writer, effectiveGameInformation);
+                    PackFileSerializerWriter.Verify(tempPath, written);
 
-                File.Copy(tempPath, path, true);
-                _fileSystemAccess.FileDelete(tempPath);
+                    if (File.Exists(path))
+                        File.Replace(tempPath, path, null);
+                    else
+                        File.Move(tempPath, path);
+                }
+                catch
+                {
+                    File.Delete(tempPath);
+                    throw;
+                }
             }
         }
 
