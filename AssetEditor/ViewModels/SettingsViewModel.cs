@@ -32,6 +32,7 @@ namespace AssetEditor.ViewModels
         [ObservableProperty] private int _visualEditorsGridSize;
         [ObservableProperty] private ColourPickerViewModel _vertexSelectionColour;
         [ObservableProperty] private bool _startMaximised;
+        [ObservableProperty] private bool _showStartPanel;
         [ObservableProperty] private GameTypeEnum _currentGame;
         [ObservableProperty] private bool _loadCaPacksByDefault;
         [ObservableProperty] private bool _showCAWemFiles;
@@ -55,6 +56,7 @@ namespace AssetEditor.ViewModels
             CameraModes = new ObservableCollection<CameraControlMode>((CameraControlMode[])Enum.GetValues(typeof(CameraControlMode)));
 
             StartMaximised = _settingsService.CurrentSettings.StartMaximised;
+            ShowStartPanel = _settingsService.CurrentSettings.ShowStartPanel;
             Games = new ObservableCollection<GameTypeEnum>(GameInformationDatabase.Games.Values.OrderBy(game => game.DisplayName).Select(game => game.Type));
             CurrentGame = _settingsService.CurrentSettings.CurrentGame;
             LoadCaPacksByDefault = _settingsService.CurrentSettings.LoadCaPacksByDefault;
@@ -83,6 +85,7 @@ namespace AssetEditor.ViewModels
             _settingsService.CurrentSettings.VisualEditorsGridSize = VisualEditorsGridSize;
             _settingsService.CurrentSettings.VertexSelectionColour = VertexSelectionColour.SelectedColour;
             _settingsService.CurrentSettings.StartMaximised = StartMaximised;
+            _settingsService.CurrentSettings.ShowStartPanel = ShowStartPanel;
             _settingsService.CurrentSettings.CurrentGame = CurrentGame;
             _settingsService.CurrentSettings.LoadCaPacksByDefault = LoadCaPacksByDefault;
             _settingsService.CurrentSettings.ShowCAWemFiles = ShowCAWemFiles;

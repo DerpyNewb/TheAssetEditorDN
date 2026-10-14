@@ -49,7 +49,6 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="{loc:Loc SettingsWindow.SelectedLanguage}" Margin="5, 0, 15, 0"/>
@@ -59,9 +58,25 @@
                     <TextBlock Grid.Row="1" Text="{loc:Loc SettingsWindow.Theme}" Margin="5, 0, 15, 0"/>
                     <ComboBox Grid.Row="1" Grid.Column="1" Width="150" Margin="0, 0, 0, 5" SelectedItem="{Binding CurrentTheme, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                               ItemsSource="{Binding AvailableThemes}" ItemTemplate="{StaticResource SettingsEnumConverterTemplate}"/>
+                </Grid>
 
-                    <TextBlock Grid.Row="2" Text="{loc:Loc SettingsWindow.StartMaximised}" Margin="5, 0, 15, 0"/>
-                    <CheckBox Grid.Row="2" Grid.Column="1" Margin="-1, 0, 0, 5" IsChecked="{Binding StartMaximised, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
+                <TextBlock Style="{StaticResource GroupTitle}" Text="{loc:Loc SettingsWindow.Group.Start}"/>
+                <Separator Style="{StaticResource GroupLine}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="230" SharedSizeGroup="Label"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="{loc:Loc SettingsWindow.StartMaximised}" Margin="5, 0, 15, 0"/>
+                    <CheckBox Grid.Row="0" Grid.Column="1" Margin="-1, 0, 0, 5" IsChecked="{Binding StartMaximised, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
+
+                    <TextBlock Grid.Row="1" Text="{loc:Loc SettingsWindow.ShowStartPanel}" Margin="5, 0, 15, 0" ToolTip="{loc:Loc SettingsWindow.ShowStartPanelTooltip}"/>
+                    <CheckBox Grid.Row="1" Grid.Column="1" Margin="-1, 0, 0, 5" IsChecked="{Binding ShowStartPanel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
                 </Grid>
 
                 <TextBlock Style="{StaticResource GroupTitle}" Text="{loc:Loc SettingsWindow.Group.Game}"/>

@@ -22,6 +22,8 @@ namespace Shared.Core.Settings
         public ThemeType Theme { get; set; } = ThemeType.DarkTheme;
         public BackgroundColour RenderEngineBackgroundColour { get; set; } = BackgroundColour.DarkGrey;
         public bool StartMaximised { get; set; } = false;
+        /// <summary>The start panel (project or a .pack edited in place) each time the app opens.</summary>
+        public bool ShowStartPanel { get; set; } = true;
         public List<GamePathPair> GameDirectories { get; set; } = [];
         public GameTypeEnum CurrentGame { get; set; } = GameTypeEnum.Warhammer3;
         public bool LoadCaPacksByDefault { get; set; } = true;

@@ -7,6 +7,7 @@ using AssetEditor.Services;
 using AssetEditor.UiCommands;
 using AssetEditor.ViewModels;
 using AssetEditor.Views;
+using AssetEditor.Views.StartPanel;
 using CommunityToolkit.Diagnostics;
 using Editors.Audio.Shared.Storage;
 using Editors.Ipc;
@@ -93,6 +94,17 @@ namespace AssetEditor
             _ipcServer.Start();
 
             _ = CheckVersion(uiCommandFactory);
+
+            if (settingsService.CurrentSettings.ShowStartPanel)
+                Dispatcher.BeginInvoke(() => ShowStartPanel(settingsService, uiCommandFactory), DispatcherPriority.ApplicationIdle);
+        }
+
+        // Once the main window has drawn. The pick runs after the panel has closed, so its own dialog has the main window behind it.
+        void ShowStartPanel(ApplicationSettingsService settingsService, IUiCommandFactory uiCommandFactory)
+        {
+            var panel = new StartPanelViewModel(settingsService, uiCommandFactory);
+            new StartPanelWindow(panel) { Owner = MainWindow }.ShowDialog();
+            panel.Closed();
         }
 
         private static void HandleFirstTimeSettings(IUiCommandFactory uiCommandFactory, ApplicationSettingsService settingsService)

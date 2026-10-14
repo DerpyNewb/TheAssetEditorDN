@@ -10,11 +10,11 @@ namespace Test.E2EVerification
     // missing key as the key, both without a word, so the XAML is read here against the view model and the language files.
     internal class SettingsView_Tests
     {
-        static readonly XNamespace Wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        internal static readonly XNamespace Wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         static readonly Regex BindingPath = new(@"^\{Binding\s+(?:Path=)?([A-Za-z_]\w*)(?=[\s,.}])");
         static readonly Regex LocKey = new(@"\{loc:Loc ([^}\s]+)\}");
 
-        static string Root()
+        internal static string Root()
         {
             var root = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
             while (root != null && !File.Exists(Path.Combine(root.FullName, "AssetEditor.sln")))
@@ -27,7 +27,7 @@ namespace Test.E2EVerification
         static XDocument View() => XDocument.Load(SettingsFile("SettingsView.xaml"));
         static Type ViewModel(string name) => typeof(AssetEditor.ViewModels.MainViewModel).Assembly.GetType("AssetEditor.ViewModels." + name)!;
 
-        static IEnumerable<(XElement Element, string Path)> Bindings(XContainer scope) =>
+        internal static IEnumerable<(XElement Element, string Path)> Bindings(XContainer scope) =>
             scope.Descendants().SelectMany(e => e.Attributes().Select(a => (e, BindingPath.Match(a.Value))))
                 .Where(x => x.Item2.Success).Select(x => (x.e, x.Item2.Groups[1].Value));
 
@@ -69,17 +69,19 @@ namespace Test.E2EVerification
         [Test]
         public void EveryTextTheSettingsWindowShows_IsInEveryLanguage()
         {
-            var keys = new[] { "SettingsView.xaml", "SettingsWindow.xaml" }
-                .SelectMany(f => LocKey.Matches(File.ReadAllText(SettingsFile(f))).Select(m => m.Groups[1].Value)).Distinct().ToList();
-
-            var missing = new[] { "En", "Fr", "Cn" }.SelectMany(lang =>
-            {
-                using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(Root(), "AssetEditor", $"Language_{lang}.json")));
-                return keys.Where(k => json.RootElement.TryGetProperty(k, out _) == false).Select(k => $"{lang}: {k}").ToList();
-            }).ToList();
+            var keys = LocKeys(SettingsFile("SettingsView.xaml"), SettingsFile("SettingsWindow.xaml"));
 
             Assert.That(keys, Has.Count.GreaterThan(10), "the walk found too few keys to mean anything");
-            Assert.That(missing, Is.Empty);
+            Assert.That(MissingInALanguage(keys), Is.Empty);
         }
+
+        internal static List<string> LocKeys(params string[] files) =>
+            files.SelectMany(f => LocKey.Matches(File.ReadAllText(f)).Select(m => m.Groups[1].Value)).Distinct().ToList();
+
+        internal static List<string> MissingInALanguage(List<string> keys) => new[] { "En", "Fr", "Cn" }.SelectMany(lang =>
+        {
+            using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(Root(), "AssetEditor", $"Language_{lang}.json")));
+            return keys.Where(k => json.RootElement.TryGetProperty(k, out _) == false).Select(k => $"{lang}: {k}").ToList();
+        }).ToList();
     }
 }
