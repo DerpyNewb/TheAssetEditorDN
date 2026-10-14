@@ -107,6 +107,20 @@ namespace Editors.Shared.Core.Common
             sceneObject.TriggerMeshChanged();
         }
 
+        // The X beside Browse: the model leaves the scene; the skeleton, its animation and what the metadata hangs on it stay.
+        public void RemoveMesh(SceneObject sceneObject)
+        {
+            if (sceneObject.ModelNode == null)
+                return;
+
+            sceneObject.ParentNode.RemoveObject(sceneObject.ModelNode);
+            sceneObject.ModelNode = null!;
+            sceneObject.MeshName.Value = "";
+
+            _eventHub.Publish(new SceneObjectUpdateEvent(sceneObject, true, false, false, false));
+            sceneObject.TriggerMeshChanged();
+        }
+
         public void CopyMeshFromOther(SceneObject assetViewModel, SceneObject other)
         {
             if (assetViewModel.ModelNode != null)
