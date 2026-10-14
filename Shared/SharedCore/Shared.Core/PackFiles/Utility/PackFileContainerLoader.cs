@@ -193,8 +193,9 @@ namespace Shared.Core.PackFiles.Utility
                     using var fileStream = File.OpenRead(path);
                     using var reader = new BinaryReader(fileStream, Encoding.ASCII);
 
-                    var packFileSize = new FileInfo(path).Length;
-                    var pack = PackFileSerializerLoader.Load(path, packFileSize, reader, packfileResolver);
+                    var info = new FileInfo(path);
+                    var pack = PackFileSerializerLoader.Load(path, info.Length, reader, packfileResolver);
+                    pack.OriginalLoadWriteTimeUtc = info.LastWriteTimeUtc;
                     packList.Add(pack);
 
                     PackFileLog.LogPackCompression(pack);

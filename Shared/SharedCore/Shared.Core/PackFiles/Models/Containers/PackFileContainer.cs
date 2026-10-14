@@ -28,6 +28,9 @@ namespace Shared.Core.PackFiles.Models.Containers
         public PackFileSettings PackFileSettings { get; } = new();
         public PackFileContainerType ContainerType => PackFileContainerType.Normal;
         public long OriginalLoadByteSize { get; set; } = -1;
+        /// <summary>With OriginalLoadByteSize, how a save tells the pack it was read from is still that pack: the unedited files are
+        /// read out of it by their offsets.</summary>
+        public DateTime? OriginalLoadWriteTimeUtc { get; set; }
         /// <summary>Files whose data runs past the end of the pack, left out when it loaded. A pack with any is read-only for good, so
         /// nothing saves over what is left of it.</summary>
         public List<string> DamagedFiles { get; } = [];
@@ -324,27 +327,51 @@ namespace Shared.Core.PackFiles.Models.Containers
                 Guard.IsNotNull(SystemFilePath, "SystemFilePath must be set if saving to disk");
                 var fileInfo = new FileInfo(SystemFilePath);
                 var byteSize = fileInfo.Length;
-                if (byteSize != OriginalLoadByteSize)
+                // Size alone passes a pack rewritten at the same size.
+                if (byteSize != OriginalLoadByteSize || OriginalLoadWriteTimeUtc != null && fileInfo.LastWriteTimeUtc != OriginalLoadWriteTimeUtc)
                     throw new Exception("File has been changed outside of AssetEditor. Can not save the file as it will cause corruptions");
             }
 
-            using (var memoryStream = new FileStream(path + "_temp", FileMode.Create))
+            // Written beside it, read back, and only then put in its place in one step. The files point at the new pack once it is there,
+            // so a save that fails leaves the pack on disk and the editor as they were.
+            var tempPath = path + "_temp";
+            try
             {
-                using var writer = new BinaryWriter(memoryStream);
-                PackFileSerializerWriter.SaveToByteArray(path, this, writer, effectiveGameInformation);
+                List<WrittenFile> written;
+                using (var stream = new FileStream(tempPath, FileMode.Create))
+                using (var writer = new BinaryWriter(stream))
+                    written = PackFileSerializerWriter.SaveToByteArray(path, this, writer, effectiveGameInformation);
+                PackFileSerializerWriter.Verify(tempPath, written);
+
+                // A file the save leaves out still reads from the pack about to be replaced.
+                var writtenFiles = written.Select(x => x.File).ToHashSet();
+                foreach (var file in FileList.Values.Where(x => !writtenFiles.Contains(x) && x.DataSource is PackedFileSource s && SamePath(s.Parent.FilePath, path)))
+                    file.DataSource = new MemorySource(file.DataSource.ReadData());
+
+                _logger.Here().Information("Pack written to {TempPath} and read back, now replacing {Path}", tempPath, path);
+                if (File.Exists(path))
+                    File.Replace(tempPath, path, null);
+                else
+                    File.Move(tempPath, path);
+
+                foreach (var file in written)
+                    file.File.DataSource = file.Source;
+            }
+            catch
+            {
+                File.Delete(tempPath);
+                throw;
             }
 
-            _logger.Here().Information("Finished writing pack file to temporary file, now replacing original file with the new one");
-            File.Delete(path);
-
-            _logger.Here().Information("Original file deleted, now moving temporary file to original file path");
-            File.Move(path + "_temp", path);
-
             SystemFilePath = path;
-            OriginalLoadByteSize = new FileInfo(path).Length;
+            var saved = new FileInfo(path);
+            OriginalLoadByteSize = saved.Length;
+            OriginalLoadWriteTimeUtc = saved.LastWriteTimeUtc;
 
             _logger.Here().Information("SaveToDisk completed");
         }
+
+        static bool SamePath(string a, string b) => string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
 
         private static string BuildPackPath(string? directoryPath, string fileName)
         {

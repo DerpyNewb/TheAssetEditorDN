@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Models.Containers;
@@ -9,6 +10,9 @@ using Shared.Core.Settings;
 namespace Shared.Core.PackFiles.Serialization
 {
     record FileCompressionInfo(CompressionFormat IntendedCompressionFormat, bool DecompressBeforeSaving);
+
+    /// <summary>A file as the writer put it in the new pack: where it lies there, and a hash of the bytes stored.</summary>
+    record WrittenFile(string Path, PackFile File, PackedFileSource Source, byte[] Hash);
 
     class PackFileWriteInformation(PackFile pf, string fullFileName, long sizePosition, FileCompressionInfo compressionInfo)
     {
@@ -28,7 +32,30 @@ namespace Shared.Core.PackFiles.Serialization
             (@"zzzz_packfile_corruction_detection\packfile_corruction_detection_3.txt", "This file is here to validate that the packfile has not been corrupted while saving. This is check 3")
         ];
 
-        public static void SaveToByteArray(string outputFileName, PackFileContainer container, BinaryWriter writer, GameInformation currentGameInformation)
+        /// <summary>Reads a just-written pack back and throws unless it holds exactly the written files, each with the bytes stored.</summary>
+        public static void Verify(string packPath, IReadOnlyList<WrittenFile> written)
+        {
+            using var stream = File.OpenRead(packPath);
+            using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
+            var pack = PackFileSerializerLoader.Load(packPath, stream.Length, reader, new CustomPackDuplicateFileResolver());
+            if (pack.DamagedFiles.Count != 0 || pack.GetFileCount() != written.Count)
+                throw new InvalidDataException($"The saved pack holds {pack.GetFileCount()} readable files, not the {written.Count} written. Nothing was replaced.");
+
+            foreach (var file in written)
+            {
+                if (pack.FindFile(file.Path)?.DataSource is not PackedFileSource source)
+                    throw new InvalidDataException($"The saved pack lacks {file.Path}. Nothing was replaced.");
+                var stored = new byte[source.Size];
+                stream.Seek(source.Offset, SeekOrigin.Begin);
+                stream.ReadExactly(stored);
+                if (!SHA256.HashData(stored).AsSpan().SequenceEqual(file.Hash))
+                    throw new InvalidDataException($"The saved pack's bytes for {file.Path} are not the ones written. Nothing was replaced.");
+            }
+        }
+
+        /// <summary>Writes the pack and returns where each file went. The container's files are not pointed at the new pack: a caller
+        /// does that once the pack is where it is going (PackFileContainer.SaveToDisk).</summary>
+        public static List<WrittenFile> SaveToByteArray(string outputFileName, PackFileContainer container, BinaryWriter writer, GameInformation currentGameInformation)
         {
             var stopWatch = Stopwatch.StartNew();
 
@@ -62,13 +89,14 @@ namespace Shared.Core.PackFiles.Serialization
             // Write the core of the file
             var fileMetaDataTable = BuildMetaDataTable(sortedFiles, container, currentGameInformation);
             SerializeFileTable(fileMetaDataTable, container, writer);
-            SerializeFileBlob(outputFileName, fileMetaDataTable, container, writer);
+            var written = SerializeFileBlob(outputFileName, fileMetaDataTable, container, writer);
 
             if (enableCorruptionDetection)
                 ValidateCorruptionDetectionFiles(outputFileName, writer);
             
             stopWatch.Stop();
             _logger.Here().Information("Saving packfile {PackFileName} completed in {ElapsedMilliseconds} ms", packFileName, stopWatch.ElapsedMilliseconds);
+            return written;
         }
 
         private static bool IsCorruptionDetectionFile(string relativePath)
@@ -286,10 +314,11 @@ namespace Shared.Core.PackFiles.Serialization
             _logger.Here().Information("Finished SerializeFileTable");
         }
 
-        static void SerializeFileBlob(string outputFileName, List<PackFileWriteInformation> fileMetaDataTabel, PackFileContainer container, BinaryWriter writer)
+        static List<WrittenFile> SerializeFileBlob(string outputFileName, List<PackFileWriteInformation> fileMetaDataTabel, PackFileContainer container, BinaryWriter writer)
         {
             _logger.Here().Information("Starting SerializeFileBlob");
 
+            var written = new List<WrittenFile>(fileMetaDataTabel.Count);
             foreach (var fileMetaData in fileMetaDataTabel)
             {
                 var packFile = fileMetaData.PackFile;
@@ -329,9 +358,8 @@ namespace Shared.Core.PackFiles.Serialization
                 writer.Write(data.Length);
                 writer.BaseStream.Position = currentPosition;
 
-                // Update DataSource
                 var packedFileSourceParent = new PackedFileSourceParent { FilePath = outputFileName };
-                packFile.DataSource = new PackedFileSource(
+                var source = new PackedFileSource(
                     packedFileSourceParent,
                     offset,
                     data.Length,
@@ -339,9 +367,11 @@ namespace Shared.Core.PackFiles.Serialization
                     shouldCompress,
                     fileMetaData.CompressionInfo.IntendedCompressionFormat,
                     uncompressedSize);
+                written.Add(new WrittenFile(fileMetaData.FullFileName, packFile, source, SHA256.HashData(data)));
             }
 
             _logger.Here().Information("Finished SerializeFileBlob");
+            return written;
         }
 
         
