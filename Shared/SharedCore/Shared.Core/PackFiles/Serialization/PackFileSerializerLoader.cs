@@ -68,7 +68,7 @@ namespace Shared.Core.PackFiles.Serialization
 
                     var fullPackedFileName = IOFunctions.ReadZeroTerminatedAscii(reader, fileNameBuffer).ToLower();
                     if (reader.BaseStream.Position > output.Header.DataStart)
-                        throw Damaged(packFileSystemPath, $"its file list runs into its data at file {i + 1} of {output.Header.FileCount}");
+                        throw Damaged(packFileSystemPath, $"its file list does not fit in the space its header gives it (file {i + 1} of {output.Header.FileCount})");
 
                     // A file whose data runs past the end of the pack is left out, and the pack stays read-only (DamagedFiles).
                     if ((long)offset + size > packFileSize)
