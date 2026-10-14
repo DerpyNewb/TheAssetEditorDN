@@ -1,8 +1,10 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using System.IO;
+using CommunityToolkit.Mvvm.ComponentModel;
 using GameWorld.Core.Animation;
 using GameWorld.Core.Services;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 using Shared.Core.Services;
 
 namespace Editors.Shared.Core.Common.ReferenceModel
@@ -70,15 +72,19 @@ namespace Editors.Shared.Core.Common.ReferenceModel
                 SubHeaderName += " - " + Data.AnimationName.Value;
         }
 
+        static readonly string[] ModelExtensions = [".variantmeshdefinition", ".wsmodel", ".rigid_model_v2"];
+
+        /// <summary>What Browse offers, and what a part takes when dropped on it.</summary>
+        public static bool IsModel(PackFile file) => ModelExtensions.Contains(Path.GetExtension(file.Name), StringComparer.OrdinalIgnoreCase);
+
         public void BrowseMesh()
         {
-            var result = _uiProvider.DisplayBrowseDialog([".variantmeshdefinition", ".wsmodel", ".rigid_model_v2"]);
+            var result = _uiProvider.DisplayBrowseDialog([.. ModelExtensions]);
             if (result.Result == true && result.File != null)
-            {
-                var file = result.File;
-                _sceneObjectBuilder.SetMesh(Data, file);
-            }
+                SetMesh(result.File);
         }
+
+        public void SetMesh(PackFile file) => _sceneObjectBuilder.SetMesh(Data, file);
 
         public void Dispose()
         {

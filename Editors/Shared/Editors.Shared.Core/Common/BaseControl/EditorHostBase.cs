@@ -70,6 +70,9 @@ namespace Editors.Shared.Core.Common.BaseControl
             GameWorld = null;
         }
 
+        /// <summary>The parts a model dropped on the 3D view can go into: those whose panel is shown.</summary>
+        public IReadOnlyList<SceneObjectViewModel> ModelDropTargets => SceneObjects.Where(x => x.IsControlVisible && x.IsEnabled).ToList();
+
         public SceneObjectViewModel? GetSceneObjectFromId(string id)
         {
             var view = SceneObjects.FirstOrDefault(x => x.Data.Id == id);

@@ -39,7 +39,8 @@
             <MenuItem Header="{loc:Loc EditorHost.Menu.Screenshot}" Command="{Binding TakeScreenshotCommand}" ToolTip="{loc:Loc EditorHost.Menu.Screenshot.ToolTip}"/>
         </Menu>
 
-        <ContentControl Grid.Row="2" Grid.Column="0" Content="{Binding GameWorld, Mode=OneTime}"/>
+        <ContentControl Grid.Row="2" Grid.Column="0" Content="{Binding GameWorld, Mode=OneTime}"
+                        AllowDrop="True" DragOver="OnViewDragOver" Drop="OnViewDrop"/>
 
         <GridSplitter Grid.Row="1" Grid.RowSpan="3" Grid.Column="1"  HorizontalAlignment="Stretch"
                       ResizeBehavior="PreviousAndNext" ShowsPreview="False">
