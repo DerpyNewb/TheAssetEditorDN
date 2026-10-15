@@ -58,7 +58,8 @@ namespace GameWorld.Core.Animation
         public event FrameChanged OnFrameChanged;
 
         GameSkeleton _skeleton;
-        TimeSpanExtension _timeSinceStart;
+        // Set before any animation is: a player with none still has a clock, and GetTimeUs reads it every frame.
+        TimeSpanExtension _timeSinceStart = new();
         AnimationFrame _currentAnimFrame;
         AnimationClip _animationClip;
         GameSkeleton Skeleton { get { return _skeleton; } }

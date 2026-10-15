@@ -42,9 +42,13 @@ namespace Test.TestingUtility.Shared
             Content = s_contentManager!;
         }
 
+        // What a real game would update and draw each frame, so a test can run a frame's updates.
+        public List<IGameComponent> Components { get; } = [];
+
         public T AddComponent<T>(T comp) where T : IGameComponent
         {
             comp.Initialize();
+            Components.Add(comp);
             return comp;
         }
 
@@ -61,6 +65,7 @@ namespace Test.TestingUtility.Shared
 
         public void RemoveComponent<T>(T comp) where T : IGameComponent
         {
+            Components.Remove(comp);
         }
     }
 }

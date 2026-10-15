@@ -17,6 +17,21 @@ namespace Test.E2EVerification
         const string KarlMesh = @"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2";
         const string IdleAnimation = @"animations\battle\humanoid01\2handed_hammer\stand\hu1_2hh_stand_idle_01.anim";
 
+        // The editor opens with a rider, a mount and a "new anim" object that have no animation yet, and every frame failed on
+        // them: SceneObject.Update read the player's clock, which was null until an animation was set. A test never draws a
+        // frame, so this runs the update a frame makes.
+        [Test]
+        public void Warhammer3_TheFirstFrame_DrawsWithNothingLoaded()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+
+            var objects = ((WpfGameMock)runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.WpfWindow.IWpfGame>()).Components.OfType<SceneObject>().ToList();
+            Assert.That(objects.Select(x => x.Description), Is.EqualTo(new[] { "Rider", "Mount", "New Anim" }));
+            Assert.That(() => objects.ForEach(x => x.Update(new GameTime())), Throws.Nothing);
+        }
+
         [Test]
         public void Warhammer3_OpenFromToolsMenu_LoadAnimation_DuplicateAndUndoFrame()
         {
