@@ -34,6 +34,11 @@ namespace Test.KitbashEditor
 
             commands.Undo();
             Assert.That((tint.DiffuseTintVariation, panel.TintVariation, commands.CanUndo()), Is.EqualTo((0.5f, 0.5f, false)));
+
+            commands.Redo();
+            Assert.That((tint.DiffuseTintVariation, panel.TintVariation), Is.EqualTo((0.8f, 0.8f)), "redo puts the whole drag back");
+            commands.Redo();
+            Assert.That(panel.TintColour.SelectedColour, Is.EqualTo(new Vector3(1, 0, 0)));
         }
     }
 }

@@ -32,6 +32,7 @@ namespace GameWorld.Core.Commands.Object
 
         public void Execute()
         {
+            _originalGeometry.Clear();
             _oldState = _selectionManager.GetStateCopy();
 
             foreach (var meshNode in _meshList)

@@ -315,6 +315,7 @@
   "AnimationKeyframeEditor.Buttons.RemoveFrame": "Remove frame",
   "AnimationKeyframeEditor.Buttons.ResetPose": "Reset pose",
   "AnimationKeyframeEditor.Buttons.UndoPose": "Undo pose",
+  "AnimationKeyframeEditor.Buttons.RedoPose": "Redo pose",
   "AnimationKeyframeEditor.Buttons.Select": "Select",
   "AnimationKeyframeEditor.Buttons.SelectPreviousBones": "Select previous bones",
   "AnimationKeyframeEditor.Buttons.Move": "Move",

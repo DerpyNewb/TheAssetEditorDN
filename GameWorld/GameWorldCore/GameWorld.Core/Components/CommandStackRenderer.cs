@@ -23,6 +23,7 @@ namespace GameWorld.Core.Components
             _renderEngineComponent = renderEngineComponent;
 
             _eventHub.Register<CommandStackUndoEvent>(this, Handle);
+            _eventHub.Register<CommandStackRedoEvent>(this, Handle);
             _eventHub.Register<CommandStackChangedEvent>(this, Handle);
         }
 
@@ -56,6 +57,7 @@ namespace GameWorld.Core.Components
 
         void Handle(CommandStackChangedEvent notification) => CreateAnimation($"Command added: {notification.HintText}");
         void Handle(CommandStackUndoEvent notification) => CreateAnimation($"Command Undone: {notification.HintText}");
+        void Handle(CommandStackRedoEvent notification) => CreateAnimation($"Command Redone: {notification.HintText}");
 
         public void Dispose()
         {

@@ -315,6 +315,7 @@
   "AnimationKeyframeEditor.Buttons.RemoveFrame": "删除帧",
   "AnimationKeyframeEditor.Buttons.ResetPose": "重置姿势",
   "AnimationKeyframeEditor.Buttons.UndoPose": "撤销姿势",
+  "AnimationKeyframeEditor.Buttons.RedoPose": "重做姿势",
   "AnimationKeyframeEditor.Buttons.Select": "选择",
   "AnimationKeyframeEditor.Buttons.SelectPreviousBones": "选择之前的骨骼",
   "AnimationKeyframeEditor.Buttons.Move": "移动",

@@ -35,6 +35,7 @@ namespace GameWorld.Core.Commands.Object
 
         public void Execute()
         {
+            _newGroupNodes.Clear();
             _originalSelectionState = _selectionManager.GetStateCopy();
 
             using (new WaitCursor())

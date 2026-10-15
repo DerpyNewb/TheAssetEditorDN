@@ -47,6 +47,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             MenuItems = CreateToolbarMenu();
 
             eventHub.Register<CommandStackChangedEvent>(this, OnUndoStackChanged);
+            eventHub.Register<CommandStackUndoEvent>(this, _ => UpdateUndoRedo());
             eventHub.Register<SelectionChangedEvent>(this, OnSelectionChanged);
         }
 
@@ -65,6 +66,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             
             RegisterUiCommand<DeleteLodsCommand>();    
             RegisterUiCommand<UndoCommand>();
+            RegisterUiCommand<RedoCommand>();
             RegisterUiCommand<SortMeshesCommand>();
 
             RegisterUiCommand<GroupItemsCommand>();
@@ -147,6 +149,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateButton<SaveCommand>(IconLibrary.SaveFileIcon);
             builder.CreateButton<BrowseForReferenceCommand>(IconLibrary.OpenReferenceMeshIcon);
             builder.CreateButton<UndoCommand>(IconLibrary.UndoIcon);
+            builder.CreateButton<RedoCommand>(IconLibrary.RedoIcon);
             builder.CreateButtonSeparator();
 
             // Object buttons
@@ -230,10 +233,14 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
 
         void OnUndoStackChanged(CommandStackChangedEvent notification)
         {
-            var undoAction = GetMenuAction<UndoCommand>();
+            GetMenuAction<UndoCommand>().ToolTip = notification.HintText;
+            UpdateUndoRedo();
+        }
 
-            undoAction.ToolTip = notification.HintText;
-            undoAction.IsActionEnabled.Value = _commandExecutor.CanUndo();
+        void UpdateUndoRedo()
+        {
+            GetMenuAction<UndoCommand>().IsActionEnabled.Value = _commandExecutor.CanUndo();
+            GetMenuAction<RedoCommand>().IsActionEnabled.Value = _commandExecutor.CanRedo();
         }
 
         void OnSelectionChanged(SelectionChangedEvent notification)

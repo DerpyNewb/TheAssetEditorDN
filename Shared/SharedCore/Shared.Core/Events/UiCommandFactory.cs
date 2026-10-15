@@ -10,6 +10,11 @@ namespace Shared.Core.Events
     public interface IAeUndoCommandCommand : IAeCommand
     {
         void Undo();
+        /// <summary>
+        /// The step again, after an undo. Most commands make their change in Execute, so they run it again; a command whose change
+        /// was made before it went on the stack (a gizmo drag) replays it here instead.
+        /// </summary>
+        void Redo() => Execute();
         string HintText { get; }
         bool IsMutation { get; }
     }

@@ -32,6 +32,7 @@ namespace GameWorld.Core.Commands.Object
         {
             _logger.Here().Information($"Command info - Items[{string.Join(',', _objectsToCopy.Select(x => x.Name))}]");
 
+            _clonedObjects.Clear();
             _oldState = _selectionManager.GetStateCopy();
 
             var state = _selectionManager.CreateSelectionSate(GeometrySelectionMode.Object, null);

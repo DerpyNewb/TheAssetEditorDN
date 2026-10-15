@@ -39,7 +39,12 @@ namespace GameWorld.Core.Commands.Vertex
             // Nothing to do, vertexes already updated
         }
 
-        public void Undo()
+        public void Undo() => Apply(inverse: true);
+
+        // The drag again, as the gizmo made it: the same weighted transform per vertex that Undo takes off.
+        public void Redo() => Apply(inverse: false);
+
+        void Apply(bool inverse)
         {
             Transform.Decompose(out var scale, out var rot, out var trans);
 
@@ -59,7 +64,7 @@ namespace GameWorld.Core.Commands.Vertex
                             var vertTrnas = trans * weight;
 
                             var weightedUndoTransform = Matrix.CreateScale(vertexScale) * Matrix.CreateFromQuaternion(vertRot) * Matrix.CreateTranslation(vertTrnas);
-                            var finalMatrix = Matrix.CreateTranslation(-PivotPoint) * Matrix.Invert(weightedUndoTransform) * Matrix.CreateTranslation(PivotPoint);
+                            var finalMatrix = Matrix.CreateTranslation(-PivotPoint) * (inverse ? Matrix.Invert(weightedUndoTransform) : weightedUndoTransform) * Matrix.CreateTranslation(PivotPoint);
 
                             geo.TransformVertex(vertIndex, finalMatrix);
                         }
@@ -67,7 +72,7 @@ namespace GameWorld.Core.Commands.Vertex
                 }
                 else
                 {
-                    var undoMatrix = Matrix.CreateTranslation(-PivotPoint) * Matrix.Invert(Transform) * Matrix.CreateTranslation(PivotPoint);
+                    var undoMatrix = Matrix.CreateTranslation(-PivotPoint) * (inverse ? Matrix.Invert(Transform) : Transform) * Matrix.CreateTranslation(PivotPoint);
                     for (var v = 0; v < geo.VertexCount(); v++)
                         geo.TransformVertex(v, undoMatrix);
 

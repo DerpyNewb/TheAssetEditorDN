@@ -44,6 +44,9 @@ namespace Test.E2EVerification
 
             editor.UndoPose();
             Assert.That(editor.Rider.AnimationClip!.DynamicFrames.Count, Is.EqualTo(frames));
+
+            editor.RedoPose();
+            Assert.That(editor.Rider.AnimationClip!.DynamicFrames.Count, Is.EqualTo(frames + 1));
         }
 
         // The interpolation slider applies to the frame on every step it moves. A whole drag of it undoes as one step, back to the

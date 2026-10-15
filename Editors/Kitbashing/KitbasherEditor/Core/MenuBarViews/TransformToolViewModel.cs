@@ -119,7 +119,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             try
             {
                 if (_previewOnTop)
-                    _commandExecutor.Undo();
+                    _commandExecutor.Undo(keepForRedo: false);
                 changeBeforeApply?.Invoke();
                 _previewOnTop = ApplyTransform();
             }

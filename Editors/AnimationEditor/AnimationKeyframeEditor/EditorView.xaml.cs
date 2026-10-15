@@ -10,6 +10,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Editors.AnimationVisualEditors.AnimationKeyframeEditor;
+using Shared.Ui.Common;
 
 namespace AnimationEditor.AnimationKeyframeEditor
 {
@@ -21,6 +23,7 @@ namespace AnimationEditor.AnimationKeyframeEditor
         public EditorView()
         {
             InitializeComponent();
+            UndoRedoKeys.Attach(this, () => (DataContext as AnimationKeyframeEditorViewModel)?.UndoPose(), () => (DataContext as AnimationKeyframeEditorViewModel)?.RedoPose());
         }
 
 

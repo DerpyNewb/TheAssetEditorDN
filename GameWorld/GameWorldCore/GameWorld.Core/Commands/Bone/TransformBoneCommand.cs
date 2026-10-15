@@ -17,6 +17,7 @@ namespace GameWorld.Core.Commands.Bone
         BoneSelectionState _boneSelectionState;
         int _currentFrame;
         KeyFrame _oldFrame;
+        KeyFrame? _newFrame;
         public Matrix Transform { get; set; }
 
         public string HintText => "Bone Transform";
@@ -236,6 +237,15 @@ namespace GameWorld.Core.Commands.Bone
         public void Execute()
         {
             _oldSelectionState = _boneSelectionState;
+            // The frame as the drag left it, for redo.
+            _newFrame = _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame].Clone();
+        }
+
+        public void Redo()
+        {
+            if (_newFrame == null) return;
+            _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame] = _newFrame.Clone();
+            _boneSelectionState.TriggerModifiedBoneEvent(_selectedBones);
         }
     }
 }

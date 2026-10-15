@@ -384,6 +384,12 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _commandExecutor.Undo();
         }
 
+        public void RedoPose()
+        {
+            Pause();
+            _commandExecutor.Redo();
+        }
+
         public void ResetPose()
         {
             var currentFrame = _rider.Player.CurrentFrame;
@@ -678,7 +684,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         {
             if (_interpolationEdits.Continues((_interpolateBetweenPose, _rider.Player.CurrentFrame))
                 && _commandExecutor.Peek() is InterpolateFramesBoneCommand or InterpolateFramesSelectedBonesBoneCommand)
-                _commandExecutor.Undo();
+                _commandExecutor.Undo(keepForRedo: false);
             _interpolateBetweenPose.ApplySingleFrame();
         }
 
