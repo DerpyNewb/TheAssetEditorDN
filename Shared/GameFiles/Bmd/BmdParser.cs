@@ -411,12 +411,19 @@ namespace Shared.GameFormats.Bmd
                     building.KeyBuildingUseFort = _reader.ReadByte() != 0;
                     building.IsPropInOutfield = _reader.ReadByte() != 0;
                 }
+                // RPFM's decoder has this byte; no WH3 BMD has properties v7 to check it against.
+                if (building.PropertiesVersion == 7)
+                    building.TintInheritFromParent = _reader.ReadByte() != 0;
                 if (building.PropertiesVersion > 8)
                 {
                     building.SettlementLevelConfigurable = _reader.ReadByte() != 0;
                     building.HideTooltip = _reader.ReadByte() != 0;
                     building.IncludeInFog = _reader.ReadByte() != 0;
                 }
+                if (building.PropertiesVersion > 11)
+                    building.UnknownFloatV12 = _reader.ReadSingle();
+                if (building.PropertiesVersion > 12)
+                    building.UnknownBoolV13 = _reader.ReadByte() != 0;
             }
             
             // Back to normal stuff
@@ -430,7 +437,7 @@ namespace Shared.GameFormats.Bmd
 
         private BattlefieldBuildingFar ReadBattlefieldBuildingFar()
         {
-            throw new NotImplementedException("BmdOutline parsing not implemented yet");
+            throw new NotImplementedException("BattlefieldBuildingFar is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private CaptureLocation ReadCaptureLocation()
@@ -471,7 +478,7 @@ namespace Shared.GameFormats.Bmd
 
         private EFLine ReadEFLine()
         {
-            throw new NotImplementedException("BmdOutline parsing not implemented yet");
+            throw new NotImplementedException("EFLine is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private GoOutline ReadGoOutline()
@@ -583,32 +590,32 @@ namespace Shared.GameFormats.Bmd
 
         private BmdOutline ReadBmdOutline()
         {
-            throw new NotImplementedException("BmdOutline parsing not implemented yet");
+            throw new NotImplementedException("BmdOutline is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private TerrainOutline ReadTerrainOutline()
         {
-            throw new NotImplementedException("TerrainOutline parsing not implemented yet");
+            throw new NotImplementedException("TerrainOutline is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private LiteBuildingOutline ReadLiteBuildingOutline()
         {
-            throw new NotImplementedException("LiteBuildingOutline parsing not implemented yet");
+            throw new NotImplementedException("LiteBuildingOutline is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private CameraZone ReadCameraZone()
         {
-            throw new NotImplementedException("CameraZone parsing not implemented yet");
+            throw new NotImplementedException("CameraZone is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private CivilianDeployment ReadCivilianDeployment()
         {
-            throw new NotImplementedException("CivilianDeployment parsing not implemented yet");
+            throw new NotImplementedException("CivilianDeployment is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private CivilianShelter ReadCivilianShelter()
         {
-            throw new NotImplementedException("CivilianShelter parsing not implemented yet");
+            throw new NotImplementedException("CivilianShelter is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
 
@@ -749,6 +756,19 @@ namespace Shared.GameFormats.Bmd
                 prop.UseDynamicShadows = _reader.ReadByte() != 0;
             if (prop.PropInfoVersion > 24)
                 prop.UsesTerrainVertexOffset = _reader.ReadByte() != 0;
+            if (prop.PropInfoVersion is > 25 and < 29 or > 30)
+                throw new NotSupportedException($"Prop version {prop.PropInfoVersion} is in no vanilla BMD, so its layout is unknown");
+            if (prop.PropInfoVersion > 28)
+            {
+                prop.UnknownFloat1V29 = _reader.ReadSingle();
+                prop.UnknownFloat2V29 = _reader.ReadSingle();
+                prop.UnknownFloat3V29 = _reader.ReadSingle();
+                prop.UnknownBool1V29 = _reader.ReadByte() != 0;
+                prop.UnknownBool2V29 = _reader.ReadByte() != 0;
+                prop.UnknownIntV29 = _reader.ReadUInt32();
+            }
+            if (prop.PropInfoVersion > 29)
+                prop.UnknownByteV30 = _reader.ReadByte();
             
             return prop;
         }
@@ -799,6 +819,8 @@ namespace Shared.GameFormats.Bmd
 
             if (vfx.VfxInfoVersion > 9)
                 vfx.VisibleInShroudOnly = _reader.ReadByte() != 0;
+            if (vfx.VfxInfoVersion > 10)
+                vfx.UnknownBoolV11 = _reader.ReadByte() != 0;
             
             return vfx;
         }
@@ -810,14 +832,20 @@ namespace Shared.GameFormats.Bmd
             // Read Separators
             bmdFile.SectionVersions["AiHints.Separators"] = _reader.ReadUInt16();
             var separatorsCount = _reader.ReadUInt32();
-            if (separatorsCount > 0)
-                throw new NotImplementedException("AiHints-Separators parsing not implemented yet");
+            for (var i = 0; i < separatorsCount; i++)
+            {
+                var separator = new Separator { Version = _reader.ReadUInt16(), Type = ReadString() };
+                var pointsCount = _reader.ReadUInt32();
+                for (var j = 0; j < pointsCount; j++)
+                    separator.Points.Add(new RmvVector2(_reader.ReadSingle(), _reader.ReadSingle()));
+                aiHints.Separators.Add(separator);
+            }
 
             // Read DirectedPoints
             bmdFile.SectionVersions["AiHints.DirectedPoints"] = _reader.ReadUInt16();
             var directedPointsCount = _reader.ReadUInt32();
             if (directedPointsCount > 0)
-                throw new NotImplementedException("AiHints-DirectedPoints parsing not implemented yet");
+                throw new NotImplementedException("AiHints-DirectedPoints is not read: no vanilla WH3 BMD has one, so its layout is unknown");
 
             // Read PolyLines
             bmdFile.SectionVersions["AiHints.PolyLines"] = _reader.ReadUInt16();
@@ -864,7 +892,8 @@ namespace Shared.GameFormats.Bmd
                     polyLineList.Type = Encoding.UTF8.GetString(_reader.ReadBytes(typeLength));
                 
                 // Read district
-                polyLineList.District = _reader.ReadUInt32();
+                if (polyLineList.Version > 1)
+                    polyLineList.District = _reader.ReadUInt32();
                 
                 // Read polygon list
                 var polygonListLength = _reader.ReadUInt32();
@@ -1043,7 +1072,7 @@ namespace Shared.GameFormats.Bmd
 
         private TerrainStencilBlendTriangle ReadTerrainStencilBlendTriangle()
         {
-            throw new NotImplementedException("TerrainStencilBlendTriangle parsing not implemented yet");
+            throw new NotImplementedException("TerrainStencilBlendTriangle is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private SpotLightInfo ReadSpotLightInfo()
@@ -1253,32 +1282,32 @@ namespace Shared.GameFormats.Bmd
 
         private BmdCachedArea ReadBmdCachedArea()
         {
-            throw new NotImplementedException("BmdCachedArea parsing not implemented yet");
+            throw new NotImplementedException("BmdCachedArea is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private ToggleableBuildingSlot ReadToggleableBuildingSlot()
         {
-            throw new NotImplementedException("ToggleableBuildingSlot parsing not implemented yet");
+            throw new NotImplementedException("ToggleableBuildingSlot is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private TerraindDecal ReadTerraindDecal()
         {
-            throw new NotImplementedException("TerraindDecal parsing not implemented yet");
+            throw new NotImplementedException("TerraindDecal is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private TreeListReference ReadTreeListReference()
         {
-            throw new NotImplementedException("TreeListReference parsing not implemented yet");
+            throw new NotImplementedException("TreeListReference is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private GrassListReference ReadGrassListReference()
         {
-            throw new NotImplementedException("GrassListReference parsing not implemented yet");
+            throw new NotImplementedException("GrassListReference is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
         private WaterOutline ReadWaterOutline()
         {
-            throw new NotImplementedException("WaterOutline parsing not implemented yet");
+            throw new NotImplementedException("WaterOutline is not read: no vanilla WH3 BMD has one, so its layout is unknown");
         }
 
 
@@ -1290,12 +1319,16 @@ namespace Shared.GameFormats.Bmd
 
             flags.FlagVersion = _reader.ReadUInt16();
 
-            flags.AllowInOutfield = _reader.ReadByte() != 0;
+            // Version 1 is the seasons alone, as RPFM's decoder reads it; no WH3 BMD has one to check it against.
+            if (flags.FlagVersion > 1)
+            {
+                flags.AllowInOutfield = _reader.ReadByte() != 0;
 
-            //Clamp to surface goes away after version 2, merged with clamp to water?
-            if (flags.FlagVersion < 3)
-                flags.ClampToSurface = _reader.ReadByte() != 0;
-            flags.ClampToWaterSurface = _reader.ReadByte() != 0;
+                //Clamp to surface goes away after version 2, merged with clamp to water?
+                if (flags.FlagVersion < 3)
+                    flags.ClampToSurface = _reader.ReadByte() != 0;
+                flags.ClampToWaterSurface = _reader.ReadByte() != 0;
+            }
 
             //Seasons
             flags.SeasonSpring = _reader.ReadByte() != 0;

@@ -207,6 +207,7 @@ namespace Shared.GameFormats.Bmd
             CheckCount(nameof(BmdFile.Sounds), source.Sounds.Count, reread.Sounds.Count);
             CheckCount(nameof(BmdFile.CscInfos), source.CscInfos.Count, reread.CscInfos.Count);
             CheckCount(nameof(BmdFile.Deployments), source.Deployments.Count, reread.Deployments.Count);
+            CheckCount("AiHints.Separators", source.AiHints.Separators.Count, reread.AiHints.Separators.Count);
             CheckCount("AiHints.PolyLines", source.AiHints.PolyLines.Count, reread.AiHints.PolyLines.Count);
             CheckCount("AiHints.PolyLinesList", source.AiHints.PolyLinesList.Count, reread.AiHints.PolyLinesList.Count);
         }
@@ -322,12 +323,18 @@ namespace Shared.GameFormats.Bmd
                     writer.Write(Bool(building.KeyBuildingUseFort));
                     writer.Write(Bool(building.IsPropInOutfield));
                 }
+                if (building.PropertiesVersion == 7)
+                    writer.Write(Bool(building.TintInheritFromParent));
                 if (building.PropertiesVersion > 8)
                 {
                     writer.Write(Bool(building.SettlementLevelConfigurable));
                     writer.Write(Bool(building.HideTooltip));
                     writer.Write(Bool(building.IncludeInFog));
                 }
+                if (building.PropertiesVersion > 11)
+                    writer.Write(building.UnknownFloatV12);
+                if (building.PropertiesVersion > 12)
+                    writer.Write(Bool(building.UnknownBoolV13));
             }
 
             if (building.Version > 7)
@@ -519,6 +526,17 @@ namespace Shared.GameFormats.Bmd
                 writer.Write(Bool(prop.UseDynamicShadows));
             if (prop.PropInfoVersion > 24)
                 writer.Write(Bool(prop.UsesTerrainVertexOffset));
+            if (prop.PropInfoVersion > 28)
+            {
+                writer.Write(prop.UnknownFloat1V29);
+                writer.Write(prop.UnknownFloat2V29);
+                writer.Write(prop.UnknownFloat3V29);
+                writer.Write(Bool(prop.UnknownBool1V29));
+                writer.Write(Bool(prop.UnknownBool2V29));
+                writer.Write(prop.UnknownIntV29);
+            }
+            if (prop.PropInfoVersion > 29)
+                writer.Write(prop.UnknownByteV30);
         }
 
         private static void WriteVfxInfo(BinaryWriter writer, VfxInfo vfx)
@@ -562,6 +580,8 @@ namespace Shared.GameFormats.Bmd
 
             if (vfx.VfxInfoVersion > 9)
                 writer.Write(Bool(vfx.VisibleInShroudOnly));
+            if (vfx.VfxInfoVersion > 10)
+                writer.Write(Bool(vfx.UnknownBoolV11));
         }
 
         private static void WriteAiHints(BinaryWriter writer, BmdFile bmdFile)
@@ -569,7 +589,18 @@ namespace Shared.GameFormats.Bmd
             var aiHints = bmdFile.AiHints;
 
             writer.Write(GetVersion(bmdFile, "AiHints.Separators"));
-            writer.Write((uint)0); // BmdParser throws if Separators is ever non-empty
+            writer.Write((uint)aiHints.Separators.Count);
+            foreach (var separator in aiHints.Separators)
+            {
+                writer.Write(separator.Version);
+                WriteString(writer, separator.Type);
+                writer.Write((uint)separator.Points.Count);
+                foreach (var p in separator.Points)
+                {
+                    writer.Write(p.X);
+                    writer.Write(p.Y);
+                }
+            }
 
             writer.Write(GetVersion(bmdFile, "AiHints.DirectedPoints"));
             writer.Write((uint)0); // BmdParser throws if DirectedPoints is ever non-empty
@@ -603,7 +634,8 @@ namespace Shared.GameFormats.Bmd
             {
                 writer.Write(polyLineList.Version);
                 WriteString(writer, polyLineList.Type);
-                writer.Write(polyLineList.District);
+                if (polyLineList.Version > 1)
+                    writer.Write(polyLineList.District);
                 writer.Write((uint)polyLineList.PolygonList.Count);
                 foreach (var polygon in polyLineList.PolygonList)
                 {
@@ -950,11 +982,13 @@ namespace Shared.GameFormats.Bmd
         private static void WriteBmdComponentFlags(BinaryWriter writer, BmdComponentFlags flags)
         {
             writer.Write(flags.FlagVersion);
-            writer.Write(Bool(flags.AllowInOutfield));
-
-            if (flags.FlagVersion < 3)
-                writer.Write(Bool(flags.ClampToSurface));
-            writer.Write(Bool(flags.ClampToWaterSurface));
+            if (flags.FlagVersion > 1)
+            {
+                writer.Write(Bool(flags.AllowInOutfield));
+                if (flags.FlagVersion < 3)
+                    writer.Write(Bool(flags.ClampToSurface));
+                writer.Write(Bool(flags.ClampToWaterSurface));
+            }
 
             writer.Write(Bool(flags.SeasonSpring));
             writer.Write(Bool(flags.SeasonSummer));

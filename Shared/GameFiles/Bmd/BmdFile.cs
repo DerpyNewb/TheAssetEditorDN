@@ -117,7 +117,7 @@ namespace Shared.GameFormats.Bmd
     public class BmdComponentFlags
     {
         public ushort FlagVersion { get; set; }
-        public bool AllowInOutfield { get; set; }
+        public bool AllowInOutfield { get; set; }   //Not in flag version 1, which has the seasons only
         public bool ClampToSurface { get; set; }   //Flag version 2 only
         public bool ClampToWaterSurface { get; set; }
         public bool SeasonSpring { get; set; }
@@ -153,9 +153,12 @@ namespace Shared.GameFormats.Bmd
         public bool KeyBuilding { get; set; }
         public bool KeyBuildingUseFort { get; set; }
         public bool IsPropInOutfield { get; set; }
+        public bool TintInheritFromParent { get; set; }   //Properties version 7 only
         public bool SettlementLevelConfigurable { get; set; }
         public bool HideTooltip { get; set; }
         public bool IncludeInFog { get; set; }
+        public float UnknownFloatV12 { get; set; }   //Properties version 12 on: 0 in v12, 0.4-0.6 or 0 in v13
+        public bool UnknownBoolV13 { get; set; }     //Properties version 13 on: always set in vanilla
         
         public string HeightMode { get; set; } = string.Empty;
         public long Uid { get; set; }
@@ -308,6 +311,16 @@ namespace Shared.GameFormats.Bmd
         public bool SomeWeirdThing2 { get; set; } // for Version 22
         public bool UseDynamicShadows { get; set; }
         public bool UsesTerrainVertexOffset { get; set; }
+
+        // Prop versions 29 and 30, measured over WH3's vanilla BMDs (5,840 and 22,060 records; RPFM's decoder stops at 25, and no
+        // file has 26 to 28). What they mean is not known; they are kept so a file saves back as it was.
+        public float UnknownFloat1V29 { get; set; }
+        public float UnknownFloat2V29 { get; set; }
+        public float UnknownFloat3V29 { get; set; }   //30 to 180 in vanilla
+        public bool UnknownBool1V29 { get; set; }
+        public bool UnknownBool2V29 { get; set; }
+        public uint UnknownIntV29 { get; set; }       //0 to 4 in vanilla
+        public byte UnknownByteV30 { get; set; }
         
         // Early version 4 specific fields
         public byte[] EarlyVersionUnknownBytes { get; set; } = new byte[23];
@@ -330,6 +343,7 @@ namespace Shared.GameFormats.Bmd
         public bool VisibleInShroud { get; set; }
         public int ParentId { get; set; }
         public bool VisibleInShroudOnly { get; set; }
+        public bool UnknownBoolV11 { get; set; }   //Vfx version 11 on: unset in all 3,839 vanilla records
 
         // Early version 4 specific fields
         public byte[] EarlyVersionUnknownBytes { get; set; } = new byte[12];
@@ -345,8 +359,9 @@ namespace Shared.GameFormats.Bmd
 
     public class Separator
     {
-        //TODO: Not properly implemented
         public ushort Version { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public List<RmvVector2> Points { get; set; } = [];
     }
 
     public class DirectedPoint
