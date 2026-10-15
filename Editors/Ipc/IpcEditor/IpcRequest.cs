@@ -7,5 +7,6 @@
         public bool? BringToFront { get; set; }
         public bool? OpenInExistingKitbashTab { get; set; }
         public string PackPathOnDisk { get; set; }
+        public int? Limit { get; set; }
     }
 }

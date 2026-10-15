@@ -5,6 +5,8 @@
         public bool Ok { get; set; }
         public string Error { get; set; }
         public string NormalizedPath { get; set; }
+        public List<string> Files { get; set; }
+        public bool? Truncated { get; set; }
 
         public static IpcResponse Success() => new() { Ok = true };
 

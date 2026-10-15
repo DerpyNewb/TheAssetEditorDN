@@ -14,13 +14,59 @@ namespace Test.Ipc
             var notifier = new FakeNotifier();
             var sut = new IpcRequestHandler(packLoader, lookup, opener, notifier);
 
-            var result = await sut.HandleAsync(new IpcRequest { Action = "ping", Path = "x" }, CancellationToken.None);
+            var result = await sut.HandleAsync(new IpcRequest { Action = "save", Path = "x" }, CancellationToken.None);
 
             Assert.That(result.Ok, Is.False);
             Assert.That(result.Error, Is.EqualTo("Unsupported action"));
             Assert.That(opener.OpenCallCount, Is.Zero);
             Assert.That(notifier.CallCount, Is.Zero);
             Assert.That(packLoader.CallCount, Is.Zero);
+        }
+
+        [Test]
+        public async Task Ping_AnswersWithoutTouchingAnything()
+        {
+            var packLoader = new FakePackLoader();
+            var opener = new FakeOpenExecutor();
+            var sut = new IpcRequestHandler(packLoader, new FakeLookup(), opener, new FakeNotifier());
+
+            var result = await sut.HandleAsync(new IpcRequest { Action = "ping" }, CancellationToken.None);
+
+            Assert.That((result.Ok, packLoader.CallCount, opener.OpenCallCount), Is.EqualTo((true, 0, 0)));
+        }
+
+        [Test]
+        public async Task Load_LoadsThePack_AndOpensNothing()
+        {
+            var packLoader = new FakePackLoader();
+            var opener = new FakeOpenExecutor();
+            var sut = new IpcRequestHandler(packLoader, new FakeLookup(), opener, new FakeNotifier());
+
+            var loaded = await sut.HandleAsync(new IpcRequest { Action = "load", PackPathOnDisk = @"F:\data\mod.pack" }, CancellationToken.None);
+            var empty = await sut.HandleAsync(new IpcRequest { Action = "load" }, CancellationToken.None);
+            packLoader.Result = PackLoadResult.Fail("Pack file could not be loaded");
+            var failed = await sut.HandleAsync(new IpcRequest { Action = "load", PackPathOnDisk = @"F:\data\bad.pack" }, CancellationToken.None);
+
+            Assert.That(loaded.Ok, Is.True);
+            Assert.That((packLoader.CallCount, opener.OpenCallCount), Is.EqualTo((2, 0)), "the empty request loads nothing, and nothing is opened");
+            Assert.That((empty.Ok, empty.Error), Is.EqualTo((false, "packPathOnDisk is empty")));
+            Assert.That((failed.Ok, failed.Error), Is.EqualTo((false, "Pack file could not be loaded")));
+        }
+
+        [Test]
+        public async Task Find_ListsMatchingPaths_WithForwardSlashesAccepted_AndSaysWhenItCutTheListShort()
+        {
+            var lookup = new FakeLookup { Paths = [@"variantmeshes\a\karl_franz.rigid_model_v2", @"variantmeshes\a\karl_franz.wsmodel", @"variantmeshes\b\other.rigid_model_v2"] };
+            var sut = new IpcRequestHandler(new FakePackLoader(), lookup, new FakeOpenExecutor(), new FakeNotifier());
+
+            var all = await sut.HandleAsync(new IpcRequest { Action = "find", Path = "a/KARL" }, CancellationToken.None);
+            var one = await sut.HandleAsync(new IpcRequest { Action = "find", Path = "karl", Limit = 1 }, CancellationToken.None);
+            var none = await sut.HandleAsync(new IpcRequest { Action = "find", Path = " " }, CancellationToken.None);
+
+            Assert.That((all.Ok, all.Files, all.Truncated), Is.EqualTo((true, lookup.Paths.Take(2).ToList(), false)));
+            Assert.That(lookup.LastSearch, Is.EqualTo("karl"));
+            Assert.That((one.Files, one.Truncated), Is.EqualTo((lookup.Paths.Take(1).ToList(), true)));
+            Assert.That((none.Ok, none.Error), Is.EqualTo((false, "Path is empty")));
         }
 
         [Test]
@@ -186,6 +232,15 @@ namespace Test.Ipc
             {
                 LastRequestedPath = path;
                 return Result;
+            }
+
+            public List<string> Paths { get; set; } = [];
+            public string? LastSearch { get; private set; }
+
+            public List<string> Search(string text, int limit)
+            {
+                LastSearch = text;
+                return Paths.Where(x => x.Contains(text, StringComparison.OrdinalIgnoreCase)).Take(limit).ToList();
             }
         }
 

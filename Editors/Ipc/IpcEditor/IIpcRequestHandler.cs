@@ -10,6 +10,9 @@ namespace Editors.Ipc
     public interface IExternalPackFileLookup
     {
         PackFile FindByPath(string path);
+
+        /// <summary>Paths in the loaded packs that contain the text, ignoring case, in order; at most limit of them.</summary>
+        List<string> Search(string text, int limit);
     }
 
     public interface IIpcUserNotifier

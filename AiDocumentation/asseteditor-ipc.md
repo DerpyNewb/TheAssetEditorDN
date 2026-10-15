@@ -6,7 +6,7 @@ This document describes the current IPC endpoint implemented by `AssetEditor`.
 - Transport: Windows named pipe
 - Pipe name: `TheAssetEditor.Ipc`
 - Protocol: JSON line per request (`UTF-8`, newline-terminated)
-- Current supported actions: `open` only
+- Supported actions: `open`, `find`, `load`, `ping`
 
 ## Pipe Path (Windows)
 - `\\.\pipe\TheAssetEditor.Ipc`
@@ -26,9 +26,22 @@ Send one JSON object followed by a newline.
 {"action":"open","path":"variantmeshes/wh_variantmodels/.../file.rigid_model_v2"}
 ```
 
+### Other actions
+```json
+{"action":"ping"}
+{"action":"load","packPathOnDisk":"k:/SteamLibrary/steamapps/common/Total War WARHAMMER III/data/ovn_araby.pack"}
+{"action":"find","path":"arb_base_elephant","limit":50}
+```
+- `ping`: answers `{"ok":true}` when an AssetEditor is serving the pipe, and touches nothing
+- `load`: loads `packPathOnDisk` as `open` would, and opens no file; fails when `packPathOnDisk` is missing
+- `find`: every pack-internal path in the loaded packs that contains `path`, ignoring case, in path order, as
+  `{"ok":true,"files":[...],"truncated":false}`. At most `limit` (default 200); `truncated` is `true` when there were more.
+  Forward slashes are accepted. A `packPathOnDisk` is loaded first, so a mod pack's files can be found before they are opened
+
 ### Request fields
-- `action` (required): currently only `"open"`
-- `path` (required): pack-internal file path to open
+- `action` (required): `"open"`, `"find"`, `"load"` or `"ping"`
+- `path` (required for `open` and `find`): pack-internal file path to open, or the text to find
+- `limit` (optional, `find` only, default `200`): the most paths to return
 - `bringToFront` (optional, default `true`): bring AssetEditor window to front
 - `packPathOnDisk` (optional): disk path to a `.pack` to load first if needed
 - `openInExistingKitbashTab` (optional, default `false`): if `true`, and a Kitbash tab exists, import supported files into that tab instead of opening a new tab

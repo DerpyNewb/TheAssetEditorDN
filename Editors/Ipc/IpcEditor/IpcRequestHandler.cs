@@ -24,7 +24,10 @@
             if (string.IsNullOrWhiteSpace(action))
                 return IpcResponse.Failure("Unsupported action");
 
-            if (string.Equals(action, "open", StringComparison.OrdinalIgnoreCase) == false)
+            // ping: is an AssetEditor listening. load: a pack from disk, with no file opened. find: the paths open takes.
+            if (Is(action, "ping"))
+                return IpcResponse.Success();
+            if (Is(action, "open") == false && Is(action, "load") == false && Is(action, "find") == false)
                 return IpcResponse.Failure("Unsupported action");
 
             var packPathOnDisk = GetPackPathOnDisk(request);
@@ -34,6 +37,11 @@
                 if (loadResult.Success == false)
                     return IpcResponse.Failure(loadResult.Error ?? "Pack file load failed");
             }
+
+            if (Is(action, "load"))
+                return string.IsNullOrWhiteSpace(packPathOnDisk) ? IpcResponse.Failure("packPathOnDisk is empty") : IpcResponse.Success();
+            if (Is(action, "find"))
+                return Find(request);
 
             var normalizedPath = PackPathResolver.ResolvePackPath(request.Path);
             if (string.IsNullOrWhiteSpace(normalizedPath))
@@ -53,6 +61,21 @@
 
             return IpcResponse.Success();
         }
+
+        private IpcResponse Find(IpcRequest request)
+        {
+            var text = request.Path?.Trim().Replace('/', '\\');
+            if (string.IsNullOrWhiteSpace(text))
+                return IpcResponse.Failure("Path is empty");
+
+            var limit = request.Limit is > 0 ? request.Limit.Value : DefaultFindLimit;
+            var files = _packFileLookup.Search(text, limit + 1);
+            return new IpcResponse { Ok = true, Files = files.Take(limit).ToList(), Truncated = files.Count > limit };
+        }
+
+        public const int DefaultFindLimit = 200;
+
+        static bool Is(string action, string name) => string.Equals(action, name, StringComparison.OrdinalIgnoreCase);
 
         private static string GetPackPathOnDisk(IpcRequest request)
         {

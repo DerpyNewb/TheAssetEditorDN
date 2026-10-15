@@ -13,5 +13,13 @@ namespace Editors.Ipc
         }
 
         public PackFile FindByPath(string path) => _packFileService.FindFile(path);
+
+        public List<string> Search(string text, int limit) => _packFileService.GetAllPackfileContainers()
+            .SelectMany(x => x.GetAllFiles().Keys)
+            .Where(x => x.Contains(text, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .Take(limit)
+            .ToList();
     }
 }
