@@ -26,6 +26,7 @@ namespace Editors.Audio.AudioEditor.Presentation
         private readonly IAudioProjectCompilerService _audioProjectCompilerService;
         private readonly IAudioEditorIntegrityService _audioEditorIntegrityService;
         private readonly IShortcutService _shortcutService;
+        private readonly IAudioProjectUndoService _undo;
 
         [ObservableProperty] private bool _isAudioProjectLoaded = false;
         [ObservableProperty] private bool _isSettingsBorderVisible = false;
@@ -38,6 +39,7 @@ namespace Editors.Audio.AudioEditor.Presentation
             IAudioProjectCompilerService audioProjectCompilerService,
             IAudioEditorIntegrityService audioEditorIntegrityService,
             IShortcutService shortcutService,
+            IAudioProjectUndoService undo,
             AudioProjectExplorerViewModel audioProjectExplorerViewModel,
             AudioFilesExplorerViewModel audioFilesExplorerViewModel,
             AudioProjectEditorViewModel audioProjectEditorViewModel,
@@ -46,6 +48,7 @@ namespace Editors.Audio.AudioEditor.Presentation
             WaveformVisualiserViewModel waveformVisualiserViewModel)
         {
             _uiCommandFactory = uiCommandFactory;
+            _undo = undo;
             _eventHub = eventHub;
             _audioEditorStateService = audioEditorStateService;
             _audioEditorFileService = audioEditorFileService;
@@ -109,8 +112,13 @@ namespace Editors.Audio.AudioEditor.Presentation
 
         [RelayCommand] public void OpenAudioProjectConverter() => _uiCommandFactory.Create<OpenAudioProjectConverterWindowCommand>().Execute();
 
+        [RelayCommand] public void Undo() => _undo.Undo();
+
+        [RelayCommand] public void Redo() => _undo.Redo();
+
         [RelayCommand] public void RefreshSourceIds()
         {
+            _undo.BeforeChange();
             _audioEditorIntegrityService.RefreshSourceIds(_audioEditorStateService.AudioProject);
             SaveAudioProject();
         }

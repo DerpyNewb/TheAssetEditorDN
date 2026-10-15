@@ -47,6 +47,7 @@ namespace Editors.Audio
             serviceCollection.AddScoped<IAudioEditorFileService, AudioEditorFileService>();
             serviceCollection.AddScoped<IAudioEditorIntegrityService, AudioEditorIntegrityService>();
             serviceCollection.AddScoped<IShortcutService, ShortcutService>();
+            serviceCollection.AddScoped<IAudioProjectUndoService, AudioProjectUndoService>();
 
             // Audio Editor View Models
             serviceCollection.AddScoped<AudioEditorViewModel>();

@@ -504,6 +504,9 @@
   "RmvToGltfExporter.Tooltips.ConvertNormal": "将法线贴图转换为蓝色版本 - 许多软件使用，包括 Blender",
 
   "AudioEditor.Menu.File": "文件",
+  "AudioEditor.Menu.Edit": "编辑",
+  "AudioEditor.Menu.Undo": "撤销",
+  "AudioEditor.Menu.Redo": "重做",
   "AudioEditor.Menu.NewAudioProject": "新建音频项目",
   "AudioEditor.Menu.OpenAudioProject": "打开音频项目",
   "AudioEditor.Menu.SaveAudioProject": "保存音频项目",

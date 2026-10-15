@@ -68,6 +68,20 @@
                         Command="{Binding RefreshSourceIdsCommand}"
                         IsEnabled="{Binding IsAudioProjectLoaded}"/>
                 </MenuItem>
+                <MenuItem
+                    Header="{loc:Loc AudioEditor.Menu.Edit}"
+                    HorizontalAlignment="Left">
+                    <MenuItem
+                        Header="{loc:Loc AudioEditor.Menu.Undo}"
+                        InputGestureText="Ctrl+Z"
+                        Command="{Binding UndoCommand}"
+                        IsEnabled="{Binding IsAudioProjectLoaded}"/>
+                    <MenuItem
+                        Header="{loc:Loc AudioEditor.Menu.Redo}"
+                        InputGestureText="Ctrl+Y"
+                        Command="{Binding RedoCommand}"
+                        IsEnabled="{Binding IsAudioProjectLoaded}"/>
+                </MenuItem>
                 <MenuItem 
                     Header="{loc:Loc AudioEditor.Menu.Tools}" 
                     HorizontalAlignment="Left">

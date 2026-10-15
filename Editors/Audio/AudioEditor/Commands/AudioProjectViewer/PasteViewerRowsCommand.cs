@@ -11,7 +11,8 @@ namespace Editors.Audio.AudioEditor.Commands.AudioProjectViewer
     public class PasteViewerRowsCommand(
         IAudioEditorStateService audioEditorStateService,
         IAudioProjectMutationUICommandFactory audioProjectMutationUICommandFactory,
-        IEventHub eventHub) : IAeCommand
+        IEventHub eventHub,
+        IAudioProjectUndoService undo) : IAeCommand
     {
         private readonly IAudioEditorStateService _audioEditorStateService = audioEditorStateService;
         private readonly IAudioProjectMutationUICommandFactory _audioProjectMutationUICommandFactory = audioProjectMutationUICommandFactory;
@@ -25,6 +26,7 @@ namespace Editors.Audio.AudioEditor.Commands.AudioProjectViewer
 
         public void Execute()
         {
+            undo.BeforeChange();
             var selectedAudioProjectExplorerNode = _audioEditorStateService.SelectedAudioProjectExplorerNode;
             foreach (var row in _copiedRows)
             {

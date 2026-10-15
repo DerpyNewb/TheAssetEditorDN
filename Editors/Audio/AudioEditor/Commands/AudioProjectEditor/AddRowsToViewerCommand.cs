@@ -11,7 +11,8 @@ namespace Editors.Audio.AudioEditor.Commands.AudioProjectEditor
     public class AddRowsToViewerCommand(
     IAudioEditorStateService audioEditorStateService,
     IAudioProjectMutationUICommandFactory audioProjectMutationUICommandFactory,
-    IEventHub eventHub) : IAeCommand
+    IEventHub eventHub,
+        IAudioProjectUndoService undo) : IAeCommand
     {
         private readonly IAudioEditorStateService _audioEditorStateService = audioEditorStateService;
         private readonly IAudioProjectMutationUICommandFactory _audioProjectMutationUICommandFactory = audioProjectMutationUICommandFactory;
@@ -25,6 +26,7 @@ namespace Editors.Audio.AudioEditor.Commands.AudioProjectEditor
 
         public void Execute()
         {
+            undo.BeforeChange();
             foreach (var row in _rows)
             {
                 var cmd = _audioProjectMutationUICommandFactory.Create(MutationType.Add, _audioEditorStateService.SelectedAudioProjectExplorerNode.Type);

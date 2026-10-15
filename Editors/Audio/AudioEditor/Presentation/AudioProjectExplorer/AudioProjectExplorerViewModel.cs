@@ -53,6 +53,26 @@ namespace Editors.Audio.AudioEditor.Presentation.AudioProjectExplorer
             AudioProjectExplorerLabel = $"Audio Project Explorer";
 
             _eventHub.Register<AudioProjectLoadedEvent>(this, OnAudioProjectInitialised);
+            _eventHub.Register<AudioProjectRestoredEvent>(this, OnAudioProjectRestored);
+        }
+
+        // After an undo the tree is built again; the node that was selected is found by its names and selected, so the viewer
+        // shows its rows as they now are.
+        private void OnAudioProjectRestored(AudioProjectRestoredEvent e)
+        {
+            IEnumerable<AudioProjectTreeNode> level = AudioProjectTree;
+            AudioProjectTreeNode node = null;
+            foreach (var name in e.SelectedNodePath)
+            {
+                node = level.FirstOrDefault(x => x.Name == name);
+                if (node == null)
+                    return;
+                if (node.Parent != null)
+                    node.Parent.IsExpanded = true;
+                level = node.Children;
+            }
+            if (node != null)
+                SelectedNode = node;
         }
 
         private void OnAudioProjectInitialised(AudioProjectLoadedEvent e)

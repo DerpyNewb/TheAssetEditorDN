@@ -11,7 +11,7 @@ namespace Editors.Audio.AudioEditor.Core
         void HandleShortcut(KeyEventArgs e, bool isTextInputFocussed, bool isSettingsAudioFilesListViewFocussed);
     }
 
-    public class ShortcutService(IEventHub eventHub) : IShortcutService
+    public class ShortcutService(IEventHub eventHub, IAudioProjectUndoService undo) : IShortcutService
     {
         private readonly IEventHub _eventHub = eventHub;
 
@@ -36,7 +36,17 @@ namespace Editors.Audio.AudioEditor.Core
             // We want to allow normal copy / paste / delete / backspace functionality when AudioProjectEditor text input is focussed
             else if (!isTextInputFocussed && !isSettingsAudioFilesListViewFocussed)
             {
-                if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C)
+                if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z)
+                {
+                    undo.Undo();
+                    e.Handled = true;
+                }
+                else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y || Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.Z)
+                {
+                    undo.Redo();
+                    e.Handled = true;
+                }
+                else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C)
                 {
                     _eventHub.Publish(new ViewerCopyRowsShortcutActivatedEvent());
                     e.Handled = true;

@@ -504,6 +504,9 @@
   "RmvToGltfExporter.Tooltips.ConvertNormal": "Convert the normal map texture into blue version - used by a lot of software, including blender",
 
   "AudioEditor.Menu.File": "File",
+  "AudioEditor.Menu.Edit": "Edit",
+  "AudioEditor.Menu.Undo": "Undo",
+  "AudioEditor.Menu.Redo": "Redo",
   "AudioEditor.Menu.NewAudioProject": "New Audio Project",
   "AudioEditor.Menu.OpenAudioProject": "Open Audio Project",
   "AudioEditor.Menu.SaveAudioProject": "Save Audio Project",
