@@ -25,6 +25,7 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.MeshSubViews
         private readonly IScopedResourceLibrary _resourceLibrary;
         private readonly CapabilityMaterialFactory _materialFactory;
         private readonly IStandardDialogs _packFileUiProvider;
+        private readonly global::Shared.Ui.Common.ValueUndo? _undo;
         Rmv2MeshNode? _currentNode;
 
         [ObservableProperty] List<CapabilityMaterialsEnum> _possibleMaterialTypes;
@@ -44,7 +45,8 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.MeshSubViews
             IPackFileService packFileService, 
             IScopedResourceLibrary resourceLibrary, 
             CapabilityMaterialFactory abstractMaterialFactory, 
-            IStandardDialogs packFileUiProvider)
+            IStandardDialogs packFileUiProvider,
+            global::Shared.Ui.Common.ValueUndo? undo = null)
         {
             _uiCommandFactory = uiCommandFactory;
             _selectionManager = selectionManager;
@@ -53,6 +55,7 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.MeshSubViews
             _resourceLibrary = resourceLibrary;
             _materialFactory = abstractMaterialFactory;
             _packFileUiProvider = packFileUiProvider;
+            _undo = undo;
             _possibleMaterialTypes = _materialFactory.GetPossibleMaterials();
         }
         internal void Initialize(Rmv2MeshNode node)
@@ -65,8 +68,8 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.MeshSubViews
             SpecGloss = CreateCapabilityView<SpecGlossCapability, SpecGlossViewModel>(material, (cap) => new SpecGlossViewModel(cap, _uiCommandFactory, _packFileService, _resourceLibrary, _packFileUiProvider));
             AdvanceRvmMaterial = CreateCapabilityView<AdvancedMaterialCapability, AdvancedRmvMaterialViewModel>(material, (cap) => new AdvancedRmvMaterialViewModel(cap, _uiCommandFactory, _packFileService, _resourceLibrary, _packFileUiProvider));
             Blood = CreateCapabilityView<BloodCapability, BloodViewModel>(material, (cap) => new BloodViewModel(cap, _uiCommandFactory, _packFileService, _resourceLibrary, _packFileUiProvider));
-            Emissive = CreateCapabilityView<EmissiveCapability, EmissiveViewModel>(material, (cap) => new EmissiveViewModel(cap, _uiCommandFactory, _packFileService, _resourceLibrary, _packFileUiProvider));
-            Tint = CreateCapabilityView<TintCapability, TintViewModel>(material, (cap) => new TintViewModel(cap));
+            Emissive = CreateCapabilityView<EmissiveCapability, EmissiveViewModel>(material, (cap) => new EmissiveViewModel(cap, _uiCommandFactory, _packFileService, _resourceLibrary, _packFileUiProvider, _undo));
+            Tint = CreateCapabilityView<TintCapability, TintViewModel>(material, (cap) => new TintViewModel(cap, _undo));
         }
 
         partial void OnCurrentMaterialTypeChanged(CapabilityMaterialsEnum? oldValue, CapabilityMaterialsEnum? newValue)

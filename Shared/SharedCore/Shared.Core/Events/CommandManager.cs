@@ -42,6 +42,9 @@ namespace Shared.Core.Events
 
         public bool CanUndo() => _commands.Count != 0;
 
+        /// <summary>The step the next undo takes back, so an edit still under way can fold into it rather than add another.</summary>
+        public IAeUndoCommandCommand? Peek() => _commands.Count == 0 ? null : _commands.Peek();
+
         public void Undo()
         {
             if (CanUndo())

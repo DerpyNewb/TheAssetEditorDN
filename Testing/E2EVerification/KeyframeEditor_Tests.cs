@@ -46,6 +46,39 @@ namespace Test.E2EVerification
             Assert.That(editor.Rider.AnimationClip!.DynamicFrames.Count, Is.EqualTo(frames));
         }
 
+        // The interpolation slider applies to the frame on every step it moves. A whole drag of it undoes as one step, back to the
+        // frame as it was, not one step per slider position.
+        [Test]
+        public void Warhammer3_InterpolationSliderDrag_UndoesInOneStep()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
+            var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+            var sceneObjectEditor = runner.GetRequiredServiceInCurrentEditorScope<SceneObjectEditor>();
+            sceneObjectEditor.SetMesh(editor.Rider, runner.PackFileService.FindFile(KarlMesh)!);
+            sceneObjectEditor.SetAnimation(editor.Rider, IdleAnimation);
+            var commands = editor.CommandManager;
+            Assert.That(commands.CanUndo(), Is.False, "nothing to undo as loaded");
+
+            editor.Rider.Player.CurrentFrame = 0;
+            editor.SelectFrameAInterpolation();
+            editor.Rider.Player.CurrentFrame = 6;
+            editor.SelectFrameBInterpolation();
+            editor.Rider.Player.CurrentFrame = 3;
+            var before = editor.Rider.AnimationClip!.DynamicFrames[3].Clone();
+            editor.PreviewInterpolation = true;
+
+            foreach (var value in new[] { 0.2f, 0.4f, 0.6f, 0.8f })
+                editor.InterpolationValue = value;
+            Assert.That(editor.Rider.AnimationClip!.DynamicFrames[3].Rotation, Is.Not.EqualTo(before.Rotation), "the drag moved the frame");
+
+            commands.Undo();
+            Assert.That(commands.CanUndo(), Is.False, "the whole drag was one step");
+            var after = editor.Rider.AnimationClip!.DynamicFrames[3];
+            Assert.That((after.Position, after.Rotation), Is.EqualTo((before.Position, before.Rotation)));
+        }
+
         // The Mount is a reference to pose the Rider against. Its animation must not replace the
         // Rider's original clip, its duration, or the unsaved-changes flag.
         [Test]

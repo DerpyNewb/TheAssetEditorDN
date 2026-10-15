@@ -43,6 +43,8 @@ namespace Editors.KitbasherEditor
 
             // Creators
             serviceCollection.AddScoped<KitbashSceneCreator>();
+            // One per Kitbash tab, on its undo stack: the material and skeleton panels' slider edits.
+            serviceCollection.AddScoped<global::Shared.Ui.Common.ValueUndo>();
 
             // View models 
             serviceCollection.AddScoped<KitbasherView>();

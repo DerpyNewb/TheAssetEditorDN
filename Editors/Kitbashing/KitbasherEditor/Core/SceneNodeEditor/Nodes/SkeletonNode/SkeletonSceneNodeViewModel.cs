@@ -4,11 +4,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using GameWorld.Core.Animation;
 using GameWorld.Core.SceneNodes;
 using KitbasherEditor.Views.EditorViews;
+using Shared.Ui.Common;
 using Shared.Ui.Common.DataTemplates;
 
 namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes
 {
-    public partial class SkeletonSceneNodeViewModel : ObservableObject, ISceneNodeEditor, IViewProvider<SkeletonView>
+    public partial class SkeletonSceneNodeViewModel(ValueUndo? undo = null) : ObservableObject, ISceneNodeEditor, IViewProvider<SkeletonView>
     {
         SkeletonNode _meshNode;
 
@@ -27,6 +28,8 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes
         }
 
         partial void OnBoneScaleChanged(float value) => _meshNode.SkeletonScale = value;
+        // On the Kitbash undo stack, a whole drag as one step.
+        partial void OnBoneScaleChanged(float oldValue, float newValue) => undo?.Changed((this, nameof(BoneScale)), oldValue, newValue, v => BoneScale = v, "bone scale");
 
         partial void OnSelectedBoneChanged(SkeletonBoneNode? value)
         {

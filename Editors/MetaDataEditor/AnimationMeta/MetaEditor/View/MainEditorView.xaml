@@ -17,6 +17,13 @@
         </Style>
     </UserControl.Resources>
 
+    <!-- A text box being typed in keeps its own Ctrl+Z; anywhere else in the editor these undo the file. -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Z" Modifiers="Ctrl" Command="{Binding UndoCommand}"/>
+        <KeyBinding Key="Y" Modifiers="Ctrl" Command="{Binding RedoCommand}"/>
+        <KeyBinding Key="Z" Modifiers="Ctrl+Shift" Command="{Binding RedoCommand}"/>
+    </UserControl.InputBindings>
+
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="auto"/>

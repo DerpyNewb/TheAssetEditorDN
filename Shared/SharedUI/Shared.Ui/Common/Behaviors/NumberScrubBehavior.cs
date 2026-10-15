@@ -9,6 +9,22 @@ namespace Shared.Ui.Common.Behaviors
 {
     public enum ScrubMode { None, Integer, Decimal }
 
+    /// <summary>The drag a scrub box is in, if any: an editor's undo makes the whole drag one step (EditCoalescer). Id counts the
+    /// drags, so the next one is a step of its own.</summary>
+    public static class ScrubGesture
+    {
+        public static int Id { get; private set; }
+        public static bool IsActive { get; private set; }
+
+        public static void Start()
+        {
+            Id++;
+            IsActive = true;
+        }
+
+        public static void Stop() => IsActive = false;
+    }
+
     /// <summary>Photoshop's scrubby slider on a number box: over a box it can change, the mouse shows the left-right arrows; press and
     /// drag sideways and the number moves with the mouse, a hundred pixels by the number's own size (by 1 under 1, and a whole number
     /// at least a step per 10 pixels). Shift moves it ten times as far, Ctrl a tenth as far. A press that does not travel 3 pixels is
@@ -73,6 +89,8 @@ namespace Shared.Ui.Common.Behaviors
         {
             if (_pressX is not { } press || (!_dragging && Math.Abs(x - press) < ClickTravel))
                 return;
+            if (!_dragging)
+                ScrubGesture.Start();
             _dragging = true;
             var scale = keys.HasFlag(ModifierKeys.Shift) ? 10 : keys.HasFlag(ModifierKeys.Control) ? 0.1 : 1;
             _value += (x - _lastX) * _step * scale;
@@ -90,6 +108,8 @@ namespace Shared.Ui.Common.Behaviors
                 AssociatedObject.Focus();
                 AssociatedObject.SelectAll();
             }
+            if (_dragging)
+                ScrubGesture.Stop();
             _pressX = null;
         }
 
@@ -123,6 +143,11 @@ namespace Shared.Ui.Common.Behaviors
         }
 
         // Another window took the mouse mid-drag: the number stays where it got to.
-        void OnLostCapture(object sender, MouseEventArgs e) => _pressX = null;
+        void OnLostCapture(object sender, MouseEventArgs e)
+        {
+            if (_pressX != null && _dragging)
+                ScrubGesture.Stop();
+            _pressX = null;
+        }
     }
 }

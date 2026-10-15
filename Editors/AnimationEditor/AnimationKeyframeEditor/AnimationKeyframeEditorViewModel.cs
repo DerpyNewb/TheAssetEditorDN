@@ -670,8 +670,15 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             InterpolationValue = 0;
         }
 
+        // The slider interpolates the frame on every step it moves; the step before, from the same drag on the same frame, comes off
+        // first, so the frame interpolates from where it started and the drag undoes as one step.
+        readonly EditCoalescer _interpolationEdits = new();
+
         public void ApplyInterpolationOnCurrentFrame()
         {
+            if (_interpolationEdits.Continues((_interpolateBetweenPose, _rider.Player.CurrentFrame))
+                && _commandExecutor.Peek() is InterpolateFramesBoneCommand or InterpolateFramesSelectedBonesBoneCommand)
+                _commandExecutor.Undo();
             _interpolateBetweenPose.ApplySingleFrame();
         }
 

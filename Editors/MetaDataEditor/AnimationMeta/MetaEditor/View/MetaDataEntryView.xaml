@@ -25,6 +25,7 @@
                 <RowDefinition Height="auto"/>
                 <RowDefinition Height="auto"/>
                 <RowDefinition Height="auto"/>
+                <RowDefinition Height="auto"/>
             </Grid.RowDefinitions>
 
             <Button Grid.Row="0" Grid.Column="0" Content="{loc:Loc MetadataEditor.Buttons.New}"  Margin="5,5,5,0"  Command="{Binding NewActionCommand}"/>
@@ -36,7 +37,10 @@
             <Button Grid.Row="2" Grid.Column="0" Content="{loc:Loc MetadataEditor.Buttons.Copy}"  Margin="5,5,5,0" Command="{Binding CopyActionCommand}"/>
             <Button Grid.Row="2" Grid.Column="1" Content="{loc:Loc MetadataEditor.Buttons.Paste}"  Margin="5,5,5,0" Command="{Binding PasteActionCommand}"/>
 
-            <Button Grid.Row="3" Grid.ColumnSpan="2" Content="{loc:Loc MetadataEditor.Buttons.Save}"  Margin="5,5,5,0"  Command="{Binding SaveActionCommand}"/>
+            <Button Grid.Row="3" Grid.Column="0" Content="{loc:Loc MetadataEditor.Buttons.Undo}" ToolTip="Ctrl+Z" Margin="5,5,5,0" Command="{Binding UndoCommand}"/>
+            <Button Grid.Row="3" Grid.Column="1" Content="{loc:Loc MetadataEditor.Buttons.Redo}" ToolTip="Ctrl+Y" Margin="5,5,5,0" Command="{Binding RedoCommand}"/>
+
+            <Button Grid.Row="4" Grid.ColumnSpan="2" Content="{loc:Loc MetadataEditor.Buttons.Save}"  Margin="5,5,5,0"  Command="{Binding SaveActionCommand}"/>
         </Grid>
 
         <ListView DockPanel.Dock="Bottom"

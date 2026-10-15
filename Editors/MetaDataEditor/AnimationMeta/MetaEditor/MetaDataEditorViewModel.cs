@@ -6,6 +6,7 @@ using Shared.Core.Events;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationMeta.Parsing;
+using Shared.Ui.Common;
 
 namespace Editors.AnimationMeta.Presentation
 {
@@ -48,7 +49,11 @@ namespace Editors.AnimationMeta.Presentation
             _metaDataFileParser = metaDataFileParser;
             _eventHub = eventHub;
             // An edited field says so on the hub; the tab that shows red while there are unsaved changes hears it from here.
-            _eventHub.Register<MetaDataAttributeChangedEvent>(this, _ => OnPropertyChanged(nameof(HasUnsavedChanges)));
+            _eventHub.Register<MetaDataAttributeChangedEvent>(this, _ =>
+            {
+                Record(("field", SelectedTag == null ? -1 : Tags.IndexOf(SelectedTag)));
+                OnPropertyChanged(nameof(HasUnsavedChanges));
+            });
         }
 
         partial void OnSelectedTagChanged(MetaDataEntry? value)
@@ -89,6 +94,11 @@ namespace Editors.AnimationMeta.Presentation
 
             UpdateView();
             HasUnsavedChanges = false;
+            _undo.Clear();
+            _redo.Clear();
+            _current = Snapshot();
+            _edits.Break();
+            NotifyUndoRedo();
         }
 
         /// <summary>Rebuilds the rows from the file, which every caller but LoadFile has just changed: an entry added, deleted, moved
@@ -106,7 +116,95 @@ namespace Editors.AnimationMeta.Presentation
                     Tags.Add(new MetaDataEntry(metadataEntry, desc, _eventHub, metadataEntry is not ParsedUnknownMetadataAttribute));
                 }
             }
+            // An add, delete, move or paste: a step of its own.
+            Record(new object());
             OnPropertyChanged(nameof(HasUnsavedChanges));
+        }
+
+        // Undo and redo hold the file as Save would write it, from before each change. Edits to one tag in one scrub drag, or under
+        // a second apart, are one step (EditCoalescer); an add, delete, move or paste is one. SuperView keeps two of these editors
+        // on one event hub, so each hears the other's edits: its own file is unchanged by them and records nothing.
+        readonly Stack<byte[]> _undo = new();
+        readonly Stack<byte[]> _redo = new();
+        readonly EditCoalescer _edits = new();
+        byte[]? _current;
+        bool _restoring;
+
+        byte[]? Snapshot()
+        {
+            if (ParsedFile == null)
+                return null;
+            try
+            {
+                return _metaDataFileParser.GenerateBytes(MetaDataFileVersion, ParsedFile);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        void Record(object key)
+        {
+            if (_restoring || _current == null)
+                return;
+            var now = Snapshot();
+            if (now == null || now.AsSpan().SequenceEqual(_current))
+                return;
+            if (!_edits.Continues(key))
+                _undo.Push(_current);
+            _redo.Clear();
+            _current = now;
+            NotifyUndoRedo();
+        }
+
+        bool CanUndo() => _undo.Count != 0;
+        bool CanRedo() => _redo.Count != 0;
+
+        [RelayCommand(CanExecute = nameof(CanUndo))]
+        void Undo()
+        {
+            if (_undo.Count == 0 || _current == null)
+                return;
+            _redo.Push(_current);
+            Restore(_undo.Pop());
+        }
+
+        [RelayCommand(CanExecute = nameof(CanRedo))]
+        void Redo()
+        {
+            if (_redo.Count == 0 || _current == null)
+                return;
+            _undo.Push(_current);
+            Restore(_redo.Pop());
+        }
+
+        void Restore(byte[] bytes)
+        {
+            var selected = SelectedTag == null ? -1 : Tags.IndexOf(SelectedTag);
+            _restoring = true;
+            try
+            {
+                ParsedFile = _metaDataFileParser.ParseFile(bytes);
+                MetaDataFileVersion = ParsedFile.Version;
+                UpdateView();
+                SelectedTag = selected >= 0 && selected < Tags.Count ? Tags[selected] : null;
+                // SuperView draws the tags; it redraws when one changes.
+                _eventHub.Publish(new MetaDataAttributeChangedEvent());
+            }
+            finally
+            {
+                _restoring = false;
+            }
+            _current = bytes;
+            _edits.Break();
+            NotifyUndoRedo();
+        }
+
+        void NotifyUndoRedo()
+        {
+            UndoCommand.NotifyCanExecuteChanged();
+            RedoCommand.NotifyCanExecuteChanged();
         }
 
         [RelayCommand] void MoveUpAction() => _uiCommandFactory.Create<MoveEntryCommand>().ExecuteUp(this);
