@@ -88,7 +88,6 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
             {
                 if (itText.Texture == null) continue;
 
-                var texPath = itText.Texture.PrimaryImage.Content.SourcePath;
                 if (!TextureTypeHelper.GetRmvTextureTypeFromGltfIdString(
                     itText.Key,
                     out var textureType,
@@ -99,8 +98,15 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
                 var texturePackFolder = GetTexturePackFolder(settings, mesh.Name, postFixString);
                 var DEBUG___textureName = itText.Texture.PrimaryImage.Name;
 
-                // import texture PNG -> DDS
-                var ddsPackFile = PngToDdsImporter.Import(texPath, textureType, gameType, Path.GetFileName(texturePackFolder));
+                // import texture PNG -> DDS. The image's bytes, not its path: a .glb's textures are inside it and have none.
+                var convert = textureType switch
+                {
+                    TextureType.Normal => settings.ConvertNormalTextureFromBlueToOrangeType,
+                    TextureType.MaterialMap => settings.ConvertMaterialFromBlenderType,
+                    _ => false,
+                };
+                var image = itText.Texture.PrimaryImage.Content.Content.ToArray();
+                var ddsPackFile = PngToDdsImporter.Import(image, textureType, gameType, Path.GetFileName(texturePackFolder), convert);
 
                 rmvModel.Material.SetTexture(textureType, texturePackFolder);
 

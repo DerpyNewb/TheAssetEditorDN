@@ -42,7 +42,15 @@ namespace Editors.ImportExport.Importing.Presentation
                 return;
             }
 
-            _viewModel.Import();
+            try
+            {
+                _viewModel.Import();
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(exception.Message, "Import failed");
+                return;
+            }
             Close();
         }       
     }

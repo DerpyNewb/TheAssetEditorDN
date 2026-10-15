@@ -70,10 +70,10 @@ namespace Editors.ImportExport.Importing.Presentation
             }
 
             if (SelectedImporter == null)
-                SelectedImporter = PossibleImporters.First();
+                SelectedImporter = PossibleImporters.FirstOrDefault();
         }
 
-        public void Import() => SelectedImporter!.Execute(_inputFile, _packPath, _destPackFileContainer, _applicationSettings.CurrentSettings.CurrentGame);
+        public void Import() => (SelectedImporter ?? throw new InvalidOperationException($"No importer reads {Path.GetExtension(SystemPath)} files.")).Execute(_inputFile, _packPath, _destPackFileContainer, _applicationSettings.CurrentSettings.CurrentGame);
 
         [RelayCommand]
         public void BrowsePathCommand()

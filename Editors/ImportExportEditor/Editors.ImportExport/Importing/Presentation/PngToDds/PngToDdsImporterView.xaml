@@ -1,0 +1,29 @@
+﻿<UserControl x:Class="Editors.ImportExport.Importing.Presentation.PngToDds.PngToDdsImporterView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="4">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="auto"/>
+            <ColumnDefinition Width="auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="25"/>
+            <RowDefinition Height="25"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Texture type" VerticalAlignment="Center"/>
+        <TextBlock Grid.Row="0" Grid.Column="1" Text=" : " VerticalAlignment="Center"/>
+        <ComboBox Grid.Row="0" Grid.Column="2" Width="160" HorizontalAlignment="Left"
+                  ItemsSource="{Binding TextureTypes}" SelectedItem="{Binding TextureType, Mode=TwoWay}"
+                  ToolTip="Picks the format: base colour and material map are BC1 sRGB (BC3 when the image has transparency), normal and mask BC3. Guessed from the file name."/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Convert from Blender layout" VerticalAlignment="Center"/>
+        <TextBlock Grid.Row="1" Grid.Column="1" Text=" : " VerticalAlignment="Center"/>
+        <CheckBox Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" IsChecked="{Binding Convert, Mode=TwoWay}">
+            <CheckBox.ToolTip>
+                Normal map: blue (Blender, Substance) to the game's orange layout.&#xA;Material map: metal from blue (Blender) to red (the game).&#xA;Untick when the image is already in the game's layout. No effect on other types.
+            </CheckBox.ToolTip>
+        </CheckBox>
+    </Grid>
+</UserControl>

@@ -15,6 +15,7 @@ using Editors.ImportExport.Importing;
 using Editors.ImportExport.Importing.Importers.GltfToRmv;
 using Editors.ImportExport.Importing.Importers.GltfToRmv.Helper;
 using Editors.ImportExport.Importing.Presentation;
+using Editors.ImportExport.Importing.Presentation.PngToDds;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.DependencyInjection;
 using Shared.Core.DevConfig;
@@ -47,6 +48,7 @@ namespace Editors.ImportExport
             RegisterWindow<ImportWindow>(services);
             services.AddTransient<ImporterCoreViewModel>();
             services.AddTransient<IImporterViewModel, RmvToGltfImporterViewModel>();
+            services.AddTransient<IImporterViewModel, PngToDdsImporterViewModel>();
 
             // Importers
             services.AddTransient<GltfImporter>();

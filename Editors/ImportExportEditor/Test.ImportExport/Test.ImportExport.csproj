@@ -5,6 +5,7 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
@@ -29,6 +30,7 @@
 
   <ItemGroup>
     <Using Include="NUnit.Framework" />
+    <Using Include="System.IO" />
   </ItemGroup>
 
 </Project>
