@@ -123,6 +123,25 @@ namespace Editors.UnitSimulator.Tables
             return output.ToArray();
         }
 
+        /// <summary>The check before an animpack replaces the one in the pack: the same entries in the same order, every other one
+        /// byte for byte as it was, and the table read back from what was written giving the same bytes. Throws on a difference, so
+        /// a bad write never replaces a good animpack.</summary>
+        public static void Verify(byte[] original, byte[] spliced, string entryName, byte[] entryData)
+        {
+            var before = ReadEntries(original).ToList();
+            var after = ReadEntries(spliced).ToList();
+            if (!before.Select(x => x.Name).SequenceEqual(after.Select(x => x.Name)))
+                throw new InvalidDataException("the written animpack's entries are not the ones it had");
+            for (var i = 0; i < after.Count; i++)
+            {
+                var expected = after[i].Name == entryName ? entryData : before[i].Data;
+                if (!after[i].Data.AsSpan().SequenceEqual(expected))
+                    throw new InvalidDataException($"the written animpack's {after[i].Name} is not what was meant to be there");
+            }
+            if (!new AnimationBinWh3(entryName, entryData).ToByteArray().AsSpan().SequenceEqual(entryData))
+                throw new InvalidDataException($"{entryName} does not read back as written");
+        }
+
         /// <summary>Writes the table into the animpack it came from, at that animpack's path in the editable pack. Null when saved, else
         /// why not: the table is in a CA pack, or no editable pack is selected. The animpack spliced is the editable pack's copy when it
         /// has one, so a second table saved keeps the first; a pack loaded later holding the animpack would otherwise be read instead.</summary>
@@ -139,7 +158,11 @@ namespace Editors.UnitSimulator.Tables
                 return "No editable pack is selected.";
             try
             {
-                saver.Save(animPackPath, Splice(animPack.DataSource.ReadData(), table.FileName, table.ToByteArray()), false);
+                var original = animPack.DataSource.ReadData();
+                var data = table.ToByteArray();
+                var spliced = Splice(original, table.FileName, data);
+                Verify(original, spliced, table.FileName, data);
+                saver.Save(animPackPath, spliced, false);
                 return null;
             }
             catch (Exception e)

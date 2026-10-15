@@ -65,7 +65,11 @@
                         <Button Content="Add the selected Pairing row's missing rider slot, copied from the rider's current slot"
                                 Command="{Binding AddMissingRiderSlotCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,0,0,12"/>
 
-                        <Button Content="Save tables" Command="{Binding SaveTablesCommand}" HorizontalAlignment="Left" Padding="8,2"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Undo table edit" Command="{Binding UndoTableEditCommand}" Padding="8,2" Margin="0,0,6,0"
+                                    ToolTip="Takes back the last slot edit or added slot, one at a time, saved or not. After a save, save tables again to write the undo."/>
+                            <Button Content="Save tables" Command="{Binding SaveTablesCommand}" Padding="8,2"/>
+                        </StackPanel>
                         <TextBlock Foreground="OrangeRed" TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding TableStatus}"/>
                     </StackPanel>
                 </ScrollViewer>

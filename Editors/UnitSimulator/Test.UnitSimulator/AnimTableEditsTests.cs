@@ -178,5 +178,24 @@ namespace Test.UnitSimulator
             var entry = AnimTableEdits.ReadEntries(saved).Single(x => x.Name == VanillaGame.KnightTable).Data;
             Assert.That(AnimTableEdits.Row(new AnimationBinWh3(VanillaGame.KnightTable, entry), 1901).BlendIn, Is.EqualTo(0.5f));
         }
+
+        // The check before an animpack replaces the pack's: it passes a good splice and stops one that changed another entry or
+        // lost one, so a bad write never goes in.
+        [Test]
+        public void Verify_PassesAGoodSplice_AndStopsABadOne()
+        {
+            var tables = MadeUpTables.AnimPack(Rider(), MadeUpTables.Table("m", "horse01", "", ("ATTACK_1", "m_a1.anim")));
+            var rider = Rider();
+            AnimTableEdits.SetBlendAndWeight(rider, 1901, 0.7f, 2);
+            var data = rider.ToByteArray();
+            var good = AnimTableEdits.Splice(tables, rider.FileName, data);
+            Assert.DoesNotThrow(() => AnimTableEdits.Verify(tables, good, rider.FileName, data));
+
+            var otherEntryChanged = (byte[])good.Clone();
+            otherEntryChanged[^1] ^= 1;
+            Assert.Throws<System.IO.InvalidDataException>(() => AnimTableEdits.Verify(tables, otherEntryChanged, rider.FileName, data));
+            var entryLost = AnimTableEdits.Splice(MadeUpTables.AnimPack(Rider()), rider.FileName, data);
+            Assert.Throws<System.IO.InvalidDataException>(() => AnimTableEdits.Verify(tables, entryLost, rider.FileName, data));
+        }
     }
 }

@@ -132,5 +132,58 @@ namespace Test.UnitSimulator
             sim.SaveTablesCommand.Execute(null);
             Assert.That(AnimTableEdits.Row(Saved(runner, pack, RiderPath), 1901).AnimationRefs.Single().AnimationFile, Is.EqualTo("animations/derpy/edited.anim"));
         }
+
+        // Undo takes edits back one at a time; one back to the table as saved is no longer an unsaved change.
+        [Test]
+        public void UndoTableEdit_TakesEditsBackOneAtATime()
+        {
+            var (_, sim, _) = Open();
+            string RiderAnim() => AnimTableEdits.Row((AnimationBinWh3)sim.Rider.FragAndSlotSelection.FragmentList.SelectedItem!, 1901).AnimationRefs.Single().AnimationFile;
+            var original = RiderAnim();
+            sim.EditPart = "Rider";
+            sim.SlotAnim = "animations/derpy/first.anim";
+            sim.ApplySlotEditCommand.Execute(null);
+            sim.SlotAnim = "animations/derpy/second.anim";
+            sim.ApplySlotEditCommand.Execute(null);
+
+            sim.UndoTableEditCommand.Execute(null);
+            Assert.That((RiderAnim(), sim.SlotAnim, sim.HasUnsavedChanges), Is.EqualTo(("animations/derpy/first.anim", "animations/derpy/first.anim", true)));
+
+            sim.UndoTableEditCommand.Execute(null);
+            Assert.That((RiderAnim(), sim.HasUnsavedChanges), Is.EqualTo((original, false)));
+            sim.UndoTableEditCommand.Execute(null);
+            Assert.That(sim.TableStatus, Is.EqualTo("No table edit to undo."));
+        }
+
+        // A saved edit undone is an unsaved change again, and saving writes the table as it was.
+        [Test]
+        public void UndoTableEdit_AfterASave_IsSavedBackByTheNextSave()
+        {
+            var (runner, sim, pack) = Open();
+            var before = Saved(runner, pack, RiderPath).ToByteArray();
+            sim.EditPart = "Rider";
+            sim.SlotAnim = "animations/derpy/edited.anim";
+            sim.ApplySlotEditCommand.Execute(null);
+            sim.SaveTablesCommand.Execute(null);
+
+            sim.UndoTableEditCommand.Execute(null);
+            Assert.That(sim.HasUnsavedChanges, Is.True);
+            sim.SaveTablesCommand.Execute(null);
+
+            Assert.That(Saved(runner, pack, RiderPath).ToByteArray(), Is.EqualTo(before));
+        }
+
+        // An added slot is undone too, and the pairing shows it missing again.
+        [Test]
+        public void UndoTableEdit_TakesBackAnAddedRiderSlot()
+        {
+            var (_, sim, _) = Open();
+            sim.SelectedPair = sim.Pairs.Single(x => x.MountSlot == "ATTACK_2");
+            sim.AddMissingRiderSlotCommand.Execute(null);
+
+            sim.UndoTableEditCommand.Execute(null);
+
+            Assert.That((sim.Pairs.Single(x => x.MountSlot == "ATTACK_2").RiderHasSlot, sim.HasUnsavedChanges), Is.EqualTo((false, false)));
+        }
     }
 }

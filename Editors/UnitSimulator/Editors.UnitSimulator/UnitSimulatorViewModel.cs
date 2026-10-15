@@ -38,6 +38,10 @@ namespace Editors.UnitSimulator
         readonly Dictionary<string, ClipLength?> _lengths = [];
         // Edited, unsaved tables by path. The instance here is the one saved, whatever a part's list holds.
         readonly Dictionary<string, AnimationBinWh3> _editedTables = [];
+        // Each table edit's undo: the table's bytes before it. And each table's bytes as read or last saved, so an undo back to them
+        // is not left marked unsaved.
+        readonly Stack<(SceneObjectViewModel Part, string Path, byte[] Before)> _tableUndo = new();
+        readonly Dictionary<string, byte[]> _savedTables = [];
         readonly PersonalityPlacement? _placement;
 
         public override Type EditorViewModelType => typeof(Views.EditorView);
@@ -224,9 +228,11 @@ namespace Editors.UnitSimulator
                 TableStatus = $"Pick a table and a slot on the {EditPart} first.";
                 return;
             }
-            AnimTableEdits.SetFiles(table, slot, SlotAnim, SlotMeta, SlotSound);
-            AnimTableEdits.SetBlendAndWeight(table, slot.SlotIndex, SlotBlend, SlotWeight);
-            Edited(part, table);
+            EditTable(part, table, () =>
+            {
+                AnimTableEdits.SetFiles(table, slot, SlotAnim, SlotMeta, SlotSound);
+                AnimTableEdits.SetBlendAndWeight(table, slot.SlotIndex, SlotBlend, SlotWeight);
+            });
         }
 
         [RelayCommand]
@@ -242,8 +248,59 @@ namespace Editors.UnitSimulator
                 TableStatus = "Pick the rider slot to copy on the Rider panel first.";
                 return;
             }
-            AnimTableEdits.AddSlot(table, row.RiderSlot, AnimTableEdits.Row(table, current.SlotIndex));
-            Edited(Rider, table);
+            EditTable(Rider, table, () => AnimTableEdits.AddSlot(table, row.RiderSlot, AnimTableEdits.Row(table, current.SlotIndex)));
+        }
+
+        // An edit that throws part way (a slot already there, a variant renamed under it) is put back, not left half done.
+        void EditTable(SceneObjectViewModel part, AnimationBinWh3 table, Action edit)
+        {
+            var before = table.ToByteArray();
+            if (!_editedTables.ContainsKey(table.FileName))
+                _savedTables[table.FileName] = before;
+            try
+            {
+                edit();
+            }
+            catch (Exception e)
+            {
+                Restore(table, before);
+                TableStatus = $"Not applied: {e.Message}";
+                return;
+            }
+            _tableUndo.Push((part, table.FileName, before));
+            Edited(part, table);
+        }
+
+        static void Restore(AnimationBinWh3 table, byte[] bytes) => table.AnimationTableEntries = new AnimationBinWh3(table.FileName, bytes).AnimationTableEntries;
+
+        [RelayCommand]
+        void UndoTableEdit()
+        {
+            if (!_tableUndo.TryPop(out var step))
+            {
+                TableStatus = "No table edit to undo.";
+                return;
+            }
+            // The copy listed now: a save and a skeleton change read the list again, after the edit was made on an earlier copy.
+            var table = _editedTables.GetValueOrDefault(step.Path)
+                ?? step.Part.FragAndSlotSelection.FragmentList.PossibleValues.OfType<AnimationBinWh3>().FirstOrDefault(x => x.FileName == step.Path);
+            if (table == null)
+            {
+                TableStatus = $"{step.Path} is no longer loaded, so its edit cannot be undone.";
+                return;
+            }
+
+            Restore(table, step.Before);
+            var asSaved = _savedTables.TryGetValue(step.Path, out var saved) && saved.AsSpan().SequenceEqual(table.ToByteArray());
+            if (asSaved)
+                _editedTables.Remove(step.Path);
+            else
+                _editedTables[step.Path] = table;
+            Reload(step.Part);
+            RefreshPairs();
+            LoadSlotFields();
+            TableStatus = asSaved ? $"{table.Name}: undone, as saved." : $"{table.Name}: undone, not saved.";
+            OnPropertyChanged(nameof(HasUnsavedChanges));
         }
 
         [RelayCommand]
@@ -257,7 +314,10 @@ namespace Editors.UnitSimulator
                 if (AnimTableEdits.Save(_pfs, _fileSaver, table) is { } problem)
                     problems.Add(problem);
                 else
+                {
                     _editedTables.Remove(table.FileName);
+                    _savedTables[table.FileName] = table.ToByteArray();
+                }
             }
             TableStatus = problems.Count == 0 ? "Tables saved." : string.Join(Environment.NewLine, problems);
             OnPropertyChanged(nameof(HasUnsavedChanges));
