@@ -40,11 +40,17 @@ namespace CommonControls.Editors.TextEditor
             SetValue(TextOptions.TextFormattingModeProperty, TextFormattingMode.Display);
             SearchPanel.Install(textEditor);
 
+            // Lines already on screen keep the colours they were drawn with until told to redraw.
+            Loaded += (_, _) => { TextEditorTheme.Changed -= Redraw; TextEditorTheme.Changed += Redraw; };
+            Unloaded += (_, _) => TextEditorTheme.Changed -= Redraw;
+
             DispatcherTimer foldingUpdateTimer = new DispatcherTimer();
             foldingUpdateTimer.Interval = TimeSpan.FromSeconds(2);
             foldingUpdateTimer.Tick += delegate { UpdateFoldings(); };
             foldingUpdateTimer.Start();
         }
+
+        void Redraw() => textEditor.TextArea.TextView.Redraw();
 
         public void ClearUndoStack()
         {

@@ -9,6 +9,9 @@
   "SettingsWindow.Rendering": "Rendering",
   "SettingsWindow.CameraMode": "3D camera mode",
   "SettingsWindow.RenderBackground": "Render engine background colour",
+  "SettingsWindow.TextEditorBackground": "Background (XML, HTML)",
+  "SettingsWindow.TextEditorBackgroundTooltip": "Separate from the app theme. Syntax colours are adjusted to stay readable on it.",
+  "SettingsWindow.RestartNeeded": "Restart AssetEditor to load the new game, game folder or language. Everything else is already applied.",
   "SettingsWindow.OnlyLoadLod0": "Only load Lod0 for reference meshes",
   "SettingsWindow.GridSize": "Grid Size",
   "SettingsWindow.VertexSelectionColour": "Vertex Selection Colour",
@@ -43,6 +46,7 @@
   "SettingsWindow.Group.Game": "Game",
   "SettingsWindow.Group.Controls": "Controls",
   "SettingsWindow.Group.Viewport": "3D view",
+  "SettingsWindow.Group.TextEditor": "Text editor",
   "SettingsWindow.Group.Kitbash": "Kitbash",
   "PackFileTree.ContextMenu.ChangeOutputLocation": "Change output location",
 

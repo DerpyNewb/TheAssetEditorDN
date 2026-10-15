@@ -49,7 +49,7 @@ namespace GameWorld.Core.Components
         public override void Draw(GameTime gameTime)
         {
             var statsText = BuildStatsText();
-            var statsItem = new FontRenderItem(_renderEngineComponent, statsText, new Vector2(5, 25), Color.LightGray);
+            var statsItem = new FontRenderItem(_renderEngineComponent, statsText, new Vector2(5, 25), _renderEngineComponent.GuideColour);
             _renderEngineComponent.AddRenderItem(RenderBuckedId.Font, statsItem);
         }
 

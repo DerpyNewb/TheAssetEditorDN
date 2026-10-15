@@ -29,6 +29,7 @@ namespace AssetEditor.ViewModels
         [ObservableProperty] private string _selectedLanguage;
         [ObservableProperty] private ThemeType _currentTheme;
         [ObservableProperty] private BackgroundColour _currentRenderEngineBackgroundColour;
+        [ObservableProperty] private BackgroundColour _currentTextEditorBackgroundColour;
         [ObservableProperty] private int _visualEditorsGridSize;
         [ObservableProperty] private ColourPickerViewModel _vertexSelectionColour;
         [ObservableProperty] private bool _startMaximised;
@@ -57,6 +58,7 @@ namespace AssetEditor.ViewModels
             CurrentTheme = _settingsService.CurrentSettings.Theme;
             RenderEngineBackgroundColours = new ObservableCollection<BackgroundColour>((BackgroundColour[])Enum.GetValues(typeof(BackgroundColour)));
             CurrentRenderEngineBackgroundColour = _settingsService.CurrentSettings.RenderEngineBackgroundColour;
+            CurrentTextEditorBackgroundColour = _settingsService.CurrentSettings.TextEditorBackgroundColour;
             VisualEditorsGridSize = _settingsService.CurrentSettings.VisualEditorsGridSize;
             VertexSelectionColour = new ColourPickerViewModel(_settingsService.CurrentSettings.VertexSelectionColour);
             CameraModes = new ObservableCollection<CameraControlMode>((CameraControlMode[])Enum.GetValues(typeof(CameraControlMode)));
@@ -90,8 +92,19 @@ namespace AssetEditor.ViewModels
         [RelayCommand]
         private void Save()
         {
+            // The game's packs and every window's text load once, at startup; the rest of these settings is read as it is used.
+            var settings = _settingsService.CurrentSettings;
+            var gamePath = settings.GameDirectories.FirstOrDefault(x => x.Game == CurrentGame)?.Path ?? "";
+            var restart = settings.CurrentGame != CurrentGame
+                || settings.SelectedLangauge != SelectedLanguage
+                || gamePath != (GameDirectores.FirstOrDefault(x => x.GameType == CurrentGame)?.Path ?? "");
+            if (settings.Theme != CurrentTheme)
+                ThemesController.SetTheme(CurrentTheme);
+
             _settingsService.CurrentSettings.Theme = CurrentTheme;
             _settingsService.CurrentSettings.RenderEngineBackgroundColour = CurrentRenderEngineBackgroundColour;
+            _settingsService.CurrentSettings.TextEditorBackgroundColour = CurrentTextEditorBackgroundColour;
+            global::Shared.Ui.Editors.TextEditor.TextEditorTheme.Apply(CurrentTextEditorBackgroundColour);
             _settingsService.CurrentSettings.VisualEditorsGridSize = VisualEditorsGridSize;
             _settingsService.CurrentSettings.VertexSelectionColour = VertexSelectionColour.SelectedColour;
             _settingsService.CurrentSettings.StartMaximised = StartMaximised;
@@ -113,7 +126,8 @@ namespace AssetEditor.ViewModels
            
             _localizationManager.LoadLanguage(SelectedLanguage);
             _settingsService.Save();
-            MessageBox.Show("Please restart the tool after updating settings!");
+            if (restart)
+                MessageBox.Show(_localizationManager.Get("SettingsWindow.RestartNeeded"));
         }
 
         [RelayCommand]

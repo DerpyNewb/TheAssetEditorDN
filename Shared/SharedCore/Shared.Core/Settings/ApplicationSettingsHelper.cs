@@ -55,5 +55,33 @@ namespace Shared.Core.Settings
                 _ => throw new NotImplementedException(),
             };
         }
+
+        static readonly Color LightGuide = new(220, 220, 220);
+
+        /// <summary>
+        /// Skeletons, bounding boxes, the grid and overlay text are drawn black. On a dark background black is invisible, so they
+        /// are drawn in this: black or light grey, whichever stands out more against the background.
+        /// </summary>
+        public static Color GuideColour(BackgroundColour background) => GuideColour(GetEnumAsColour(background));
+
+        public static Color GuideColour(Color background) =>
+            Contrast(Color.Black, background) >= Contrast(LightGuide, background) ? Color.Black : LightGuide;
+
+        /// <summary>WCAG contrast ratio, 1 to 21.</summary>
+        public static float Contrast(Color a, Color b)
+        {
+            var (la, lb) = (Luminance(a), Luminance(b));
+            return (MathF.Max(la, lb) + 0.05f) / (MathF.Min(la, lb) + 0.05f);
+        }
+
+        static float Luminance(Color c)
+        {
+            static float Linear(byte channel)
+            {
+                var v = channel / 255f;
+                return v <= 0.03928f ? v / 12.92f : MathF.Pow((v + 0.055f) / 1.055f, 2.4f);
+            }
+            return 0.2126f * Linear(c.R) + 0.7152f * Linear(c.G) + 0.0722f * Linear(c.B);
+        }
     }
 }

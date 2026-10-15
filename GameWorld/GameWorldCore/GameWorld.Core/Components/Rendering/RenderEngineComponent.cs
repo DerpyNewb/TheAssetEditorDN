@@ -132,11 +132,21 @@ namespace GameWorld.Core.Components.Rendering
             _renderItems[id].Add(item);
         }
 
+        /// <summary>The colour black guides are drawn in on the current background: ApplicationSettingsHelper.GuideColour.</summary>
+        public Color GuideColour => ApplicationSettingsHelper.GuideColour(_applicationSettingsService.CurrentSettings.RenderEngineBackgroundColour);
+
         public void AddRenderLines(VertexPositionColor[] lineVertices)
         {
             Guard.IsTrue(lineVertices.Length % 2 == 0);
-            _renderLines.AddRange(lineVertices);
+            var guide = GuideColour;
+            foreach (var vertex in lineVertices)
+                _renderLines.Add(IsBlack(vertex.Color) ? new VertexPositionColor(vertex.Position, new Color(guide, vertex.Color.A)) : vertex);
         }
+
+        /// <summary>Black with the given alpha, drawn in GuideColour.</summary>
+        public Color Guide(float alpha) => GuideColour * alpha;
+
+        static bool IsBlack(Color c) => c.R == 0 && c.G == 0 && c.B == 0;
 
         public override void Update(GameTime gameTime)
         {
@@ -346,8 +356,12 @@ namespace GameWorld.Core.Components.Rendering
 
             if (drawGuides)
             {
-                foreach (var item in _renderItems[RenderBuckedId.Grid])
-                    item.Draw(device, commonShaderParameters, renderingTechnique);
+                // Not in the glow pass, as the guide lines are not: drawn light on a dark background, the grid bloomed over the scene.
+                if (renderingTechnique == RenderingTechnique.Normal)
+                {
+                    foreach (var item in _renderItems[RenderBuckedId.Grid])
+                        item.Draw(device, commonShaderParameters, renderingTechnique);
+                }
 
                 device.RasterizerState = _rasterStates[RasterizerStateEnum.Wireframe];
                 foreach (var item in _renderItems[RenderBuckedId.Wireframe])

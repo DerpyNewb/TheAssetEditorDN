@@ -21,6 +21,8 @@ namespace Shared.Core.Settings
         public ObservableCollection<RecentPackFileInfo> RecentPackFiles { get; set; } = [];
         public ThemeType Theme { get; set; } = ThemeType.DarkTheme;
         public BackgroundColour RenderEngineBackgroundColour { get; set; } = BackgroundColour.DarkGrey;
+        /// <summary>The XML/HTML text editor's background, from the same list; its syntax colours are adjusted to read on it.</summary>
+        public BackgroundColour TextEditorBackgroundColour { get; set; } = BackgroundColour.DarkGrey;
         public bool StartMaximised { get; set; } = false;
         /// <summary>The start panel (project or a .pack edited in place) each time the app opens.</summary>
         public bool ShowStartPanel { get; set; } = true;
@@ -164,6 +166,12 @@ namespace Shared.Core.Settings
             if (Enum.IsDefined(CurrentSettings.RenderEngineBackgroundColour) == false)
             {
                 settingsError.Add($"Unkown RenderEngineBackgroundColour setting - {CurrentSettings.RenderEngineBackgroundColour}");
+                areSettingsValid = false;
+            }
+
+            if (Enum.IsDefined(CurrentSettings.TextEditorBackgroundColour) == false)
+            {
+                settingsError.Add($"Unkown TextEditorBackgroundColour setting - {CurrentSettings.TextEditorBackgroundColour}");
                 areSettingsValid = false;
             }
 

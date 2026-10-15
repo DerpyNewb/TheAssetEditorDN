@@ -170,6 +170,7 @@ namespace AssetEditor
         {
             var applicationSettingsService = _serviceProvider.GetRequiredService<ApplicationSettingsService>();
             ThemesController.SetTheme(applicationSettingsService.CurrentSettings.Theme);
+            Shared.Ui.Editors.TextEditor.TextEditorTheme.Apply(applicationSettingsService.CurrentSettings.TextEditorBackgroundColour);
 
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
             MainWindow = mainWindow;

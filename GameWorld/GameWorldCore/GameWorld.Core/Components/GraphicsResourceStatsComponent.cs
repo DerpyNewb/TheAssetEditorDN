@@ -41,7 +41,7 @@ namespace GameWorld.Core.Components
                 viewport.Width - textSize.X - 5,
                 viewport.Height - textSize.Y - 5);
 
-            var renderItem = new FontRenderItem(_renderEngineComponent, displayText, position, Color.LightGreen);
+            var renderItem = new FontRenderItem(_renderEngineComponent, displayText, position, _renderEngineComponent.GuideColour == Color.Black ? Color.DarkGreen : Color.LightGreen);
             _renderEngineComponent.AddRenderItem(RenderBuckedId.Font, renderItem);
         }
     }

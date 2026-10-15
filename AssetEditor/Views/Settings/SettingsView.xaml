@@ -140,6 +140,18 @@
                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding VisualEditorsGridSize, UpdateSourceTrigger=LostFocus}" MaxLength="4" Width="150" Margin="0, 0, 0, 5" HorizontalAlignment="Left" HorizontalContentAlignment="Right"/>
                 </Grid>
 
+                <TextBlock Style="{StaticResource GroupTitle}" Text="{loc:Loc SettingsWindow.Group.TextEditor}"/>
+                <Separator Style="{StaticResource GroupLine}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="230" SharedSizeGroup="Label"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Row="0" Text="{loc:Loc SettingsWindow.TextEditorBackground}" Margin="5, 0, 15, 0" ToolTip="{loc:Loc SettingsWindow.TextEditorBackgroundTooltip}"/>
+                    <ComboBox Grid.Row="0" Grid.Column="1" Width="150" Margin="0, 0, 0, 5" SelectedItem="{Binding CurrentTextEditorBackgroundColour, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                              ItemsSource="{Binding RenderEngineBackgroundColours}" ItemTemplate="{StaticResource SettingsEnumConverterTemplate}" ToolTip="{loc:Loc SettingsWindow.TextEditorBackgroundTooltip}"/>
+                </Grid>
+
                 <TextBlock Style="{StaticResource GroupTitle}" Text="{loc:Loc SettingsWindow.Group.Kitbash}"/>
                 <Separator Style="{StaticResource GroupLine}"/>
                 <Grid>

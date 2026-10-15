@@ -9,6 +9,9 @@
   "SettingsWindow.Rendering": "渲染",
   "SettingsWindow.CameraMode": "3D 相机模式",
   "SettingsWindow.RenderBackground": "渲染引擎背景颜色",
+  "SettingsWindow.TextEditorBackground": "背景（XML、HTML）",
+  "SettingsWindow.TextEditorBackgroundTooltip": "独立于应用主题。语法颜色会自动调整以保持可读。",
+  "SettingsWindow.RestartNeeded": "重启 AssetEditor 以加载新的游戏、游戏文件夹或语言。其他设置已生效。",
   "SettingsWindow.OnlyLoadLod0": "仅为参考 Mesh 加载 Lod0",
   "SettingsWindow.GridSize": "网格大小",
   "SettingsWindow.VertexSelectionColour": "顶点选择颜色",
@@ -43,6 +46,7 @@
   "SettingsWindow.Group.Game": "游戏",
   "SettingsWindow.Group.Controls": "操作",
   "SettingsWindow.Group.Viewport": "3D 视图",
+  "SettingsWindow.Group.TextEditor": "文本编辑器",
   "SettingsWindow.Group.Kitbash": "Kitbash",
   "PackFileTree.ContextMenu.ChangeOutputLocation": "更改输出位置",
 

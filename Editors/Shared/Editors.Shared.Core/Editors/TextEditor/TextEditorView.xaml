@@ -47,11 +47,12 @@
                 <avalonEdit:TextEditor.BorderBrush>
                     <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.ActiveBorderColorKey}}"/>
                 </avalonEdit:TextEditor.BorderBrush>
+                <!-- TextEditorTheme, from Settings: separate from the app theme. -->
                 <avalonEdit:TextEditor.Foreground>
-                    <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.ControlTextColorKey}}"/>
+                    <DynamicResource ResourceKey="TextEditor.Foreground"/>
                 </avalonEdit:TextEditor.Foreground>
                 <avalonEdit:TextEditor.Background>
-                    <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.AppWorkspaceColorKey}}"/>
+                    <DynamicResource ResourceKey="TextEditor.Background"/>
                 </avalonEdit:TextEditor.Background>
                 
                 <i:Interaction.Behaviors>

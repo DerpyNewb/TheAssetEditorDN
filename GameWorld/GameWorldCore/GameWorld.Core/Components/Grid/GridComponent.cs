@@ -40,7 +40,8 @@ namespace GameWorld.Core.Components.Grid
             if (!ShowGrid || _shaderEffect == null || _renderItem == null)
                 return;
 
-            _renderItem.Update(_camera, GridColur);
+            // Black, the default, is drawn in the guide colour, so the grid shows on a dark background.
+            _renderItem.Update(_camera, GridColur == Vector3.Zero ? _renderEngineComponent.GuideColour.ToVector3() : GridColur);
             _renderEngineComponent.AddRenderItem(RenderBuckedId.Grid, _renderItem);
         }
 

@@ -34,7 +34,7 @@ namespace GameWorld.Core.Components
             _liveFrames++;
             var text = $"FPS: {_frames}";
 
-            var renderItem = new FontRenderItem(_renderEngineComponent, text, new Vector2(5), Color.White);
+            var renderItem = new FontRenderItem(_renderEngineComponent, text, new Vector2(5), _renderEngineComponent.GuideColour);
             _renderEngineComponent.AddRenderItem(RenderBuckedId.Font, renderItem);
         }
     }

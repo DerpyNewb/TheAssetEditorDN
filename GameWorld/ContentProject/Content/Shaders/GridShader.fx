@@ -140,7 +140,9 @@ float4 GridPS(VertexShaderOutput input) : COLOR0
     if (alpha < 0.001)
         discard;
 
-    return float4(color, alpha);
+    // Premultiplied, as the blend state it draws under expects: unpremultiplied, the faded far lines kept their full colour,
+    // unseen while the grid was black and a bright band at the horizon once it was drawn light.
+    return float4(color * alpha, alpha);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
