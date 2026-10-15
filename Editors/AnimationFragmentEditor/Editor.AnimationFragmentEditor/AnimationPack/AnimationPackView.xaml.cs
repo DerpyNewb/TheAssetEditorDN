@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Windows.Controls;
+using Shared.Ui.Common;
 
 namespace CommonControls.Editors.AnimationPack
 {
@@ -14,6 +15,7 @@ namespace CommonControls.Editors.AnimationPack
         public AnimationPackView()
         {
             InitializeComponent();
+            UndoRedoKeys.Attach(this, () => (DataContext as AnimPackViewModel)?.UndoAction(), () => (DataContext as AnimPackViewModel)?.RedoAction());
         }
 
     }

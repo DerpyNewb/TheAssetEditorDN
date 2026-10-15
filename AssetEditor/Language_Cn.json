@@ -611,6 +611,9 @@
 
   "AnimationPack.Menu.File": "_文件",
   "AnimationPack.Menu.Save": "保存",
+  "AnimationPack.Menu.Edit": "编辑",
+  "AnimationPack.Menu.Undo": "撤销",
+  "AnimationPack.Menu.Redo": "重做",
   "AnimationPack.Menu.NewAnimationSetWh3Or3k": "新建 AnimationSet (Wh3/3K)",
   "AnimationPack.Menu.ExportAnimationSlotsWh3": "导出动画槽位 (Wh3)",
   "AnimationPack.Menu.ExportAnimationSlotsWh2": "导出动画槽位 (Wh2)",

@@ -25,8 +25,10 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Commands
                 return;
 
             var animSet = CreateExampleWarhammer3AnimSet(fileName);
-            _editor.AnimationPackItems.PossibleValues.Add(animSet);
-            _editor.AnimationPackItems.UpdatePossibleValues(_editor.AnimationPackItems.PossibleValues);
+            var items = _editor.AnimationPackItems.PossibleValues;
+            items.Add(animSet);
+            _editor.AnimationPackItems.UpdatePossibleValues(items);
+            _editor.Changed(() => items.Remove(animSet), () => items.Add(animSet));
         }
 
         string? GetAnimSetFileName()

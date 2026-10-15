@@ -14,8 +14,14 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Commands
 
         public void Execute()
         {
-            _editor.AnimationPackItems.PossibleValues.Remove(_editor.AnimationPackItems.SelectedItem);
+            var items = _editor.AnimationPackItems.PossibleValues;
+            var file = _editor.AnimationPackItems.SelectedItem;
+            var at = items.IndexOf(file);
+            if (at < 0)
+                return;
+            items.RemoveAt(at);
             _editor.AnimationPackItems.RefreshFilter();
+            _editor.Changed(() => items.Insert(at, file), () => items.Remove(file));
         }
     }
 

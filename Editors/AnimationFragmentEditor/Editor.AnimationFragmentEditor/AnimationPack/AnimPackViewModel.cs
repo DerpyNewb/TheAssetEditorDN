@@ -67,6 +67,38 @@ namespace CommonControls.Editors.AnimationPack
         [RelayCommand] private void ExportAnimationSlotsWh2Action() => _uiCommandFactory.Create<ExportAnimationSlotCommand>().Warhammer2();
 
         [RelayCommand] private void SaveAction() => Save();
+        [RelayCommand] public void UndoAction() => Step(_undo, _redo, x => x.Undo);
+        [RelayCommand] public void RedoAction() => Step(_redo, _undo, x => x.Redo);
+
+        // Each change to the pack's list or an entry, as its own inverse: the pack can hold thousands of tables, too many to copy
+        // for every step. A change to the text not yet applied has the text editor's own undo.
+        readonly Stack<(Action Undo, Action Redo)> _undo = new();
+        readonly Stack<(Action Undo, Action Redo)> _redo = new();
+
+        /// <summary>A change made to the pack, recorded for undo. The pack has unsaved changes from here.</summary>
+        public void Changed(Action undo, Action redo)
+        {
+            _undo.Push((undo, redo));
+            _redo.Clear();
+            HasUnsavedChanges = true;
+        }
+
+        void Step(Stack<(Action Undo, Action Redo)> from, Stack<(Action Undo, Action Redo)> to, Func<(Action Undo, Action Redo), Action> pick)
+        {
+            if (!from.TryPop(out var step))
+                return;
+            pick(step)();
+            to.Push(step);
+            HasUnsavedChanges = true;
+            AnimationPackItems.RefreshFilter();
+        }
+
+        // The entry's text again, when it is the one shown, after an undo or redo changed it under the editor.
+        void ShowAgain(IAnimationPackFile file)
+        {
+            if (AnimationPackItems.SelectedItem == file)
+                OnItemSelected(file);
+        }
 
         bool BeforeItemSelected(IAnimationPackFile item)
         {
@@ -134,11 +166,12 @@ namespace CommonControls.Editors.AnimationPack
             }
 
             var seletedFile = AnimationPackItems.SelectedItem;
+            var before = seletedFile.ToByteArray();
             seletedFile.CreateFromBytes(bytes);
             seletedFile.IsChanged.Value = true;
 
             SelectedItemViewModel.ResetChangeLog();
-            HasUnsavedChanges = true;
+            Changed(() => { seletedFile.CreateFromBytes(before); ShowAgain(seletedFile); }, () => { seletedFile.CreateFromBytes(bytes); ShowAgain(seletedFile); });
 
             return true;
         }
@@ -184,6 +217,8 @@ namespace CommonControls.Editors.AnimationPack
             var itemNames = animPack.Files.ToList();
             AnimationPackItems.UpdatePossibleValues(itemNames);
             DisplayName = animPack.FileName;
+            _undo.Clear();
+            _redo.Clear();
         }
     }
 }

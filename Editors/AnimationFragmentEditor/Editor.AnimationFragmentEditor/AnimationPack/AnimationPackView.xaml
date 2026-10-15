@@ -31,6 +31,10 @@
                     <MenuItem Header="{loc:Loc AnimationPack.Menu.ExportAnimationSlotsWh3}"  Command="{Binding ExportAnimationSlotsWh3ActionCommand}" />
                     <MenuItem Header="{loc:Loc AnimationPack.Menu.ExportAnimationSlotsWh2}"  Command="{Binding ExportAnimationSlotsWh2ActionCommand}" />
                 </MenuItem>
+                <MenuItem Header="{loc:Loc AnimationPack.Menu.Edit}">
+                    <MenuItem Header="{loc:Loc AnimationPack.Menu.Undo}" InputGestureText="Ctrl+Z" Command="{Binding UndoActionCommand}"/>
+                    <MenuItem Header="{loc:Loc AnimationPack.Menu.Redo}" InputGestureText="Ctrl+Y" Command="{Binding RedoActionCommand}"/>
+                </MenuItem>
             </Menu>
         </DockPanel>
 

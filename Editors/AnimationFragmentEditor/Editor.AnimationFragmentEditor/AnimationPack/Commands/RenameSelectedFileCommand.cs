@@ -19,9 +19,13 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Commands
             if (animFile == null)
                 return;
 
-            var window = new TextInputWindow("Rename Anim File", animFile.FileName);
-            if (window.ShowDialog() == true)
-                animFile.FileName = window.TextValue;
+            var oldName = animFile.FileName;
+            var window = new TextInputWindow("Rename Anim File", oldName);
+            if (window.ShowDialog() != true || window.TextValue == oldName)
+                return;
+            var newName = window.TextValue;
+            animFile.FileName = newName;
+            _editor.Changed(() => animFile.FileName = oldName, () => animFile.FileName = newName);
 
             // way to refresh the view
             _editor.AnimationPackItems.RefreshFilter();

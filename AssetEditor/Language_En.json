@@ -611,6 +611,9 @@
 
   "AnimationPack.Menu.File": "_File",
   "AnimationPack.Menu.Save": "Save",
+  "AnimationPack.Menu.Edit": "Edit",
+  "AnimationPack.Menu.Undo": "Undo",
+  "AnimationPack.Menu.Redo": "Redo",
   "AnimationPack.Menu.NewAnimationSetWh3Or3k": "New AnimationSet (Wh3/3K)",
   "AnimationPack.Menu.ExportAnimationSlotsWh3": "Export animation slots (Wh3)",
   "AnimationPack.Menu.ExportAnimationSlotsWh2": "Export animation slots (Wh2)",
