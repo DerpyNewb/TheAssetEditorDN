@@ -157,6 +157,10 @@
             </Grid>
         </GroupBox>
 
+        <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="5,5,5,0">
+            <Button Content="{loc:Loc SkeletonEditor.Buttons.Undo}" ToolTip="Ctrl+Z" Click="{s:MethodBinding UndoAction}" Margin="0,0,2,0"/>
+            <Button Content="{loc:Loc SkeletonEditor.Buttons.Redo}" ToolTip="Ctrl+Y" Click="{s:MethodBinding RedoAction}" Margin="2,0,0,0"/>
+        </UniformGrid>
         <Button DockPanel.Dock="Top" Margin="5" Content="{loc:Loc SkeletonEditor.Buttons.Save}" Click="{s:MethodBinding SaveSkeletonAction}"/>
     </DockPanel>
 </UserControl>

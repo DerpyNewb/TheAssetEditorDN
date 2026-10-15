@@ -156,6 +156,20 @@ namespace GameWorld.Core.Animation
             return clone;
         }
 
+        /// <summary>This skeleton's bones set back to a Clone's, in place, so what holds this instance (the scene node, the player)
+        /// shows them without being pointed at another.</summary>
+        public void RestoreFrom(GameSkeleton copy)
+        {
+            _parentBoneIds = copy._parentBoneIds.ToList();
+            Translation = copy.Translation.ToList();
+            Rotation = copy.Rotation.ToList();
+            Scale = copy.Scale.ToList();
+            BoneNames = copy.BoneNames.ToList();
+            SkeletonName = copy.SkeletonName;
+            _worldTransform = copy._worldTransform.ToList();
+            RebuildSkeletonMatrix();
+        }
+
 
         public void Update()
         {

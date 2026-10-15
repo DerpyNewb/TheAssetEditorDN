@@ -1,4 +1,5 @@
 ﻿using System.Windows.Controls;
+using Shared.Ui.Common;
 
 namespace Editor.VisualSkeletonEditor.SkeletonEditor
 {
@@ -10,6 +11,7 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
         public EditorView()
         {
             InitializeComponent();
+            UndoRedoKeys.Attach(this, () => (DataContext as SkeletonEditorViewModel)?.UndoAction(), () => (DataContext as SkeletonEditorViewModel)?.RedoAction());
         }
     }
 }

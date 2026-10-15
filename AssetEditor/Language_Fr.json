@@ -359,6 +359,8 @@
     "SkeletonEditor.Buttons.FocusSelectedBone":  "Focus selected bone",
     "SkeletonEditor.Buttons.Bake":  "Bake",
     "SkeletonEditor.Buttons.Save":  "Save",
+    "SkeletonEditor.Buttons.Undo":  "Annuler",
+    "SkeletonEditor.Buttons.Redo":  "Rétablir",
     "SkeletonEditor.SettingsGroupHeader":  "Settings:",
     "SkeletonEditor.Settings.SourceSkeleton":  "Source Skeleton",
     "SkeletonEditor.Settings.SelectedBoneScale":  "Selected Bone Scale",

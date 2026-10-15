@@ -378,6 +378,8 @@
   "SkeletonEditor.Buttons.FocusSelectedBone": "聚焦选中骨骼",
   "SkeletonEditor.Buttons.Bake": "烘焙",
   "SkeletonEditor.Buttons.Save": "保存",
+  "SkeletonEditor.Buttons.Undo": "撤销",
+  "SkeletonEditor.Buttons.Redo": "重做",
   "SkeletonEditor.SettingsGroupHeader": "设置:",
   "SkeletonEditor.Settings.SourceSkeleton": "源 Skeleton",
   "SkeletonEditor.Settings.SelectedBoneScale": "选中骨骼缩放",

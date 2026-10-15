@@ -15,6 +15,7 @@ using Shared.Core.Services;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.Animation;
 using Shared.Ui.BaseDialogs.MathViews;
+using Shared.Ui.Common;
 
 namespace Editor.VisualSkeletonEditor.SkeletonEditor
 {
@@ -41,6 +42,13 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
         [ObservableProperty] string _selectedBoneName;
         [ObservableProperty] bool _showSkeleton = true;
         [ObservableProperty] bool _showRefMesh = true;
+
+        // The skeleton as it was before each edit, and after each undo for redo. A run of edits to one value of one bone (a drag, a
+        // name typed) is one step.
+        readonly Stack<(GameSkeleton Skeleton, int Bone)> _undo = new();
+        readonly Stack<(GameSkeleton Skeleton, int Bone)> _redo = new();
+        readonly EditCoalescer _coalescer = new();
+        bool _restoring;
 
         public override Type EditorViewModelType => typeof(EditorView);
 
@@ -77,7 +85,11 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
         partial void OnSelectedBoneChanged(SkeletonBoneNode? value) => RefreshBoneInformation(value);
         partial void OnIsTechSkeletonChanged(bool value) => SetTechSkeletonTransform(value);
         partial void OnBoneVisualScaleChanged(float value) => _techSkeletonNode?.SelectedBoneScale(value);
-        partial void OnBoneScaleChanged(float value) => BoneTransformHandler.Scale(SelectedBone, _techSkeletonNode.Skeleton, (float)BoneScale);
+        partial void OnBoneScaleChanged(float value)
+        {
+            BeforeEdit(nameof(BoneScale));
+            BoneTransformHandler.Scale(SelectedBone, _techSkeletonNode.Skeleton, (float)BoneScale);
+        }
         partial void OnSelectedBoneNameChanged(string value) => UpdateSelectedBoneName(value);
         partial void OnShowSkeletonChanged(bool value) => _techSkeletonNode.ShowSkeleton.Value = value;
         partial void OnShowRefMeshChanged(bool value) => _techSkeletonNode.ShowMesh.Value = value;
@@ -103,6 +115,8 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
                 SkeletonName = skeletonPath;
                 SceneObjectEditor.SetSkeleton(_techSkeletonNode, packFile);
                 RefreshBoneList();
+                _undo.Clear();
+                _redo.Clear();
                 IsTechSkeleton = skeletonPath.ToLower().Contains("tech");
                 SourceSkeletonName = _techSkeletonNode.Skeleton.SkeletonName;
                 
@@ -123,9 +137,13 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             foreach (var bone in bones)
                 Bones.Add(bone);
 
-            if (boneToSelect >= 0 && boneToSelect < _techSkeletonNode.Skeleton.BoneCount)
-                SelectedBone = Bones[boneToSelect];
+            // The list is a tree, roots first, so a bone is found by its index rather than at it.
+            if (boneToSelect >= 0)
+                SelectedBone = Find(Bones, boneToSelect);
         }
+
+        static SkeletonBoneNode? Find(IEnumerable<SkeletonBoneNode> bones, int boneIndex) =>
+            bones.Select(x => x.BoneIndex == boneIndex ? x : Find(x.Children, boneIndex)).FirstOrDefault(x => x != null);
 
         void RefreshBoneInformation(SkeletonBoneNode selectedBone)
         {
@@ -164,9 +182,11 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
 
         void UpdateSelectedBoneName(string newName)
         {
-            if (SelectedBone == null)
+            // Also set when another bone is picked, which is no edit.
+            if (SelectedBone == null || SelectedBone.BoneName == newName)
                 return;
 
+            BeforeEdit(nameof(SelectedBoneName));
             SelectedBone.BoneName = newName;
             _techSkeletonNode.Skeleton.BoneNames[SelectedBone.BoneIndex] = newName;
         }
@@ -181,6 +201,7 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
 
         private void HandleTranslationChanged()
         {
+            BeforeEdit("transform");
             BoneTransformHandler.Translate(SelectedBone,
                 _techSkeletonNode.Skeleton, 
                 SelectedBoneTranslationOffset.GetAsVector3(),
@@ -188,7 +209,49 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
                 ShowBonesAsWorldTransform);
         }
 
-        public void BakeSkeletonAction() => _techSkeletonNode.Skeleton.BakeScaleIntoSkeleton();
+        public void BakeSkeletonAction()
+        {
+            BeforeEdit(null);
+            _techSkeletonNode.Skeleton.BakeScaleIntoSkeleton();
+        }
+
+        void BeforeEdit(string? value)
+        {
+            var skeleton = _techSkeletonNode?.Skeleton;
+            if (_restoring || skeleton == null)
+                return;
+            // A null value is a step of its own, as each button press is.
+            if (value != null && _coalescer.Continues((value, SelectedBone?.BoneIndex)))
+                return;
+            if (value == null)
+                _coalescer.Break();
+            _undo.Push((skeleton.Clone(), SelectedBone?.BoneIndex ?? -1));
+            _redo.Clear();
+        }
+
+        public void UndoAction() => Step(_undo, _redo);
+        public void RedoAction() => Step(_redo, _undo);
+
+        void Step(Stack<(GameSkeleton Skeleton, int Bone)> from, Stack<(GameSkeleton Skeleton, int Bone)> to)
+        {
+            var skeleton = _techSkeletonNode?.Skeleton;
+            if (skeleton == null || !from.TryPop(out var step))
+                return;
+
+            to.Push((skeleton.Clone(), SelectedBone?.BoneIndex ?? -1));
+            _restoring = true;
+            try
+            {
+                skeleton.RestoreFrom(step.Skeleton);
+                RefreshBoneList(step.Bone);
+                RefreshBoneInformation(SelectedBone);
+            }
+            finally
+            {
+                _restoring = false;
+            }
+            _coalescer.Break();
+        }
 
         public void FocusSelectedBoneAction()
         {
@@ -204,18 +267,21 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             if (SelectedBone == null)
                 return;
 
+            BeforeEdit(null);
             _techSkeletonNode.Skeleton.CreateChildBone(SelectedBone.BoneIndex);
             RefreshBoneList();
         }
 
         public void DuplicateBoneAction()
         {
+            BeforeEdit(null);
             BoneManipulator.Duplicate(SelectedBone, _techSkeletonNode.Skeleton);
             RefreshBoneList();
         }
 
         public void DeleteBoneAction()
         {
+            BeforeEdit(null);
             BoneManipulator.Delete(SelectedBone, _techSkeletonNode.Skeleton);
             RefreshBoneList();
         }
@@ -228,6 +294,7 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
 
         public void PasteBoneAction()
         {
+            BeforeEdit(null);
             BoneManipulator.Paste(_copyPasteManager, SelectedBone, _techSkeletonNode.Skeleton);
             RefreshBoneList();
         }
