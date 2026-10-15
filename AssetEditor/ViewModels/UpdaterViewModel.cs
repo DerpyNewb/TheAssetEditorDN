@@ -36,9 +36,7 @@ namespace AssetEditor.ViewModels
             _newerReleases = newerReleases;
 
             var latestRelease = _newerReleases[0];
-            var latestVersion = VersionChecker.ParseReleaseVersion(latestRelease.TagName);
-            var currentVersion = VersionChecker.GetCurrentVersion();
-            UpdateInfo = string.Format(_localisationManager.Get("UpdaterWindow.UpdateInfo"), currentVersion, latestVersion);
+            UpdateInfo = string.Format(_localisationManager.Get("UpdaterWindow.UpdateInfo"), $"DN v{ForkRelease.Current}", $"DN v{ForkRelease.Parse(latestRelease.TagName)}");
 
             ReleaseNotesItems.Clear();
             foreach (var release in _newerReleases)
@@ -50,10 +48,8 @@ namespace AssetEditor.ViewModels
             if (Debugger.IsAttached)
                 return;
 
-            var currentVersion = VersionChecker.GetCurrentVersion();
             var latestRelease = _newerReleases[0];
-            var latestVersion = VersionChecker.ParseReleaseVersion(latestRelease.TagName);
-            _logger.Information($"Updating AssetEditor from version {currentVersion} to version {latestVersion}");
+            _logger.Information($"Updating AssetEditor from DN v{ForkRelease.Current} to DN v{ForkRelease.Parse(latestRelease.TagName)}");
 
             DeleteUpdateDirectory();
 

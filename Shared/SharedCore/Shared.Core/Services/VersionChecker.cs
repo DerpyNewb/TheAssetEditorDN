@@ -7,8 +7,9 @@ namespace Shared.Core.Services
     {
         private static readonly ILogger s_logger = Logging.Create<VersionChecker>();
 
-        private const string GitHubOwner = "donkeyProgramming";
-        private const string GitHubRepository = "TheAssetEditor";
+        // This fork's releases, not upstream's: accepting upstream's would install its build over this one.
+        private const string GitHubOwner = ForkRelease.Owner;
+        private const string GitHubRepository = ForkRelease.Repository;
 
         public static async Task<List<Release>?> GetNewerReleases()
         {
@@ -16,13 +17,8 @@ namespace Shared.Core.Services
             if (releases == null || releases.Count == 0)
                 return null;
 
-            var currentVersion = GetCurrentVersion();
-            //currentVersion = new Version("0.65");
-            var newerReleases = GetReleasesSinceCurrentVersion(releases, currentVersion);
-            if (newerReleases.Count > 0)
-                return newerReleases;
-
-            return null;
+            var newerReleases = ForkRelease.Newer(releases, x => x.TagName, ForkRelease.Current);
+            return newerReleases.Count > 0 ? newerReleases : null;
         }
 
         private static async Task<IReadOnlyList<Release>?> GetReleasesAsync()
@@ -40,20 +36,6 @@ namespace Shared.Core.Services
             }
         }
 
-        private static List<Release> GetReleasesSinceCurrentVersion(IReadOnlyList<Release> releases, Version currentVersion)
-        {
-            var newerReleases = new List<Release>();
-            foreach (var release in releases)
-            {
-                var releaseVersion = ParseReleaseVersion(release.TagName);
-                if (releaseVersion > currentVersion)
-                    newerReleases.Add(release);
-                else
-                    break;
-            }
-            return newerReleases;
-        }
-
         public static Version GetCurrentVersion()
         {
             var version = Assembly.GetEntryAssembly()?.GetName().Version;
@@ -64,12 +46,6 @@ namespace Shared.Core.Services
                 return new Version(version.Major, version.Minor);
 
             return new Version(version.Major, version.Minor, version.Build);
-        }
-
-        public static Version ParseReleaseVersion(string tagName)
-        {
-            var cleanedVersion = tagName.Trim().TrimStart('v', 'V');
-            return new Version(cleanedVersion);
         }
     }
 }

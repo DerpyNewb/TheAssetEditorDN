@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Octokit;
+using Shared.Core.Services;
 using SharpCompress.Archives;
 using FileMode = System.IO.FileMode;
 
@@ -7,11 +8,11 @@ namespace AssetEditorUpdater
 {
     public class AssetEditorUpdater
     {
-        private const string GitHubOwner = "donkeyProgramming";
-        private const string GitHubRepository = "TheAssetEditor";
+        private const string GitHubOwner = ForkRelease.Owner;
+        private const string GitHubRepository = ForkRelease.Repository;
         private const string AssetEditorExe = "AssetEditor.exe";
         private const string AssetEditorUpdaterExe = "AssetEditorUpdater.exe";
-        // We assume the release RAR contains a single folder named AssetEditor with all the files for the update in it
+        // We assume the release archive (.zip or .rar) contains a single folder named AssetEditor with all the files for the update in it
         private const string UpdateFilesDirectoryName = "AssetEditor";
         private const string InstallationUpdateBackupDirectoryName = "UpdateBackup";
          
@@ -68,8 +69,9 @@ namespace AssetEditorUpdater
             if (latestRelease == null)
                 return;
 
-            var installedVersion = GetAssetEditorVersion(installationDirectory);
-            var latestVersion = ParseReleaseVersion(latestRelease.TagName);
+            // This updater was copied out of the installation it updates, so the DN version it was built with is the installed one.
+            var installedVersion = ForkRelease.Current;
+            var latestVersion = ForkRelease.Parse(latestRelease.TagName)!;
             if (installedVersion >= latestVersion)
             {
                 Console.WriteLine("No update required.");
@@ -104,7 +106,7 @@ namespace AssetEditorUpdater
             {
                 var gitHubClient = new GitHubClient(new ProductHeaderValue("AssetEditor"));
                 var releases = await gitHubClient.Repository.Release.GetAll(GitHubOwner, GitHubRepository);
-                return releases.Count > 0 ? releases[0] : null;
+                return ForkRelease.Newer(releases, x => x.TagName, new Version()).FirstOrDefault();
             }
             catch (ApiException exception)
             {
@@ -113,40 +115,13 @@ namespace AssetEditorUpdater
             }
         }
 
-        private static Version GetAssetEditorVersion(string installationDirectory)
-        {
-            var assetEditorPath = Path.Combine(installationDirectory, AssetEditorExe);
-            var versionInfo = FileVersionInfo.GetVersionInfo(assetEditorPath);
-            if (string.IsNullOrWhiteSpace(versionInfo.FileVersion))
-                return new Version();
-
-            var parsedVersion = new Version(versionInfo.FileVersion);
-            if (parsedVersion.Build == 0 && parsedVersion.Revision == 0)
-                return new Version(parsedVersion.Major, parsedVersion.Minor);
-
-            if (parsedVersion.Revision == 0)
-                return new Version(parsedVersion.Major, parsedVersion.Minor, parsedVersion.Build);
-
-            return parsedVersion;
-        }
-
-        private static Version ParseReleaseVersion(string tagName)
-        {
-            var cleanedVersion = tagName.Trim().TrimStart('v', 'V');
-            return new Version(cleanedVersion);
-        }
-
         private static ReleaseAsset GetAsset(Release latestRelease)
         {
-            if (latestRelease.Assets.Count != 1)
-                throw new InvalidOperationException($"Expected 1 asset, found {latestRelease.Assets.Count}.");
+            var archives = latestRelease.Assets.Where(x => Path.GetExtension(x.Name) is ".zip" or ".rar").ToList();
+            if (archives.Count != 1)
+                throw new InvalidOperationException($"Expected 1 .zip or .rar asset, found {archives.Count}.");
 
-            var asset = latestRelease.Assets[0];
-            var extension = Path.GetExtension(asset.Name);
-            if (extension != ".rar")
-                throw new InvalidOperationException($"Asset has extension {extension}, expected .rar.");
-
-            return asset;
+            return archives[0];
         }
 
         private static async Task<bool> DownloadAssetAsync(string downloadUrl, string downloadPath)

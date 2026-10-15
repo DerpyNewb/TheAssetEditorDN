@@ -58,7 +58,7 @@ namespace AssetEditor.ViewModels
             ToolsFactory = toolFactory;
 
             // "DN v1.1" marks this fork's build and its own version apart from the main repo's; the upstream number stays numeric for the updater's comparison.
-            ApplicationTitle = $"AssetEditor v{VersionChecker.GetCurrentVersion()} - DN v1.1";
+            ApplicationTitle = $"AssetEditor v{VersionChecker.GetCurrentVersion()} - DN v{ForkRelease.Current}";
             CurrentGame = $"Current Game: {GameInformationDatabase.GetGameById(applicationSettingsService.CurrentSettings.CurrentGame).DisplayName}";
         }
 
