@@ -25,6 +25,8 @@ namespace GameWorld.Core.Commands.Bone
         public bool IsMutation => true;
 
         private Matrix _oldTransform = Matrix.Identity;
+        Vector3? _ikGizmoStart;
+        Vector3 _ikEffectorStart;
 
         ISelectionState _oldSelectionState;
         private SelectionManager _selectionManager;
@@ -46,12 +48,11 @@ namespace GameWorld.Core.Commands.Bone
         {
             if (_selectedBones.Count == 0) return;
 
-            //TODO: FIX ME
-            //if(_boneSelectionState.EnableInverseKinematics)
-            //{
-            //    ApplyTransformationInverseKinematic(newPosition, _selectedBones[0], _boneSelectionState.InverseKinematicsEndBoneIndex);
-            //    return;
-            //}
+            if (_boneSelectionState.EnableInverseKinematics && gizmoMode == GizmoMode.Translate)
+            {
+                ApplyInverseKinematics(newPosition.Translation);
+                return;
+            }
             if (_oldTransform == Matrix.Identity)
             {
                 _oldTransform = newPosition;
@@ -103,115 +104,92 @@ namespace GameWorld.Core.Commands.Bone
             return output;
         }
 
-        //TODO: FIX ME
-        void ApplyTransformationInverseKinematic(Matrix newPosition, int startBone, int endBone)
+        // The gizmo and the frame need not share a space (a rider is placed on its mount), so the target is where the bone was
+        // when the drag began, moved as far as the gizmo has moved since.
+        void ApplyInverseKinematics(Vector3 gizmoPosition)
         {
-            var node = _boneSelectionState.RenderObject as Rmv2MeshNode;
-            var animationPlayer = node.AnimationPlayer;
-            var currentAnimFrame = animationPlayer.GetCurrentAnimationFrame();
-
-            // Get the chain of bones from startBone to endBone
-            var boneCount = 1;
-            var boneIndex = startBone;
-            while (boneIndex != endBone)
+            var effector = _selectedBones[0];
+            var frame = _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame].Clone();
+            if (_ikGizmoStart == null)
             {
-                boneIndex = currentAnimFrame.GetParentBoneIndex(_boneSelectionState.Skeleton, boneIndex);
-                boneCount++;
-            }
-            boneIndex = startBone;
-            var positions = new Vector3[boneCount];
-            var rotations = new Quaternion[boneCount];
-            var boneLengths = new float[boneCount - 1];
-            var boneIndices = new int[boneCount];
-            float totalLength = 0;
-
-
-            for (var i = 0; i < boneCount; i++)
-            {
-                var transform = Matrix.CreateScale(1);
-                // Get the current bone world transform
-                var currentBoneWorldTransform = currentAnimFrame.GetSkeletonAnimatedWorld(_boneSelectionState.Skeleton, boneIndex);
-
-                // Store the position and rotation of the current bone
-                positions[i] = currentBoneWorldTransform.Translation;
-                currentBoneWorldTransform.Decompose(out _, out var rotation, out _);
-                rotations[i] = rotation;
-                boneIndices[i] = boneIndex;
-
-                // Calculate the length of the bone and add it to the total length
-                if (i < boneCount - 1)
-                {
-                    boneLengths[i] = Vector3.Distance(positions[i], positions[i + 1]);
-                    totalLength += boneLengths[i];
-                }
-
-                // Move to the next bone in the chain
-                boneIndex = currentAnimFrame.GetParentBoneIndex(_boneSelectionState.Skeleton, boneIndex);
+                _ikGizmoStart = gizmoPosition;
+                _ikEffectorStart = WorldTransform(frame, _boneSelectionState.Skeleton, effector).Translation;
             }
 
-            // Check if the target is reachable
-            if (Vector3.Distance(newPosition.Translation, positions[0]) > totalLength)
-            {
-                // The target is unreachable, move the end effector towards the target
-                for (var i = boneCount - 2; i >= 0; i--)
-                {
-                    positions[i + 1] = newPosition.Translation;
-                    var direction = Vector3.Normalize(positions[i] - positions[i + 1]);
-                    positions[i] = positions[i + 1] + direction * boneLengths[i];
-                }
-            }
-            else
-            {
-                // The target is reachable, apply the FABRIK algorithm
-                var rootPosition = positions[0];
-                var tolerance = 0.01f;
-                while (Vector3.Distance(newPosition.Translation, positions[boneCount - 1]) > tolerance)
-                {
-                    // Stage 1: Forward reaching
-                    ForwardReaching(positions, boneLengths, newPosition.Translation, boneCount - 2);
-
-                    // Stage 2: Backward reaching
-                    BackwardReaching(positions, boneLengths, rootPosition, 0);
-                }
-
-                // Update the position and rotation of each bone in the chain
-                for (var i = 0; i < boneCount - 1; i++)
-                {
-                    _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame].Position[boneIndices[i]] = positions[i];
-                    continue;
-                    //if (i < boneCount - 1)
-                    //{
-                    //    var direction = Vector3.Normalize(positions[i + 1] - positions[i]);
-                    //    var rotation = Quaternion.CreateFromAxisAngle(Vector3.Cross(Vector3.UnitX, direction), (float)Math.Acos(Vector3.Dot(Vector3.UnitX, direction)));
-                    //    _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame].Rotation[boneIndices[i]] = rotation;
-                    //}
-                }
-            }
-
+            var chain = SolveInverseKinematics(frame, _boneSelectionState.Skeleton, effector, _boneSelectionState.InverseKinematicsEndBoneIndex,
+                _ikEffectorStart + gizmoPosition - _ikGizmoStart.Value);
+            _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame] = frame;
+            _boneSelectionState.TriggerModifiedBoneEvent(chain);
         }
 
-        //TODO: FIX ME
-        private void ForwardReaching(Vector3[] positions, float[] boneLengths, Vector3 targetPosition, int index)
+        /// <summary>
+        /// The bones IK turns: the effector's parent, then each bone above it, up to and including the end bone. A bone with no
+        /// parent is never in it, as turning it swings the whole model; an end bone that is not above the effector leaves the
+        /// chain running up to that root.
+        /// </summary>
+        public static List<int> InverseKinematicsChain(GameSkeleton skeleton, int effector, int endBone)
         {
-            if (index < 0) return;
-
-            positions[index + 1] = targetPosition;
-            var direction = Vector3.Normalize(positions[index] - positions[index + 1]);
-            positions[index] = positions[index + 1] + direction * boneLengths[index];
-
-            ForwardReaching(positions, boneLengths, positions[index], index - 1);
+            var chain = new List<int>();
+            for (var bone = skeleton.GetParentBoneIndex(effector); bone != -1 && skeleton.GetParentBoneIndex(bone) != -1; bone = skeleton.GetParentBoneIndex(bone))
+            {
+                chain.Add(bone);
+                if (bone == endBone)
+                    break;
+            }
+            return chain;
         }
 
-        //TODO: FIX ME
-        private void BackwardReaching(Vector3[] positions, float[] boneLengths, Vector3 rootPosition, int index)
+        /// <summary>
+        /// Cyclic coordinate descent: each bone of the chain, nearest the effector first, turned about its own origin so the
+        /// effector points at the target, repeated until it is there. Only rotations change, so every bone keeps its length, and a
+        /// target out of reach leaves the chain stretched toward it. Returns the chain.
+        /// </summary>
+        public static List<int> SolveInverseKinematics(KeyFrame frame, GameSkeleton skeleton, int effector, int endBone, Vector3 target, int iterations = 64, float tolerance = 0.0001f)
         {
-            if (index >= positions.Length - 1) return;
+            if (effector >= frame.Rotation.Count)
+                return [];
 
-            positions[index] = rootPosition;
-            var direction = Vector3.Normalize(positions[index + 1] - positions[index]);
-            positions[index + 1] = positions[index] + direction * boneLengths[index];
+            var chain = InverseKinematicsChain(skeleton, effector, endBone);
+            for (var i = 0; i < iterations; i++)
+            {
+                foreach (var joint in chain)
+                {
+                    var jointPosition = WorldTransform(frame, skeleton, joint).Translation;
+                    var toEffector = WorldTransform(frame, skeleton, effector).Translation - jointPosition;
+                    var toTarget = target - jointPosition;
+                    if (toEffector.LengthSquared() < 1e-12f || toTarget.LengthSquared() < 1e-12f)
+                        continue;
+                    toEffector.Normalize();
+                    toTarget.Normalize();
+                    var axis = Vector3.Cross(toEffector, toTarget);
+                    if (axis.LengthSquared() < 1e-12f)
+                        continue;
+                    // Not acos of the dot: near 1 a float dot cannot tell apart angles under ~3e-4, which stalled the hand a mm short.
+                    var angle = MathF.Atan2(axis.Length(), Vector3.Dot(toEffector, toTarget));
+                    axis.Normalize();
+                    var turn = Matrix.CreateFromAxisAngle(axis, angle);
 
-            BackwardReaching(positions, boneLengths, positions[index + 1], index + 1);
+                    // The turn is in model space; the key is in the parent's: local' = local * parent * turn * parent^-1.
+                    WorldTransform(frame, skeleton, skeleton.GetParentBoneIndex(joint)).Decompose(out _, out var parentRotation, out _);
+                    var parentMatrix = Matrix.CreateFromQuaternion(parentRotation);
+                    var rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateFromQuaternion(frame.Rotation[joint]) * parentMatrix * turn * Matrix.Transpose(parentMatrix));
+                    rotation.Normalize();
+                    frame.Rotation[joint] = rotation;
+                }
+
+                if (Vector3.Distance(WorldTransform(frame, skeleton, effector).Translation, target) < tolerance)
+                    break;
+            }
+            return chain;
+        }
+
+        /// <summary>A bone's model-space transform in a key frame: its local transform times each parent's, up to the root.</summary>
+        public static Matrix WorldTransform(KeyFrame frame, GameSkeleton skeleton, int bone)
+        {
+            var world = Matrix.Identity;
+            for (; bone != -1; bone = skeleton.GetParentBoneIndex(bone))
+                world *= Matrix.CreateScale(frame.Scale[bone]) * Matrix.CreateFromQuaternion(frame.Rotation[bone]) * Matrix.CreateTranslation(frame.Position[bone]);
+            return world;
         }
 
         public static void CompareKeyFrames(KeyFrame A, KeyFrame B)

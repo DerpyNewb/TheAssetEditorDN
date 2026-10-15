@@ -81,7 +81,7 @@ namespace AnimationEditor.AnimationKeyframeEditor
                 }
 
                 boneSelectionState.EnableInverseKinematics = _parent.EnableInverseKinematics.Value;
-                boneSelectionState.InverseKinematicsEndBoneIndex = _parent.ModelBoneListForIKEndBone.SelectedItem.BoneIndex;
+                boneSelectionState.InverseKinematicsEndBoneIndex = _parent.ModelBoneListForIKEndBone.SelectedItem?.BoneIndex ?? -1;
 
                 if (boneSelectionState.EnableInverseKinematics)
                 {
@@ -99,6 +99,12 @@ namespace AnimationEditor.AnimationKeyframeEditor
                         MessageBox.Show("head bone chain == tail bone chain. why even enable IK mode?", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         boneSelectionState.SelectedBones.Clear();
                     }
+                    else if (boneSelectionState.SelectedBones.Count == 1 && boneSelectionState.InverseKinematicsEndBoneIndex != -1
+                        && !TransformBoneCommand.InverseKinematicsChain(_parent.Skeleton, boneSelectionState.SelectedBones[0], -1).Contains(boneSelectionState.InverseKinematicsEndBoneIndex)
+                        && _parent.Skeleton.GetParentBoneIndex(boneSelectionState.InverseKinematicsEndBoneIndex) != -1)
+                    {
+                        MessageBox.Show("the IK end bone is not above the selected bone, so the chain runs all the way up to the root.", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
 
                 if (boneSelectionState.SelectedBones.Count == 0)
@@ -106,6 +112,13 @@ namespace AnimationEditor.AnimationKeyframeEditor
                     _parent.GizmoComponent.Disable();
                 }
             }
+        }
+
+        // The checkbox and the end bone can change with a bone already selected.
+        public void InverseKinematicsSettingsChanged()
+        {
+            if (_parent.SelectionManager.GetState() is BoneSelectionState state)
+                OnSelectionChanged(state, false);
         }
 
         private ISelectable FindSelectableObject(ISceneNode node)

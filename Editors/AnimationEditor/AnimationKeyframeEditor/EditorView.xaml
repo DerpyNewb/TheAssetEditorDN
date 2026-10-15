@@ -38,7 +38,7 @@
                 <CheckBox DockPanel.Dock="Top" Content="{loc:Loc AnimationKeyframeEditor.Options.AllowAnimRoot}" IsChecked="{Binding AllowToSelectAnimRoot.Value, UpdateSourceTrigger=PropertyChanged}"  />
                 <CheckBox DockPanel.Dock="Top" Content="{loc:Loc AnimationKeyframeEditor.Options.IncrementFrame}" IsChecked="{Binding IncrementFrameAfterCopyOperation.Value, UpdateSourceTrigger=PropertyChanged}"  />
                 <CheckBox DockPanel.Dock="Top" Content="{loc:Loc AnimationKeyframeEditor.Options.SelectPreviousBones}" IsChecked="{Binding AutoSelectPreviousBonesOnFrameChange.Value, UpdateSourceTrigger=PropertyChanged}"  />
-                <CheckBox DockPanel.Dock="Top" Content="{loc:Loc AnimationKeyframeEditor.Options.EnableIK}" IsChecked="{Binding EnableInverseKinematics.Value, UpdateSourceTrigger=PropertyChanged}"  IsEnabled="false"  />
+                <CheckBox DockPanel.Dock="Top" Content="{loc:Loc AnimationKeyframeEditor.Options.EnableIK}" IsChecked="{Binding EnableInverseKinematics.Value, UpdateSourceTrigger=PropertyChanged}" ToolTip="{loc:Loc AnimationKeyframeEditor.Options.EnableIK.ToolTip}" />
                 <Label Content="{loc:Loc AnimationKeyframeEditor.Options.IkEndBone}"/>
                 <ComboBox  
                           IsEditable="True"
@@ -46,9 +46,8 @@
                           DisplayMemberPath="BoneName"
                           Text="{Binding ModelBoneListForIKEndBone.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
                           ItemsSource="{Binding ModelBoneListForIKEndBone.Values}" 
-                          IsEnabled="false" 
+                          IsEnabled="{Binding EnableInverseKinematics.Value}"
                           SelectedItem="{Binding ModelBoneListForIKEndBone.SelectedItem, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
-                <!-- "{Binding EnableInverseKinematics.Value}" -->
             </DockPanel>
         </Grid>
 

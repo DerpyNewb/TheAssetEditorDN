@@ -126,17 +126,32 @@ namespace AnimationEditor.AnimationKeyframeEditor
             _parent.PasteScale.Value)).BuildAndExecute();
         }
 
-        private void ApplyAcrossFrames()
-        {
-            if (!Check()) return;
-
-        }
+        private void ApplyAcrossFrames() => ApplyAcross(null);
 
         private void ApplyAcrossFramesSelectedBones()
         {
             if (!CheckForBones()) return;
-            if (!Check()) return;
+            ApplyAcross(_parent.GetSelectedBones());
+        }
 
+        private void ApplyAcross(List<int>? bones)
+        {
+            if (!Check()) return;
+            if (!InterpolateAcrossFramesBoneCommand.Between(_keyframeNrA, _keyframeNrB).Any())
+            {
+                MessageBox.Show("keyframes A and B have no frames between them", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            _parent.CommandFactory.CreateWithBuilder<InterpolateAcrossFramesBoneCommand>().Configure(x => x.Configure(
+                _parent.Rider.AnimationClip,
+                _keyframeNrA,
+                _keyframeNrB,
+                _parent.Skeleton,
+                bones,
+                _parent.PastePosition.Value,
+                _parent.PasteRotation.Value,
+                _parent.PasteScale.Value)).BuildAndExecute();
         }
 
         public void SelectFrameA(int frameNrA)

@@ -162,6 +162,7 @@ namespace GameWorld.Core
             serviceCollection.AddTransient<DuplicateFrameBoneCommand>();
             serviceCollection.AddTransient<DeleteFrameBoneCommand>();
             serviceCollection.AddTransient<InterpolateFramesBoneCommand>();
+            serviceCollection.AddTransient<InterpolateAcrossFramesBoneCommand>();
             serviceCollection.AddTransient<InterpolateFramesSelectedBonesBoneCommand>();
         }
 

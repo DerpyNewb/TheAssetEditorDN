@@ -214,6 +214,8 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
             // GizmoToolbox subscribes to the rider's player, so these come after Create
             _gizmoToolbox = new(this);
+            EnableInverseKinematics.PropertyChanged += (_, _) => _gizmoToolbox.InverseKinematicsSettingsChanged();
+            ModelBoneListForIKEndBone.SelectedItemChanged += _ => _gizmoToolbox.InverseKinematicsSettingsChanged();
             _copyPastePose = new(this);
             _copyPasteClipboardPose = new(this);
             _interpolateBetweenPose = new(this);
@@ -690,7 +692,8 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public void ApplyInterpolationAcrossFrames()
         {
-            MessageBox.Show("not available yet, in the meantime you can do it manually using the slider");
+            _interpolateBetweenPose.ApplyMultipleFrame();
+            IsDirty.Value = _commandExecutor.CanUndo();
         }
 
         public void Save()

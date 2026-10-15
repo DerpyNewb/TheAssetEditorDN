@@ -1,4 +1,7 @@
 using Editors.AnimationVisualEditors.AnimationKeyframeEditor;
+using GameWorld.Core.Animation;
+using Microsoft.Xna.Framework;
+using GameWorld.Core.Commands.Bone;
 using Editors.Shared.Core.Common;
 using Shared.Core.Commands;
 using Shared.Core.ToolCreation;
@@ -80,6 +83,67 @@ namespace Test.E2EVerification
             Assert.That(commands.CanUndo(), Is.False, "the whole drag was one step");
             var after = editor.Rider.AnimationClip!.DynamicFrames[3];
             Assert.That((after.Position, after.Rotation), Is.EqualTo((before.Position, before.Rotation)));
+        }
+
+        // IK solves on the key frame alone. On a real skeleton and clip, the hand it places must be where the sampler, and so the
+        // viewport and the gizmo, draws it.
+        [Test]
+        public void Warhammer3_InverseKinematics_PutsTheHandWhereTheSamplerDrawsIt()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
+            var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+            var sceneObjectEditor = runner.GetRequiredServiceInCurrentEditorScope<SceneObjectEditor>();
+            sceneObjectEditor.SetMesh(editor.Rider, runner.PackFileService.FindFile(KarlMesh)!);
+            sceneObjectEditor.SetAnimation(editor.Rider, IdleAnimation);
+            var skeleton = editor.Skeleton;
+            var frame = editor.Rider.AnimationClip!.DynamicFrames[3];
+            var (hand, shoulder) = (skeleton.GetBoneIndexByName("hand_left"), skeleton.GetBoneIndexByName("upperarm_left"));
+            Assert.That((hand, shoulder), Is.Not.EqualTo((-1, -1)));
+            Vector3 Sampled() => AnimationSampler.Sample(3, 0, skeleton, editor.Rider.AnimationClip).GetSkeletonAnimatedWorld(skeleton, hand).Translation;
+            Assert.That(Vector3.Distance(TransformBoneCommand.WorldTransform(frame, skeleton, hand).Translation, Sampled()), Is.LessThan(1e-4f), "the solver's space is the sampler's");
+
+            var target = Sampled() + new Vector3(0.1f, 0.15f, -0.05f);
+            TransformBoneCommand.SolveInverseKinematics(frame, skeleton, hand, shoulder, target);
+
+            Assert.That(Vector3.Distance(Sampled(), target), Is.LessThan(5e-4f));
+        }
+
+        // "Interpolate across frames" said "not available yet". It sets every frame between A and B to the pose that far between
+        // them, leaves A and B alone, and undoes as one step.
+        [Test]
+        public void Warhammer3_InterpolateAcrossFrames_SetsEachFrameBetweenByHowFarAlong_AndUndoesInOneStep()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
+            var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+            var sceneObjectEditor = runner.GetRequiredServiceInCurrentEditorScope<SceneObjectEditor>();
+            sceneObjectEditor.SetMesh(editor.Rider, runner.PackFileService.FindFile(KarlMesh)!);
+            sceneObjectEditor.SetAnimation(editor.Rider, IdleAnimation);
+            var clip = editor.Rider.AnimationClip!;
+            var original = clip.Clone();
+            string Pose(int frame) => string.Join(" ", clip.DynamicFrames[frame].Position) + " " + string.Join(" ", clip.DynamicFrames[frame].Rotation);
+            var loaded = Enumerable.Range(0, 7).Select(Pose).ToList();
+
+            editor.Rider.Player.CurrentFrame = 0;
+            editor.SelectFrameAInterpolation();
+            editor.Rider.Player.CurrentFrame = 6;
+            editor.SelectFrameBInterpolation();
+            editor.ApplyInterpolationAcrossFrames();
+
+            var expected = AnimationSampler.SampleBetween2Frames(0, 6, 2 / 6f, editor.Skeleton, original);
+            var frame2 = clip.DynamicFrames[2];
+            for (var bone = 0; bone < expected.BoneTransforms.Count; bone++)
+                Assert.That((frame2.Position[bone], frame2.Rotation[bone]), Is.EqualTo((expected.BoneTransforms[bone].Translation, expected.BoneTransforms[bone].Rotation)), $"bone {bone}");
+            Assert.That((Pose(0), Pose(6)), Is.EqualTo((loaded[0], loaded[6])), "A and B are left as they were");
+            Assert.That(Enumerable.Range(1, 5).Count(x => Pose(x) != loaded[x]), Is.EqualTo(5), "every frame between was set");
+            Assert.That(editor.IsDirty.Value, Is.True);
+
+            editor.UndoPose();
+            Assert.That(Enumerable.Range(0, 7).Select(Pose), Is.EqualTo(loaded), "one undo puts all of them back");
+            Assert.That(editor.CommandManager.CanUndo(), Is.False);
         }
 
         // The Mount is a reference to pose the Rider against. Its animation must not replace the
