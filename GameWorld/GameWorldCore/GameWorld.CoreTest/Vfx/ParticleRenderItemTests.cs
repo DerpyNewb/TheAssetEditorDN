@@ -482,6 +482,52 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(new[] { pixel.X, pixel.Y, pixel.Z }, Is.EqualTo(new[] { 0.5f, 0f, 1f }).Within(0.03));
         }
 
+        // CA's vs_translation_velocity_v2 (fx/particle_vfx_library.hlsl). The camera at the origin looks down -Z at a particle 10 m
+        // off, moving 10 m/s at a stretch of 1 per m/s, capped at 3. Head-on is 5 degrees off the view, as a muzzle flash seen down
+        // its barrel is.
+        static readonly ParticleRenderItem.CameraAxes DownMinusZ = new(Vector3.Zero, Vector3.UnitX, Vector3.UnitY, -Vector3.UnitZ);
+        static readonly Vector3 HeadOn = new(10 * MathF.Sin(MathHelper.ToRadians(5)), 0, 10 * MathF.Cos(MathHelper.ToRadians(5)));
+
+        static (Vector3 Across, Vector3 Up) Edges(QuadOrientation orientation, Vector3 velocity)
+        {
+            var particle = new ParticleState(new Vector3(0, 0, -10), velocity, new Vector2(1, 1), 0, Vector3.One, 1, 1, 0);
+            var v = ParticleRenderItem.Quads(new EmitterSettings { Orientation = orientation, StretchCap = 3 }, DownMinusZ, [particle]);
+            return (v[1].Position - v[0].Position, v[5].Position - v[0].Position);
+        }
+
+        // Mode 5 stretches by as much of the velocity as crosses the screen, never under its own size: seen down its path it is
+        // a round burst, not a full-length streak along whatever crumb of the velocity is left on the screen.
+        [Test]
+        public void CameraAlignedWithStretching_SeenHeadOn_IsNotStretched()
+        {
+            var (across, up) = Edges(QuadOrientation.VelocityAligned, HeadOn);
+            Assert.That((across.Length(), up.Length()), Is.EqualTo((1f, 1f)).Within(1e-3));
+        }
+
+        [Test]
+        public void CameraAlignedWithStretching_SeenSideOn_StretchesAlongTheVelocity()
+        {
+            var (across, up) = Edges(QuadOrientation.VelocityAligned, new Vector3(10, 0, 0));
+            Assert.Multiple(() =>
+            {
+                Assert.That(up.Length(), Is.EqualTo(3).Within(1e-3));
+                Assert.That(Vector3.Dot(Vector3.Normalize(up), Vector3.UnitX), Is.EqualTo(1).Within(1e-4));
+                Assert.That(Vector3.Dot(across, Vector3.UnitZ), Is.EqualTo(0).Within(1e-4), "facing the camera");
+            });
+        }
+
+        // Mode 2 lies along the velocity itself, so seen head-on it is foreshortened by the view rather than turned flat to it.
+        [Test]
+        public void CameraFacingVelocityAligned_LiesAlongTheVelocity()
+        {
+            var (_, up) = Edges(QuadOrientation.VelocityAxis, HeadOn);
+            Assert.Multiple(() =>
+            {
+                Assert.That(up.Length(), Is.EqualTo(3).Within(1e-3));
+                Assert.That(Vector3.Dot(Vector3.Normalize(up), Vector3.Normalize(HeadOn)), Is.EqualTo(1).Within(1e-4));
+            });
+        }
+
         // A decal lies flat on the world's ground under its particle, whatever its own orientation and however the effect is
         // carried: here a camera-facing particle 2 m up in an effect lifted 1 m and tipped 90 degrees about X.
         [Test]

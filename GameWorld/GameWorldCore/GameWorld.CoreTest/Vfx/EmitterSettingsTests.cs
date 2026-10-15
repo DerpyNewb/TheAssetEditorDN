@@ -195,6 +195,7 @@ namespace GameWorld.Core.Test.Vfx
         }
 
         [TestCase("Vertically-oriented", QuadOrientation.Vertical)]
+        [TestCase("Camera-facing velocity-aligned", QuadOrientation.VelocityAxis)]
         [TestCase("Particle only rotating around local Y (horizontal)", QuadOrientation.LocalHorizontal)]
         [TestCase("Particle only rotating around local Y (vertical)", QuadOrientation.LocalVertical)]
         public void RareOrientationModes_AreRead(string mode, QuadOrientation expected)

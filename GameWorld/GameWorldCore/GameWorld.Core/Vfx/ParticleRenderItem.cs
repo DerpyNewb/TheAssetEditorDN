@@ -381,13 +381,31 @@ namespace GameWorld.Core.Vfx
                     return (Vector3.Normalize(side), Vector3.Up, p.Size.Y);
             }
 
-            if (s.Orientation == QuadOrientation.VelocityAligned)
+            // As CA's vs_translation_velocity_v2 builds them, from the particle's own line to the camera, not the view's axis.
+            if (s.Orientation is QuadOrientation.VelocityAligned or QuadOrientation.VelocityAxis && p.Velocity.LengthSquared() > 1e-8f)
             {
-                var along = p.Velocity - camera.Forward * Vector3.Dot(p.Velocity, camera.Forward);
-                if (along.LengthSquared() > 1e-8f)
+                var look = Vector3.Normalize(p.Velocity);
+                var toCamera = camera.Position - p.Position;
+                var stretch = VfxConventions.Stretch(p.Velocity.Length(), p.Stretch, s.StretchCap);
+                if (toCamera.LengthSquared() > 1e-8f)
                 {
-                    along.Normalize();
-                    return (Vector3.Normalize(Vector3.Cross(along, camera.Forward)), along, p.Size.Y * VfxConventions.Stretch(p.Velocity.Length(), p.Stretch, s.StretchCap));
+                    toCamera.Normalize();
+                    var side = Vector3.Cross(toCamera, look);
+                    // Mode 2: along the velocity itself, so the view foreshortens it.
+                    if (s.Orientation == QuadOrientation.VelocityAxis)
+                    {
+                        if (side.LengthSquared() > 1e-8f)
+                            return (Vector3.Normalize(side), look, p.Size.Y * stretch);
+                    }
+                    else
+                    {
+                        // Mode 5: facing the camera, along the velocity's line across the screen, stretched by as much of the
+                        // velocity as crosses it and never under its own size. Seen down its path the side turns to the screen's.
+                        var across = Vector3.Lerp(camera.Right, side.LengthSquared() > 1e-12f ? Vector3.Normalize(side) : camera.Right, Math.Clamp(side.Length() * 100, 0, 1));
+                        across.Normalize();
+                        var up = Vector3.Normalize(Vector3.Cross(across, toCamera));
+                        return (across, up, p.Size.Y * Math.Max(stretch * Vector3.Dot(look, up), 1));
+                    }
                 }
             }
 

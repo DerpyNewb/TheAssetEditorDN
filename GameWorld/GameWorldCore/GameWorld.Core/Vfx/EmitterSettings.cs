@@ -6,8 +6,9 @@ namespace GameWorld.Core.Vfx
     public enum SimulationSpace { World, LocalPositionRotation, LocalPositionOnly }
 
     // The first six come from vs_translation_velocity_v2's orientation_mode; Upright, Flat and Object3D are vs_translation's
-    // restriction 1, 2 and 3 (CA's "Vertical, Horizontal, 3D").
-    public enum QuadOrientation { CameraFacing, VelocityAligned, Horizontal, Vertical, LocalHorizontal, LocalVertical, Upright, Flat, Object3D }
+    // restriction 1, 2 and 3 (CA's "Vertical, Horizontal, 3D"). VelocityAligned is orientation_mode 5, "Camera-aligned with
+    // stretching factor", and VelocityAxis its mode 2, "Camera-facing velocity-aligned".
+    public enum QuadOrientation { CameraFacing, VelocityAligned, Horizontal, Vertical, LocalHorizontal, LocalVertical, Upright, Flat, Object3D, VelocityAxis }
 
     /// <summary>ps_lighting: how much sunlight small (Rayleigh) and large (Henyey-Greenstein) particles scatter, the large ones'
     /// directionality (g), how far the light is drawn toward emissive, and the average size the light crosses.</summary>
@@ -408,7 +409,8 @@ namespace GameWorld.Core.Vfx
             (s.Orientation, var known) = mode switch
             {
                 null => (QuadOrientation.CameraFacing, true),
-                "Camera-aligned with stretching factor" or "Camera-facing velocity-aligned" => (QuadOrientation.VelocityAligned, true),
+                "Camera-aligned with stretching factor" => (QuadOrientation.VelocityAligned, true),
+                "Camera-facing velocity-aligned" => (QuadOrientation.VelocityAxis, true),
                 "Horizontally-oriented" => (QuadOrientation.Horizontal, true),
                 "Vertically-oriented" => (QuadOrientation.Vertical, true),
                 "Particle only rotating around local Y (horizontal)" => (QuadOrientation.LocalHorizontal, true),
