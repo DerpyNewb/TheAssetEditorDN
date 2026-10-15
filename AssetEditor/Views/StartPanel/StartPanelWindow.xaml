@@ -60,6 +60,7 @@
             <StackPanel>
                 <TextBlock Style="{StaticResource CardTitle}" Text="{loc:Loc StartPanel.Pack.Title}"/>
                 <TextBlock Style="{StaticResource CardText}" Text="{loc:Loc StartPanel.Pack.Text}"/>
+                <TextBlock Style="{StaticResource CardText}" Margin="0, 0, 0, 10" FontWeight="SemiBold" Text="{loc:Loc StartPanel.Pack.Warning}"/>
                 <WrapPanel>
                     <Button Style="{StaticResource Choice}" Content="{loc:Loc MenuBar.File.OpenPack}" Command="{Binding OpenPackCommand}"/>
                 </WrapPanel>

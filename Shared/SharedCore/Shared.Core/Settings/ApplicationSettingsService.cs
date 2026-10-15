@@ -35,6 +35,14 @@ namespace Shared.Core.Settings
         public Vector3 VertexSelectionColour { get; set; } = new Vector3(1.0f, 0.47f, 0.0f);
         public string SelectedLangauge { get; set; } = "en";
         public CameraControlMode CameraControlMode { get; set; } = CameraControlMode.AssetEditorStyle;
+        /// <summary>Minutes between autosaves of a .pack edited in place, to the backup folder; 0 turns them off.</summary>
+        public int AutosaveMinutes { get; set; } = 5;
+        /// <summary>The .pack on disk is copied to the backup folder before a save replaces it.</summary>
+        public bool BackupBeforeSave { get; set; } = true;
+        /// <summary>Autosaves and before-save copies kept per pack, together; the oldest goes first.</summary>
+        public int BackupsKept { get; set; } = 10;
+        /// <summary>Empty is DirectoryHelper.BackupDirectory.</summary>
+        public string BackupFolder { get; set; } = "";
     }
 
     public class ApplicationSettingsService

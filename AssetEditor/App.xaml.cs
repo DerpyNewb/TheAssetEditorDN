@@ -57,6 +57,7 @@ namespace AssetEditor
             _serviceProvider = new DependencyInjectionConfig().Build(forceValidateServiceScopes);
 
             _ = _serviceProvider.GetRequiredService<RecentFilesTracker>(); // Force instance of the RecentFilesTracker
+            _ = _serviceProvider.GetRequiredService<PackAutosave>(); // Its timer runs from the start
             _ = _serviceProvider.GetRequiredService<IScopeRepository>();  // Force instance of the IScopeRepository
 
             var uiCommandFactory = _serviceProvider.GetRequiredService<IUiCommandFactory>();

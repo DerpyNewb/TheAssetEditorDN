@@ -4,6 +4,7 @@ using Shared.Core.ErrorHandling;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models.Containers;
 using Shared.Core.PackFiles.Models;
+using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
 using Shared.Core.Settings;
 using Shared.Ui.BaseDialogs.PackFileTree.Utility;
@@ -56,6 +57,7 @@ namespace Shared.Ui.BaseDialogs.PackFileTree.ContextMenu.Commands
                 {
                     var gameInformation = GameInformationDatabase.GetGameById(applicationSettingsService.CurrentSettings.CurrentGame);
                     _logger.Here().Information($"Saving pack file container '{packDescription}' to '{systemPath}'");
+                    BackUpBeforeSave(systemPath);
                     packFileService.SavePackContainer(container, systemPath, false, gameInformation);
                     _logger.Here().Information($"Saved pack file container '{packDescription}' to '{systemPath}'");
                 }
@@ -91,6 +93,7 @@ namespace Shared.Ui.BaseDialogs.PackFileTree.ContextMenu.Commands
                 {
                     var gameInformation = GameInformationDatabase.GetGameById(applicationSettingsService.CurrentSettings.CurrentGame);
                     _logger.Here().Information($"Saving editable pack '{packDescription}' to '{systemPath}'");
+                    BackUpBeforeSave(systemPath);
                     packFileService.SavePackContainer(pack, systemPath, false, gameInformation);
                     _logger.Here().Information($"Saved editable pack '{packDescription}' to '{systemPath}'");
                 }
@@ -100,6 +103,17 @@ namespace Shared.Ui.BaseDialogs.PackFileTree.ContextMenu.Commands
                     standardDialogs.ShowDialogBox("Error saving:\n\n" + e.Message, "Error");
                 }
             }
+        }
+
+        // Before the save, so a save refused because the pack changed on disk still keeps what is there.
+        private void BackUpBeforeSave(string systemPath)
+        {
+            var settings = applicationSettingsService.CurrentSettings;
+            if (!settings.BackupBeforeSave)
+                return;
+            var copy = PackBackups.CopyBeforeSave(systemPath, settings);
+            if (copy != null)
+                _logger.Here().Information($"Copied '{systemPath}' to '{copy}' before saving over it");
         }
 
         private string? ResolveSavePath(IPackFileContainer container, string packDescription)

@@ -38,6 +38,12 @@ namespace AssetEditor.ViewModels
         [ObservableProperty] private bool _showCAWemFiles;
         [ObservableProperty] private bool _onlyLoadLod0ForReferenceMeshes;
         [ObservableProperty] private CameraControlMode _selectedCameraMode;
+        [ObservableProperty] private int _autosaveMinutes;
+        [ObservableProperty] private bool _backupBeforeSave;
+        [ObservableProperty] private int _backupsKept;
+        [ObservableProperty] private string _backupFolder;
+
+        public string DefaultBackupFolder => DirectoryHelper.BackupDirectory;
 
         public SettingsViewModel(ApplicationSettingsService settingsService, LocalizationManager localizationManager)
         {
@@ -63,6 +69,10 @@ namespace AssetEditor.ViewModels
             ShowCAWemFiles = _settingsService.CurrentSettings.ShowCAWemFiles;
             OnlyLoadLod0ForReferenceMeshes = _settingsService.CurrentSettings.OnlyLoadLod0ForReferenceMeshes;
             SelectedCameraMode = _settingsService.CurrentSettings.CameraControlMode;
+            AutosaveMinutes = _settingsService.CurrentSettings.AutosaveMinutes;
+            BackupBeforeSave = _settingsService.CurrentSettings.BackupBeforeSave;
+            BackupsKept = _settingsService.CurrentSettings.BackupsKept;
+            BackupFolder = _settingsService.CurrentSettings.BackupFolder;
 
             foreach (var game in GameInformationDatabase.Games.Values.OrderBy(game => game.DisplayName))
             {
@@ -93,6 +103,10 @@ namespace AssetEditor.ViewModels
             _settingsService.CurrentSettings.OnlyLoadLod0ForReferenceMeshes = OnlyLoadLod0ForReferenceMeshes;
             _settingsService.CurrentSettings.GameDirectories.Clear();
             _settingsService.CurrentSettings.CameraControlMode = SelectedCameraMode;
+            _settingsService.CurrentSettings.AutosaveMinutes = Math.Max(0, AutosaveMinutes);
+            _settingsService.CurrentSettings.BackupBeforeSave = BackupBeforeSave;
+            _settingsService.CurrentSettings.BackupsKept = Math.Max(1, BackupsKept);
+            _settingsService.CurrentSettings.BackupFolder = BackupFolder?.Trim() ?? "";
 
             foreach (var item in GameDirectores)
                 _settingsService.CurrentSettings.GameDirectories.Add(new ApplicationSettings.GamePathPair(item.GameType, item.Path));
@@ -100,6 +114,14 @@ namespace AssetEditor.ViewModels
             _localizationManager.LoadLanguage(SelectedLanguage);
             _settingsService.Save();
             MessageBox.Show("Please restart the tool after updating settings!");
+        }
+
+        [RelayCommand]
+        private void BrowseBackupFolder()
+        {
+            var dialog = new FolderBrowserDialog() { SelectedPath = string.IsNullOrWhiteSpace(BackupFolder) ? DefaultBackupFolder : BackupFolder };
+            if (dialog.ShowDialog() == DialogResult.OK)
+                BackupFolder = dialog.SelectedPath;
         }
     }
 

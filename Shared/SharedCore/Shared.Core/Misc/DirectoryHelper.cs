@@ -36,6 +36,7 @@ namespace Shared.Core.Misc
         public static string AudioTempDirectory { get { return Temp + "\\Audio"; } }
         public static string UpdateDirectory { get { return Temp + "\\Update"; } }
         public static string CacheDirectory { get => ApplicationDirectory + "\\Cache"; }
+        public static string BackupDirectory { get => ApplicationDirectory + "\\Backups"; }
         public static string AnimationIndexMappingDirectory { get { return ApplicationDirectory + "\\Animation\\BoneIndexMapping"; } }
 
         public static void EnsureCreated()

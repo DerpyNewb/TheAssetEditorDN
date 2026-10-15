@@ -36,6 +36,8 @@ namespace Test.TestingUtility.Shared
   
             var settings = ServiceProvider.GetRequiredService<ApplicationSettingsService>();
             settings.CurrentSettings.CurrentGame = gameEnum;
+            // A save takes a copy first; a test's copies stay out of the user's own backup folder.
+            settings.CurrentSettings.BackupFolder = Path.Combine(Path.GetTempPath(), "AE_TestBackups_" + Guid.NewGuid().ToString("N"));
 
             var game = ServiceProvider.GetRequiredService<IWpfGame>();
             var resourceLibrary = ServiceProvider.GetRequiredService<ResourceLibrary>();

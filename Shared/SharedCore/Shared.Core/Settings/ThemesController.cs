@@ -6,7 +6,9 @@ namespace Shared.Core.Settings
     public enum ThemeType
     {
         DarkTheme,
-        LightTheme
+        LightTheme,
+        // Dark with every panel on true black (Themes/ColourDictionaries/AmoledTheme.xaml). Saved by number: new ones go on the end.
+        AmoledTheme
     }
 
     public static class ThemesController
@@ -60,6 +62,7 @@ namespace Shared.Core.Settings
             {
                 ThemeType.DarkTheme => "Dark",
                 ThemeType.LightTheme => "Light",
+                ThemeType.AmoledTheme => "AMOLED",
                 _ => "Dark"
             };
         }

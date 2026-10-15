@@ -48,7 +48,7 @@ namespace Test.E2EVerification
         }
 
         [Test]
-        public void TheView_IsThreeTabs_AndEverySettingSitsInOneOfThem_UnderAGroupTitle()
+        public void TheView_IsFourTabs_AndEverySettingSitsInOneOfThem_UnderAGroupTitle()
         {
             var view = View();
             var tabs = view.Descendants(Wpf + "TabItem").ToList();
@@ -59,7 +59,7 @@ namespace Test.E2EVerification
 
             var placed = settings.ToDictionary(s => s, s => tabs.Count(t => Bindings(t).Any(b => b.Path == s)));
 
-            Assert.That(tabs, Has.Count.EqualTo(3));
+            Assert.That(tabs, Has.Count.EqualTo(4));
             Assert.That(settings, Has.Count.GreaterThan(5), "the view model's settings were not found");
             Assert.That(placed.Where(x => x.Value != 1).Select(x => x.Key), Is.Empty, "a setting in no tab, or in two");
             Assert.That(tabs.Where(t => t.Descendants(Wpf + "TextBlock").Any(b => (string?)b.Attribute("Style") == "{StaticResource GroupTitle}") == false), Is.Empty,
@@ -73,6 +73,29 @@ namespace Test.E2EVerification
 
             Assert.That(keys, Has.Count.GreaterThan(10), "the walk found too few keys to mean anything");
             Assert.That(MissingInALanguage(keys), Is.Empty);
+        }
+
+        // ThemesController loads Themes/ColourDictionaries/<ThemeType>.xaml by name, and a missing key draws as nothing.
+        [Test]
+        public void EveryTheme_HasItsColourFile_WithEveryKeyTheDarkOneHas()
+        {
+            static List<string> Keys(string theme) => XDocument.Load(Path.Combine(Root(), "AssetEditor", "Themes", "ColourDictionaries", theme + ".xaml"))
+                .Root!.Elements().Select(e => (string)e.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml"))!).ToList();
+
+            var dark = Keys(nameof(Shared.Core.Settings.ThemeType.DarkTheme));
+            Assert.That(dark, Has.Count.GreaterThan(100));
+            foreach (var theme in Enum.GetValues<Shared.Core.Settings.ThemeType>())
+                Assert.That(Keys(theme.ToString()), Is.EqualTo(dark), theme.ToString());
+        }
+
+        [Test]
+        public void EveryRenderBackground_HasANameAndAColour()
+        {
+            foreach (var colour in Enum.GetValues<Shared.Core.Settings.BackgroundColour>())
+            {
+                Assert.That(Shared.Core.Settings.ApplicationSettingsHelper.GetEnumAsString(colour), Is.Not.Empty);
+                Assert.That(() => Shared.Core.Settings.ApplicationSettingsHelper.GetEnumAsColour(colour), Throws.Nothing, colour.ToString());
+            }
         }
 
         internal static List<string> LocKeys(params string[] files) =>
