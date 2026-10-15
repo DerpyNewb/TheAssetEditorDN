@@ -142,6 +142,8 @@
   "MenuBar.File.NewAnimPackWh3": "新建 AnimPack (战锤 III)",
   "MenuBar.File.NewAnimPack3K": "新建 AnimPack (三国)",
   "MenuBar.File.SaveActivePack": "保存当前项目",
+  "MenuBar.File.RestoreBackup": "恢复备份",
+  "MenuBar.File.RestoreBackup.ToolTip": "将包恢复为其备份之一（设置 > 保存），无需打开。列出最近打开且有备份的包。",
   "MenuBar.File.OpenProjectFolder": "打开项目",
   "MenuBar.File.ImportPackAsProject": "从 Packfile 创建项目",
   "MenuBar.File.ImportReferencePack": "导入参考 Packfile",

@@ -142,6 +142,8 @@
   "MenuBar.File.NewAnimPackWh3": "New AnimPack (Warhammer III)",
   "MenuBar.File.NewAnimPack3K": "New AnimPack (Three Kingdoms)",
   "MenuBar.File.SaveActivePack": "Save active projects",
+  "MenuBar.File.RestoreBackup": "Restore backup",
+  "MenuBar.File.RestoreBackup.ToolTip": "Put a pack back to one of its backups (Settings > Saving), without opening it. Lists the packs opened lately that have backups.",
   "MenuBar.File.OpenProjectFolder": "Open Project",
   "MenuBar.File.ImportPackAsProject": "Create project from Packfile",
   "MenuBar.File.ImportReferencePack": "Import reference Packfile",

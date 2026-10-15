@@ -60,6 +60,7 @@ namespace Shared.Ui
             services.AddScoped<SaveAsPackFileContainerCommand>();
             services.AddScoped<SavePackFileContainerCommand>();
             services.AddScoped<SetAsEditablePackCommand>();
+            services.AddScoped<RestoreBackupCommand>();
             services.AddScoped<ToggleIgnoredForSerializationCommand>();
         }
 
@@ -72,6 +73,7 @@ namespace Shared.Ui
             registry.RegisterPackFileContextMenuItem<SaveAsPackFileContainerCommand>(ContextMenuType.MainApplication, path: "", priority: 30, ContextMenuCluster.PackFileOperation);
             registry.RegisterPackFileContextMenuItem<ChangeOutputLocationCommand>(ContextMenuType.MainApplication, path: "", priority: 40, ContextMenuCluster.PackFileOperation);
             registry.RegisterPackFileContextMenuItem<CopyToEditablePackCommand>(ContextMenuType.MainApplication, path: "", priority: 50, ContextMenuCluster.PackFileOperation);
+            registry.RegisterPackFileContextMenuItem<RestoreBackupCommand>(ContextMenuType.MainApplication, path: "", priority: 60, ContextMenuCluster.PackFileOperation);
 
             registry.RegisterPackFileContextMenuItem<ImportFileCommand>(ContextMenuType.MainApplication, path: "Import", priority: 0, ContextMenuCluster.FolderOperation);
             registry.RegisterPackFileContextMenuItem<ImportDirectoryCommand>(ContextMenuType.MainApplication, path: "Import", priority: 10, ContextMenuCluster.FolderOperation);

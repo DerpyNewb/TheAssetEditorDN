@@ -36,6 +36,8 @@ namespace AssetEditor.ViewModels
         private readonly IStandardDialogs _standardDialogs;
 
         public ObservableCollection<RecentPackFileItem> RecentPackFiles { get; set; } = [];
+        /// <summary>File > Restore Backup: each pack opened lately that has backups, and under it the backups.</summary>
+        public ObservableCollection<BackupMenuItem> RestorableBackups { get; } = [];
         public ObservableCollection<EditorShortcutViewModel> Editors { get; set; } = [];
 
         public MenuBarViewModel(IPackFileService packfileService, 
@@ -59,6 +61,24 @@ namespace AssetEditor.ViewModels
             settings.RecentPackFiles.CollectionChanged += OnRecentPackFilePathsChanged;
             CreateRecentPackFilesItems();
             CreateTools();
+        }
+
+        /// <summary>Read again each time the File menu opens: a save or an autosave since the last look adds a backup. A pack need
+        /// not be open, or even still on disk, to be put back.</summary>
+        public void RefreshRestorableBackups()
+        {
+            RestorableBackups.Clear();
+            var restore = _uiCommandFactory.Create<RestoreBackupCommand>();
+            var packs = _settingsService.CurrentSettings.RecentPackFiles
+                .Where(x => x.ContainerType == PackFileContainerType.Normal && !x.IsReadOnly)
+                .Select(x => x.Path)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (var pack in packs)
+            {
+                var backups = restore.Choices(pack).Select(x => new BackupMenuItem(x.Name, new RelayCommand(x.Choose), [])).ToList();
+                if (backups.Count != 0)
+                    RestorableBackups.Add(new BackupMenuItem(pack, null, backups));
+            }
         }
 
         private void OnRecentPackFilePathsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

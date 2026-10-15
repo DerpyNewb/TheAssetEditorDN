@@ -59,6 +59,30 @@ namespace Shared.CoreTest.PackFiles.Utility
             Assert.That(pack.FileList.Values.Select(x => x.DataSource).OfType<PackedFileSource>().All(x => x.Parent.FilePath == _path));
         }
 
+        // The oldest backup, restored while the folder is full: the before-restore copy that makes room deletes it, so the restore
+        // has to have read it first.
+        [Test]
+        public void Restore_PutsTheBackupBack_AndBacksUpWhatItReplaced_EvenTheOldestOfAFullSet()
+        {
+            var versions = new List<byte[]>();
+            for (var i = 0; i < 3; i++)
+            {
+                File.WriteAllBytes(_path, versions.Count == 0 ? File.ReadAllBytes(_path) : [.. versions[^1], (byte)i]);
+                versions.Add(File.ReadAllBytes(_path));
+                PackBackups.CopyBeforeSave(_path, _settings);
+                Thread.Sleep(5);
+            }
+            File.WriteAllBytes(_path, [1, 2, 3]);
+            var oldest = PackBackups.List(_path, _settings)[^1];
+            Assert.That(PackBackups.Describe(oldest).Kind, Is.EqualTo(PackBackups.BeforeSave));
+
+            PackBackups.Restore(oldest, _path, _settings);
+
+            Assert.That(File.ReadAllBytes(_path), Is.EqualTo(versions[0]));
+            Assert.That(File.ReadAllBytes(PackBackups.List(_path, _settings)[0]), Is.EqualTo(new byte[] { 1, 2, 3 }), "what the restore replaced");
+            Assert.That(File.Exists(oldest), Is.False, "pruned, as the kept count says");
+        }
+
         [Test]
         public void PastTheKeptCount_TheOldestGo_AndAnotherPacksBackupsStay()
         {

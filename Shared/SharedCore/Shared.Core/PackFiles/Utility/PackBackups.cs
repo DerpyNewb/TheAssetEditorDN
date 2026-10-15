@@ -76,6 +76,38 @@ namespace Shared.Core.PackFiles.Utility
                 .ToList();
         }
 
+        /// <summary>
+        /// Puts a backup back over its pack. The pack as it is on disk is backed up first, so a restore can itself be taken back;
+        /// the backup is copied aside before that, because making room for the new one can delete the oldest, which may be it.
+        /// The copy aside is beside the pack and swapped in whole, as a save is, so a failure leaves the pack as it was. A pack
+        /// that is gone is written new.
+        /// </summary>
+        public static void Restore(string backupPath, string packPath, ApplicationSettings settings)
+        {
+            var aside = packPath + ".restoring";
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(packPath))!);
+                File.Copy(backupPath, aside, true);
+                CopyBeforeSave(packPath, settings);
+                if (File.Exists(packPath))
+                    File.Replace(aside, packPath, null);
+                else
+                    File.Move(aside, packPath);
+            }
+            finally
+            {
+                File.Delete(aside);
+            }
+        }
+
+        /// <summary>When a backup was taken and which kind it is, from its name.</summary>
+        public static (DateTime Taken, string Kind) Describe(string backupPath)
+        {
+            var match = BackupName().Match(Path.GetFileName(backupPath));
+            return (DateTime.ParseExact(match.Groups["stamp"].Value, Stamp, CultureInfo.InvariantCulture), match.Groups["kind"].Value.ToLowerInvariant());
+        }
+
         static void Prune(string packPath, ApplicationSettings settings)
         {
             foreach (var old in List(packPath, settings).Skip(Math.Max(1, settings.BackupsKept)))
@@ -89,7 +121,7 @@ namespace Shared.Core.PackFiles.Utility
             return Path.Combine(folder, $"{Path.GetFileNameWithoutExtension(packPath)}.{kind}.{DateTime.Now.ToString(Stamp, CultureInfo.InvariantCulture)}.pack");
         }
 
-        [GeneratedRegex(@"^(?<name>.+)\.(beforesave|autosave)\.(?<stamp>\d{8}-\d{6}-\d{3})\.pack$", RegexOptions.IgnoreCase)]
+        [GeneratedRegex(@"^(?<name>.+)\.(?<kind>beforesave|autosave)\.(?<stamp>\d{8}-\d{6}-\d{3})\.pack$", RegexOptions.IgnoreCase)]
         private static partial Regex BackupName();
     }
 }

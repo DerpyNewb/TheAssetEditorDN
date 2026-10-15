@@ -21,7 +21,7 @@
                 <Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource {x:Type MenuItem}}"/>
             </Menu.Resources>
 
-            <MenuItem Header="{loc:Loc MenuBar.File}" BorderThickness="1.5" WindowChrome.IsHitTestVisibleInChrome="True">
+            <MenuItem Header="{loc:Loc MenuBar.File}" BorderThickness="1.5" WindowChrome.IsHitTestVisibleInChrome="True" SubmenuOpened="OnFileMenuOpened">
 
                 <MenuItem Header="{loc:Loc MenuBar.File.NewPack}" Command="{Binding MenuBar.CreateNewProjectCommand}"/>
                 <MenuItem Header="{loc:Loc MenuBar.File.ImportPackAsProject}" Command="{Binding MenuBar.ImportPackAsProjectCommand}"/>
@@ -67,6 +67,27 @@
 
                 <Separator/>
                 <MenuItem Header="{loc:Loc MenuBar.File.SaveActivePack}" Command="{Binding MenuBar.SaveActivePackCommand}"/>
+                <MenuItem Header="{loc:Loc MenuBar.File.RestoreBackup}" ToolTip="{loc:Loc MenuBar.File.RestoreBackup.ToolTip}" ItemsSource="{Binding MenuBar.RestorableBackups}">
+                    <MenuItem.Style>
+                        <Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource {x:Type MenuItem}}">
+                            <Style.Triggers>
+                                <Trigger Property="HasItems" Value="False">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </MenuItem.Style>
+                    <MenuItem.ItemTemplate>
+                        <HierarchicalDataTemplate DataType="{x:Type viewModels:BackupMenuItem}" ItemsSource="{Binding MenuItems}">
+                            <HierarchicalDataTemplate.ItemContainerStyle>
+                                <Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </Style>
+                            </HierarchicalDataTemplate.ItemContainerStyle>
+                            <TextBlock Text="{Binding Header}"/>
+                        </HierarchicalDataTemplate>
+                    </MenuItem.ItemTemplate>
+                </MenuItem>
                 <Separator/>
 
 

@@ -40,7 +40,12 @@ namespace Shared.Ui.BaseDialogs.PackFileTree.ContextMenu
 
                     var parent = GetOrCreateMenuPath(item.Path, clusterRoot, pathToMenuLookup);
                     command.Configure(node);
-                    var x = new ContextMenuItem(command.GetDisplayName(node), () => command.Execute());
+                    var x = new ContextMenuItem(command.GetDisplayName(node), command is IContextMenuChoices ? null : () => command.Execute());
+                    if (command is IContextMenuChoices choices)
+                    {
+                        foreach (var (name, choose) in choices.Choices(node))
+                            x.ContextMenu.Add(new ContextMenuItem(name, choose));
+                    }
                     parent.ContextMenu.Add(x);
                 }
 
