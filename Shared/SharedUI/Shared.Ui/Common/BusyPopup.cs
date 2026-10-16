@@ -101,16 +101,26 @@ namespace Shared.Ui.Common
                 view.Show(text ?? Unnamed, waited, _look);
         }
 
+        // Answered even when Read throws: the question stayed open otherwise, and no other was asked, so the popup stayed up, counting,
+        // for the rest of the run.
         static void Answer()
         {
-            _look = Read();
-            Interlocked.Exchange(ref _askedAt, 0);
+            try
+            {
+                _look = Read();
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _askedAt, 0);
+            }
         }
 
         static Look Read()
         {
             var app = Application.Current;
-            Color Colour(string key, Color fallback) => app?.TryFindResource(key) is SolidColorBrush brush ? brush.Color : fallback;
+            // Until the main window sets the theme, a theme brush can belong to another thread, and reading it throws. A dialog in the
+            // middle of startup (no cache yet) has the UI thread answer that early.
+            Color Colour(string key, Color fallback) => app?.TryFindResource(key) is SolidColorBrush brush && (brush.IsFrozen || brush.CheckAccess()) ? brush.Color : fallback;
             var main = _main() is { IsVisible: true } window ? new WindowInteropHelper(window).Handle : IntPtr.Zero;
             return new Look(Colour("Window.Static.Background", Fallback.Background), Colour("ABrush.AccentTone1.Border.Static", Fallback.Border),
                 Colour("ABrush.Foreground.Static", Fallback.Text), Colour("ABrush.Foreground.Disabled", Fallback.Dim),

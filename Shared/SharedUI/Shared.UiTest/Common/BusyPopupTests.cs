@@ -142,6 +142,21 @@ namespace Shared.UiTest.Common
             Assert.That(BusyPopup.Shown, Is.Null);
         }
 
+        // An answer that throws is still an answer. A theme brush read on the wrong thread threw inside one, during the "Failed to
+        // load from cache" box at startup; the question stayed open, no other was asked, and the popup stayed up, counting, until the
+        // app was closed.
+        [Test, Apartment(ApartmentState.STA)]
+        public void AnAnswerThatThrows_StillLetsThePopupGo()
+        {
+            Watch(() => throw new InvalidOperationException("The calling thread cannot access this object"));
+
+            Busy(1500);
+            Assert.That(BusyPopup.Shown, Is.EqualTo("Working"));
+            Answering(600);
+
+            Assert.That(BusyPopup.Shown, Is.Null);
+        }
+
         // A dialog shown in the middle of a load keeps the UI thread answering: the popup must not cover it.
         [Test, Apartment(ApartmentState.STA)]
         public void NamedWork_WhileTheUiThreadAnswers_ShowsNothing()
