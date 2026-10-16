@@ -1,5 +1,6 @@
 using GameWorld.Core.Rendering.Materials;
 using GameWorld.Core.Rendering.Materials.Capabilities;
+using GameWorld.Core.Rendering.Materials.Shaders;
 using GameWorld.Core.Test.TestUtility;
 using Shared.Core.Settings;
 using Shared.GameFormats.RigidModel;
@@ -101,6 +102,24 @@ namespace GameWorld.Core.Test.Rendering.Materials
 
             var emissiveCapability = material.TryGetCapability<EmissiveCapability>();
             Assert.That(emissiveCapability, Is.Not.Null);
+        }
+
+        // Preview capability draws a mesh's tint and faction colours. It is off unless Settings turns it on, and a change of material
+        // keeps the mesh's own choice.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Create_Wh3_TintPreview_FollowsTheSetting_AndAChangeOfMaterialKeepsIt(bool setting)
+        {
+            var appSettings = new ApplicationSettingsService(GameTypeEnum.Warhammer3);
+            appSettings.CurrentSettings.PreviewTintCapability = setting;
+            var factory = new CapabilityMaterialFactory(appSettings, null);
+
+            var material = factory.Create(RmvMaterialHelper.Create(ModelMaterialEnum.weighted), null);
+            Assert.That(material.GetCapability<TintCapability>().ApplyCapability, Is.EqualTo(setting));
+
+            material.GetCapability<TintCapability>().ApplyCapability = !setting;
+            var changed = factory.ChangeMaterial(material, CapabilityMaterialsEnum.MetalRoughPbr_Emissive);
+            Assert.That(changed.GetCapability<TintCapability>().ApplyCapability, Is.EqualTo(!setting));
         }
 
         [Test]

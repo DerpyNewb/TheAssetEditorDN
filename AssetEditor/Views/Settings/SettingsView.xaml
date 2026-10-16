@@ -162,6 +162,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="{loc:Loc SettingsWindow.OnlyLoadLod0}" Margin="5, 0, 15, 0" ToolTip="{loc:Loc SettingsWindow.OnlyLoadLod0Tooltip}"/>
@@ -169,6 +170,9 @@
 
                     <TextBlock Grid.Row="1" Text="{loc:Loc SettingsWindow.VertexSelectionColour}" Margin="5, 0, 15, 0" ToolTip="{loc:Loc SettingsWindow.VertexSelectionColourTooltip}"/>
                     <colourpickerbutton:ColourPickerButtonView Grid.Row="1" Grid.Column="1" DataContext="{Binding VertexSelectionColour}" Width="25" Height="25" Margin="0, 0, 0, 5" HorizontalAlignment="Left"/>
+
+                    <TextBlock Grid.Row="2" Text="{loc:Loc SettingsWindow.PreviewTintCapability}" Margin="5, 0, 15, 0" ToolTip="{loc:Loc SettingsWindow.PreviewTintCapabilityTooltip}"/>
+                    <CheckBox Grid.Row="2" Grid.Column="1" Margin="-1, 0, 0, 5" IsChecked="{Binding PreviewTintCapability, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
                 </Grid>
             </StackPanel>
         </TabItem>

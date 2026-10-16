@@ -13,6 +13,7 @@
   "SettingsWindow.TextEditorBackgroundTooltip": "独立于应用主题。语法颜色会自动调整以保持可读。",
   "SettingsWindow.RestartNeeded": "重启 AssetEditor 以加载新的游戏、游戏文件夹或语言。其他设置已生效。",
   "SettingsWindow.OnlyLoadLod0": "仅为参考 Mesh 加载 Lod0",
+  "SettingsWindow.PreviewTintCapability": "新网格启用预览能力（色调和阵营颜色）",
   "SettingsWindow.GridSize": "网格大小",
   "SettingsWindow.VertexSelectionColour": "顶点选择颜色",
   "SettingsWindow.SaveButton": "保存",
@@ -132,6 +133,7 @@
 
   "SettingsWindow.Title": "设置",
   "SettingsWindow.OnlyLoadLod0Tooltip": "在 Kitbash 工具中导入参考 Mesh 时，仅导入 Lod0 以节省内存。",
+  "SettingsWindow.PreviewTintCapabilityTooltip": "网格加载时是否勾选其色调面板中的“预览能力”，以显示色调和阵营颜色。仅对更改后加载的网格生效。",
   "SettingsWindow.GridSizeTooltip": "可视化编辑器中网格的大小",
   "SettingsWindow.VertexSelectionColourTooltip": "选中顶点的十六进制颜色（例如 #FF7800）",
   "SettingsWindow.GameFiles": "各游戏的 data 文件夹",

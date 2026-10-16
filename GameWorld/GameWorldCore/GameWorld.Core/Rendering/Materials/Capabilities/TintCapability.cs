@@ -41,6 +41,7 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
         {
             return new TintCapability()
             {
+                
                 DiffuseTintMask = DiffuseTintMask,
                 DiffuseTintColour = DiffuseTintColour,
                 DiffuseTintVariation = DiffuseTintVariation,

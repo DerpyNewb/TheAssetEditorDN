@@ -38,6 +38,7 @@ namespace AssetEditor.ViewModels
         [ObservableProperty] private bool _loadCaPacksByDefault;
         [ObservableProperty] private bool _showCAWemFiles;
         [ObservableProperty] private bool _onlyLoadLod0ForReferenceMeshes;
+        [ObservableProperty] private bool _previewTintCapability;
         [ObservableProperty] private CameraControlMode _selectedCameraMode;
         [ObservableProperty] private int _autosaveMinutes;
         [ObservableProperty] private bool _backupBeforeSave;
@@ -70,6 +71,7 @@ namespace AssetEditor.ViewModels
             LoadCaPacksByDefault = _settingsService.CurrentSettings.LoadCaPacksByDefault;
             ShowCAWemFiles = _settingsService.CurrentSettings.ShowCAWemFiles;
             OnlyLoadLod0ForReferenceMeshes = _settingsService.CurrentSettings.OnlyLoadLod0ForReferenceMeshes;
+            PreviewTintCapability = _settingsService.CurrentSettings.PreviewTintCapability;
             SelectedCameraMode = _settingsService.CurrentSettings.CameraControlMode;
             AutosaveMinutes = _settingsService.CurrentSettings.AutosaveMinutes;
             BackupBeforeSave = _settingsService.CurrentSettings.BackupBeforeSave;
@@ -114,6 +116,7 @@ namespace AssetEditor.ViewModels
             _settingsService.CurrentSettings.ShowCAWemFiles = ShowCAWemFiles;
             _settingsService.CurrentSettings.SelectedLangauge = SelectedLanguage;
             _settingsService.CurrentSettings.OnlyLoadLod0ForReferenceMeshes = OnlyLoadLod0ForReferenceMeshes;
+            _settingsService.CurrentSettings.PreviewTintCapability = PreviewTintCapability;
             _settingsService.CurrentSettings.GameDirectories.Clear();
             _settingsService.CurrentSettings.CameraControlMode = SelectedCameraMode;
             _settingsService.CurrentSettings.AutosaveMinutes = Math.Max(0, AutosaveMinutes);

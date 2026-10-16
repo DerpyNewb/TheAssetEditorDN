@@ -33,6 +33,8 @@ namespace Shared.Core.Settings
         public bool IsFirstTimeStartingApplication { get; set; } = true;
         public bool IsDeveloperRun { get; set; } = false;
         public bool OnlyLoadLod0ForReferenceMeshes { get; set; } = true;
+        /// <summary>Whether a mesh loads with its Tint panel's Preview capability ticked, drawing its tint and faction colours.</summary>
+        public bool PreviewTintCapability { get; set; } = false;
         public int VisualEditorsGridSize { get; set; } = 10;
         public Vector3 VertexSelectionColour { get; set; } = new Vector3(1.0f, 0.47f, 0.0f);
         public string SelectedLangauge { get; set; } = "en";

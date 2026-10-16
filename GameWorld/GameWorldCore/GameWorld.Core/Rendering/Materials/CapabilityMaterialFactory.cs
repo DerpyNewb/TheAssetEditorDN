@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using GameWorld.Core.Rendering.Materials.Capabilities;
 using GameWorld.Core.Rendering.Materials.Shaders;
 using GameWorld.Core.Services;
 using Shared.Core.Settings;
@@ -118,7 +119,7 @@ namespace GameWorld.Core.Rendering.Materials
 
         public CapabilityMaterial CreateMaterial(CapabilityMaterialsEnum type)
         {
-            return type switch
+            CapabilityMaterial material = type switch
             {
                 CapabilityMaterialsEnum.MetalRoughPbr_Default => new Shaders.MetalRough.DefaultMaterial(_resourceLibrary),
                 CapabilityMaterialsEnum.MetalRoughPbr_Emissive => new Shaders.MetalRough.EmissiveMaterial(_resourceLibrary),
@@ -127,6 +128,12 @@ namespace GameWorld.Core.Rendering.Materials
 
                 _ => throw new Exception($"Material of type {type} is not supported by {nameof(CapabilityMaterialFactory)}"),
             };
+
+            // Off unless Settings > Kitbash turns it on: the mesh draws without its tint and faction colours until its Tint panel's
+            // Preview capability is ticked.
+            if (material.TryGetCapability<TintCapability>() is { } tint)
+                tint.ApplyCapability = _applicationSettingsService.CurrentSettings.PreviewTintCapability;
+            return material;
         }
 
         public List<CapabilityMaterialsEnum> GetPossibleMaterials()
