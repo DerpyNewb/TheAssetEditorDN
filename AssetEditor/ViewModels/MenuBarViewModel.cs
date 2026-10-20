@@ -97,6 +97,41 @@ namespace AssetEditor.ViewModels
         [RelayCommand] private void ImportReferencePack() => _uiCommandFactory.Create<ImportReferencePackCommand>().Execute();
         [RelayCommand] private void OpenPack() => _uiCommandFactory.Create<OpenPackCommand>().Execute();
         [RelayCommand] private void CreateNewProject() => _uiCommandFactory.Create<CreateNewProjectCommand>().Execute();
+
+        [RelayCommand]
+        private void CreateNewPack()
+        {
+            var dialog = _standardDialogs.ShowSystemSaveFileDialog("new.pack", "Pack files (*.pack)|*.pack", "pack");
+            if (!dialog.Result || string.IsNullOrWhiteSpace(dialog.FilePath))
+                return;
+
+            IPackFileContainer? pack = null;
+            var previous = _packfileService.GetEditablePack();
+            try
+            {
+                var path = Path.ChangeExtension(dialog.FilePath, ".pack");
+                if (File.Exists(path) || _packfileService.IsPackFileLoaded(path))
+                {
+                    _standardDialogs.ShowDialogBox("This packfile already exists. Choose another name or use Open Packfile.", "Create a new packfile");
+                    return;
+                }
+
+                var game = GameInformationDatabase.GetGameById(_settingsService.CurrentSettings.CurrentGame);
+                pack = _packfileService.CreateNewPackFileContainer(Path.GetFileName(path), game.PackFileVersion, PackFileCAType.MOD);
+                pack.PackFileSettings.GameVersion = game.Type;
+                _packfileService.SavePackContainer(pack, path, false, game);
+                _packfileService.SetEditablePack(pack);
+                _settingsService.AddRecentlyOpenedPackFile(path, pack.ContainerType, false);
+                _settingsService.Save();
+            }
+            catch (Exception e)
+            {
+                if (pack != null)
+                    _packfileService.UnloadPackContainer(pack);
+                _packfileService.SetEditablePack(previous);
+                _standardDialogs.ShowDialogBox("Unable to create packfile:\n\n" + e.Message, "Error");
+            }
+        }
         
         [RelayCommand] private void CreateAnimPackWarhammer3() => _uiCommandFactory.Create<CreateExampleAnimationDbCommand>().CreateAnimationDbWarhammer3();
         [RelayCommand] private void CreateAnimPack3k() => _uiCommandFactory.Create<CreateExampleAnimationDbCommand>().CreateAnimationDb3k();

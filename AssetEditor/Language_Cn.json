@@ -141,6 +141,7 @@
 
   "MenuBar.File": "_文件",
   "MenuBar.File.NewPack": "新建项目",
+  "MenuBar.File.CreateNewPack": "新建 Pack 文件",
   "MenuBar.File.NewAnimPackWh3": "新建 AnimPack (战锤 III)",
   "MenuBar.File.NewAnimPack3K": "新建 AnimPack (三国)",
   "MenuBar.File.SaveActivePack": "保存当前项目",

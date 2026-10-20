@@ -23,6 +23,7 @@
 
             <MenuItem Header="{loc:Loc MenuBar.File}" BorderThickness="1.5" WindowChrome.IsHitTestVisibleInChrome="True" SubmenuOpened="OnFileMenuOpened">
 
+                <MenuItem Header="{loc:Loc MenuBar.File.CreateNewPack}" Command="{Binding MenuBar.CreateNewPackCommand}"/>
                 <MenuItem Header="{loc:Loc MenuBar.File.NewPack}" Command="{Binding MenuBar.CreateNewProjectCommand}"/>
                 <MenuItem Header="{loc:Loc MenuBar.File.ImportPackAsProject}" Command="{Binding MenuBar.ImportPackAsProjectCommand}"/>
 

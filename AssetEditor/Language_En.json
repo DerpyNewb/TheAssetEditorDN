@@ -141,6 +141,7 @@
 
   "MenuBar.File": "_File",
   "MenuBar.File.NewPack": "New Project",
+  "MenuBar.File.CreateNewPack": "Create a new packfile",
   "MenuBar.File.NewAnimPackWh3": "New AnimPack (Warhammer III)",
   "MenuBar.File.NewAnimPack3K": "New AnimPack (Three Kingdoms)",
   "MenuBar.File.SaveActivePack": "Save active projects",
