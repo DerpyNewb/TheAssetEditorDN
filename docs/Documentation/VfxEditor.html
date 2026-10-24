@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VFX Editor</title>
+    <link rel="stylesheet" href="DocumentationShared.css">
+    <script src="DocumentationShared.js" defer></script>
+</head>
+<body>
+
+    <h1>VFX Editor</h1>
+
+    <p>
+        Warhammer III's particle effects live in <code>vfx/*.xml</code> files. The VFX editor opens one as a tree, gives you a form for every value in it,
+        and plays the effect in a preview that catches up with your edits as you make them. You don't hand-edit XML, and you don't launch the game
+        to find out whether a number did anything. You'll still want the game before you ship, and <a href="#preview-limits">what the preview won't tell you</a> says why.
+    </p>
+
+    <div class="note">
+        The VFX editor is in the DN fork's releases from <code>v0.78-dn-v1</code> on, on
+        <a href="https://github.com/DerpyNewb/TheAssetEditorDN/releases">the fork's releases page</a>.
+        This page was written against <code>v0.78-dn-v1.2</code>.
+    </div>
+
+    <p>
+        The first half of this page is a guide. Then comes a <a href="#tutorial">tutorial</a> that makes a dark red version of CA's war machine steam and puts it on an animation,
+        a section on <a href="#own-emitters">building your own emitters</a>, and a <a href="#troubleshooting">table of things that go wrong</a>.
+    </p>
+
+    <h2 id="format">How an effect file is put together</h2>
+
+    <p>You need five ideas to get around. None of them is hard.</p>
+
+    <h3>The name</h3>
+
+    <p>
+        An effect is a file at <code>vfx/&lt;name&gt;.xml</code>, and <code>&lt;name&gt;</code> on its own (no folder, no <code>.xml</code>) is how the rest of the game asks for it:
+        an animation's EFFECT tag puts it in Vfx Name, a DB table puts it in a column. Keep it lowercase. All 8,308 of CA's effect files are,
+        and WH3 has had trouble with uppercase pack paths since patch 6.1.
+    </p>
+
+    <h3>Libraries and reference files</h3>
+
+    <p>
+        CA splits effects in two. A library (<code>construction_type="1"</code> on the <code>&lt;vfx&gt;</code> line) defines emitters, the things that actually spawn particles.
+        A reference file (<code>construction_type="2"</code>) usually defines none. It points at one or more libraries and, for each of their emitters, says whether it's on,
+        how much to tint it, how fast it spawns and how long it lives. 1,401 of CA's 8,308 files are libraries. Most effects you'd hang on a unit are reference files,
+        and that's handy: the reference is where most of your changes go, and the library stays CA's.
+    </p>
+
+    <h3>An emitter is three records</h3>
+
+    <p>
+        Each emitter has three parts that share one id. The emitter itself holds spawning: rate, speed, lifetime, size, forces. Its behaviour chain says how each particle is drawn,
+        built from modifiers such as <code>ps_texture</code> (the texture), <code>vs_colour</code> (colour over life) and <code>vs_vertex_alpha</code> (fade over life).
+        Its render stack says which render layer it goes in: ordinary particles, heat haze, decals on the ground, or light. The editor shows all three under the emitter,
+        so you rarely think about it, but it's why Duplicate and Rename change three places at once.
+    </p>
+
+    <h3>Quality tiers</h3>
+
+    <p>
+        A value can differ per graphics setting. Tier 0 is what Ultra effects quality reads and tiers 1 and 2 cover the settings below it; the editor calls them Ultra, High and Medium.
+        Emitter and render stack values fall back to Ultra's when a tier doesn't set its own. Behaviour chains don't fall back: a chain with no block for a tier draws nothing
+        on that setting, and nothing anywhere tells you. CA gives all 14,137 of its chains all three tiers, so this only bites hand-made effects.
+        The editor warns you (see <a href="#trap-quality">the quality trap</a>).
+    </p>
+
+    <h3>Curves</h3>
+
+    <p>
+        Most numbers are curves rather than single values. They run over the life of the particle or the emitter, from 0 (birth) to 1 (death).
+        A curve has channels, usually in pairs like <code>x_min</code> and <code>x_max</code>, and a mapping that says what to do with them:
+        take a random point between min and max, or take the min. A steam puff that lives "2.5 to 4 seconds" is a <code>ParticleLifeTime</code> curve
+        with <code>x_min</code> at 2.5, <code>x_max</code> at 4.0 and a mapping that picks between them.
+    </p>
+
+    <h2 id="opening">Opening an effect</h2>
+
+    <p>
+        Load the game's packs first (CA's effect files are in <code>vfx_desc.pack</code>, their textures in <code>vfx.pack</code>) and have an editable pack:
+        File &gt; Create a new packfile makes one, or right-click a pack and pick Set as Editable Pack. <a href="PackFileHandling.html">PackFile Handling</a> covers the rest.
+    </p>
+
+    <p>Then either:</p>
+
+    <ul>
+        <li>Tools &gt; VFX Editor opens an empty tab. Open picks an <code>.xml</code> from the loaded packs, and New starts an empty effect.</li>
+        <li>Double-click a file under <code>vfx/</code> in the pack explorer. The text editor claims <code>.xml</code> files too, so the AssetEditor asks which one you want. Pick the VFX editor.</li>
+    </ul>
+
+    <p>
+        Only files in a <code>vfx</code> folder open here. One that isn't an effect gets a message telling you to reopen it in the text editor.
+    </p>
+
+    <p>
+        The first editor you open reads CA's effect files in the background to learn its vocabulary: which words belong in which dropdown, and which properties CA uses where.
+        The status line says "Reading vanilla effects", then how many it read. Until it finishes the dropdowns are plain text boxes, and anything you type meanwhile is kept.
+    </p>
+
+    <h2 id="layout">Finding your way round</h2>
+
+    <p>
+        Three panes: the tree on the left, the values in the middle, the preview on the right. The toolbar is along the top. The status line along the bottom says what just happened,
+        including why an edit was refused, so if a click seems to do nothing, look there first.
+    </p>
+
+    <h3>The tree</h3>
+
+    <table>
+        <tr><th>Item</th><th>What it is</th></tr>
+        <tr><td>Effect</td><td>the <code>&lt;vfx&gt;</code> line's attributes</td></tr>
+        <tr><td>Emitters</td><td>one entry per emitter, shown as <code>id (type)</code>, each with its Behaviour chain (one child per modifier) and its Render stack</td></tr>
+        <tr><td>References</td><td>one entry per reference, shown as <code>library (inst_name)</code>, with a row for each library emitter it names. <code>(off)</code> marks the switched-off ones</td></tr>
+        <tr><td>Shader library, Editor data</td><td>shown, not edited. Editor data is the parts list CA's own editor keeps, and this editor keeps it in step for you</td></tr>
+    </table>
+
+    <p>A chain labelled "Behaviour chain (draws nothing at this tier)" is <a href="#trap-quality">the quality trap</a>.</p>
+
+    <h3>The values</h3>
+
+    <p>
+        Pick something in the tree and its values appear in the middle, one row each: a checkbox for true and false, a dropdown where CA only ever writes a handful of words,
+        and a text box for the rest. Type a value, then press Tab or click elsewhere to commit it. A number that doesn't parse gets a red border, and the file keeps its old value.
+    </p>
+
+    <p>
+        A row holding a file path (a texture, a material) gets Browse, which picks from the loaded packs, and Open, which opens the file in the app; a material opens in the text editor.
+        Texture rows show a thumbnail too.
+    </p>
+
+    <p>A curve row opens into a small curve editor under it:</p>
+
+    <ul>
+        <li>The Channel dropdown picks a channel. Its keys fill the table: time, value, the in and out interpolation, four tangent numbers and a flag.</li>
+        <li>Add key copies the picked key to a point halfway to the next one. Delete key removes it, but a channel always keeps one.</li>
+        <li>Copy channel puts a copy of the picked channel at the end of the list. Remove channel deletes one, unless the mapping still reads it.</li>
+        <li>The Mapping box holds the text CA writes, <code>output,random;min,max</code> for each output, joined with <code>|</code>.
+            <code>x,1;0,1</code> means x is a random point between channels 0 and 1. <code>x,0;0,1</code> means x is channel 0.</li>
+        <li>The graph draws every channel from 0 to 1, the picked one thicker, with the value range printed under it.</li>
+    </ul>
+
+    <p>Above the rows is a strip of buttons that changes with what you picked in the tree:</p>
+
+    <table>
+        <tr><th>Picked</th><th>Buttons</th></tr>
+        <tr><td>an emitter, a render stack or a modifier</td><td>Add property, offering the names CA uses there and filling in CA's most common value. Each row gets Remove</td></tr>
+        <tr><td>a behaviour chain</td><td>Add modifier, one of the 18 modifier types, with the properties CA usually gives it</td></tr>
+        <tr><td>a modifier</td><td>Remove modifier</td></tr>
+        <tr><td>an emitter</td><td>Duplicate emitter and Rename, which use the id in the box beside them, and Remove emitter. Type switches between <code>continuous_mesh</code> (flat particles) and <code>continuous_rigid</code> (3D models)</td></tr>
+        <tr><td>Emitters</td><td>New emitter, with an id and a type</td></tr>
+        <tr><td>References</td><td>Add reference: type or pick an effect from the loaded packs</td></tr>
+        <tr><td>a reference</td><td>Add override, All on, All off, Remove reference</td></tr>
+        <tr><td>an override row</td><td>Remove override</td></tr>
+    </table>
+
+    <p>
+        Add reference gives the new reference a switched-on row for every emitter its target has. That matters, because in game a reference only plays the emitters it has a row for.
+    </p>
+
+    <h3>Quality and linked edits</h3>
+
+    <p>
+        The Quality dropdown on the toolbar picks the tier you're looking at and editing. Edits are linked by default: every tier that held the old value takes the new one,
+        so tiers that matched stay matched. Tick "This tier only" to change just the tier on screen. On High or Medium, each row is marked "this tier" or "from Ultra"
+        so you can see where its value comes from. If a tier's modifiers don't line up with the ones on screen, a linked edit leaves that tier alone, and the status line names it.
+    </p>
+
+    <h3>The preview</h3>
+
+    <p>
+        The preview plays the effect at the tier on screen, unsaved edits included. It catches up 300 milliseconds after your last change,
+        so typing a number re-simulates once rather than on every key.
+    </p>
+
+    <table>
+        <tr><th>Control</th><th>What it does</th></tr>
+        <tr><td>Play, Loop at, Speed</td><td>playback. One loop lasts the Loop at seconds, and the slider scrubs through it</td></tr>
+        <tr><td>Grid</td><td>the ground grid and its axis lines</td></tr>
+        <tr><td>Projectile, Velocity, Axis</td><td>flies the effect along one of its own axes at Velocity metres a second, crossing the centre halfway through each loop. This is the one for trails. For scale, CA's arrows fly at 54, muskets at 100, and the median projectile at 67</td></tr>
+        <tr><td>Static</td><td>watches from the projectile, so it holds still and its trail streams out behind it</td></tr>
+        <tr><td>Model..., Clear</td><td>stands a <code>.rigid_model_v2</code> where the effect is, as a size guide. Nothing goes into the file</td></tr>
+        <tr><td>Lighting...</td><td>the Kitbash editor's light settings. Lit smoke takes the same light the model does</td></tr>
+        <tr><td>Screenshot</td><td>saves the next frame at twice its size, with no grid or labels, to the folder <a href="Kitbash_PhotoStudio.html">Photo Studio</a> uses (<code>%USERPROFILE%\<wbr>AssetEditor\<wbr>PhotoStudio\<wbr>Screenshots</code>), and opens it</td></tr>
+    </table>
+
+    <p>
+        Under the viewport, a list shows up when the preview couldn't find something (a texture or a library that isn't in the loaded packs) or left something out.
+        It takes no room when it's empty.
+    </p>
+
+    <h2 id="saving">Saving</h2>
+
+    <p>
+        Save (Ctrl+S) writes the file to its own path in your editable pack. Save As asks for a new path, and a new effect asks the first time you save it.
+    </p>
+
+    <div class="warning">
+        If you opened one of CA's effects, Save writes CA's file into your pack under CA's name. That overrides it for every unit, spell and building that uses it,
+        not just the one you had in mind. Sometimes that's the point. Usually it isn't. When you start from a CA effect, Save As under your own name before you change anything.
+        The tutorial does exactly this.
+    </div>
+
+    <p>
+        Edits only touch the bytes they change, so a file you open and save without editing comes out byte for byte the same, in the same text encoding:
+        CA's are UTF-16, and a hand-written UTF-8 file stays UTF-8. The game reads both. Undo and Redo (Ctrl+Z, Ctrl+Y) go back 100 edits.
+    </p>
+
+    <h2 id="preview-limits">What the preview won't tell you</h2>
+
+    <p>
+        The preview follows CA's formats and shaders as closely as they could be read, but it isn't the game's renderer, and it hasn't been checked frame by frame
+        against CA's own effect editor yet. Use it for placement, timing, size, colour, and whether your edit did anything at all. Then look at the effect in SuperView
+        on its animation, and in a battle, before you ship. The known gaps:
+    </p>
+
+    <ul>
+        <li>It plays at the origin, with no bone and no animation. Save, and SuperView picks the change up on the unit.</li>
+        <li>Wind and <code>SpreadArc</code> aren't simulated.</li>
+        <li>Decals lie flat on the ground at height 0, never on models.</li>
+        <li>Soft, see-through fire edges come out a bit darker than in game, because the game blends in linear light and the preview doesn't.</li>
+        <li>The app's default sun is about three times brighter than an overcast battle map's, so smoke can look lighter than it will in game. Lighting... turns it down.</li>
+    </ul>
+
+    <h2 id="tutorial">Tutorial: dark red steam for a war machine</h2>
+
+    <p>
+        CA's war machines vent white steam. You'll make a dark red version, check it in the preview, and put it on an animation.
+        On the way you'll use the reference-file workflow, which is how CA tints and trims its own effects.
+    </p>
+
+    <p>
+        You need the DN build, the game's packs loaded, and an editable pack. Pick a short lowercase prefix for your files so they don't collide with anyone else's.
+        This tutorial uses <code>mymod_</code>.
+    </p>
+
+    <h3>Step 1: open CA's steam</h3>
+
+    <p>
+        Tools &gt; VFX Editor, then Open, and find <code>vfx/wh_main_machine_steam_exhaust.xml</code>. The browser's filter box saves scrolling past the other 8,307.
+        You can also double-click it in the pack explorer, under <code>vfx_desc.pack</code>.
+    </p>
+
+    <p>
+        The tree shows Effect, an empty Emitters (this file defines nothing itself), and under References, <code>wh_main_lib_machine_hellcannon_exhaust (main)</code> with six rows:
+    </p>
+
+    <ul>
+        <li><code>exhaust_embers (off)</code></li>
+        <li><code>exhaust_smoke (off)</code></li>
+        <li><code>exhaust_souls (off)</code></li>
+        <li><code>rising_steam</code></li>
+        <li><code>ice_mist (off)</code></li>
+        <li><code>ice_decal (off)</code></li>
+    </ul>
+
+    <p>
+        So CA's steam exhaust is one emitter, <code>rising_steam</code>, borrowed from the Hellcannon's exhaust library with the other five switched off. Press Play to watch it.
+    </p>
+
+    <p>
+        Click the reference itself. Among its rows, <code>scale_min</code> 0.95 and <code>scale_max</code> 1.05 give it a little random variation in size,
+        and <code>infinite_life</code> true leaves each emitter to its own setting; <code>rising_steam</code>'s is to run until the animation tag that plays it ends.
+        Now click <code>rising_steam</code>: its tint runs from 0.84 on red, green and blue (<code>tint_min</code>) to 1.00 (<code>tint_max</code>),
+        light grey to white, and both alphas are 0.10.
+    </p>
+
+    <h3>Step 2: make it yours</h3>
+
+    <p>
+        Before touching anything, Save As, and type the path <code>vfx/mymod_dark_steam.xml</code>. The tab now edits your copy, and the status line says "Saved mymod_dark_steam".
+        CA's file is untouched, and the game now has an effect called <code>mymod_dark_steam</code>.
+    </p>
+
+    <h3>Step 3: tint it</h3>
+
+    <p>With <code>rising_steam</code> picked, change these six rows:</p>
+
+    <table>
+        <tr><th>Row</th><th>CA's value</th><th>Yours</th></tr>
+        <tr><td><code>tint_min_r</code></td><td>0.84</td><td>0.46</td></tr>
+        <tr><td><code>tint_min_g</code></td><td>0.84</td><td>0.05</td></tr>
+        <tr><td><code>tint_min_b</code></td><td>0.84</td><td>0.04</td></tr>
+        <tr><td><code>tint_max_r</code></td><td>1.00</td><td>0.55</td></tr>
+        <tr><td><code>tint_max_g</code></td><td>1.00</td><td>0.06</td></tr>
+        <tr><td><code>tint_max_b</code></td><td>1.00</td><td>0.05</td></tr>
+    </table>
+
+    <p>Leave both alphas alone. Alpha is how see-through the steam is, which is a separate thing from its colour.</p>
+
+    <p>
+        A tint multiplies the colour the library already gives each particle. For this steam that's white to light grey, so the tint is close to the colour you'll see.
+        The min is 84% of the max, as in CA's version, so the puffs still come out in slightly different shades. The preview catches up a moment after each value you commit.
+    </p>
+
+    <p>
+        Values above 1 brighten past the texture's own colour, and nothing stops you going high. For a sense of scale: 95% of CA's switched-on emitters peak at a tint of 1.5 or less,
+        and the brightest projectile trail CA ships peaks at 20.
+    </p>
+
+    <h3>Step 4: more steam (optional)</h3>
+
+    <p>
+        To vent harder, raise <code>spawn_rate_scale_factor_min</code> and <code>spawn_rate_scale_factor_max</code> on the same row. 1.5 gives half as much steam again.
+        That's an override in your reference file, so the library stays CA's and stays shared.
+    </p>
+
+    <p>
+        You can switch emitters on as well. Tick <code>enable</code> on <code>exhaust_embers</code> and see what the Hellcannon's embers add, then untick it if you don't want them.
+        All on and All off, on the reference, flip every row at once.
+    </p>
+
+    <h3>Step 5: check it against something real</h3>
+
+    <p>
+        Steam floating in empty space tells you nothing about size. Click Model... and pick the war machine's <code>.rigid_model_v2</code> (any model works as a ruler).
+        It stands where the effect spawns. If the steam looks pale, open Lighting... and bring the light intensity down, since the preview's default sun is brighter than most battle maps.
+    </p>
+
+    <p>
+        This file has no behaviour chains of its own, so the Quality dropdown changes nothing here; the library already covers all three tiers. Press Ctrl+S.
+    </p>
+
+    <h3>Step 6: put it on an animation</h3>
+
+    <p>An effect plays when an animation's meta file has an EFFECT tag naming it. There are two ways to get one.</p>
+
+    <p>
+        If you're recolouring steam a unit already has, find the <code>.anm.meta</code> that plays the white steam. On a war machine the always-on steam usually sits
+        in the persistent meta, the one that runs for as long as the unit is alive. Open it, find the EFFECT tag whose Vfx Name is <code>wh_main_machine_steam_exhaust</code>,
+        and change it to <code>mymod_dark_steam</code>. The bone, offset and timing stay as CA set them.
+    </p>
+
+    <p>
+        If you're adding steam somewhere new, click New in the meta editor, filter the Create MetaData entry window for EFFECT, pick <code>EFFECT_12</code>
+        (its "Vanilla WH3 uses" column shows it's the version CA uses on most EFFECT tags), and click Add. Then fill in:
+    </p>
+
+    <table>
+        <tr><th>Field</th><th>What to put</th></tr>
+        <tr><td>Vfx Name</td><td><code>mymod_dark_steam</code>, with no folder and no <code>.xml</code></td></tr>
+        <tr><td>Node Index</td><td>the bone it sits on. -1 is the model's origin. Copying the number off an existing tag on the bone you want is the quick way</td></tr>
+        <tr><td>Position, Orientation</td><td>the offset from that bone</td></tr>
+        <tr><td>Tracking</td><td>on, so it follows the bone. Off, it stays where the bone was when it started</td></tr>
+        <tr><td>Start Time, End Time</td><td>when it plays. 0 and 0 plays for the whole animation</td></tr>
+        <tr><td>Id</td><td>0, so it plays on every unit that uses this meta. Any other number plays only on battle entities whose <code>vfx_filter_id</code> matches</td></tr>
+    </table>
+
+    <p>
+        Save the meta and open the unit in SuperView with Show VFX ticked. The effect draws on its bone with its name beside it. "(not found)" after the name means
+        no loaded pack has <code>vfx/mymod_dark_steam.xml</code>, so check the spelling. SuperView reloads when a vfx file is saved, so you can keep the VFX editor open
+        in another tab and keep tweaking.
+    </p>
+
+    <div class="note">
+        Several units often share one of CA's metas. Save CA's meta into your pack and you've changed the steam on all of them. To change one unit only,
+        give it its own copy of the meta through its animation fragment. That's an animpack job, and outside this page.
+    </div>
+
+    <h3>Step 7: ship it</h3>
+
+    <p>
+        Your pack needs <code>vfx/mymod_dark_steam.xml</code> at that path, and if you saved into your editable pack, it's already there. An ordinary mod pack is fine.
+        The meta editor's tooltip on Vfx Name says effects need a movie-type pack, but effects in mod-type packs load and draw in WH3.
+    </p>
+
+    <p>
+        An effect that only an EFFECT tag plays needs no database row. If a DB table names it instead, a projectile's trail or explosion for example,
+        also add its name to <code>particle_effects_tables</code>, which has a single column. CA's lists 2,084 effects: the Magma Cannon's explosion,
+        which <code>projectiles_explosions_tables</code> names, is in it, and the steam exhaust, which only animation tags play, isn't.
+    </p>
+
+    <p>
+        Then look at it in a battle. Dark tints on thin smoke can come out nearly black. If yours does, raise the red and look again.
+    </p>
+
+    <h2 id="own-emitters">Going further: your own emitters</h2>
+
+    <p>
+        When a reference can't do what you want (a different texture, a new size curve, a particle no library has), you're editing a library. Same rule as before:
+        don't save over CA's. Open the library, Save As under your own name, say <code>vfx/mymod_lib_exhaust.xml</code>, and make your changes there.
+        Then pick the reference in your own effect and set its <code>vfx_ref</code> row to <code>mymod_lib_exhaust</code>.
+        Your copy keeps CA's emitter ids, so the reference's rows still match.
+    </p>
+
+    <h3>An example: bigger puffs</h3>
+
+    <p>
+        In your library copy, open Emitters &gt; <code>rising_steam</code> and find <code>ParticleScale</code>, the puff's size over its life. It has six channels,
+        a min and a max for each of x, y and z, and the mapping <code>x,1;0,1|y,1;2,3|z,0;4,5</code>: width is a random point between channels 0 and 1,
+        height between 2 and 3, and z is channel 4. Pick <code>x_max</code> and you'll see four keys. The puff starts at 0.5, swells to 5.0 about three quarters
+        of the way through its life, and ends at 2.5. Raise that 5.0 and the biggest puffs get bigger. Do the same on <code>y_max</code>, or the puffs stretch sideways
+        instead of growing.
+    </p>
+
+    <h3>Starting from nothing</h3>
+
+    <p>
+        Pick Emitters, type an id, choose a type, and click New emitter. For <code>continuous_mesh</code> you get 32 properties and the six modifiers most of CA's mesh emitters carry
+        (<code>vs_colour</code>, <code>vs_vertex_alpha</code>, <code>ps_texture</code>, <code>ps_lighting</code>, <code>ps_soft_edge</code>, <code>vs_translation</code>),
+        all filled with CA's most common values and identical at all three tiers. It's a starting point, not an effect: Browse a texture onto <code>diffuse</code>
+        under <code>ps_texture</code>, shape the colour and alpha curves, and go from there.
+    </p>
+
+    <p>
+        Duplicating is often quicker. Pick an emitter close to what you want, type a new id, click Duplicate emitter, and change the copy. Remove emitter takes the emitter,
+        its chain and its render stack together. Rename changes all three too, but it can't fix references to the old id from other files, and the status line reminds you.
+    </p>
+
+    <h3 id="trap-quality">The quality trap</h3>
+
+    <p>
+        If a behaviour chain says "No modifiers at this tier, so it draws nothing", that emitter is invisible on that graphics setting in game.
+        Click "Copy Ultra's block here". That's what CA does: 13,884 of its 14,137 chains are identical across the three tiers.
+        Check all three before you ship anything with emitters of its own.
+    </p>
+
+    <h3 id="trap-campaign-textures">Campaign textures</h3>
+
+    <p>
+        If your effect plays on the campaign map and uses a texture you made, encode it as BC7_UNORM_SRGB with mips, for example
+        <code>texconv -f BC7_UNORM_SRGB -srgb -m 0 smoke.png</code>. All 93 diffuse textures CA's campaign libraries use are in that format,
+        and a single DXT5 texture behind one modded campaign effect has been seen turning every CA smoke, ember and magic particle on the map
+        into a flat translucent square, from the moment the campaign loads. Pillow can't write BC7, so it has to be texconv (or something else that can).
+    </p>
+
+    <h3 id="trap-never-stop">Effects that never stop</h3>
+
+    <p>
+        <code>infinite_life</code> true on a reference leaves each emitter to its own setting. Switch on a looping emitter, a firebox flame say, inside an effect an attack plays,
+        and every swing leaves a fire that never goes out. Leave looping emitters off in one-shot effects, or set <code>infinite_life</code> to false on the reference,
+        which ends every looping emitter under it. 154 of CA's impact and explosion references do exactly that.
+    </p>
+
+    <h2 id="troubleshooting">When something goes wrong</h2>
+
+    <table>
+        <tr><th>What you see</th><th>What's probably going on</th></tr>
+        <tr><td>a click or an edit did nothing</td><td>the status line says why, for example a taken id or a tier with no block</td></tr>
+        <tr><td>a number box has a red border</td><td>it isn't a number, and the file kept its old value</td></tr>
+        <tr><td>dropdowns are plain text boxes</td><td>the editor is still reading CA's effects, or the game's packs weren't loaded when it opened. Open a new VFX editor tab once they are</td></tr>
+        <tr><td>saving fails with "Is an editable pack selected?"</td><td>no editable pack is set (see <a href="#opening">opening an effect</a>)</td></tr>
+        <tr><td>SuperView shows "(not found)" after the effect name</td><td>no loaded pack has <code>vfx/&lt;Vfx Name&gt;.xml</code>: check the spelling, and that your pack is loaded</td></tr>
+        <tr><td>the effect shows on Ultra and not below</td><td>a behaviour chain is missing a tier (<a href="#trap-quality">the quality trap</a>)</td></tr>
+        <tr><td>particles all over the campaign map turn into flat squares</td><td>a campaign effect's texture isn't BC7_UNORM_SRGB (<a href="#trap-campaign-textures">campaign textures</a>)</td></tr>
+        <tr><td>an attack leaves a fire burning</td><td>a looping emitter switched on under <code>infinite_life</code> true (<a href="#trap-never-stop">effects that never stop</a>)</td></tr>
+        <tr><td>an emitter added to a library never shows in game</td><td>the reference has no row for it. Add override on the reference</td></tr>
+        <tr><td>the preview's list names a missing texture or library</td><td>it isn't in the loaded packs, so load the pack that has it</td></tr>
+    </table>
+
+</body>
+</html>

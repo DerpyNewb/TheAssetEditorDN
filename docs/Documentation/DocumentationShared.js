@@ -11,7 +11,8 @@ const documentationPages = [
             { title: 'Pin Tool', fileName: 'Kitbash_PinTool.html' },
             { title: 'Photo Studio', fileName: 'Kitbash_PhotoStudio.html' }
         ]
-    }
+    },
+    { title: 'VFX Editor', fileName: 'VfxEditor.html' }
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
