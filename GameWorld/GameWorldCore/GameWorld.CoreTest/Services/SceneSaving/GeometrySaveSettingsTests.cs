@@ -28,7 +28,7 @@ namespace GameWorld.Core.Test.Services.SceneSaving
             // Assert
             Assert.That(saveSettings.GeometryOutputType, Is.EqualTo(GeometryStrategy.Rmv7));
             Assert.That(saveSettings.MaterialOutputType, Is.EqualTo(MaterialStrategy.WsModel_Warhammer3));
-            Assert.That(saveSettings.LodGenerationMethod, Is.EqualTo(LodStrategy.AssetEditor));
+            Assert.That(saveSettings.LodGenerationMethod, Is.EqualTo(LodStrategy.MeshOptimizer));
         }
 
         [TestCase]
@@ -43,7 +43,7 @@ namespace GameWorld.Core.Test.Services.SceneSaving
             // Assert
             Assert.That(saveSettings.GeometryOutputType, Is.EqualTo(GeometryStrategy.Rmv6));
             Assert.That(saveSettings.MaterialOutputType, Is.EqualTo(MaterialStrategy.None));
-            Assert.That(saveSettings.LodGenerationMethod, Is.EqualTo(LodStrategy.AssetEditor));
+            Assert.That(saveSettings.LodGenerationMethod, Is.EqualTo(LodStrategy.MeshOptimizer));
         }
 
 

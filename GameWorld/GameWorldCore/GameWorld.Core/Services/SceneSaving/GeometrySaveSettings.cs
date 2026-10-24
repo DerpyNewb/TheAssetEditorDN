@@ -16,7 +16,7 @@ namespace GameWorld.Core.Services.SceneSaving
         public string OutputName { get; set; } = "";// Init on load
         public GeometryStrategy GeometryOutputType { get; set; } = GeometryStrategy.Rmv7;
         public MaterialStrategy MaterialOutputType { get; set; } = MaterialStrategy.WsModel_Warhammer3;
-        public LodStrategy LodGenerationMethod { get; set; } = LodStrategy.AssetEditor;
+        public LodStrategy LodGenerationMethod { get; set; } = LodStrategy.MeshOptimizer;
         public List<LodGenerationSettings> LodSettingsPerLod { get; set; } = [];
         public bool OnlySaveVisible { get; set; } = true;
         public int NumberOfLodsToGenerate { get; set; } = 4;

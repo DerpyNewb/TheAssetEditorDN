@@ -1,6 +1,7 @@
 ﻿using GameWorld.Core.Rendering;
 using GameWorld.Core.Rendering.Geometry;
 using MeshDecimator;
+using MeshDecimator.Algorithms;
 using Microsoft.Xna.Framework;
 
 namespace GameWorld.Core.Services.SceneSaving.Lod.MeshDecimatorIntegration
@@ -15,7 +16,8 @@ namespace GameWorld.Core.Services.SceneSaving.Lod.MeshDecimatorIntegration
 
             var sourceMesh = new Mesh(sourceVertices, sourceSubMeshIndices);
             sourceMesh.Normals = original.VertexArray.Select(x => new MeshDecimator.Math.Vector3(x.Normal.X, x.Normal.Y, x.Normal.Z)).ToArray();
-            sourceMesh.Tangents = original.VertexArray.Select(x => new MeshDecimator.Math.Vector4(x.Tangent.X, x.Tangent.Y, x.Tangent.Z, 0)).ToArray(); // Should last 0 be 1?
+            // w carries the handedness, so a mirrored UV island keeps its binormal direction
+            sourceMesh.Tangents = original.VertexArray.Select(x => new MeshDecimator.Math.Vector4(x.Tangent.X, x.Tangent.Y, x.Tangent.Z, Handedness(x))).ToArray();
             sourceMesh.SetUVs(0, original.VertexArray.Select(x => new MeshDecimator.Math.Vector2(x.TextureCoordinate.X, x.TextureCoordinate.Y)).ToArray());
             sourceMesh.SetUVs(1, original.VertexArray.Select(x => new MeshDecimator.Math.Vector2(x.TextureCoordinate1.X, x.TextureCoordinate1.Y)).ToArray());
 
@@ -38,11 +40,12 @@ namespace GameWorld.Core.Services.SceneSaving.Lod.MeshDecimatorIntegration
                       0, 0, 0, 0)).ToArray();
             }
 
-            var currentTriangleCount = sourceVertices.Length;
+            var currentTriangleCount = original.IndexArray.Length / 3;
             var targetTriangleCount = (int)Math.Ceiling(currentTriangleCount * quality);
 
-            var algorithm = MeshDecimation.CreateAlgorithm(Algorithm.FastQuadricMesh);
+            var algorithm = (FastQuadricMeshSimplification)MeshDecimation.CreateAlgorithm(Algorithm.FastQuadricMesh);
             algorithm.PreserveBorders = true;
+            algorithm.PreserveSeams = true;
             var destMesh = MeshDecimation.DecimateMesh(algorithm, sourceMesh, targetTriangleCount);
 
             var destVertices = destMesh.Vertices;
@@ -62,7 +65,7 @@ namespace GameWorld.Core.Services.SceneSaving.Lod.MeshDecimatorIntegration
 
                 var normal = new Vector3(norm.x, norm.y, norm.z);
                 var tangent = new Vector3(tangents.x, tangents.y, tangents.z);
-                var binormal = Vector3.Normalize(Vector3.Cross(normal, tangent));// * sign
+                var binormal = Vector3.Normalize(Vector3.Cross(normal, tangent)) * (tangents.w < 0 ? -1 : 1);
 
                 var vert = new VertexPositionNormalTextureCustom();
                 vert.Position = new Vector4((float)pos.x, (float)pos.y, (float)pos.z, 1);
@@ -103,5 +106,7 @@ namespace GameWorld.Core.Services.SceneSaving.Lod.MeshDecimatorIntegration
 
             return clone;
         }
+
+        static float Handedness(VertexPositionNormalTextureCustom vertex) => Vector3.Dot(Vector3.Cross(vertex.Normal, vertex.Tangent), vertex.BiNormal) < 0 ? -1 : 1;
     }
 }

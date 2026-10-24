@@ -7,8 +7,8 @@ namespace GameWorld.Core.Services.SceneSaving.Lod.Strategies
     public class AssetEditorLodGeneration : LodGeneratorBase, ILodGenerationStrategy
     {
         public LodStrategy StrategyId => LodStrategy.AssetEditor;
-        public string Name => "Default";
-        public string Description => "Use AssetEditor Algorithm";
+        public string Name => "Fast Quadric (old)";
+        public string Description => "The AssetEditor's original Fast Quadric decimator";
         public bool IsAvailable => true;
 
         public AssetEditorLodGeneration(IScopedLogger scopedLogger) : base(scopedLogger)

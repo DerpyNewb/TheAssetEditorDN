@@ -2,7 +2,7 @@
 using GameWorld.Core.Components.Selection;
 using GameWorld.Core.Rendering.Geometry;
 using GameWorld.Core.SceneNodes;
-using GameWorld.Core.Services.SceneSaving.Lod.MeshDecimatorIntegration;
+using GameWorld.Core.Services.SceneSaving.Lod.MeshOptimizerIntegration;
 using Shared.Core.Events;
 
 namespace GameWorld.Core.Commands.Object
@@ -39,7 +39,7 @@ namespace GameWorld.Core.Commands.Object
             {
                 var originalMesh = meshNode.Geometry;
 
-                var reducedMesh = DecimatorMeshOptimizer.GetReducedMeshCopy(originalMesh, _factor);
+                var reducedMesh = MeshOptimizerSimplifier.GetReducedMeshCopy(originalMesh, _factor);
                 meshNode.Geometry = reducedMesh;
                 _originalGeometry.Add(originalMesh);
             }

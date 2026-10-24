@@ -74,6 +74,7 @@ namespace GameWorld.Core
             serviceCollection.AddScoped<IGeometryStrategy, Rmw8Strategy>();
 
             serviceCollection.AddScoped<LodStrategyProvider>();
+            serviceCollection.AddScoped<ILodGenerationStrategy, MeshOptimizerLodGeneration>();
             serviceCollection.AddScoped<ILodGenerationStrategy, AssetEditorLodGeneration>();
             serviceCollection.AddScoped<ILodGenerationStrategy, Lod0ForAllLodGeneration>();
             serviceCollection.AddScoped<ILodGenerationStrategy, NoLodGeneration>();

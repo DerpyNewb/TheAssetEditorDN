@@ -14,4 +14,8 @@
     <ProjectReference Include="..\..\MeshDecimator\MeshDecimator.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Services\SceneSaving\Lod\MeshOptimizerIntegration\Native\meshoptimizer.dll" Link="meshoptimizer.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
