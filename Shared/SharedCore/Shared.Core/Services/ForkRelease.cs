@@ -12,7 +12,7 @@ namespace Shared.Core.Services
         public const string Repository = "TheAssetEditorDN";
 
         /// <summary>This build's DN version. A release of it is tagged v{upstream}-dn-v{this}, as v0.78-dn-v1.1.</summary>
-        public static readonly Version Current = new(1, 2);
+        public static readonly Version Current = new(1, 3);
 
         /// <summary>The DN version a release tag names, or null for a tag that names none.</summary>
         public static Version? Parse(string tag)

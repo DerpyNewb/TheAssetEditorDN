@@ -1,14 +1,42 @@
 ![AssetEditor](https://user-images.githubusercontent.com/54080240/143955132-badd843e-b823-4a4d-8326-e64be4e2c877.png)
 
-# The Asset Editor
+# The Asset Editor, DN fork
 
-[![Build & Test](https://github.com/donkeyProgramming/TheAssetEditor/actions/workflows/pr-test.yml/badge.svg)](https://github.com/donkeyProgramming/TheAssetEditor/actions/workflows/pr-test.yml)
-[![Latest release](https://img.shields.io/github/v/release/donkeyProgramming/TheAssetEditor)](https://github.com/donkeyProgramming/TheAssetEditor/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/donkeyProgramming/TheAssetEditor/total)](https://github.com/donkeyProgramming/TheAssetEditor/releases)
+[![Latest release](https://img.shields.io/github/v/release/DerpyNewb/TheAssetEditorDN)](https://github.com/DerpyNewb/TheAssetEditorDN/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/DerpyNewb/TheAssetEditorDN/total)](https://github.com/DerpyNewb/TheAssetEditorDN/releases)
 
-A powerful modding tool for Total War games. Provides a full suite of editors for 3D models, animations, audio, textures, and more — all in one integrated desktop application.
+A fork of [donkeyProgramming's AssetEditor](https://github.com/donkeyProgramming/TheAssetEditor), the modding tool for Total War games with editors for 3D models, animations, audio, textures and more in one desktop app. It is built on upstream v0.78 and adds a VFX editor, a Unit Simulator, a particle preview much closer to the game's, better LOD generation and a long list of fixes.
 
-**[Documentation](https://donkeyprogramming.github.io/TheAssetEditor/)** · **[Video Tutorial](https://www.youtube.com/watch?v=ZlmG2AVL5-g)** · **[Latest Release](https://github.com/donkeyProgramming/TheAssetEditor/releases/latest)**
+Releases are numbered DN v1, v1.1, v1.2 and so on, and the title bar shows both numbers, as in "AssetEditor v0.78 - DN v1.3".
+
+**[Latest Release](https://github.com/DerpyNewb/TheAssetEditorDN/releases/latest)** · **[Documentation](https://donkeyprogramming.github.io/TheAssetEditor/)** · **[Video Tutorial](https://www.youtube.com/watch?v=ZlmG2AVL5-g)** · **[Upstream](https://github.com/donkeyProgramming/TheAssetEditor)**
+
+---
+
+## What this fork adds
+
+The headline items. Every change is listed in the [release notes](https://github.com/DerpyNewb/TheAssetEditorDN/releases).
+
+### VFX Editor
+In the Tools menu. Opens `vfx/*.xml` and edits it in place: quality tiers, curve keys, properties, modifiers, emitters and references, with undo and a live preview you can fly like a projectile to see its trail. Its guide and a tutorial are in [docs/Documentation/VfxEditor.html](docs/Documentation/VfxEditor.html), which the upstream documentation site does not have. GitHub shows that file as source, so open it from a clone.
+
+### Unit Simulator
+In the Tools menu. Plays a rider on its mount the way the game pairs them, edits both battle tables and saves them back into their animpack, and adds `battle_personalities` riders on the mount's attach bones, with TSV export for RPFM.
+
+### Particle preview
+Flipbooks, trails, decals, HDR glow at the game's bloom threshold, light particles lighting the ground and models, distortion and heat haze, rigid-model particles, terrain spawning, vector fields. A chain with no Ultra block draws nothing at Ultra, as in the game.
+
+### SuperView and the Anm.Meta editor
+Vanilla `.anm.meta` files re-save byte-identical. Tag descriptions, a New dialog, PROP_10 and above, EFFECT particles, hand poses and animated props drawn in place, and `.variantmeshdefinition` files open and play.
+
+### LOD generation
+LODs and "Reduce mesh by 10%" use [meshoptimizer](https://github.com/zeux/meshoptimizer). It lands close to the triangle count you ask for and keeps UV seams, open edges, skin weights and mirrored tangent frames. The old Fast Quadric decimator is still in the save dialog as "Fast Quadric (old)", with three of its bugs fixed.
+
+### Packs, saving and undo
+A backup of the `.pack` before every save, autosave, Restore backup and File > Create a new packfile. Redo in Kitbash and the KeyFrame editor, and undo and redo in the Skeleton, Audio, AnimPack and Unit Simulator editors.
+
+### Upstream bugs fixed
+The viewport capped at 37 to 50 FPS on 75 to 144 Hz displays, faction colours did not tint WH3 models, copied models lost their textures, and labels printed `{loc:...}` instead of their text. These and more are fixed.
 
 ---
 
@@ -45,9 +73,11 @@ Generates analysis and diagnostic reports including material reports, mesh info 
 
 ## Getting Started
 
-1. Download the [latest release](https://github.com/donkeyProgramming/TheAssetEditor/releases/latest)
-2. Extract and run `AssetEditor.exe`
+1. Download the [latest release](https://github.com/DerpyNewb/TheAssetEditorDN/releases/latest)
+2. Extract it and run `AssetEditor/AssetEditor.exe`. Windows x64; the .NET runtime is included.
 3. Load your game's pack files and start editing
+
+From DN v1.2 on, the update prompt checks this fork's releases. DN v1 and v1.1 still check upstream's, so download a newer DN release by hand.
 
 For detailed guides, see the **[Documentation](https://donkeyprogramming.github.io/TheAssetEditor/)**.
 
@@ -56,15 +86,17 @@ For detailed guides, see the **[Documentation](https://donkeyprogramming.github.
 Prerequisites: .NET 10 SDK, Windows
 
 ```bash
-git clone https://github.com/donkeyProgramming/TheAssetEditor.git
-cd TheAssetEditor
+git clone https://github.com/DerpyNewb/TheAssetEditorDN.git
+cd TheAssetEditorDN
 dotnet build AssetEditor.sln
 ```
 
+`meshoptimizer.dll` is checked in prebuilt; `GameWorld/GameWorldCore/GameWorld.Core/Services/SceneSaving/Lod/MeshOptimizerIntegration/Native/README.md` has the commands to rebuild it from source.
+
 ## Contributing
 
-Pull requests are welcome. The project uses a modular architecture with dependency injection — each editor is a self-contained project under the `Editors/` folder.
+Pull requests are welcome. The project uses a modular architecture with dependency injection; each editor is a self-contained project under the `Editors/` folder. A bug that upstream has too is best reported [upstream](https://github.com/donkeyProgramming/TheAssetEditor).
 
 ## License
 
-See the repository for license details.
+See the repository for license details. meshoptimizer is MIT licensed, and its licence ships beside the DLL.
