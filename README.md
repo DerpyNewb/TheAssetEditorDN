@@ -18,7 +18,7 @@ Releases are numbered DN v1, v1.1, v1.2 and so on, and the title bar shows both 
 The headline items. Every change is listed in the [release notes](https://github.com/DerpyNewb/TheAssetEditorDN/releases).
 
 ### VFX Editor
-In the Tools menu. Opens `vfx/*.xml` and edits it in place: quality tiers, curve keys, properties, modifiers, emitters and references, with undo and a live preview you can fly like a projectile to see its trail. Its guide and a tutorial are in [docs/Documentation/VfxEditor.html](docs/Documentation/VfxEditor.html), which the upstream documentation site does not have. GitHub shows that file as source, so open it from a clone.
+In the Tools menu. Opens `vfx/*.xml` and edits it in place: quality tiers, curve keys, properties, modifiers, emitters and references, with undo and a live preview you can fly like a projectile to see its trail. Its guide and a tutorial are in [docs/Documentation/VfxEditor.html](docs/Documentation/VfxEditor.html), which the upstream documentation site does not have. GitHub shows that file as source; the release zip carries it in `AssetEditor/docs/Documentation/`, so open it from there.
 
 ### Unit Simulator
 In the Tools menu. Plays a rider on its mount the way the game pairs them, edits both battle tables and saves them back into their animpack, and adds `battle_personalities` riders on the mount's attach bones, with TSV export for RPFM.
