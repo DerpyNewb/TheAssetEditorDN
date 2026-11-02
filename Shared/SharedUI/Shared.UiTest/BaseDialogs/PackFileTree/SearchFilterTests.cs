@@ -1,6 +1,7 @@
 ﻿using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Models.Containers;
+using Shared.Core.PackFiles.Utility;
 using Shared.Ui.BaseDialogs.PackFileTree;
 
 namespace Shared.UiTest.BaseDialogs.PackFileTree
@@ -66,6 +67,25 @@ namespace Shared.UiTest.BaseDialogs.PackFileTree
             Assert.That(heroMesh?.IsVisible, Is.True);
             Assert.That(villainTexture?.IsVisible, Is.False);
             Assert.That(music?.IsVisible, Is.False);
+        }
+
+        // The game's packs come from a cache that a search used to ask with SQL LIKE, which reads _ as any one character: a search
+        // for bst_minotaur showed bst-minotaur too. The search matches names in the tree, the same way for every container.
+        [Test]
+        public void Filter_OnTheGameCache_AnUnderscoreIsAnUnderscore()
+        {
+            var files = new[] { "bst_minotaur.dds", "bst-minotaur.dds" }
+                .Select((name, i) => ($"variantmeshes\\{name}", name, (long)i * 10, 10L, false, false, CompressionFormat.None, 0u))
+                .ToArray();
+            _packFileService.AddContainer(CachedPackFileContainer.CreateFromFileList("All Game Packs", files, useInMemoryDb: true,
+                systemFilePath: @"c:\game\data", sourcePackFilePath: @"c:\game\data\pack1.pack"));
+            var vm = CreateBrowser();
+
+            vm.Filter.FilterText = "bst_minotaur";
+
+            var root = vm.Files.First();
+            Assert.That(FindFileNode(root, "bst_minotaur.dds")?.IsVisible, Is.True);
+            Assert.That(FindFileNode(root, "bst-minotaur.dds")?.IsVisible, Is.False);
         }
 
         [Test]

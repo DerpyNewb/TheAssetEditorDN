@@ -37,7 +37,7 @@
                 <Grid>
                     <TextBox x:Name="FilterTextBoxItem" Style="{StaticResource HintedTextBox}" KeyboardNavigation.TabIndex="0" FontSize="12" BorderThickness="0"
                              KeyboardNavigation.IsTabStop="True" HorizontalAlignment="Stretch" Padding="2.5, 0, 0, 0"  Height="24" VerticalContentAlignment="Center" 
-                             Text="{Binding Filter.FilterText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay, Delay=350, ValidatesOnDataErrors=True}"
+                             Text="{Binding Filter.FilterText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay, Delay=350}"
                              Tag="{loc:Loc Dialog.PackFileBrowser.SearchHint}">
                     </TextBox>
 
