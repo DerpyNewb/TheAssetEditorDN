@@ -47,7 +47,7 @@ namespace GameWorld.Core.Test.Vfx
             foreach (var line in unparsed.Take(20)) TestContext.Out.WriteLine("  " + line);
             TestContext.Out.WriteLine($"reference problems: {problems.Count}");
             foreach (var line in problems.Take(40)) TestContext.Out.WriteLine("  " + line);
-            TestContext.Out.WriteLine("step-1 gaps, by emitter count:");
+            TestContext.Out.WriteLine("gaps, by emitter count:");
             foreach (var (gap, count) in gaps.OrderByDescending(x => x.Value)) TestContext.Out.WriteLine($"  {count,7}  {gap}");
             foreach (var (category, names) in candidates) TestContext.Out.WriteLine($"{category}: {string.Join(", ", names)}");
 

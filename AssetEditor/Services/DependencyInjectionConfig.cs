@@ -40,6 +40,8 @@ namespace AssetEditor.Services
                 new Editors.VfxEditor.DependencyInjectionContainer(),
                 new Editors.UnitSimulator.DependencyInjectionContainer(),
                 new Editors.CampaignAnimationSetEditor.DependencyInjectionContainer(),
+                new Editors.MusicDatEditor.DependencyInjectionContainer(),
+                new Editors.MusicProjectEditor.DependencyInjectionContainer(),
 
                 // Host application
                 new DependencyInjectionContainer(),

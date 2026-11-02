@@ -280,7 +280,7 @@ namespace GameWorld.Core.Vfx
                     NotDrawn(s, "its RigidData names no model, so there is nothing to draw");
             }
             else if (resolved.Emitter.Type != "continuous_mesh")
-                NotDrawn(s, $"emitter type {resolved.Emitter.Type} is not drawn in step 1");
+                NotDrawn(s, $"emitter type {resolved.Emitter.Type} is not drawn");
             if (resolved.SceneViewType is "DEFERRED_DECAL" or "DEFERRED_DECAL_EMISSIVE" or "SEA_OVERLAY")
                 s.Decal = true;
             else if (resolved.SceneViewType == "DISTORTION")
@@ -288,9 +288,9 @@ namespace GameWorld.Core.Vfx
             else if (resolved.SceneViewType == "DEFERRED_DYNAMIC_LIGHT")
                 (s.Decal, s.Light) = (true, true);
             else if (resolved.SceneViewType is not (null or "FULLRES_DEFERRED_ALPHA" or "HALFRES_DEFERRED_ALPHA"))
-                NotDrawn(s, $"scene_view_type {resolved.SceneViewType} is not drawn in step 1");
+                NotDrawn(s, $"scene_view_type {resolved.SceneViewType} is not drawn");
             if (Flag("AllowEmitFromMesh"))
-                s.Skipped.Add("emit from mesh is not simulated in step 1");
+                s.Skipped.Add("emit from mesh is not simulated");
             if (P("VectorFieldStrId")?.Value is { Length: > 0 } field)
             {
                 s.Field = resolved.VectorField;
@@ -306,7 +306,7 @@ namespace GameWorld.Core.Vfx
                 s.LoopFieldOrientation = Flag("VectorfieldOrientationLoopAnim");
             }
             if (Number("EffectedByWindFactor", 0) != 0 || Number("WindVarianceFactor", 0) != 0)
-                s.Skipped.Add("wind is not simulated in step 1");
+                s.Skipped.Add("wind is not simulated");
             s.InheritedSpeed = Number("SpawnInheritedSpeed", 0);
             s.InheritedDirectionBlend = Number("SpawnInheritedDirectionBlend", 0);
             s.Events = (resolved.Events ?? []).Where(x => x.Emitters.Count > 0)
@@ -323,7 +323,7 @@ namespace GameWorld.Core.Vfx
             s.EmitterCull = Cull("CullDistances", s.EmitterCull);
             s.ParticleCull = Cull("ParticleCullDistances", s.ParticleCull);
             if (Range("SpreadArc", (0, 0)) != (0, 0))
-                s.Skipped.Add("SpreadArc is not read in step 1");
+                s.Skipped.Add("SpreadArc is not read");
 
             ReadChain(s, resolved.Chain, resolved.MaterialTexture);
             // A decal paints the ground's colour, not light, so its texture is laid over by its alpha whatever the chain says:
@@ -418,7 +418,7 @@ namespace GameWorld.Core.Vfx
                 _ => (QuadOrientation.CameraFacing, false),
             };
             if (!known)
-                s.Skipped.Add($"orientation_mode \"{mode}\" is drawn camera-facing in step 1");
+                s.Skipped.Add($"orientation_mode \"{mode}\" is drawn camera-facing");
             // Without a velocity modifier the quad turns by vs_translation's restriction: CA's particle_vfx_library.hlsl names
             // 0 to 3 "CameraFacing, Vertical, Horizontal, 3D".
             if (velocity == null)

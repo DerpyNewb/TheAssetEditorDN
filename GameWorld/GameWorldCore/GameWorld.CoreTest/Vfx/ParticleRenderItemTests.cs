@@ -968,6 +968,50 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(new[] { pixel.X, pixel.Y }, Is.EqualTo(new[] { 1f, 0f }).Within(0.02));
         }
 
+        // Emitters are drawn back to front, so the nearer lies over the farther whichever the file lists first.
+        [Test]
+        public void Emitters_AreDrawnFarthestFirst()
+        {
+            using var item = new ParticleRenderItem(Particles(Filling(null, new Vector4(0, 0, 1, 1), z: 1), Filling(null, new Vector4(1, 0, 0, 1), z: -1)), NoTextures(), () => Shader);
+            var pixel = Render(() => item.Draw(_device, View, RenderingTechnique.Normal));
+            Assert.That(new[] { pixel.X, pixel.Z }, Is.EqualTo(new[] { 0f, 1f }).Within(0.02));
+        }
+
+        // ...and so are an emitter's particles.
+        [Test]
+        public void Quads_TakeTheFarthestParticleFirst()
+        {
+            var camera = ParticleRenderItem.CameraAxes.From(View, Matrix.Identity);
+            var vertices = ParticleRenderItem.Quads(new EmitterSettings(), camera, [RedHalfAlpha with { Position = new Vector3(0, 0, 1) }, RedHalfAlpha with { Position = new Vector3(0, 0, -1) }]);
+            Assert.That(vertices.Take(6).Select(v => v.Position.Z), Is.All.EqualTo(-1f).Within(1e-4));
+        }
+
+        // A decal lies on the ground, so it does not fade into it: over a scene depth that is the ground 5 m below, it draws whole.
+        [Test]
+        public void Decal_DoesNotFadeIntoTheGroundItLiesOn()
+        {
+            using var depth = new Texture2D(_device, 4, 4, false, SurfaceFormat.Single);
+            depth.SetData(Enumerable.Repeat(5f, 16).ToArray());
+            var down = Above([]) with { SceneDepth = depth };
+            var particle = new ParticleState(new Vector3(0, 1, 0), Vector3.Zero, new Vector2(10, 10), 0, Vector3.One, 1, 0, 0);
+            var settings = new EmitterSettings { Decal = true, Premultiplied = false, SoftEdge = 1 };
+            var pixel = Render(() => ParticleRenderItem.DrawEmitter(_device, Shader, down, Matrix.Identity, ParticleRenderItem.CameraAxes.From(down, Matrix.Identity), settings, _white, [particle]), Color.Black);
+            Assert.That(pixel.X, Is.EqualTo(1).Within(0.02));
+        }
+
+        // The engine's depth pass draws an effect's rigid models, the only part of it that is solid.
+        [Test]
+        public void DepthPass_DrawsTheRigidModels()
+        {
+            var asked = new List<string>();
+            using var meshes = new VfxMeshCache(path => { asked.Add(path); return new GroupNode("empty"); });
+            var rigid = Filling(null);
+            rigid.Rigid = [new VfxRigidEntry("vfx/models/rock.wsmodel", new Vector3(0.5f), null)];
+            using var item = new ParticleRenderItem(Particles(rigid), NoTextures(), () => Shader, meshes);
+            Render(() => item.Draw(_device, View, RenderingTechnique.Depth));
+            Assert.That(asked, Is.EqualTo(new[] { "vfx/models/rock.wsmodel" }));
+        }
+
         // The haze's copy of the scene leaves the caller's sampler as it found it: it left point sampling behind.
         [Test]
         public void Distortion_LeavesTheCallersSampler()

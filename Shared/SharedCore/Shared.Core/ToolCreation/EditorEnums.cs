@@ -25,6 +25,8 @@
         Csc_Editor,
         Vfx_Editor,
         UnitSimulator_Editor,
+        MusicDat_Editor,
+        MusicProject_Editor,
         None,
     }
 }

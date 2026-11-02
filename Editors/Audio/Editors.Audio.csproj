@@ -15,6 +15,21 @@
 	  <Compile Remove="AudioCacheTests.cs" />
 	  <Compile Remove="AudioExplorerTests.cs" />
 	  <Compile Remove="AudioProjectUndoTests.cs" />
+	  <Compile Remove="MusicAudioProjectServiceTests.cs" />
+	  <Compile Remove="AmsFragmentMergeTests.cs" />
+	  <Compile Remove="AmsPulseTrackMergeTests.cs" />
+	  <Compile Remove="MusicEndToEndRun.cs" />
+	  <Compile Remove="MusicHierarchyFactoryTests.cs" />
+	  <Compile Remove="MusicHierarchyGenerationTests.cs" />
+	  <Compile Remove="MusicProjectBuildTests.cs" />
+	  <Compile Remove="MusicSwitchContainerMergeTests.cs" />
+	  <Compile Remove="SetStateActionGenerationTests.cs" />
+	  <Compile Remove="VanillaBankReader.cs" />
+	  <Compile Remove="MusicTreeEndToEndRun.cs" />
+	  <Compile Remove="MusicDatFixtures.cs" />
+	  <Compile Remove="MusicDatMutationTests.cs" />
+	  <Compile Remove="MusicDatTests_Explore.cs" />
+	  <Compile Remove="VanillaMusicRoundTripRun.cs" />
 	</ItemGroup>
 
     <ItemGroup>

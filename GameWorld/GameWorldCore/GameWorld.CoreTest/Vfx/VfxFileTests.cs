@@ -20,11 +20,11 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(VfxFile.Parse(bytes).Emitters[0].Properties["A"].Value, Is.EqualTo("1"));
         }
 
-        // continuous_rigid particles are meshes: RigidData lists the models, one picked per particle.
+        // continuous_rigid particles are meshes: RigidData lists the models, one picked per particle; an entry naming none is dropped.
         [Test]
         public void Rigid_data_lists_each_model_with_its_pivot_and_animation()
         {
-            var rigid = """<property_rigid_data name="RigidData" quality="0"><rigid_entry><ModelFile value="vfx/models/rock.wsmodel"/><PivotPoint x="0.50" y="0.25" z="0.50"/><AnimFile value=""/><AnimSpeed value="1.00"/></rigid_entry><rigid_entry><ModelFile value="vfx/models/rat.wsmodel"/><PivotPoint x="0.50" y="0.50" z="0.50"/><AnimFile value="animations/rat.anim"/><AnimSpeed value="2.50"/></rigid_entry></property_rigid_data>""";
+            var rigid = """<property_rigid_data name="RigidData" quality="0"><rigid_entry><ModelFile value="vfx/models/rock.wsmodel"/><PivotPoint x="0.50" y="0.25" z="0.50"/><AnimFile value=""/><AnimSpeed value="1.00"/></rigid_entry><rigid_entry><ModelFile value="vfx/models/rat.wsmodel"/><PivotPoint x="0.50" y="0.50" z="0.50"/><AnimFile value="animations/rat.anim"/><AnimSpeed value="2.50"/></rigid_entry><rigid_entry><ModelFile value=""/><PivotPoint x="0.50" y="0.50" z="0.50"/><AnimFile value=""/><AnimSpeed value="1.00"/></rigid_entry></property_rigid_data>""";
             var emitter = VfxFile.Parse(VfxTestFiles.Xml(emitters: VfxTestFiles.Emitter("e", rigid))).Emitters[0];
             Assert.That(emitter.Rigid, Is.EqualTo(new[]
             {
@@ -42,6 +42,22 @@ namespace GameWorld.Core.Test.Vfx
             var emitter = VfxFile.Parse(VfxTestFiles.Xml(emitters: VfxTestFiles.Emitter("e", events))).Emitters[0];
             Assert.That(emitter.Events, Is.EqualTo(new[] { new VfxParticleEvent(false, "trail", true, false, true, false, true, VfxEventTurn.Velocity, -0.3f) }));
         }
+
+        [TestCase("")]
+        [TestCase("0")]
+        public void An_event_naming_no_effect_starts_nothing(string name)
+        {
+            var events = $"""<property_event name="OnParticleSpawn" quality="0" vfx_name="{name}"/>""";
+            Assert.That(VfxFile.Parse(VfxTestFiles.Xml(emitters: VfxTestFiles.Emitter("e", events))).Emitters[0].Events, Is.Empty);
+        }
+
+        // ref_spawn_speed="-1.00" is CA's unset; 0 is a speed.
+        [TestCase("", null)]
+        [TestCase(" ref_spawn_speed=\"-1.00\"", null)]
+        [TestCase(" ref_spawn_speed=\"0.00\"", 0f)]
+        [TestCase(" ref_spawn_speed=\"30.00\"", 30f)]
+        public void Ref_spawn_speed_of_minus_one_is_unset(string root, float? expected) =>
+            Assert.That(VfxFile.Parse(VfxTestFiles.Xml(root: root)).RefSpawnSpeed, Is.EqualTo(expected));
 
         // No vanilla chain lacks a value="0" block; one a modder wrote without it draws nothing at Ultra in game.
         [Test]

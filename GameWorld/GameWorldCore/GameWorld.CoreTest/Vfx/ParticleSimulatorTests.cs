@@ -35,11 +35,12 @@ namespace GameWorld.Core.Test.Vfx
         static int Count(ParticleSimulator simulator) => simulator.Emitters.Sum(x => x.Particles.Count);
         static List<ParticleState> States(ParticleSimulator simulator) => simulator.Emitters.SelectMany(ParticleSimulator.States).ToList();
 
-        // A modder's rate past 2^25 particles a step made "accumulator -= 1" a no-op, so the spawn loop never ended.
+        // A modder's rate past 2^25 particles a step made "accumulator -= 1" a no-op, so the spawn loop never ended. The cap
+        // holds over an emitter's own MaximumParticles too.
         [Test]
         public void HugeEmissionRate_StopsAtTheCap_AndReturns()
         {
-            var run = Task.Run(() => Run(Steady(x => x.Rate = C(1e12f)), 0.5f));
+            var run = Task.Run(() => Run(Steady(x => { x.Rate = C(1e12f); x.MaxParticles = 1_000_000; }), 0.5f));
             Assert.That(run.Wait(TimeSpan.FromSeconds(20)), Is.True, "AdvanceTo returned");
             Assert.That(Count(run.Result), Is.EqualTo(ParticleSimulator.ParticleCap));
         }
@@ -68,6 +69,10 @@ namespace GameWorld.Core.Test.Vfx
             var s = Steady(x => { x.InfiniteLife = false; x.LifeTime = (1, 1); x.Rate = Ramp(10, 30); });
             Assert.That(Count(Run(s, 2)), Is.EqualTo(20).Within(1));
         }
+
+        // A reference's spawn_rate_scale_factor multiplies the rate: 10 a second at 2.5 is 25 in a second.
+        [Test]
+        public void RateScale_MultipliesTheRate() => Assert.That(Count(Run(Steady(x => x.RateScale = (2.5f, 2.5f)), 1)), Is.EqualTo(25).Within(1));
 
         [Test]
         public void NegativeStartTime_PreWarms()

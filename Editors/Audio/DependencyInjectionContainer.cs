@@ -119,6 +119,10 @@ namespace Editors.Audio
             serviceCollection.AddSingleton<IRandomSequenceContainerFactory, RandomSequenceContainerFactory>();
             serviceCollection.AddSingleton<IActionEventFactory, ActionEventFactory>();
             serviceCollection.AddSingleton<IStatePathFactory, StatePathFactory>();
+            serviceCollection.AddSingleton<IMusicHierarchyFactory, MusicHierarchyFactory>();
+            serviceCollection.AddScoped<IMusicAudioProjectService, MusicAudioProjectService>();
+            serviceCollection.AddScoped<IMusicVanillaReferenceService, MusicVanillaReferenceService>();
+            serviceCollection.AddScoped<IAmsMusicLayout, AmsMusicLayout>();
             serviceCollection.AddScoped<IActionEventService, ActionEventService>();
             serviceCollection.AddScoped<IDialogueEventService, DialogueEventService>();
             serviceCollection.AddScoped<IStateService, StateService>();
@@ -126,7 +130,13 @@ namespace Editors.Audio
             // Audio Project Compiler
             serviceCollection.AddScoped<IAudioProjectCompilerService, AudioProjectCompilerService>();
             serviceCollection.AddScoped<ISoundBankGeneratorService, SoundBankGeneratorService>();
+            serviceCollection.AddScoped<IMusicScriptBuildService, MusicScriptBuildService>();
+            serviceCollection.AddScoped<IMusicProjectCompilerService, MusicProjectCompilerService>();
+            serviceCollection.AddScoped<IMusicSoundBankGeneratorService, MusicSoundBankGeneratorService>();
             serviceCollection.AddScoped<IWemGeneratorService, WemGeneratorService>();
+            serviceCollection.AddScoped<IMusicSwitchContainerMergeService, MusicSwitchContainerMergeService>();
+            serviceCollection.AddScoped<IAmsPulseTrackMergeService, AmsPulseTrackMergeService>();
+            serviceCollection.AddScoped<IAmsFragmentMergeService, AmsFragmentMergeService>();
             serviceCollection.AddScoped<IDatGeneratorService, DatGeneratorService>();
 
             // Audio Explorer

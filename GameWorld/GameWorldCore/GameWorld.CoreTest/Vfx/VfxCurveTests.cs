@@ -74,6 +74,7 @@ namespace GameWorld.Core.Test.Vfx
         [TestCase("", Description = "empty")]
         [TestCase("garbage", Description = "no mapping")]
         [TestCase("x_min,0,0;0.0,1.0|x_max,0,0;0.0,1.0:x,0;0,1", Description = "keys with 2 fields, not 9")]
+        [TestCase("x_min,0,0;0.0,1.0,linear,linear,0,0,0,0:x,0;0,0", Description = "a key with 8 fields, not 9")]
         [TestCase("x_min,0,0;0.0,1.0,linear,linear,0,0,0,0,1:x,0;0,3", Description = "a mapping past the last channel")]
         [TestCase("x_min,0,0;zero,1.0,linear,linear,0,0,0,0,1:x,0;0,0", Description = "a number that is not one")]
         // float.Parse reads these two as infinity and NaN; a modded rate of either hung the spawn loop.

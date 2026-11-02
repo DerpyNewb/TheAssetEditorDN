@@ -96,6 +96,15 @@ namespace Test.VfxEditor
             Assert.That(document.Text, Is.EqualTo(expected));
         }
 
+        // An element sharing a line with the one before it takes the spaces and tabs between them along.
+        [Test]
+        public void A_removed_element_on_a_shared_line_leaves_no_trailing_space()
+        {
+            var document = VfxDocument.FromText("<l><a/> \t<b/></l>");
+            document.Apply([document.Remove(document.Root.Children[0].Children[1])]);
+            Assert.That(document.Text, Is.EqualTo("<l><a/></l>"));
+        }
+
         [Test]
         public void Two_inserts_at_one_point_keep_their_order()
         {
