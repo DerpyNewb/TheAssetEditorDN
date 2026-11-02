@@ -31,7 +31,7 @@ namespace Test.E2EVerification
             scope.Descendants().SelectMany(e => e.Attributes().Select(a => (e, BindingPath.Match(a.Value))))
                 .Where(x => x.Item2.Success).Select(x => (x.e, x.Item2.Groups[1].Value));
 
-        static bool InTemplate(XElement e) => e.Ancestors(Wpf + "DataTemplate").Any();
+        internal static bool InTemplate(XElement e) => e.Ancestors(Wpf + "DataTemplate").Any();
 
         [Test]
         public void EveryBinding_NamesAPropertyItsItemHas()

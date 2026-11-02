@@ -67,6 +67,37 @@
             </StackPanel>
         </Border>
 
+        <!-- Shown once something has been opened. Two lines a row: the same name can sit in the game's data folder and in the
+             Workshop's, and only the folder tells them apart. -->
+        <Border>
+            <Border.Style>
+                <Style TargetType="{x:Type Border}" BasedOn="{StaticResource Card}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Recent.Count}" Value="0">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{loc:Loc MenuBar.File.OpenRecentPacks}" Margin="0, 0, 0, 8"/>
+                <ScrollViewer MaxHeight="230" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Recent}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding Command}" ToolTip="{Binding Path}" HorizontalContentAlignment="Left" Padding="8, 3" Margin="0, 0, 0, 4">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Header}"/>
+                                        <TextBlock Text="{Binding Path}" FontSize="11" Foreground="{DynamicResource ABrush.Foreground.Deeper}" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </StackPanel>
+        </Border>
+
         <DockPanel Margin="0, 2, 0, 0">
             <Button DockPanel.Dock="Right" Style="{StaticResource Choice}" Margin="0" Content="{loc:Loc StartPanel.Skip}" Command="{Binding SkipCommand}"/>
             <CheckBox VerticalAlignment="Center" IsChecked="{Binding DontShowAgain, Mode=TwoWay}">

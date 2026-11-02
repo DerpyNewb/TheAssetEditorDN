@@ -7,8 +7,9 @@ using Shared.Core.Settings;
 
 namespace AssetEditor.ViewModels
 {
-    /// <summary>The panel the app opens with: a project (recommended) or a .pack edited in place, as the File menu offers them.
-    /// A pick closes the panel; its command runs once the panel has closed, so its own dialog is not left behind it.</summary>
+    /// <summary>The panel the app opens with: a project (recommended), a .pack edited in place, or one opened lately, as the File
+    /// menu offers them. A pick closes the panel; its command runs once the panel has closed, so its own dialog is not left
+    /// behind it.</summary>
     public partial class StartPanelViewModel(ApplicationSettingsService settings, IUiCommandFactory commands) : ObservableObject
     {
         Action? _picked;
@@ -16,6 +17,12 @@ namespace AssetEditor.ViewModels
         [ObservableProperty] bool _dontShowAgain;
 
         public event Action? CloseRequested;
+
+        /// <summary>File > Open Recent's packs and folders, the latest first.</summary>
+        public List<RecentPackFileItem> Recent => settings.CurrentSettings.RecentPackFiles.Reverse()
+            .Select(info => new RecentPackFileItem(info.Path, info.ContainerType, info.IsReadOnly,
+                () => Pick(() => commands.Create<OpenRecentPackCommand>(x => x.Configure(info)).Execute())))
+            .ToList();
 
         [RelayCommand] void NewProject() => Pick(() => commands.Create<CreateNewProjectCommand>().Execute());
         [RelayCommand] void OpenProject() => Pick(() => commands.Create<OpenProjectCommand>().Execute());

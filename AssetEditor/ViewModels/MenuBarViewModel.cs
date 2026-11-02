@@ -32,7 +32,6 @@ namespace AssetEditor.ViewModels
         private readonly IUiCommandFactory _uiCommandFactory;
         private readonly TouchedFilesRecorder _touchedFilesRecorder;
         private readonly IFileSaveService _packFileSaveService;
-        private readonly IPackFileContainerLoader _packFileContainerLoader;
         private readonly IStandardDialogs _standardDialogs;
 
         public ObservableCollection<RecentPackFileItem> RecentPackFiles { get; set; } = [];
@@ -46,7 +45,6 @@ namespace AssetEditor.ViewModels
             IUiCommandFactory uiCommandFactory,
             TouchedFilesRecorder touchedFilesRecorder, 
             IFileSaveService packFileSaveService,
-            IPackFileContainerLoader packFileContainerLoader,
             IStandardDialogs standardDialogs)
         {
             _packfileService = packfileService;
@@ -55,7 +53,6 @@ namespace AssetEditor.ViewModels
             _uiCommandFactory = uiCommandFactory;
             _touchedFilesRecorder = touchedFilesRecorder;
             _packFileSaveService = packFileSaveService;
-            _packFileContainerLoader = packFileContainerLoader;
             _standardDialogs = standardDialogs;
             var settings = settingsService.CurrentSettings;
             settings.RecentPackFiles.CollectionChanged += OnRecentPackFilePathsChanged;
@@ -207,22 +204,7 @@ namespace AssetEditor.ViewModels
                 info.Path,
                 info.ContainerType,
                 info.IsReadOnly,
-                () =>
-                {
-                    var container = info.ContainerType == PackFileContainerType.SystemFolder
-                        ? _packFileContainerLoader.CreateFromSystemFolder(info.Path)
-                        : _packFileContainerLoader.CreateFromPackFile(info.ContainerType, info.Path, info.IsReadOnly);
-
-                    if (container == null)
-                    {
-                        System.Windows.MessageBox.Show($"Unable to load packfiles {info.Path}");
-                        return;
-                    }
-
-                    _packfileService.AddContainer(container, true);
-                        
-                }
-            ));
+                () => _uiCommandFactory.Create<OpenRecentPackCommand>(x => x.Configure(info)).Execute()));
             foreach (var menuItem in menuItemViewModels.Reverse())
             {
                 RecentPackFiles.Add(menuItem);
