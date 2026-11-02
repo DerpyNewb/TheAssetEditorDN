@@ -67,8 +67,7 @@
             </StackPanel>
         </Border>
 
-        <!-- Shown once something has been opened. Two lines a row: the same name can sit in the game's data folder and in the
-             Workshop's, and only the folder tells them apart. -->
+        <!-- Two lines a row: the same name can sit in the game's data folder and the Workshop's, and only the folder tells them apart. -->
         <Border>
             <Border.Style>
                 <Style TargetType="{x:Type Border}" BasedOn="{StaticResource Card}">

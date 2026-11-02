@@ -10,8 +10,7 @@ using Shared.Core.Services;
 
 namespace Shared.Ui.BaseDialogs.PackFileTree
 {
-    // Not an IDataErrorInfo: the search box validated through it, and its indexer ran the whole filter a second time after every
-    // search.
+    // Not an IDataErrorInfo: its indexer ran the whole filter again after every search.
     public class SearchFilter : NotifyPropertyChangedImpl, IDisposable
     {
         private readonly ObservableCollection<RootTreeNode> _rootNodes;
@@ -158,11 +157,8 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
             ApplyFilter(FilterText);
         }
 
-        // Matched on the tree, which holds every file already, in one walk that shows the matches and hides the rest. Asking the
-        // container instead cost the game's cache a LIKE over 750,000 rows, 250 ms a search, and LIKE read the _ in a name such as
-        // bst_minotaur as a wildcard. The path filter sees only the files the name and extensions already let through.
-        // Optimized from its first call: each node is a new call, so the session's first search ran on the quick first-tier code
-        // until the background recompile caught up. 750,000 files cold took 110-160 ms that way, 70-90 ms this way.
+        // One walk over the tree: the game cache's LIKE took 250 ms a search and read the _ in bst_minotaur as a wildcard.
+        // Optimized from the first call, as tiered JIT ran the session's first search unoptimized (750,000 files: 110-160 ms, now 70-90).
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private static bool ShowMatches(TreeNode node, string? text, List<string>? extensions, Func<string, bool>? pathFilter)
         {

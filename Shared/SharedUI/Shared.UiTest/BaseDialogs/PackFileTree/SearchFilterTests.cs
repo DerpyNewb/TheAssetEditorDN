@@ -69,8 +69,7 @@ namespace Shared.UiTest.BaseDialogs.PackFileTree
             Assert.That(music?.IsVisible, Is.False);
         }
 
-        // The game's packs come from a cache that a search used to ask with SQL LIKE, which reads _ as any one character: a search
-        // for bst_minotaur showed bst-minotaur too. The search matches names in the tree, the same way for every container.
+        // The game cache's SQL LIKE read _ as any one character, so a search for bst_minotaur also showed bst-minotaur.
         [Test]
         public void Filter_OnTheGameCache_AnUnderscoreIsAnUnderscore()
         {

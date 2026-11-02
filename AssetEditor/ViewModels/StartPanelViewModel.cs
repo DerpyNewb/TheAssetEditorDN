@@ -7,9 +7,8 @@ using Shared.Core.Settings;
 
 namespace AssetEditor.ViewModels
 {
-    /// <summary>The panel the app opens with: a project (recommended), a .pack edited in place, or one opened lately, as the File
-    /// menu offers them. A pick closes the panel; its command runs once the panel has closed, so its own dialog is not left
-    /// behind it.</summary>
+    /// <summary>The opening panel: a project (recommended), a .pack edited in place, or a recent one, as the File menu offers them.
+    /// A pick's command runs only after the panel closes, so its own dialog is not left behind it.</summary>
     public partial class StartPanelViewModel(ApplicationSettingsService settings, IUiCommandFactory commands) : ObservableObject
     {
         Action? _picked;
