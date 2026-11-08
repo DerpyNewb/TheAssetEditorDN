@@ -40,6 +40,20 @@ namespace Test.AnimationMeta
             }
         }
 
+        // SuperView shows the meta panel before a meta file is picked. Its Save button was live there and threw into the
+        // app's crash handler (log 2026-11-08); Ctrl+S reaches the same command through Save().
+        [Test]
+        public void WithNoFileLoaded_SaveIsOff_AndDoesNotThrow()
+        {
+            var editor = Open();
+            Assert.That(editor.SaveActionCommand.CanExecute(null), Is.True, "a loaded file can be saved");
+
+            editor.LoadFile(null);
+
+            Assert.That(editor.SaveActionCommand.CanExecute(null), Is.False, "the button is greyed out");
+            Assert.That(editor.Save(), Is.False);
+        }
+
         [Test]
         public void AScrubDrag_UndoesInOneStep_AndRedoes()
         {

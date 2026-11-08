@@ -31,8 +31,9 @@ namespace Editors.AnimationMeta.MetaEditor.Commands
 
         public bool Execute(MetaDataEditorViewModel controller)
         {
-            Guard.IsNotNull(controller.ParsedFile, $"{nameof(controller.ParsedFile)} - Can not save when no file is loaded");
-            Guard.IsNotNull(controller.CurrentFile, $"{nameof(controller.CurrentFile)} - Can not save when no file is loaded");
+            // SuperView shows the panel before a meta file is picked; Save there has nothing to write.
+            if (controller.ParsedFile == null || controller.CurrentFile == null)
+                return false;
 
             // Ensure there are no errors
             foreach (var tag in controller.Tags)

@@ -7,7 +7,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Rules
 {
     public class DockEquipmentRule : IWorldSpaceAnimationRule
     {
-        ILogger _logger = Logging.Create<CopyRootTransform>();
+        ILogger _logger = Logging.Create<DockEquipmentRule>();
         bool _hasError = false;
 
         int _equipmentSlotToDock;
@@ -28,7 +28,15 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Rules
 
             try
             {
-                _equipmentSlotToDock = skeletonProvider.Skeleton.GetBoneIndexByName("be_prop_" + (equipmentSlotToDock - 1));
+                var boneName = "be_prop_" + (equipmentSlotToDock - 1);
+                _equipmentSlotToDock = skeletonProvider.Skeleton.GetBoneIndexByName(boneName);
+                if (_equipmentSlotToDock == -1)
+                {
+                    // 0 asks for be_prop_-1, and 7 (common on trebuchets) for a be_prop_6 most skeletons lack.
+                    _logger.Here().Warning($"Dock value {equipmentSlotToDock} not drawn: skeleton {skeletonProvider.Skeleton.SkeletonName} has no {boneName}");
+                    _hasError = true;
+                    return;
+                }
                 var offsetFrame = AnimationSampler.Sample(0, _skeletonProvider.Skeleton, _dockAnimation);
                 _offset = offsetFrame.GetSkeletonAnimatedWorldDiff(_skeletonProvider.Skeleton, _equipmentSlotToDock, _dockTargetkBoneId);
             }

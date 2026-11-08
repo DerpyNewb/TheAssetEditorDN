@@ -257,13 +257,15 @@ namespace GameWorld.Core.Services
                 return;
             }
 
+            // CA ships a few zero-byte .anim files; one line each, not a parse failure with a stack trace.
+            if (byteChunk.Length == 0)
+            {
+                _logger.Here().Warning("Skipping empty animation file - " + fullPath);
+                return;
+            }
+
             try
             {
-                if (byteChunk.Length == 0)
-                {
-                    throw new Exception("File empty.");
-                }
-
                 var animationSkeletonName = AnimationFile.GetAnimationName(byteChunk);
                 var animationReference = new AnimationReference(fullPath, container);
                 animationList.GetOrAdd(animationSkeletonName, _ => []).Add(animationReference);
