@@ -281,6 +281,8 @@
   "EditorHost.Pane.SceneContent": "Contenu de la scène",
   "EditorHost.Pane.EditorPanel": "Éditeur",
   "EditorHost.Pane.AnimationPlayer": "Lecteur d'animation",
+  "EditorHost.Menu.Panels": "Panneaux",
+  "EditorHost.Menu.ResetLayout": "Réinitialiser la disposition",
     "AnimationPlayer.Toggle":  "Animation",
     "AnimationPlayer.MainAnimation":  "Main animation:",
     "AnimationPlayer.FrameLabel":  "Frame ",

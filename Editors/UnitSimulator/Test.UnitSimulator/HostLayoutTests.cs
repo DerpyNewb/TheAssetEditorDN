@@ -208,6 +208,38 @@ namespace Test.UnitSimulator
             Assert.That(Directory.EnumerateFiles(folder), Is.Empty);
         }
 
+        static MenuItem MenuNamed(Shown shown, string name) => (MenuItem)shown.View.FindName(name) ?? throw new AssertionException($"no menu item {name}");
+
+        // General > Panels lists the panes as they are when it opens, a pane closed with its X unticked; ticking it brings it back.
+        [Test, Apartment(ApartmentState.STA)]
+        public void ThePanelsMenu_ReopensAClosedPane()
+        {
+            using var shown = Show(Open());
+            shown.Pane("SceneContent").Hide();
+            shown.Lay();
+            var panels = MenuNamed(shown, "PanelsMenu");
+            panels.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent));
+            var item = panels.Items.OfType<MenuItem>().Single(x => (string)x.Header == shown.Pane("SceneContent").Title);
+            Assert.That(item.IsChecked, Is.False, "a closed pane shows ticked");
+            Assert.That(panels.Items.OfType<MenuItem>().Count(x => x.IsChecked), Is.EqualTo(2), "the other two panes show ticked");
+
+            item.IsChecked = true;
+            Assert.That(shown.Pane("SceneContent").IsVisible, Is.True);
+            item.IsChecked = false;
+            Assert.That(shown.Pane("SceneContent").IsHidden, Is.True);
+        }
+
+        [Test, Apartment(ApartmentState.STA)]
+        public void ResetLayout_MenuItem_RunsReset()
+        {
+            using var shown = Show(Open());
+            Assert.That(MenuNamed(shown, "GeneralMenu").IsEnabled, Is.True, "General is still disabled");
+            MoveEditorPanelIntoSceneContent(shown);
+            MenuNamed(shown, "ResetLayoutMenu").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            shown.Lay();
+            AssertDefaultLayout(shown);
+        }
+
         // A part is taller than a small share; scrolled by whole parts, the list could only show its top. By pixel, its end is reached.
         [Test, Apartment(ApartmentState.STA)]
         public void APartTallerThanTheSceneContentsShare_ScrollsToItsEnd()

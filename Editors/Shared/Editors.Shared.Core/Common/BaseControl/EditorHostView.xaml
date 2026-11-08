@@ -16,8 +16,14 @@
     
     <DockPanel>
         <Menu DockPanel.Dock="Top">
-            <MenuItem Header="{loc:Loc EditorHost.Menu.General}" IsEnabled="False">
-                <MenuItem Header="{loc:Loc EditorHost.Menu.SaveShortcutFile}" />
+            <MenuItem x:Name="GeneralMenu" Header="{loc:Loc EditorHost.Menu.General}">
+                <MenuItem x:Name="PanelsMenu" Header="{loc:Loc EditorHost.Menu.Panels}" SubmenuOpened="OnPanelsMenuOpened">
+                    <!-- One placeholder so the submenu arrow shows; the panes are listed each time it opens -->
+                    <MenuItem/>
+                </MenuItem>
+                <MenuItem x:Name="ResetLayoutMenu" Header="{loc:Loc EditorHost.Menu.ResetLayout}" Click="OnResetLayout"/>
+                <Separator/>
+                <MenuItem Header="{loc:Loc EditorHost.Menu.SaveShortcutFile}" IsEnabled="False"/>
             </MenuItem>
             <MenuItem Header="{loc:Loc EditorHost.Menu.Camera}">
                 <MenuItem Header="{loc:Loc EditorHost.Menu.FocusSelection}" Command="{Binding FocusCameraCommand}"/>

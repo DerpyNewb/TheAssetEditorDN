@@ -296,6 +296,8 @@
   "EditorHost.Pane.SceneContent": "Scene content",
   "EditorHost.Pane.EditorPanel": "Editor",
   "EditorHost.Pane.AnimationPlayer": "Animation player",
+  "EditorHost.Menu.Panels": "Panels",
+  "EditorHost.Menu.ResetLayout": "Reset layout",
 
   "AnimationPlayer.Toggle": "Animation",
   "AnimationPlayer.MainAnimation": "Main animation:",

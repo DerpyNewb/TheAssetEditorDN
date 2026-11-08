@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using AvalonDock.Layout;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
@@ -59,6 +60,21 @@ namespace AnimationEditor.Common.BaseControl
                 app.Exit -= SaveLayoutOnExit;
             Layouts.Save(Dock, host.LayoutKey);
         }
+
+        // The panes as they are now: the layout is replaced on load and reset, so the list is made each time it opens.
+        void OnPanelsMenuOpened(object sender, RoutedEventArgs e)
+        {
+            PanelsMenu.Items.Clear();
+            foreach (var pane in Dock.Layout.Descendents().OfType<LayoutAnchorable>().ToList())
+            {
+                var item = new MenuItem { Header = pane.Title, IsCheckable = true, IsChecked = pane.IsHidden == false };
+                item.Checked += (_, _) => pane.Show();
+                item.Unchecked += (_, _) => pane.Hide();
+                PanelsMenu.Items.Add(item);
+            }
+        }
+
+        void OnResetLayout(object sender, RoutedEventArgs e) => ResetLayout();
 
         /// <summary>The default layout back, and this editor type's saved one deleted.</summary>
         public void ResetLayout()
