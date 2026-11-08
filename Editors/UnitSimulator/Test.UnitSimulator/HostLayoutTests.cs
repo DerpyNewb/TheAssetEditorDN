@@ -123,6 +123,32 @@ namespace Test.UnitSimulator
             Assert.That(shown.Document.Content, Is.SameAs(game));
         }
 
+        // D3D11Host hooks the nearest TabControl above the 3D view to know when its app tab is hidden. The dock's panes are
+        // TabControls too; the lookup must still land on the app's, before and after a pane has moved.
+        [Test, Apartment(ApartmentState.STA)]
+        public void TheGameViewsTabControl_IsTheAppsNotTheDocks()
+        {
+            AppResources.Load();
+            var view = new EditorHostView();
+            var appTabs = new TabControl();
+            appTabs.Items.Add(new TabItem { Header = "editor", Content = view });
+            appTabs.SelectedIndex = 0;
+            var window = new Window { Content = appTabs, Width = 1600, Height = 900, ShowInTaskbar = false, WindowStyle = WindowStyle.None, Left = -10000, Top = 0 };
+            view.DataContext = Open();
+            window.Show();
+            using var shown = new Shown(view, window);
+            shown.Lay();
+            var game = (DependencyObject)shown.View.FindName("GameView");
+            Assert.That(GameWorld.Core.WpfWindow.Internals.LogicalTreeHelperEx.FindParent<TabControl>(game), Is.SameAs(appTabs));
+
+            var panel = shown.Pane("EditorPanel");
+            var scenePane = (LayoutAnchorablePane)shown.Pane("SceneContent").Parent;
+            ((ILayoutContainer)panel.Parent).RemoveChild(panel);
+            scenePane.Children.Add(panel);
+            shown.Lay();
+            Assert.That(GameWorld.Core.WpfWindow.Internals.LogicalTreeHelperEx.FindParent<TabControl>(game), Is.SameAs(appTabs), "after a pane moved");
+        }
+
         // A part is taller than a small share; scrolled by whole parts, the list could only show its top. By pixel, its end is reached.
         [Test, Apartment(ApartmentState.STA)]
         public void APartTallerThanTheSceneContentsShare_ScrollsToItsEnd()
