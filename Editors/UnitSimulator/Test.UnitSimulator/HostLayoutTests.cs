@@ -124,6 +124,25 @@ namespace Test.UnitSimulator
             Assert.That(shown.Dock.Theme, Is.InstanceOf<Editors.Shared.Core.Common.BaseControl.Docking.AssetEditorDockTheme>());
         }
 
+        // The app collapses an editor whose tab is not selected; a pane floated out of it must go with it, and come back.
+        [Test, Apartment(ApartmentState.STA)]
+        public void AFloatingPane_HidesWithItsEditor()
+        {
+            using var shown = Show(OpenPlain());
+            shown.Pane("AnimationPlayer").Float();
+            shown.Lay();
+            var floating = shown.Dock.FloatingWindows.Single();
+            Assert.That(floating.IsVisible, Is.True, "the pane did not float, so this proves nothing");
+
+            shown.View.Visibility = Visibility.Collapsed;
+            shown.Lay();
+            Assert.That(floating.IsVisible, Is.False, "the floating pane stayed over another editor's tab");
+
+            shown.View.Visibility = Visibility.Visible;
+            shown.Lay();
+            Assert.That(floating.IsVisible, Is.True);
+        }
+
         [Test, Apartment(ApartmentState.STA)]
         public void TheGameView_CannotCloseOrFloat()
         {

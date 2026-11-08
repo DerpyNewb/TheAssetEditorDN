@@ -153,6 +153,15 @@ namespace Test.Editors.Shared.Core
             Assert.That(Directory.EnumerateFiles(_folder, "*.tmp"), Is.Empty, "a save that could not land left its temp file");
         }
 
+        // A save runs inside an editor's Close and on app exit: a folder it cannot make or write must not throw out of either.
+        [Test]
+        public void Save_WhereTheFolderCannotBeMade_DoesNotThrow()
+        {
+            var blocker = Path.Combine(_folder, "blocked");
+            File.WriteAllText(blocker, "a file where the layouts folder should be");
+            Assert.DoesNotThrow(() => new DockLayoutStore(blocker).Save(Dock(), Key));
+        }
+
         [Test]
         public void Delete_RemovesTheFile()
         {

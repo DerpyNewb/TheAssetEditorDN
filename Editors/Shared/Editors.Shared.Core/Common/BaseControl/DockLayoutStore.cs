@@ -20,22 +20,23 @@ namespace Editors.Shared.Core.Common.BaseControl
 
         public string PathFor(EditorEnums key) => Path.Combine(folder, $"{key}.xml");
 
+        /// <summary>Never throws: it runs inside an editor's Close and on app exit. A save that cannot land is logged and the
+        /// layout saved before it stays.</summary>
         public void Save(DockingManager dock, EditorEnums key)
         {
-            Directory.CreateDirectory(folder);
             var path = PathFor(key);
             var temp = path + ".tmp";
-            using (var writer = new StreamWriter(temp))
-                new XmlLayoutSerializer(dock).Serialize(writer);
             try
             {
+                Directory.CreateDirectory(folder);
+                using (var writer = new StreamWriter(temp))
+                    new XmlLayoutSerializer(dock).Serialize(writer);
                 File.Move(temp, path, true);
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                // Something else has the file open; the layout saved last time stays. A save runs as an editor closes, so it never throws.
-                _logger.Here().Warning($"Layout {path} could not be replaced, the one saved before stays: {e.Message}");
-                File.Delete(temp);
+                _logger.Here().Warning($"Layout {path} could not be saved, the one saved before stays: {e.Message}");
+                try { File.Delete(temp); } catch (Exception x) when (x is IOException or UnauthorizedAccessException) { }
             }
         }
 

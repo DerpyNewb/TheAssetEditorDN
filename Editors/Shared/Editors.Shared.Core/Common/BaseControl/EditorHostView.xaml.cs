@@ -25,6 +25,20 @@ namespace AnimationEditor.Common.BaseControl
         {
             InitializeComponent();
             Loaded += OnLoaded;
+            IsVisibleChanged += OnVisibleChanged;
+        }
+
+        // The app collapses an editor whose tab is not selected, and a floating pane is a window of its own: it goes and comes
+        // back with its editor instead of staying over another editor's tab.
+        void OnVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            foreach (var window in Dock.FloatingWindows)
+            {
+                if ((bool)e.NewValue)
+                    window.Show();
+                else
+                    window.Hide();
+            }
         }
 
         // The layout the XAML gives is the default, kept before a saved one replaces it. A host that is not an EditorHostBase
