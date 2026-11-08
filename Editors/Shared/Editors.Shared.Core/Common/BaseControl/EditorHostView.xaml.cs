@@ -46,7 +46,7 @@ namespace AnimationEditor.Common.BaseControl
                 app.Exit += SaveLayoutOnExit;
         }
 
-        // The editor's panes go where the single panel is, as tabs, the first one shown. They go in before the panel comes out:
+        // The editor's panes go where the single panel is, as tabs; the dock shows the first once the panel is out. They go in first:
         // a pane left empty is removed from the layout.
         void ShowEditorPanes(IReadOnlyList<EditorPane> panes)
         {
@@ -59,7 +59,6 @@ namespace AnimationEditor.Common.BaseControl
                 pane.Children.Add(new LayoutAnchorable { ContentId = editorPane.ContentId, Title = editorPane.Title, Content = view });
             }
             pane.RemoveChild(single);
-            pane.SelectedContentIndex = 0;
         }
 
         // The app, when this thread owns it: a test can make the Application on another thread than the one it lays a view out on.

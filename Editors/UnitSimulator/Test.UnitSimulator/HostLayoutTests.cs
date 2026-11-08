@@ -312,6 +312,22 @@ namespace Test.UnitSimulator
             Assert.That(File.Exists(Path.Combine(folder, "UnitSimulator_Editor.xml")), Is.True);
         }
 
+        // The default layout is taken with the simulator's panes in: reset puts them back, not the single panel they replaced.
+        [Test, Apartment(ApartmentState.STA)]
+        public void ResetLayout_OnTheUnitSimulator_KeepsItsPanes()
+        {
+            using var shown = Show(Open());
+            var table = shown.Pane("Table");
+            ((ILayoutContainer)table.Parent).RemoveChild(table);
+            ((LayoutAnchorablePane)shown.Pane("SceneContent").Parent).Children.Add(table);
+            shown.Lay();
+
+            shown.View.ResetLayout();
+            shown.Lay();
+            Assert.That(PaneIds(shown), Is.EquivalentTo(SimulatorPanes.Append("SceneContent").Append("AnimationPlayer")));
+            Assert.That(shown.Pane("Table").Parent, Is.SameAs(shown.Pane("Pairing").Parent), "Table is not back with the other panes");
+        }
+
         [Test, Apartment(ApartmentState.STA)]
         public void ThePanelsMenu_ListsTheEditorsPanes()
         {
