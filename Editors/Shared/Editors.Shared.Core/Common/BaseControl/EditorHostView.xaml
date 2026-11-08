@@ -34,8 +34,9 @@
             <MenuItem Header="{loc:Loc EditorHost.Menu.Screenshot}" Command="{Binding TakeScreenshotCommand}" ToolTip="{loc:Loc EditorHost.Menu.Screenshot.ToolTip}"/>
         </Menu>
 
-        <!-- The 3D view is the one document: it cannot close or float, and the panels dock, tab, float and hide around it -->
-        <ad:DockingManager x:Name="Dock">
+        <!-- The 3D view is the one document: it cannot close or float, and the panels dock, tab, float and hide around it.
+             The panes' content inherits its text colour from the dock, which nothing else gives one -->
+        <ad:DockingManager x:Name="Dock" Foreground="{DynamicResource ABrush.Foreground.Static}">
             <ad:DockingManager.Theme>
                 <docking:AssetEditorDockTheme/>
             </ad:DockingManager.Theme>

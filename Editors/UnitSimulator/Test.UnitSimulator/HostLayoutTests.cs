@@ -24,6 +24,14 @@ namespace Test.UnitSimulator
             return UnitSimulatorAppTests.Open(runner);
         }
 
+        // An editor with no panes of its own, so the host's single editor panel is there: the host's own behaviour.
+        internal static Editors.Shared.Core.Common.BaseControl.EditorHostBase OpenPlain()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            return (Editors.Shared.Core.Common.BaseControl.EditorHostBase)runner.CommandFactory.Create<Shared.Core.Commands.OpenEditorCommand>().Execute(Shared.Core.ToolCreation.EditorEnums.VisualSkeletonEditor);
+        }
+
         internal static IEnumerable<DependencyObject> Visuals(DependencyObject root) =>
             Enumerable.Range(0, VisualTreeHelper.GetChildrenCount(root)).Select(i => VisualTreeHelper.GetChild(root, i)).SelectMany(x => Visuals(x).Prepend(x));
 
@@ -104,7 +112,7 @@ namespace Test.UnitSimulator
         [Test, Apartment(ApartmentState.STA)]
         public void TheDefaultLayout_IsTodaysLayout()
         {
-            using var shown = Show(Open());
+            using var shown = Show(OpenPlain());
             AssertDefaultLayout(shown);
         }
 
@@ -144,7 +152,7 @@ namespace Test.UnitSimulator
             appTabs.Items.Add(new TabItem { Header = "editor", Content = view });
             appTabs.SelectedIndex = 0;
             var window = new Window { Content = appTabs, Width = 1600, Height = 900, ShowInTaskbar = false, WindowStyle = WindowStyle.None, Left = -10000, Top = 0 };
-            view.DataContext = Open();
+            view.DataContext = OpenPlain();
             window.Show();
             using var shown = new Shown(view, window);
             shown.Lay();
@@ -173,15 +181,15 @@ namespace Test.UnitSimulator
         public void ClosingTheEditor_SavesItsLayout_AndOpeningAnotherLoadsIt()
         {
             var folder = TempFolder();
-            var sim = Open();
-            using (var shown = Show(sim, new EditorHostView { Layouts = new(folder) }))
+            var editor = OpenPlain();
+            using (var shown = Show(editor, new EditorHostView { Layouts = new(folder) }))
             {
                 MoveEditorPanelIntoSceneContent(shown);
-                sim.Close();
+                editor.Close();
             }
-            Assert.That(File.Exists(Path.Combine(folder, "UnitSimulator_Editor.xml")), Is.True, "closing the editor saved nothing");
+            Assert.That(File.Exists(Path.Combine(folder, "VisualSkeletonEditor.xml")), Is.True, "closing the editor saved nothing");
 
-            using var again = Show(Open(), new EditorHostView { Layouts = new(folder) });
+            using var again = Show(OpenPlain(), new EditorHostView { Layouts = new(folder) });
             Assert.That(again.Pane("EditorPanel").Parent, Is.SameAs(again.Pane("SceneContent").Parent));
             Assert.That(again.Pane("EditorPanel").Content, Is.InstanceOf<ScrollViewer>(), "the live panel, not an empty pane");
         }
@@ -190,14 +198,14 @@ namespace Test.UnitSimulator
         public void ResetLayout_DeletesTheFile_AndRestoresTheDefault()
         {
             var folder = TempFolder();
-            var sim = Open();
-            using var shown = Show(sim, new EditorHostView { Layouts = new(folder) });
+            var editor = OpenPlain();
+            using var shown = Show(editor, new EditorHostView { Layouts = new(folder) });
             MoveEditorPanelIntoSceneContent(shown);
-            shown.View.Layouts.Save(shown.Dock, sim.LayoutKey);
+            shown.View.Layouts.Save(shown.Dock, editor.LayoutKey);
 
             shown.View.ResetLayout();
             shown.Lay();
-            Assert.That(File.Exists(Path.Combine(folder, "UnitSimulator_Editor.xml")), Is.False);
+            Assert.That(File.Exists(Path.Combine(folder, "VisualSkeletonEditor.xml")), Is.False);
             AssertDefaultLayout(shown);
         }
 
@@ -223,7 +231,7 @@ namespace Test.UnitSimulator
         [Test, Apartment(ApartmentState.STA)]
         public void ThePanelsMenu_ReopensAClosedPane()
         {
-            using var shown = Show(Open());
+            using var shown = Show(OpenPlain());
             shown.Pane("SceneContent").Hide();
             shown.Lay();
             var panels = MenuNamed(shown, "PanelsMenu");
@@ -241,12 +249,76 @@ namespace Test.UnitSimulator
         [Test, Apartment(ApartmentState.STA)]
         public void ResetLayout_MenuItem_RunsReset()
         {
-            using var shown = Show(Open());
+            using var shown = Show(OpenPlain());
             Assert.That(MenuNamed(shown, "GeneralMenu").IsEnabled, Is.True, "General is still disabled");
             MoveEditorPanelIntoSceneContent(shown);
             MenuNamed(shown, "ResetLayoutMenu").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             shown.Lay();
             AssertDefaultLayout(shown);
+        }
+
+        static readonly string[] SimulatorPanes = ["Pairing", "Personalities", "MountMeta", "RiderMeta", "Table"];
+
+        static IEnumerable<string> PaneIds(Shown shown) => shown.Dock.Layout.Descendents().OfType<LayoutAnchorable>().Select(x => x.ContentId);
+
+        // The Unit Simulator's tabs, each a pane of its own, tabbed together where the single editor panel was.
+        [Test, Apartment(ApartmentState.STA)]
+        public void UnitSimulator_ShowsEachTabAsAPane()
+        {
+            using var shown = Show(Open());
+            Assert.That(PaneIds(shown), Is.EquivalentTo(SimulatorPanes.Append("SceneContent").Append("AnimationPlayer")));
+            var parents = SimulatorPanes.Select(id => shown.Pane(id).Parent).Distinct().ToList();
+            Assert.That(parents, Has.Count.EqualTo(1), "the panes are not tabbed together");
+            Assert.That(PaneBounds(shown, shown.Pane("Pairing")).Top, Is.GreaterThanOrEqualTo(PaneBounds(shown, shown.Pane("SceneContent")).Bottom), "not under the scene content");
+            Assert.That(shown.Pane("Pairing").IsSelected, Is.True, "the first pane is not the one shown");
+            Assert.That(((FrameworkElement)shown.Pane("Personalities").Content).DataContext, Is.SameAs(((Editors.UnitSimulator.UnitSimulatorViewModel)shown.View.DataContext).Personalities));
+        }
+
+        // A pane's plain text takes the app's text colour: it sat in a themed TabItem before, and under the dock it drew black.
+        [Test, Apartment(ApartmentState.STA)]
+        public void APanesPlainText_TakesTheAppsTextColour()
+        {
+            var view = new EditorHostView { Layouts = new(TempFolder()) };
+            view.Resources["ABrush.Foreground.Static"] = Brushes.Red;
+            using var shown = Show(Open(), view);
+            var text = Visuals((DependencyObject)shown.Pane("Pairing").Content).OfType<TextBlock>().First();
+            Assert.That(text.Foreground, Is.SameAs(Brushes.Red));
+        }
+
+        [Test, Apartment(ApartmentState.STA)]
+        public void AnEditorThatDeclaresNoPanes_KeepsTheSingleEditorPanel()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            var skeleton = runner.CommandFactory.Create<Shared.Core.Commands.OpenEditorCommand>().Execute(Shared.Core.ToolCreation.EditorEnums.VisualSkeletonEditor);
+            using var shown = Show(skeleton);
+            Assert.That(PaneIds(shown), Is.EquivalentTo(new[] { "SceneContent", "EditorPanel", "AnimationPlayer" }));
+        }
+
+        // A layout saved before the simulator had its panes names EditorPanel: the default layout, and the file kept.
+        [Test, Apartment(ApartmentState.STA)]
+        public void AUnitSimulatorLayoutSavedBeforeItsPanes_LoadsTheDefault()
+        {
+            var folder = TempFolder();
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            var mount = runner.CommandFactory.Create<Shared.Core.Commands.OpenEditorCommand>().Execute(Shared.Core.ToolCreation.EditorEnums.MountTool_Editor);
+            using (var old = Show(mount))
+                new Editors.Shared.Core.Common.BaseControl.DockLayoutStore(folder).Save(old.Dock, Shared.Core.ToolCreation.EditorEnums.UnitSimulator_Editor);
+            Assert.That(File.ReadAllText(Path.Combine(folder, "UnitSimulator_Editor.xml")), Does.Contain("\"EditorPanel\""));
+
+            using var shown = Show(Open(), new EditorHostView { Layouts = new(folder) });
+            Assert.That(PaneIds(shown), Does.Contain("Pairing").And.Not.Contain("EditorPanel"));
+            Assert.That(File.Exists(Path.Combine(folder, "UnitSimulator_Editor.xml")), Is.True);
+        }
+
+        [Test, Apartment(ApartmentState.STA)]
+        public void ThePanelsMenu_ListsTheEditorsPanes()
+        {
+            using var shown = Show(Open());
+            var panels = MenuNamed(shown, "PanelsMenu");
+            panels.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent));
+            Assert.That(panels.Items.OfType<MenuItem>().Select(x => (string)x.Header), Is.SupersetOf(new[] { "Pairing", "Personalities", "Mount meta", "Rider meta", "Table" }));
         }
 
         // A part is taller than a small share; scrolled by whole parts, the list could only show its top. By pixel, its end is reached.

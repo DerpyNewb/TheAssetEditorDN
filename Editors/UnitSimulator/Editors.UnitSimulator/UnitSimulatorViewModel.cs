@@ -44,7 +44,17 @@ namespace Editors.UnitSimulator
         readonly Dictionary<string, byte[]> _savedTables = [];
         readonly PersonalityPlacement? _placement;
 
-        public override Type EditorViewModelType => typeof(Views.EditorView);
+        // Not shown: the simulator declares its panes, which the host puts where this single panel would go.
+        public override Type EditorViewModelType => typeof(Views.PairingView);
+
+        public override IReadOnlyList<EditorPane> EditorPanes =>
+        [
+            new("Pairing", "Pairing", typeof(Views.PairingView), this),
+            new("Personalities", "Personalities", typeof(Views.PersonalitiesView), Personalities),
+            new("MountMeta", "Mount meta", typeof(Views.MetaView), MountMeta),
+            new("RiderMeta", "Rider meta", typeof(Views.MetaView), RiderMeta),
+            new("Table", "Table", typeof(Views.TableView), this),
+        ];
         public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.UnitSimulator_Editor;
 
         public SceneObjectViewModel Mount { get; }

@@ -1,0 +1,10 @@
+﻿<UserControl x:Class="Editors.UnitSimulator.Views.MetaView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:meta="clr-namespace:Editors.AnimationMeta.Presentation.View;assembly=Editors.AnimationMeta">
+    <!-- A part's metas, persistent and slot: the Mount meta and Rider meta panes, each given that part's metas -->
+    <TabControl>
+                    <TabItem Header="Persistent"><meta:MainEditorView DataContext="{Binding Persistent}"/></TabItem>
+                    <TabItem Header="Slot"><meta:MainEditorView DataContext="{Binding Slot}"/></TabItem>
+                </TabControl>
+</UserControl>

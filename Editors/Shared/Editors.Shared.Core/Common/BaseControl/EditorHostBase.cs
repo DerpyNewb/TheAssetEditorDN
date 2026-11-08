@@ -30,6 +30,9 @@ namespace Editors.Shared.Core.Common.BaseControl
         /// <summary>The editor type its dock layout is kept under.</summary>
         public abstract EditorEnums LayoutKey { get; }
 
+        /// <summary>Panes of the editor's own, tabbed where the single editor panel is; none keeps that panel.</summary>
+        public virtual IReadOnlyList<EditorPane> EditorPanes => [];
+
         /// <summary>Raised first thing in <see cref="Close"/>, while the editor's view still exists.</summary>
         public event EventHandler? Closing;
 
