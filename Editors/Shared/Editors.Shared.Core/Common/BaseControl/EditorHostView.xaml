@@ -8,6 +8,7 @@
              xmlns:basecontrol="clr-namespace:Editors.Shared.Core.Common.BaseControl"
              xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
              xmlns:ad="https://github.com/Dirkster99/AvalonDock"
+             xmlns:docking="clr-namespace:Editors.Shared.Core.Common.BaseControl.Docking"
              mc:Ignorable="d" >
 
     <UserControl.Resources>
@@ -35,6 +36,9 @@
 
         <!-- The 3D view is the one document: it cannot close or float, and the panels dock, tab, float and hide around it -->
         <ad:DockingManager x:Name="Dock">
+            <ad:DockingManager.Theme>
+                <docking:AssetEditorDockTheme/>
+            </ad:DockingManager.Theme>
             <ad:LayoutRoot>
                 <ad:LayoutPanel Orientation="Horizontal">
                     <ad:LayoutPanel Orientation="Vertical">

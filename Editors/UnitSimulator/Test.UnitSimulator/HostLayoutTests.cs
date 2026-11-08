@@ -88,7 +88,9 @@ namespace Test.UnitSimulator
                 // A quarter of a 1600-wide editor, as the column was. Fixed, not a share: the dock turns a side column's star width
                 // into pixels, and a star it has not measured yet into its 25 px minimum.
                 Assert.That(scene.Width, Is.EqualTo(400).Within(2), "the right column's width");
-                Assert.That(view.Width + w + scene.Width, Is.EqualTo(width).Within(2), "the 3D view takes the rest");
+                // The 3D view takes the rest: the splitter between, and the theme's margin the same on both outer edges.
+                Assert.That(scene.Left - view.Right, Is.EqualTo(w).Within(1), "the gap between the view and the column is the splitter");
+                Assert.That(width - scene.Right, Is.EqualTo(view.Left).Within(1), "the outer margins differ");
                 Assert.That(panel.Width, Is.EqualTo(scene.Width).Within(1));
                 Assert.That(scene.Left, Is.GreaterThanOrEqualTo(view.Right), "scene content right of the 3D view");
                 Assert.That(panel.Top, Is.GreaterThanOrEqualTo(scene.Bottom), "the editor's panel under the scene content");
@@ -104,6 +106,13 @@ namespace Test.UnitSimulator
         {
             using var shown = Show(Open());
             AssertDefaultLayout(shown);
+        }
+
+        [Test, Apartment(ApartmentState.STA)]
+        public void TheDock_WearsTheAppsTheme()
+        {
+            using var shown = Show(Open());
+            Assert.That(shown.Dock.Theme, Is.InstanceOf<Editors.Shared.Core.Common.BaseControl.Docking.AssetEditorDockTheme>());
         }
 
         [Test, Apartment(ApartmentState.STA)]

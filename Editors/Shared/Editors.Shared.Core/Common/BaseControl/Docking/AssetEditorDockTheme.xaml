@@ -1,0 +1,98 @@
+﻿<!-- The dock's chrome in the app's colours: every brush VS2013 Dark defines, its colour a DynamicResource to an AColour
+     key in AssetEditor/Themes/ColourDictionaries, so a theme switch reaches tabs, title bars and drop targets. Active
+     tabs and captions take the accent, hovered and pressed parts Tone4's states, the rest the panel tones. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vs="clr-namespace:AvalonDock.Themes.VS2013.Themes;assembly=AvalonDock.Themes.VS2013"
+                    xmlns:adc="clr-namespace:AvalonDock.Controls;assembly=AvalonDock">
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ControlAccentBrushKey}" Color="{DynamicResource AColour.AccentTone1.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.Background}" Color="{DynamicResource AColour.Tone2.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.PanelBorderBrush}" Color="{DynamicResource AColour.Tone3.Border.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.TabBackground}" Color="{DynamicResource AColour.Tone2.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.AutoHideTabDefaultBackground}" Color="{DynamicResource AColour.Tone3.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.AutoHideTabDefaultBorder}" Color="{DynamicResource AColour.Tone3.Border.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.AutoHideTabDefaultText}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.AutoHideTabHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.AutoHideTabHoveredBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.AutoHideTabHoveredText}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellOverflowButtonDefaultGlyph}" Color="{DynamicResource AColour.Glyph.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellOverflowButtonHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellOverflowButtonHoveredBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellOverflowButtonHoveredGlyph}" Color="{DynamicResource AColour.Glyph.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellOverflowButtonPressedBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellOverflowButtonPressedBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellOverflowButtonPressedGlyph}" Color="{DynamicResource AColour.Glyph.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabSelectedActiveBackground}" Color="{DynamicResource AColour.AccentTone1.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabSelectedActiveText}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabSelectedInactiveBackground}" Color="{DynamicResource AColour.Tone4.Background.Selected.Inactive}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabSelectedInactiveText}" Color="{DynamicResource AColour.Foreground.Deeper}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabUnselectedBackground}" Color="{DynamicResource AColour.Tone3.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabUnselectedText}" Color="{DynamicResource AColour.Foreground.Disabled}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabUnselectedHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabUnselectedHoveredText}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedActiveGlyph}" Color="{DynamicResource AColour.Glyph.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedActiveHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedActiveHoveredBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedActiveHoveredGlyph}" Color="{DynamicResource AColour.Glyph.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedActivePressedBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedActivePressedBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedActivePressedGlyph}" Color="{DynamicResource AColour.Glyph.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedInactiveGlyph}" Color="{DynamicResource AColour.Glyph.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedInactiveHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedInactiveHoveredBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedInactiveHoveredGlyph}" Color="{DynamicResource AColour.Glyph.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedInactivePressedBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedInactivePressedBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonSelectedInactivePressedGlyph}" Color="{DynamicResource AColour.Glyph.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredGlyph}" Color="{DynamicResource AColour.Glyph.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonHoveredBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonHoveredGlyph}" Color="{DynamicResource AColour.Glyph.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonPressedBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonPressedBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonPressedGlyph}" Color="{DynamicResource AColour.Glyph.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionActiveBackground}" Color="{DynamicResource AColour.AccentTone1.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionActiveGrip}" Color="{DynamicResource AColour.Tone5.Border.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionActiveText}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionInactiveBackground}" Color="{DynamicResource AColour.Tone4.Background.Selected.Inactive}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionInactiveGrip}" Color="{DynamicResource AColour.Tone5.Border.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionInactiveText}" Color="{DynamicResource AColour.Foreground.Deeper}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonActiveGlyph}" Color="{DynamicResource AColour.Glyph.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonActiveHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonActiveHoveredBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonActiveHoveredGlyph}" Color="{DynamicResource AColour.Glyph.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonActivePressedBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonActivePressedBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonActivePressedGlyph}" Color="{DynamicResource AColour.Glyph.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonInactiveGlyph}" Color="{DynamicResource AColour.Glyph.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonInactiveHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonInactiveHoveredBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonInactiveHoveredGlyph}" Color="{DynamicResource AColour.Glyph.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonInactivePressedBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonInactivePressedBorder}" Color="{DynamicResource AColour.Tone4.Border.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowCaptionButtonInactivePressedGlyph}" Color="{DynamicResource AColour.Glyph.MouseDown}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabSelectedActiveBackground}" Color="{DynamicResource AColour.AccentTone1.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabSelectedActiveText}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabSelectedInactiveBackground}" Color="{DynamicResource AColour.Tone4.Background.Selected.Inactive}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabSelectedInactiveText}" Color="{DynamicResource AColour.Foreground.Deeper}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabUnselectedBackground}" Color="{DynamicResource AColour.Tone3.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabUnselectedText}" Color="{DynamicResource AColour.Foreground.Disabled}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabUnselectedHoveredBackground}" Color="{DynamicResource AColour.Tone4.Background.MouseOver}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.ToolWindowTabUnselectedHoveredText}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.FloatingDocumentWindowBackground}" Color="{DynamicResource AColour.Tone2.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.FloatingDocumentWindowBorder}" Color="{DynamicResource AColour.Tone3.Border.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.FloatingToolWindowBackground}" Color="{DynamicResource AColour.Tone2.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.FloatingToolWindowBorder}" Color="{DynamicResource AColour.Tone3.Border.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.NavigatorWindowBackground}" Color="{DynamicResource AColour.Tone2.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.NavigatorWindowForeground}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.NavigatorWindowSelectedBackground}" Color="{DynamicResource AColour.AccentTone1.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.NavigatorWindowSelectedText}" Color="{DynamicResource AColour.Foreground.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DockingButtonBackgroundBrushKey}" Color="{DynamicResource AColour.Tone4.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DockingButtonForegroundBrushKey}" Color="{DynamicResource AColour.Glyph.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DockingButtonForegroundArrowBrushKey}" Color="{DynamicResource AColour.ColourfulGlyph.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DockingButtonStarBorderBrushKey}" Color="{DynamicResource AColour.Tone3.Border.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.DockingButtonStarBackgroundBrushKey}" Color="{DynamicResource AColour.Tone3.Background.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.PreviewBoxBorderBrushKey}" Color="{DynamicResource AColour.AccentTone1.Border.Static}"/>
+    <SolidColorBrush x:Key="{x:Static vs:ResourceKeys.PreviewBoxBackgroundBrushKey}" Color="{DynamicResource AColour.AccentTone1.Background.Static}" Opacity="0.4"/>
+    <SolidColorBrush x:Key="{ComponentResourceKey TypeInTargetAssembly={x:Type adc:ToggleDockButton}, ResourceId=ForegroundBrush}" Color="{DynamicResource AColour.Glyph.Static}"/>
+</ResourceDictionary>
