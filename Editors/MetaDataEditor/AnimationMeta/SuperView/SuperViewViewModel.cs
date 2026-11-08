@@ -41,6 +41,7 @@ namespace Editors.AnimationMeta.SuperView
         [ObservableProperty] int? _vfxFilterId;
         bool _showingVfxFilter;
         public override Type EditorViewModelType => typeof(EditorView);
+        public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.SuperView_Editor;
         public bool HasUnsavedChanges
         { 
             get 

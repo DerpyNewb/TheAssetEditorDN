@@ -14,9 +14,60 @@ namespace AnimationEditor.Common.BaseControl
     /// </summary>
     public partial class EditorHostView : UserControl
     {
+        /// <summary>Where this editor's layout is kept; a test points it at a folder of its own.</summary>
+        public DockLayoutStore Layouts { get; init; } = new(DockLayoutStore.DefaultFolder);
+
+        string? _defaultLayout;
+        EditorHostBase? _savesTo;
+
         public EditorHostView()
         {
             InitializeComponent();
+            Loaded += OnLoaded;
+        }
+
+        // The layout the XAML gives is the default, kept before a saved one replaces it. A host that is not an EditorHostBase
+        // (the Mount Tool) keeps the default and saves nothing.
+        void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            if (_defaultLayout != null)
+                return;
+            _defaultLayout = DockLayoutStore.Serialize(Dock);
+            if (DataContext is not EditorHostBase host)
+                return;
+
+            Layouts.TryLoad(Dock, host.LayoutKey);
+            _savesTo = host;
+            host.Closing += SaveLayout;
+            if (App is { } app)
+                app.Exit += SaveLayoutOnExit;
+        }
+
+        // The app, when this thread owns it: a test can make the Application on another thread than the one it lays a view out on.
+        static Application? App => Application.Current is { } app && app.Dispatcher.CheckAccess() ? app : null;
+
+        void SaveLayoutOnExit(object? sender, ExitEventArgs e) => SaveLayout(sender, e);
+
+        // Once: when the editor closes, or when the app exits with it open.
+        void SaveLayout(object? sender, EventArgs e)
+        {
+            if (_savesTo is not { } host)
+                return;
+            _savesTo = null;
+            host.Closing -= SaveLayout;
+            if (App is { } app)
+                app.Exit -= SaveLayoutOnExit;
+            Layouts.Save(Dock, host.LayoutKey);
+        }
+
+        /// <summary>The default layout back, and this editor type's saved one deleted.</summary>
+        public void ResetLayout()
+        {
+            if (_defaultLayout == null)
+                return;
+            DockLayoutStore.Deserialize(Dock, _defaultLayout);
+            if (DataContext is EditorHostBase host)
+                Layouts.Delete(host.LayoutKey);
         }
 
         void OnViewDragOver(object sender, DragEventArgs e)

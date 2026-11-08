@@ -51,6 +51,7 @@ namespace Editors.AnimatioReTarget.Editor
 
 
         public override Type EditorViewModelType => typeof(EditorView);
+        public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.AnimationRetarget_Editor;
 
         public AnimationRetargetEditor(
             IEditorHostParameters editorHostParameters,

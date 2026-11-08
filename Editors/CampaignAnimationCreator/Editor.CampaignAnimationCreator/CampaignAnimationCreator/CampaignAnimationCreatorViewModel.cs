@@ -18,6 +18,7 @@ namespace Editor.CampaignAnimationCreator.CampaignAnimationCreator
         private readonly IUiCommandFactory _uiCommandFactory;
 
         public override Type EditorViewModelType => typeof(EditorView);
+        public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.CampaginAnimation_Editor;
         public FilterCollection<SkeletonBoneNode> ModelBoneList { get; } = new(null);
 
         public CampaignAnimationCreatorViewModel(IEditorHostParameters editorHostParameters, IUiCommandFactory uiCommandFactory)

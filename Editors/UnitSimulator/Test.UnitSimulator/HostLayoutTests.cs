@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System.IO;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using AnimationEditor.Common.BaseControl;
@@ -57,7 +58,7 @@ namespace Test.UnitSimulator
         internal static Shown Show(object editor, EditorHostView? view = null)
         {
             AppResources.Load();
-            view ??= new EditorHostView();
+            view ??= new EditorHostView { Layouts = new(TempFolder()) }; // never the real layouts folder
             view.DataContext = editor;
             var window = new Window { Content = view, Width = 1600, Height = 900, ShowInTaskbar = false, WindowStyle = WindowStyle.None, Left = -10000, Top = 0 };
             window.Show();
@@ -129,7 +130,7 @@ namespace Test.UnitSimulator
         public void TheGameViewsTabControl_IsTheAppsNotTheDocks()
         {
             AppResources.Load();
-            var view = new EditorHostView();
+            var view = new EditorHostView { Layouts = new(TempFolder()) };
             var appTabs = new TabControl();
             appTabs.Items.Add(new TabItem { Header = "editor", Content = view });
             appTabs.SelectedIndex = 0;
@@ -147,6 +148,64 @@ namespace Test.UnitSimulator
             scenePane.Children.Add(panel);
             shown.Lay();
             Assert.That(GameWorld.Core.WpfWindow.Internals.LogicalTreeHelperEx.FindParent<TabControl>(game), Is.SameAs(appTabs), "after a pane moved");
+        }
+
+        internal static string TempFolder() => Directory.CreateTempSubdirectory("docklayout").FullName;
+
+        static void MoveEditorPanelIntoSceneContent(Shown shown)
+        {
+            var panel = shown.Pane("EditorPanel");
+            ((ILayoutContainer)panel.Parent).RemoveChild(panel);
+            ((LayoutAnchorablePane)shown.Pane("SceneContent").Parent).Children.Add(panel);
+            shown.Lay();
+        }
+
+        [Test, Apartment(ApartmentState.STA)]
+        public void ClosingTheEditor_SavesItsLayout_AndOpeningAnotherLoadsIt()
+        {
+            var folder = TempFolder();
+            var sim = Open();
+            using (var shown = Show(sim, new EditorHostView { Layouts = new(folder) }))
+            {
+                MoveEditorPanelIntoSceneContent(shown);
+                sim.Close();
+            }
+            Assert.That(File.Exists(Path.Combine(folder, "UnitSimulator_Editor.xml")), Is.True, "closing the editor saved nothing");
+
+            using var again = Show(Open(), new EditorHostView { Layouts = new(folder) });
+            Assert.That(again.Pane("EditorPanel").Parent, Is.SameAs(again.Pane("SceneContent").Parent));
+            Assert.That(again.Pane("EditorPanel").Content, Is.InstanceOf<ScrollViewer>(), "the live panel, not an empty pane");
+        }
+
+        [Test, Apartment(ApartmentState.STA)]
+        public void ResetLayout_DeletesTheFile_AndRestoresTheDefault()
+        {
+            var folder = TempFolder();
+            var sim = Open();
+            using var shown = Show(sim, new EditorHostView { Layouts = new(folder) });
+            MoveEditorPanelIntoSceneContent(shown);
+            shown.View.Layouts.Save(shown.Dock, sim.LayoutKey);
+
+            shown.View.ResetLayout();
+            shown.Lay();
+            Assert.That(File.Exists(Path.Combine(folder, "UnitSimulator_Editor.xml")), Is.False);
+            AssertDefaultLayout(shown);
+        }
+
+        // The Mount Tool shares the view with a host that is not an EditorHostBase: the default layout, nothing kept.
+        [Test, Apartment(ApartmentState.STA)]
+        public void TheMountTool_OpensWithTheDefaultLayout_AndSavesNothing()
+        {
+            var folder = TempFolder();
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            var mount = (Shared.Core.ToolCreation.IEditorInterface)runner.CommandFactory.Create<Shared.Core.Commands.OpenEditorCommand>().Execute(Shared.Core.ToolCreation.EditorEnums.MountTool_Editor);
+            using (var shown = Show(mount, new EditorHostView { Layouts = new(folder) }))
+            {
+                Assert.That(shown.Dock.Layout.Descendents().OfType<LayoutAnchorable>().Count(), Is.EqualTo(3));
+                mount.Close();
+            }
+            Assert.That(Directory.EnumerateFiles(folder), Is.Empty);
         }
 
         // A part is taller than a small share; scrolled by whole parts, the list could only show its top. By pixel, its end is reached.

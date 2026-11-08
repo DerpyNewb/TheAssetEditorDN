@@ -51,6 +51,7 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
         bool _restoring;
 
         public override Type EditorViewModelType => typeof(EditorView);
+        public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.VisualSkeletonEditor;
 
         public SkeletonEditorViewModel(
             IPackFileService pfs,

@@ -28,6 +28,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
     public class AnimationKeyframeEditorViewModel : EditorHostBase, IDisposable
     {
         public override Type EditorViewModelType => typeof(EditorView);
+        public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.AnimationKeyFrame_Editor;
         private readonly IPackFileService _pfs;
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
         private GizmoToolbox _gizmoToolbox;

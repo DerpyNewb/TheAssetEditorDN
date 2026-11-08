@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.AnimationMeta.Presentation;
@@ -45,6 +45,7 @@ namespace Editors.UnitSimulator
         readonly PersonalityPlacement? _placement;
 
         public override Type EditorViewModelType => typeof(Views.EditorView);
+        public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.UnitSimulator_Editor;
 
         public SceneObjectViewModel Mount { get; }
         public SceneObjectViewModel Rider { get; }

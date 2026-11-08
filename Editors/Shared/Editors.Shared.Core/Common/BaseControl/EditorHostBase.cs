@@ -27,6 +27,12 @@ namespace Editors.Shared.Core.Common.BaseControl
         public string DisplayName { get; set; } = "Not set";
         public abstract Type EditorViewModelType { get; }
 
+        /// <summary>The editor type its dock layout is kept under.</summary>
+        public abstract EditorEnums LayoutKey { get; }
+
+        /// <summary>Raised first thing in <see cref="Close"/>, while the editor's view still exists.</summary>
+        public event EventHandler? Closing;
+
         [ObservableProperty] IWpfGame? _gameWorld;
         [ObservableProperty] ObservableCollection<SceneObjectViewModel> _sceneObjects = new();
         [ObservableProperty] AnimationPlayerViewModel _player;
@@ -64,6 +70,7 @@ namespace Editors.Shared.Core.Common.BaseControl
 
         public virtual void Close()
         {
+            Closing?.Invoke(this, EventArgs.Empty);
             GameWorld = null;
         }
 
