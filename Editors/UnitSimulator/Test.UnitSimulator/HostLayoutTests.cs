@@ -50,7 +50,8 @@ namespace Test.UnitSimulator
             public DockingManager Dock => (DockingManager)View.FindName("Dock");
             public LayoutAnchorable Pane(string id) => Dock.Layout.Descendents().OfType<LayoutAnchorable>().Single(x => x.ContentId == id);
             public LayoutDocument Document => Dock.Layout.Descendents().OfType<LayoutDocument>().Single();
-            // The dock fixes its pane sizes in work it queues, so the queue is run before and after laying out.
+            // The dock fixes its pane sizes in work it queues, so the queue is run before and after laying out. Background, not
+            // ApplicationIdle: an idle wait never returns while something keeps the dispatcher busy, and one suite run hung.
             public void Lay()
             {
                 Idle();
@@ -59,7 +60,7 @@ namespace Test.UnitSimulator
                 window.UpdateLayout();
             }
 
-            static void Idle() => System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            static void Idle() => System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
             public void Dispose() => window.Close();
         }
 

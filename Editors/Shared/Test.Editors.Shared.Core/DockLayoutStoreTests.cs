@@ -46,7 +46,7 @@ namespace Test.Editors.Shared.Core
             var window = new Window { Content = dock, Width = 1600, Height = 900, ShowInTaskbar = false, WindowStyle = WindowStyle.None, Left = -10000 };
             _windows.Add(window);
             window.Show();
-            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
             window.UpdateLayout();
             return dock;
         }
