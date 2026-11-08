@@ -138,6 +138,20 @@ namespace Test.Editors.Shared.Core
             Assert.That(File.Exists(path), Is.True);
         }
 
+        // A pane's title is the live one, not the one in the file: a layout saved in one language loads in another.
+        [Test]
+        public void TryLoad_TakesTheLiveTitles_NotTheSavedOnes()
+        {
+            var dock = Dock();
+            Pane(dock, "SceneContent").Title = "Contenu de la scene";
+            Store().Save(dock, Key);
+            Assert.That(File.ReadAllText(Store().PathFor(Key)), Does.Contain("Contenu de la scene"), "the file holds no title, so this proves nothing");
+
+            var fresh = Dock();
+            Assert.That(Store().TryLoad(fresh, Key), Is.True);
+            Assert.That(Pane(fresh, "SceneContent").Title, Is.EqualTo("SceneContent"));
+        }
+
         [Test]
         public void NoFile_LoadsNothing() => Assert.That(Store().TryLoad(Dock(), Key), Is.False);
 

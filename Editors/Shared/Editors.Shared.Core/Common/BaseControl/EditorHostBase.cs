@@ -33,7 +33,9 @@ namespace Editors.Shared.Core.Common.BaseControl
         /// <summary>Panes of the editor's own, tabbed where the single editor panel is; none keeps that panel.</summary>
         public virtual IReadOnlyList<EditorPane> EditorPanes => [];
 
-        /// <summary>Raised first thing in <see cref="Close"/>, while the editor's view still exists.</summary>
+        /// <summary>Raised from the base <see cref="Close"/>, while the editor's view still exists. An editor that overrides Close
+        /// tears its own parts down before calling the base, so a handler can rely only on what outlives them, such as the view's
+        /// dock layout.</summary>
         public event EventHandler? Closing;
 
         [ObservableProperty] IWpfGame? _gameWorld;

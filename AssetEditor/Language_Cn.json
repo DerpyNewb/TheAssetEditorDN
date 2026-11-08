@@ -298,6 +298,11 @@
   "EditorHost.Pane.AnimationPlayer": "动画播放器",
   "EditorHost.Menu.Panels": "面板",
   "EditorHost.Menu.ResetLayout": "重置布局",
+  "UnitSimulator.Pane.Pairing": "配对",
+  "UnitSimulator.Pane.Personalities": "个性",
+  "UnitSimulator.Pane.MountMeta": "坐骑元数据",
+  "UnitSimulator.Pane.RiderMeta": "骑手元数据",
+  "UnitSimulator.Pane.Table": "表",
 
   "AnimationPlayer.Toggle": "动画",
   "AnimationPlayer.MainAnimation": "主动画:",

@@ -298,6 +298,11 @@
   "EditorHost.Pane.AnimationPlayer": "Animation player",
   "EditorHost.Menu.Panels": "Panels",
   "EditorHost.Menu.ResetLayout": "Reset layout",
+  "UnitSimulator.Pane.Pairing": "Pairing",
+  "UnitSimulator.Pane.Personalities": "Personalities",
+  "UnitSimulator.Pane.MountMeta": "Mount meta",
+  "UnitSimulator.Pane.RiderMeta": "Rider meta",
+  "UnitSimulator.Pane.Table": "Table",
 
   "AnimationPlayer.Toggle": "Animation",
   "AnimationPlayer.MainAnimation": "Main animation:",

@@ -91,14 +91,16 @@ namespace Editors.Shared.Core.Common.BaseControl
             return writer.ToString();
         }
 
-        /// <summary>Puts a layout back, each pane holding the live content its ContentId names.</summary>
-        public static void Deserialize(DockingManager dock, string layout) =>
-            Deserialize(dock, layout, dock.Layout.Descendents().OfType<LayoutContent>().ToDictionary(x => x.ContentId, x => x.Content));
-
-        static void Deserialize(DockingManager dock, string layout, Dictionary<string, object> live)
+        /// <summary>Puts a layout back, each pane holding the content its ContentId names in <paramref name="contents"/>. A pane
+        /// closed for good is no longer in the dock, so a caller that must bring it back passes contents it kept from before.</summary>
+        public static void Deserialize(DockingManager dock, string layout, IReadOnlyDictionary<string, object> contents)
         {
             var serializer = new XmlLayoutSerializer(dock);
-            serializer.LayoutSerializationCallback += (_, e) => e.Content = live[e.Model.ContentId];
+            serializer.LayoutSerializationCallback += (_, e) =>
+            {
+                if (contents.TryGetValue(e.Model.ContentId, out var content))
+                    e.Content = content;
+            };
             using var reader = new StringReader(layout);
             serializer.Deserialize(reader);
         }

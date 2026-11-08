@@ -19,6 +19,7 @@ namespace AnimationEditor.Common.BaseControl
         public DockLayoutStore Layouts { get; init; } = new(DockLayoutStore.DefaultFolder);
 
         string? _defaultLayout;
+        IReadOnlyDictionary<string, object> _defaultContents = new Dictionary<string, object>();
         EditorHostBase? _savesTo;
 
         public EditorHostView()
@@ -50,14 +51,14 @@ namespace AnimationEditor.Common.BaseControl
             if (DataContext is EditorHostBase { EditorPanes.Count: > 0 } withPanes)
                 ShowEditorPanes(withPanes.EditorPanes);
             _defaultLayout = DockLayoutStore.Serialize(Dock);
+            _defaultContents = Dock.Layout.Descendents().OfType<LayoutContent>().ToDictionary(x => x.ContentId, x => x.Content);
             if (DataContext is not EditorHostBase host)
                 return;
 
             Layouts.TryLoad(Dock, host.LayoutKey);
             _savesTo = host;
             host.Closing += SaveLayout;
-            if (App is { } app)
-                app.Exit += SaveLayoutOnExit;
+            Dispatcher.ShutdownStarted += SaveLayout;
         }
 
         // The editor's panes go where the single panel is, as tabs; the dock shows the first once the panel is out. They go in first:
@@ -70,25 +71,20 @@ namespace AnimationEditor.Common.BaseControl
             {
                 var view = (FrameworkElement)Activator.CreateInstance(editorPane.ViewType)!;
                 view.DataContext = editorPane.DataContext;
-                pane.Children.Add(new LayoutAnchorable { ContentId = editorPane.ContentId, Title = editorPane.Title, Content = view });
+                pane.Children.Add(new LayoutAnchorable { ContentId = editorPane.ContentId, Title = (string)new LocExtension(editorPane.Title).ProvideValue(null!), Content = view });
             }
             pane.RemoveChild(single);
         }
 
-        // The app, when this thread owns it: a test can make the Application on another thread than the one it lays a view out on.
-        static Application? App => Application.Current is { } app && app.Dispatcher.CheckAccess() ? app : null;
-
-        void SaveLayoutOnExit(object? sender, ExitEventArgs e) => SaveLayout(sender, e);
-
-        // Once: when the editor closes, or when the app exits with it open.
+        // Once: when the editor closes, or when the app exits with it open, which shuts the view's dispatcher down. Two editors of
+        // one type open at exit both save, the one opened last after the other, so its layout is the one kept.
         void SaveLayout(object? sender, EventArgs e)
         {
             if (_savesTo is not { } host)
                 return;
             _savesTo = null;
             host.Closing -= SaveLayout;
-            if (App is { } app)
-                app.Exit -= SaveLayoutOnExit;
+            Dispatcher.ShutdownStarted -= SaveLayout;
             Layouts.Save(Dock, host.LayoutKey);
         }
 
@@ -112,7 +108,7 @@ namespace AnimationEditor.Common.BaseControl
         {
             if (_defaultLayout == null)
                 return;
-            DockLayoutStore.Deserialize(Dock, _defaultLayout);
+            DockLayoutStore.Deserialize(Dock, _defaultLayout, _defaultContents);
             if (DataContext is EditorHostBase host)
                 Layouts.Delete(host.LayoutKey);
         }

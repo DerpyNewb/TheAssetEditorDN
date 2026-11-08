@@ -124,6 +124,49 @@ namespace Test.UnitSimulator
             Assert.That(shown.Dock.Theme, Is.InstanceOf<Editors.Shared.Core.Common.BaseControl.Docking.AssetEditorDockTheme>());
         }
 
+        // A pane closed for good (not hidden) is gone from the layout; Reset layout still brings it back, with its content.
+        [Test, Apartment(ApartmentState.STA)]
+        public void ResetLayout_BringsBackATrulyClosedPane()
+        {
+            using var shown = Show(OpenPlain());
+            var scene = shown.Pane("SceneContent");
+            var content = scene.Content;
+            scene.CanClose = true;
+            scene.Close();
+            shown.Lay();
+            Assert.That(PaneIds(shown), Does.Not.Contain("SceneContent"), "the pane was not closed, so this proves nothing");
+
+            Assert.DoesNotThrow(() => shown.View.ResetLayout());
+            shown.Lay();
+            Assert.That(shown.Pane("SceneContent").Content, Is.SameAs(content));
+        }
+
+        // The app exiting with an editor open saves its layout: the app shuts its dispatcher down on exit. Own thread, because a
+        // dispatcher that has shut down is gone for good on the thread that ran it.
+        [Test]
+        public void ExitingTheApp_SavesTheOpenEditorsLayout()
+        {
+            var folder = TempFolder();
+            Exception? failed = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    var shown = Show(OpenPlain(), new EditorHostView { Layouts = new(folder) });
+                    MoveEditorPanelIntoSceneContent(shown);
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown();
+                }
+                catch (Exception e) { failed = e; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            Assert.That(failed, Is.Null);
+            var file = Path.Combine(folder, "VisualSkeletonEditor.xml");
+            Assert.That(File.Exists(file), Is.True, "exiting saved nothing");
+            Assert.That(File.ReadAllText(file), Does.Contain("EditorPanel"));
+        }
+
         // The app collapses an editor whose tab is not selected; a pane floated out of it must go with it, and come back.
         [Test, Apartment(ApartmentState.STA)]
         public void AFloatingPane_HidesWithItsEditor()
@@ -354,7 +397,7 @@ namespace Test.UnitSimulator
             using var shown = Show(Open());
             var panels = MenuNamed(shown, "PanelsMenu");
             panels.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent));
-            Assert.That(panels.Items.OfType<MenuItem>().Select(x => (string)x.Header), Is.SupersetOf(new[] { "Pairing", "Personalities", "Mount meta", "Rider meta", "Table" }));
+            Assert.That(panels.Items.OfType<MenuItem>().Select(x => (string)x.Header), Is.SupersetOf(new[] { "UnitSimulator.Pane.Pairing", "UnitSimulator.Pane.Personalities", "UnitSimulator.Pane.MountMeta", "UnitSimulator.Pane.RiderMeta", "UnitSimulator.Pane.Table" }), "the titles are loc keys, which a test prints as themselves");
         }
 
         // A part is taller than a small share; scrolled by whole parts, the list could only show its top. By pixel, its end is reached.

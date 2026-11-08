@@ -49,11 +49,11 @@ namespace Editors.UnitSimulator
 
         public override IReadOnlyList<EditorPane> EditorPanes =>
         [
-            new("Pairing", "Pairing", typeof(Views.PairingView), this),
-            new("Personalities", "Personalities", typeof(Views.PersonalitiesView), Personalities),
-            new("MountMeta", "Mount meta", typeof(Views.MetaView), MountMeta),
-            new("RiderMeta", "Rider meta", typeof(Views.MetaView), RiderMeta),
-            new("Table", "Table", typeof(Views.TableView), this),
+            new("Pairing", "UnitSimulator.Pane.Pairing", typeof(Views.PairingView), this),
+            new("Personalities", "UnitSimulator.Pane.Personalities", typeof(Views.PersonalitiesView), Personalities),
+            new("MountMeta", "UnitSimulator.Pane.MountMeta", typeof(Views.MetaView), MountMeta),
+            new("RiderMeta", "UnitSimulator.Pane.RiderMeta", typeof(Views.MetaView), RiderMeta),
+            new("Table", "UnitSimulator.Pane.Table", typeof(Views.TableView), this),
         ];
         public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.UnitSimulator_Editor;
 
