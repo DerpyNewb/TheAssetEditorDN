@@ -208,10 +208,12 @@ namespace Test.AnimationMeta
             var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
             var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
             Test.TestingUtility.TestUtility.AppResources.Load();
-            var view = new AnimationEditor.Common.BaseControl.EditorHostView { DataContext = superView };
-            view.Measure(new System.Windows.Size(1400, 900));
-            view.Arrange(new System.Windows.Rect(0, 0, 1400, 900));
-            view.UpdateLayout();
+            var view = new AnimationEditor.Common.BaseControl.EditorHostView { DataContext = superView, Layouts = new(Directory.CreateTempSubdirectory("docklayout").FullName) };
+            // In a window: the dock builds its panes when it is loaded.
+            var window = new System.Windows.Window { Content = view, Width = 1400, Height = 900, ShowInTaskbar = false, WindowStyle = System.Windows.WindowStyle.None, Left = -10000 };
+            window.Show();
+            using var close = new Disposer(window.Close);
+            window.UpdateLayout();
             var panel = Descendants(view).OfType<EditorView>().Single();
             var bar = Descendants(view).OfType<System.Windows.Controls.MenuItem>().Select(x => x.Command).ToList();
             var side = Descendants(panel).OfType<System.Windows.Controls.Button>().Select(x => x.Command).ToList();
@@ -401,5 +403,9 @@ namespace Test.AnimationMeta
                     yield return descendant;
             }
         }
+    }
+    sealed class Disposer(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
     }
 }
