@@ -202,6 +202,13 @@ namespace Test.AnimationMeta
 
         // The bar above the 3D view, beside Camera, opens the Kitbash editor's render settings, the light that lights the models
         // and lit smoke, and takes a screenshot. The side panel, under Show VFX, no longer carries them.
+        static void Lay(System.Windows.FrameworkElement element)
+        {
+            element.Measure(new System.Windows.Size(1400, 900));
+            element.Arrange(new System.Windows.Rect(0, 0, 1400, 900));
+            element.UpdateLayout();
+        }
+
         [Test, Apartment(ApartmentState.STA)]
         public void TheViewBarOffersTheRenderSettingsAndAScreenshot()
         {
@@ -209,12 +216,11 @@ namespace Test.AnimationMeta
             var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
             Test.TestingUtility.TestUtility.AppResources.Load();
             var view = new AnimationEditor.Common.BaseControl.EditorHostView { DataContext = superView, Layouts = new(Directory.CreateTempSubdirectory("docklayout").FullName) };
-            // In a window: the dock builds its panes when it is loaded.
-            var window = new System.Windows.Window { Content = view, Width = 1400, Height = 900, ShowInTaskbar = false, WindowStyle = System.Windows.WindowStyle.None, Left = -10000 };
-            window.Show();
-            using var close = new Disposer(window.Close);
-            window.UpdateLayout();
-            var panel = Descendants(view).OfType<EditorView>().Single();
+            Lay(view);
+            // The side panel on its own: the dock builds its panes only once loaded in a window, and loading SuperView's real 3D
+            // view there starts a device that outlives the test and holds the test host open after the run.
+            var panel = new EditorView { DataContext = superView };
+            Lay(panel);
             var bar = Descendants(view).OfType<System.Windows.Controls.MenuItem>().Select(x => x.Command).ToList();
             var side = Descendants(panel).OfType<System.Windows.Controls.Button>().Select(x => x.Command).ToList();
             System.Windows.Input.ICommand[] both =[superView.OpenRenderSettingsCommand, superView.TakeScreenshotCommand];
@@ -403,9 +409,5 @@ namespace Test.AnimationMeta
                     yield return descendant;
             }
         }
-    }
-    sealed class Disposer(Action dispose) : IDisposable
-    {
-        public void Dispose() => dispose();
     }
 }
