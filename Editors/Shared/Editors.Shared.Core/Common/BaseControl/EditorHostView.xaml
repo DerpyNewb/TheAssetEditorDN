@@ -7,27 +7,15 @@
              xmlns:animationplayer="clr-namespace:AnimationEditor.Common.AnimationPlayer" 
              xmlns:basecontrol="clr-namespace:Editors.Shared.Core.Common.BaseControl"
              xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+             xmlns:ad="https://github.com/Dirkster99/AvalonDock"
              mc:Ignorable="d" >
 
     <UserControl.Resources>
         <basecontrol:HostTemplateSelector x:Key="EditorSelector" />
     </UserControl.Resources>
     
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="{Binding LeftColumnWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-            <ColumnDefinition Width="5"/>
-            <ColumnDefinition Width="{Binding RightColumnWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-        </Grid.ColumnDefinitions>
-
-        <Grid.RowDefinitions>
-            <RowDefinition Height="auto"/>
-            <RowDefinition Height="auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="auto"/>
-        </Grid.RowDefinitions>
-
-        <Menu Grid.Row="1" Grid.Column="0">
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
             <MenuItem Header="{loc:Loc EditorHost.Menu.General}" IsEnabled="False">
                 <MenuItem Header="{loc:Loc EditorHost.Menu.SaveShortcutFile}" />
             </MenuItem>
@@ -39,84 +27,61 @@
             <MenuItem Header="{loc:Loc EditorHost.Menu.Screenshot}" Command="{Binding TakeScreenshotCommand}" ToolTip="{loc:Loc EditorHost.Menu.Screenshot.ToolTip}"/>
         </Menu>
 
-        <ContentControl Grid.Row="2" Grid.Column="0" Content="{Binding GameWorld, Mode=OneTime}"
-                        AllowDrop="True" DragOver="OnViewDragOver" Drop="OnViewDrop"/>
+        <!-- The 3D view is the one document: it cannot close or float, and the panels dock, tab, float and hide around it -->
+        <ad:DockingManager x:Name="Dock">
+            <ad:LayoutRoot>
+                <ad:LayoutPanel Orientation="Horizontal">
+                    <ad:LayoutPanel Orientation="Vertical">
+                        <ad:LayoutDocumentPane>
+                            <ad:LayoutDocument ContentId="GameView" Title="{loc:Loc EditorHost.Pane.GameView}" CanClose="False" CanFloat="False">
+                                <ContentControl x:Name="GameView" Content="{Binding GameWorld, Mode=OneTime}"
+                                                AllowDrop="True" DragOver="OnViewDragOver" Drop="OnViewDrop"/>
+                            </ad:LayoutDocument>
+                        </ad:LayoutDocumentPane>
+                        <ad:LayoutAnchorablePane DockHeight="130">
+                            <ad:LayoutAnchorable ContentId="AnimationPlayer" Title="{loc:Loc EditorHost.Pane.AnimationPlayer}">
+                                <animationplayer:AnimationPlayerView DataContext="{Binding Player, Mode=OneTime}"/>
+                            </ad:LayoutAnchorable>
+                        </ad:LayoutAnchorablePane>
+                    </ad:LayoutPanel>
 
-        <GridSplitter Grid.Row="1" Grid.RowSpan="3" Grid.Column="1"  HorizontalAlignment="Stretch"
-                      ResizeBehavior="PreviousAndNext" ShowsPreview="False">
-            <GridSplitter.Template>
-                <ControlTemplate TargetType="{x:Type GridSplitter}">
-                    <Grid>
-                        <Button Content="⁞" />
-                        <Rectangle Fill="#00FFFFFF" />
-                    </Grid>
-                </ControlTemplate>
-            </GridSplitter.Template>
-        </GridSplitter>
-        <!-- The scene content above, the editor's own panel below, and a splitter between them; each scrolls in its share -->
-        <Grid Grid.Row="1" Grid.Column="2" Grid.RowSpan="3" >
-            <Grid.Resources>
-                <BooleanToVisibilityConverter x:Key="Shown"/>
-            </Grid.Resources>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="{Binding SceneContentHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                <RowDefinition Height="auto"/>
-                <RowDefinition Height="{Binding EditorPanelHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-            </Grid.RowDefinitions>
-
-            <Expander x:Name="SceneContent" Grid.Row="0" IsExpanded="{Binding SceneContentExpanded}">
-                <Expander.Header>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock VerticalAlignment="Center">
-                            <Run FontSize="14" FontWeight="Bold"  Text="{loc:Loc EditorHost.SceneContent}"/>
-                        </TextBlock>
-                    </StackPanel>
-                </Expander.Header>
-                
-                <ListView ItemsSource="{Binding SceneObjects, UpdateSourceTrigger=PropertyChanged}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" BorderThickness="0"
-                          ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.CanContentScroll="False">
-                <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                        <Setter Property="Background" Value="Transparent" />
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="{x:Type ListViewItem}">
-                                    <ContentPresenter />
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ListView.ItemContainerStyle>
-                <ListView.ItemTemplate >
-                    <DataTemplate>
-                        <referencemodel:SceneObjectView />
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-            </Expander>
-
-            <GridSplitter x:Name="SceneSplitter" Grid.Row="1" Height="5" HorizontalAlignment="Stretch" ResizeDirection="Rows"
-                          ResizeBehavior="PreviousAndNext" ShowsPreview="False" Visibility="{Binding SceneContentExpanded, Converter={StaticResource Shown}}">
-                <GridSplitter.Template>
-                    <ControlTemplate TargetType="{x:Type GridSplitter}">
-                        <Grid>
-                            <Button Content="⋯" />
-                            <Rectangle Fill="#00FFFFFF" />
-                        </Grid>
-                    </ControlTemplate>
-                </GridSplitter.Template>
-            </GridSplitter>
-
-            <ScrollViewer x:Name="EditorPanel" Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                <DockPanel  DockPanel.Dock="Top">
-                    <ContentControl Content="{Binding ., UpdateSourceTrigger=PropertyChanged}"       
-                                    ContentTemplateSelector="{StaticResource EditorSelector}"/>
-
-                </DockPanel>
-            </ScrollViewer>
-        </Grid>
- 
-        <animationplayer:AnimationPlayerView Grid.Row="3" Grid.Column="0" DataContext="{Binding Player, Mode=OneTime}"/>
-    </Grid>
+                    <ad:LayoutAnchorablePaneGroup Orientation="Vertical" DockWidth="400">
+                        <ad:LayoutAnchorablePane DockHeight="2*">
+                            <ad:LayoutAnchorable ContentId="SceneContent" Title="{loc:Loc EditorHost.Pane.SceneContent}">
+                                <ListView ItemsSource="{Binding SceneObjects, UpdateSourceTrigger=PropertyChanged}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" BorderThickness="0"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.CanContentScroll="False">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="{x:Type ListViewItem}">
+                                                        <ContentPresenter />
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate >
+                                        <DataTemplate>
+                                            <referencemodel:SceneObjectView />
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </ad:LayoutAnchorable>
+                        </ad:LayoutAnchorablePane>
+                        <ad:LayoutAnchorablePane DockHeight="3*">
+                            <ad:LayoutAnchorable ContentId="EditorPanel" Title="{loc:Loc EditorHost.Pane.EditorPanel}">
+                                <ScrollViewer x:Name="EditorPanel" VerticalScrollBarVisibility="Auto">
+                                    <ContentControl Content="{Binding ., UpdateSourceTrigger=PropertyChanged}"
+                                                    ContentTemplateSelector="{StaticResource EditorSelector}"/>
+                                </ScrollViewer>
+                            </ad:LayoutAnchorable>
+                        </ad:LayoutAnchorablePane>
+                    </ad:LayoutAnchorablePaneGroup>
+                </ad:LayoutPanel>
+            </ad:LayoutRoot>
+        </ad:DockingManager>
+    </DockPanel>
 </UserControl>

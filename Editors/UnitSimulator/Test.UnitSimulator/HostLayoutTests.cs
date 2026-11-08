@@ -1,20 +1,21 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using AnimationEditor.Common.BaseControl;
-using Editors.Shared.Core.Common.BaseControl;
+using AvalonDock;
+using AvalonDock.Controls;
+using AvalonDock.Layout;
 using Editors.UnitSimulator;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
 
 namespace Test.UnitSimulator
 {
-    // The 3D editors' right column: the scene content above, the editor's own panel below. The scene content took all the height
-    // its parts wanted, so each part added squeezed the panel under it, and the bar between them only looked like a splitter.
+    // The 3D editors' panels dock around the 3D view: scene content and the editor's own panel on the right, the animation
+    // player under the view. The default is the layout the editors had before docking.
     public class HostLayoutTests
     {
-        static UnitSimulatorViewModel Open()
+        internal static UnitSimulatorViewModel Open()
         {
             var runner = new AssetEditorTestRunner();
             runner.CreateCaContainer();
@@ -22,89 +23,119 @@ namespace Test.UnitSimulator
             return UnitSimulatorAppTests.Open(runner);
         }
 
-        static IEnumerable<DependencyObject> Visuals(DependencyObject root) =>
+        internal static IEnumerable<DependencyObject> Visuals(DependencyObject root) =>
             Enumerable.Range(0, VisualTreeHelper.GetChildrenCount(root)).Select(i => VisualTreeHelper.GetChild(root, i)).SelectMany(x => Visuals(x).Prepend(x));
 
-        static void Lay(FrameworkElement view)
+        static T Above<T>(DependencyObject child) where T : DependencyObject
         {
-            view.Measure(new Size(1600, 900));
-            view.Arrange(new Rect(0, 0, 1600, 900));
-            view.UpdateLayout();
+            for (var x = VisualTreeHelper.GetParent(child); x != null; x = VisualTreeHelper.GetParent(x))
+                if (x is T found)
+                    return found;
+            throw new InvalidOperationException($"no {typeof(T).Name} above {child}");
         }
 
-        static (EditorHostView View, Expander Scene, GridSplitter Splitter, ContentControl Panel) Show(UnitSimulatorViewModel sim)
+        // A window off screen, because the dock builds its panes when it is loaded.
+        internal sealed class Shown(EditorHostView view, Window window) : IDisposable
+        {
+            public EditorHostView View { get; } = view;
+            public DockingManager Dock => (DockingManager)View.FindName("Dock");
+            public LayoutAnchorable Pane(string id) => Dock.Layout.Descendents().OfType<LayoutAnchorable>().Single(x => x.ContentId == id);
+            public LayoutDocument Document => Dock.Layout.Descendents().OfType<LayoutDocument>().Single();
+            // The dock fixes its pane sizes in work it queues, so the queue is run before and after laying out.
+            public void Lay()
+            {
+                Idle();
+                window.UpdateLayout();
+                Idle();
+                window.UpdateLayout();
+            }
+
+            static void Idle() => System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            public void Dispose() => window.Close();
+        }
+
+        internal static Shown Show(object editor, EditorHostView? view = null)
         {
             AppResources.Load();
-            var view = new EditorHostView { DataContext = sim };
-            Lay(view);
-            var splitter = view.FindName("SceneSplitter") as GridSplitter;
-            Assert.That(splitter, Is.Not.Null, "no splitter between the scene content and the editor's panel");
-            return (view, (Expander)view.FindName("SceneContent"), splitter!, (ContentControl)view.FindName("EditorPanel"));
+            view ??= new EditorHostView();
+            view.DataContext = editor;
+            var window = new Window { Content = view, Width = 1600, Height = 900, ShowInTaskbar = false, WindowStyle = WindowStyle.None, Left = -10000, Top = 0 };
+            window.Show();
+            var shown = new Shown(view, window);
+            Assert.That(shown.Dock, Is.Not.Null, "no DockingManager named Dock in the host view");
+            shown.Lay();
+            return shown;
         }
 
-        static double Column(Expander scene) => ((FrameworkElement)VisualTreeHelper.GetParent(scene)).ActualHeight;
+        static Rect Bounds(FrameworkElement element, Visual relativeTo) =>
+            element.TransformToAncestor(relativeTo).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
 
-        [Test, Apartment(ApartmentState.STA)]
-        public void TheEditorsPanel_KeepsItsShare_AndTheSceneContentScrolls()
+        internal static Rect PaneBounds(Shown shown, LayoutContent content) =>
+            Bounds(content is LayoutDocument ? Above<LayoutDocumentPaneControl>((DependencyObject)content.Content) : Above<LayoutAnchorablePaneControl>((DependencyObject)content.Content), shown.Dock);
+
+        internal static void AssertDefaultLayout(Shown shown)
         {
-            var (_, scene, splitter, panel) = Show(Open());
+            var w = shown.Dock.GridSplitterWidth;
+            var view = PaneBounds(shown, shown.Document);
+            var scene = PaneBounds(shown, shown.Pane("SceneContent"));
+            var panel = PaneBounds(shown, shown.Pane("EditorPanel"));
+            var player = PaneBounds(shown, shown.Pane("AnimationPlayer"));
+            var width = shown.Dock.ActualWidth;
 
-            Assert.That(panel.ActualHeight, Is.EqualTo((Column(scene) - splitter.ActualHeight) * 3 / 5).Within(2));
-            var list = Visuals(scene).OfType<ScrollViewer>().First();
-            Assert.That(list.ExtentHeight, Is.GreaterThan(list.ViewportHeight), "the scene content's parts do not fit its share, so it scrolls");
+            Assert.Multiple(() =>
+            {
+                // A quarter of a 1600-wide editor, as the column was. Fixed, not a share: the dock turns a side column's star width
+                // into pixels, and a star it has not measured yet into its 25 px minimum.
+                Assert.That(scene.Width, Is.EqualTo(400).Within(2), "the right column's width");
+                Assert.That(view.Width + w + scene.Width, Is.EqualTo(width).Within(2), "the 3D view takes the rest");
+                Assert.That(panel.Width, Is.EqualTo(scene.Width).Within(1));
+                Assert.That(scene.Left, Is.GreaterThanOrEqualTo(view.Right), "scene content right of the 3D view");
+                Assert.That(panel.Top, Is.GreaterThanOrEqualTo(scene.Bottom), "the editor's panel under the scene content");
+                Assert.That(scene.Height, Is.EqualTo((scene.Height + panel.Height) * 2 / 5).Within(2), "scene content 2 to the panel's 3");
+                Assert.That(player.Top, Is.GreaterThanOrEqualTo(view.Bottom), "the player under the 3D view");
+                Assert.That(player.Left, Is.EqualTo(view.Left).Within(2));
+                Assert.That(player.Width, Is.EqualTo(view.Width).Within(2));
+            });
         }
 
-        // Dragged by the 120 pixels the mouse moved, and the split is kept on the editor, as the column widths are.
         [Test, Apartment(ApartmentState.STA)]
-        public void DraggingTheSplitter_MovesTheSplit_AndTheEditorKeepsIt()
+        public void TheDefaultLayout_IsTodaysLayout()
         {
-            var sim = Open();
-            var (view, scene, splitter, panel) = Show(sim);
-            var (sceneBefore, panelBefore) = (scene.ActualHeight, panel.ActualHeight);
-            var kept = sim.SceneContentHeight;
-
-            splitter.RaiseEvent(new DragStartedEventArgs(0, 0));
-            splitter.RaiseEvent(new DragDeltaEventArgs(0, 120));
-            splitter.RaiseEvent(new DragCompletedEventArgs(0, 120, false));
-            Lay(view);
-
-            Assert.That((scene.ActualHeight - sceneBefore, panelBefore - panel.ActualHeight), Is.EqualTo((120.0, 120.0)).Using<(double, double)>((a, b) =>
-                Math.Abs(a.Item1 - b.Item1) <= 2 && Math.Abs(a.Item2 - b.Item2) <= 2));
-            Assert.That(sim.SceneContentHeight, Is.Not.EqualTo(kept));
+            using var shown = Show(Open());
+            AssertDefaultLayout(shown);
         }
 
-        // Collapsed, the scene content is its header and the panel takes the rest; opened again, it has the height it was left at.
         [Test, Apartment(ApartmentState.STA)]
-        public void CollapsingTheSceneContent_GivesThePanelTheColumn_AndOpeningItBringsBackItsHeight()
+        public void TheGameView_CannotCloseOrFloat()
         {
-            var sim = Open();
-            sim.SceneContentHeight = new GridLength(300);
-            var (view, scene, splitter, panel) = Show(sim);
+            using var shown = Show(Open());
+            var document = shown.Document;
+            Assert.That((document.ContentId, document.CanClose, document.CanFloat), Is.EqualTo(("GameView", false, false)));
+        }
 
-            scene.IsExpanded = false;
-            Lay(view);
-            Assert.That(splitter.Visibility, Is.EqualTo(Visibility.Collapsed));
-            Assert.That(scene.ActualHeight, Is.EqualTo(scene.DesiredSize.Height).Within(1), "the row kept its height, not only the header's");
-            Assert.That(panel.ActualHeight, Is.EqualTo(Column(scene) - scene.ActualHeight).Within(2));
-
-            scene.IsExpanded = true;
-            Lay(view);
-            Assert.That(scene.ActualHeight, Is.EqualTo(300).Within(1));
+        [Test, Apartment(ApartmentState.STA)]
+        public void TheGameView_StillTakesDrops()
+        {
+            using var shown = Show(Open());
+            var game = shown.View.FindName("GameView") as ContentControl;
+            Assert.That(game, Is.Not.Null);
+            Assert.That(game!.AllowDrop, Is.True);
+            Assert.That(shown.Document.Content, Is.SameAs(game));
         }
 
         // A part is taller than a small share; scrolled by whole parts, the list could only show its top. By pixel, its end is reached.
         [Test, Apartment(ApartmentState.STA)]
         public void APartTallerThanTheSceneContentsShare_ScrollsToItsEnd()
         {
-            var sim = Open();
-            sim.SceneContentHeight = new GridLength(150);
-            var (view, scene, _, _) = Show(sim);
-            var list = Visuals(scene).OfType<ScrollViewer>().First();
+            using var shown = Show(Open());
+            ((LayoutAnchorablePane)shown.Pane("SceneContent").Parent).DockHeight = new GridLength(150);
+            shown.Lay();
+            var list = Visuals((DependencyObject)shown.Pane("SceneContent").Content).OfType<ScrollViewer>().First();
             var last = Visuals(list).OfType<ListViewItem>().Last();
             Assert.That(last.ActualHeight, Is.GreaterThan(list.ViewportHeight), "no part taller than the share, so this proves nothing");
 
             list.ScrollToEnd();
-            Lay(view);
+            shown.Lay();
             var bottom = last.TransformToAncestor(list).Transform(new Point(0, last.ActualHeight)).Y;
             Assert.That(bottom, Is.LessThanOrEqualTo(list.ViewportHeight + 1));
         }

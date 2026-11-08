@@ -292,6 +292,10 @@
   "EditorHost.Menu.FocusSelection": "聚焦选中项",
   "EditorHost.Menu.Reset": "重置",
   "EditorHost.SceneContent": "场景内容:",
+  "EditorHost.Pane.GameView": "3D 视图",
+  "EditorHost.Pane.SceneContent": "场景内容",
+  "EditorHost.Pane.EditorPanel": "编辑器",
+  "EditorHost.Pane.AnimationPlayer": "动画播放器",
 
   "AnimationPlayer.Toggle": "动画",
   "AnimationPlayer.MainAnimation": "主动画:",
