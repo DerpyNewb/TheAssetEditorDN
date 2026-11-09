@@ -78,6 +78,7 @@
                 <ComboBox
                           IsEditable="True"
                           IsTextSearchEnabled="false"
+                          KeyUp="OnFilterBoxKeyUp"
                           DisplayMemberPath="FileName"
                           Text="{Binding FragAndSlotSelection.FragmentList.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
                           ItemsSource="{Binding FragAndSlotSelection.FragmentList.Values}" 
@@ -93,6 +94,7 @@
                 <ComboBox
                           IsEditable="True"
                           IsTextSearchEnabled="false"
+                          KeyUp="OnFilterBoxKeyUp"
                           DisplayMemberPath="SlotName"
                           Text="{Binding FragAndSlotSelection.FragmentSlotList.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
                           ItemsSource="{Binding FragAndSlotSelection.FragmentSlotList.Values}" 

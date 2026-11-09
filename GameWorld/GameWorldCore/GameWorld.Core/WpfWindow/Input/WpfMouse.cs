@@ -92,6 +92,9 @@ namespace GameWorld.Core.WpfWindow.Input
             var topToBottom = _cachedWindowOrder;
             foreach (var window in topToBottom)
             {
+                // A floating pane's window closes when it is docked back in, and can still be in the cache above for 100 ms.
+                if (PresentationSource.FromVisual(window) == null)
+                    continue;
                 var hitPoint = window.PointFromScreen(new Point() { X = p.X, Y = p.Y });
                 var hitResult = VisualTreeHelper.HitTest(window, hitPoint);
                 if (hitResult?.VisualHit != null)

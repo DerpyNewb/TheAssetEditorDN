@@ -24,6 +24,22 @@ namespace AnimationEditor.Common.ReferenceModel
             e.Handled = true;
         }
 
+        // Typing in Fragment or Slot filters the list; open it so the matches show. Opening an editable box selects all its
+        // text, which the next key would replace, so the caret goes back where it was.
+        void OnFilterBoxKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key is System.Windows.Input.Key.Enter or System.Windows.Input.Key.Escape or System.Windows.Input.Key.Tab
+                or System.Windows.Input.Key.Up or System.Windows.Input.Key.Down)
+                return;
+            if (sender is not ComboBox box || box.IsDropDownOpen || box.Template.FindName("PART_EditableTextBox", box) is not TextBox text)
+                return;
+
+            var caret = text.CaretIndex;
+            box.IsDropDownOpen = true;
+            text.SelectionLength = 0;
+            text.CaretIndex = caret;
+        }
+
         void OnModelDrop(object sender, DragEventArgs e) => e.Handled = DataContext is SceneObjectViewModel part && TakeModel(e.Data, part);
 
         /// <summary>True for any pack tree file, which goes no further; a model goes into the part.</summary>
