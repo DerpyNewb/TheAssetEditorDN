@@ -7,7 +7,7 @@
 
 A fork of [donkeyProgramming's AssetEditor](https://github.com/donkeyProgramming/TheAssetEditor), the modding tool for Total War games with editors for 3D models, animations, audio, textures and more in one desktop app. It is built on upstream v0.78, with upstream's later master merged in, and adds a VFX editor, a Unit Simulator, a particle preview much closer to the game's, better LOD generation and a long list of fixes.
 
-Releases are numbered DN v1, v1.1, v1.2 and so on, and the title bar shows both numbers, as in "AssetEditor v0.78 - DN v1.4".
+Releases are numbered DN v1, v1.1, v1.2 and so on, and the title bar shows both numbers, as in "AssetEditor v0.78 - DN v1.5".
 
 **[Latest Release](https://github.com/DerpyNewb/TheAssetEditorDN/releases/latest)** · **[Documentation](https://donkeyprogramming.github.io/TheAssetEditor/)** · **[Video Tutorial](https://www.youtube.com/watch?v=ZlmG2AVL5-g)** · **[Upstream](https://github.com/donkeyProgramming/TheAssetEditor)**
 
@@ -28,6 +28,9 @@ Flipbooks, trails, decals, HDR glow at the game's bloom threshold, light particl
 
 ### SuperView and the Anm.Meta editor
 Vanilla `.anm.meta` files re-save byte-identical. Tag descriptions, a New dialog, PROP_10 and above, EFFECT particles, hand poses and animated props drawn in place, and `.variantmeshdefinition` files open and play.
+
+### Dockable panels
+In SuperView, the Unit Simulator and the Skeleton, Campaign Animation Creator, Animation Retarget and KeyFrame editors, the panels around the 3D view dock, tab, float, auto-hide and close. General > Panels reopens a closed one, General > Reset layout puts the default back, and each editor keeps its own layout between sessions.
 
 ### LOD generation
 LODs and "Reduce mesh by 10%" use [meshoptimizer](https://github.com/zeux/meshoptimizer). It lands close to the triangle count you ask for and keeps UV seams, open edges, skin weights and mirrored tangent frames. The old Fast Quadric decimator is still in the save dialog as "Fast Quadric (old)", with three of its bugs fixed.
