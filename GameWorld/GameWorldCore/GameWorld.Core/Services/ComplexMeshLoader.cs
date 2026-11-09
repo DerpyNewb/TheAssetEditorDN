@@ -116,8 +116,7 @@ namespace GameWorld.Core.Services
             {
                 var slotNode = root.AddObject(new SlotNode(slot.Name + " " + slot.AttachmentPoint, slot.AttachmentPoint));
 
-                // A weapon slot naming its bone often holds only a reference to a shared weapon set whose own slot names none;
-                // the set's meshes then hang on the outer slot's bone.
+                // A slot with no attach_point of its own (a shared weapon set's) hangs on the outer slot's bone.
                 var slotAttachmentPoint = string.IsNullOrWhiteSpace(slot.AttachmentPoint) ? attachmentPointName : slot.AttachmentPoint;
 
                 foreach (var childMesh in slot.ChildMeshes)

@@ -10,9 +10,7 @@ using Test.TestingUtility.TestUtility;
 
 namespace GameWorld.Core.Test.Services
 {
-    // A weapon slot often names its bone and holds only a reference to a shared weapon set, whose own slot names none
-    // (Chaos Dwarf dual axes: weapon_2 attach_point="be_prop_1" -> chd_axe_set1, slot "axe"). The axe drew at the
-    // model's origin, on the ground, because the inner slot's blank attach_point replaced the outer one.
+    // Weapon slot names a bone but only references a shared set whose slot names none (CHD dual axes).
     [Apartment(ApartmentState.STA)]
     public class ComplexMeshLoaderAttachPointTests
     {

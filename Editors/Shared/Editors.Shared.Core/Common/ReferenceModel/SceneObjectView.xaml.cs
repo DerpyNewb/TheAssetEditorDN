@@ -24,8 +24,7 @@ namespace AnimationEditor.Common.ReferenceModel
             e.Handled = true;
         }
 
-        // Typing in Fragment or Slot filters the list; open it so the matches show. Opening an editable box selects all its
-        // text, which the next key would replace, so the caret goes back where it was.
+        // Opening an editable ComboBox selects all its text, so the next key would replace it; put the caret back.
         void OnFilterBoxKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key is System.Windows.Input.Key.Enter or System.Windows.Input.Key.Escape or System.Windows.Input.Key.Tab
