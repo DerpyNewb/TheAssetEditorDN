@@ -51,6 +51,15 @@ namespace AssetEditor.ViewModels
             var latestRelease = _newerReleases[0];
             _logger.Information($"Updating AssetEditor from DN v{ForkRelease.Current} to DN v{ForkRelease.Parse(latestRelease.TagName)}");
 
+            // Only a publish ships the updater (PublishUpdater in AssetEditor.csproj); a plain build gets the release page.
+            if (!File.Exists(Path.Combine(AppContext.BaseDirectory, AssetEditorUpdaterExe)))
+            {
+                _logger.Warning($"{AssetEditorUpdaterExe} is not beside the app, opening {latestRelease.HtmlUrl}");
+                Process.Start(new ProcessStartInfo(latestRelease.HtmlUrl) { UseShellExecute = true });
+                _closeAction?.Invoke();
+                return;
+            }
+
             DeleteUpdateDirectory();
 
             LaunchUpdater();
