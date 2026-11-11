@@ -1,6 +1,6 @@
 using Editors.UnitSimulator;
 using Editors.UnitSimulator.Pairing;
-using Editors.UnitSimulator.Tables;
+using Editors.Shared.Core.Common;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;

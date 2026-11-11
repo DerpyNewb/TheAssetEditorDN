@@ -10,7 +10,6 @@ using Editors.UnitSimulator.Pairing;
 using Editors.UnitSimulator.Parts;
 using Editors.UnitSimulator.Personalities;
 using GameWorld.Core.Components;
-using Editors.UnitSimulator.Tables;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using Shared.Core.Events;

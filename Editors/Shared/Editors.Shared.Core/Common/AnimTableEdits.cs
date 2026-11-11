@@ -5,7 +5,7 @@ using Shared.Core.PackFiles.Utility;
 using Shared.GameFormats.AnimationPack;
 using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
 
-namespace Editors.UnitSimulator.Tables
+namespace Editors.Shared.Core.Common
 {
     /// <summary>Edits to a battle table, and the save that writes one back into its animpack with every other entry untouched.</summary>
     public static class AnimTableEdits

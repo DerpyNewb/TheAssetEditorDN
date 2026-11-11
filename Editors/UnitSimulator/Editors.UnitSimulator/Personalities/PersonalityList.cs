@@ -4,7 +4,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.ReferenceModel;
-using Editors.UnitSimulator.Tables;
 using Microsoft.Xna.Framework;
 using Shared.Core.PackFiles;
 using Shared.Core.Services;

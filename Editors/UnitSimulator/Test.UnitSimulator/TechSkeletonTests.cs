@@ -1,5 +1,5 @@
 using Editors.UnitSimulator.Personalities;
-using Editors.UnitSimulator.Tables;
+using Editors.Shared.Core.Common;
 using GameWorld.Core.Animation;
 using Microsoft.Xna.Framework;
 using Shared.Core.PackFiles;
