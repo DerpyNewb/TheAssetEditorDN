@@ -323,12 +323,21 @@ namespace GameWorld.Core.Services
             }
         }
 
+        // Callers bind what this class hands out on the UI thread, and a container refresh adds and removes entries on a
+        // worker under _threadLock. Registered on the caller's thread before it binds, as WPF requires; without it the
+        // first change threw inside the refresh and the lists stayed cut short for the session.
+        ObservableCollection<T> Bindable<T>(ObservableCollection<T> list)
+        {
+            BindingOperations.EnableCollectionSynchronization(list, _threadLock);
+            return list;
+        }
+
         public ObservableCollection<AnimationReference> GetAnimationsForSkeleton(string skeletonName)
         {
             lock (_threadLock)
             {
                 if (_skeletonNameToAnimationMap.TryGetValue(skeletonName, out var existingAnimations))
-                    return existingAnimations;
+                    return Bindable(existingAnimations);
             }
 
             WaitForInitialLoad(nameof(GetAnimationsForSkeleton));
@@ -336,21 +345,17 @@ namespace GameWorld.Core.Services
             lock (_threadLock)
             {
                 if (_skeletonNameToAnimationMap.TryGetValue(skeletonName, out var loadedAnimations))
-                    return loadedAnimations;
+                    return Bindable(loadedAnimations);
 
                 _skeletonNameToAnimationMap[skeletonName] = [];
-                return _skeletonNameToAnimationMap[skeletonName];
+                return Bindable(_skeletonNameToAnimationMap[skeletonName]);
             }
         }
 
         public ObservableCollection<string> GetAllSkeletonFileNames()
         {
             WaitForInitialLoad(nameof(GetAllSkeletonFileNames));
-            // Callers bind this list on the UI thread, and a container refresh adds and removes paths on a worker under
-            // _threadLock. Registered here, on the caller's thread before it binds, as WPF requires; without it the first
-            // change throws inside the refresh and the list stays cut short for the session.
-            BindingOperations.EnableCollectionSynchronization(_skeletonFileNames, _threadLock);
-            return _skeletonFileNames;
+            return Bindable(_skeletonFileNames);
         }
 
         public AnimationFile? GetSkeletonFileFromName(string skeletonName)

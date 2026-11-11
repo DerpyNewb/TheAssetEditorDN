@@ -90,21 +90,37 @@ namespace GameWorld.Core.Test.Services
             using var helper = new SkeletonAnimationLookUpHelper(packFileService.Object, eventHub);
             var list = helper.GetAllSkeletonFileNames();
             var view = System.Windows.Data.CollectionViewSource.GetDefaultView(list);
+            var animations = helper.GetAnimationsForSkeleton("humanoid01");  // Kitbash's animation panel binds this one
+            var animationView = System.Windows.Data.CollectionViewSource.GetDefaultView(animations);
 
             containers.Add(karlContainer);
             eventHub.PublishGlobalEvent(new PackFileContainerAddedEvent(karlContainer));
-            WaitForCondition(() => list.Count == ExpectedKarlSkeletonCount, timeoutMs: 45000, failMessage: $"the bound skeleton list stopped at {list.Count}");
+            WaitForCondition(() => list.Count == ExpectedKarlSkeletonCount && animations.Any(x => x.AnimationFile.Contains("hu1_2hh_stand_idle_01")),
+                timeoutMs: 45000, failMessage: $"the bound lists stopped at {list.Count} skeletons and {animations.Count} humanoid01 animations");
 
-            // The view applies the queued changes on its own thread, throttled; pump it until it has.
-            WaitForCondition(() =>
-            {
-                var frame = new System.Windows.Threading.DispatcherFrame();
-                System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () => frame.Continue = false);
-                System.Windows.Threading.Dispatcher.PushFrame(frame);
-                return view.Cast<string>().Count() == list.Count;
-            }, timeoutMs: 5000, failMessage: "the bound view never caught up with the list");
+            PumpUntil(() => view.Cast<string>().Count() == list.Count && animationView.Cast<object>().Count() == animations.Count, "the bound views never caught up with their lists");
             Assert.That(view.Cast<string>(), Is.EquivalentTo(list));
+            Assert.That(animationView.Cast<object>(), Is.EquivalentTo(animations));
+
+            // A list handed out for a skeleton already indexed - a tab opened after startup - then emptied while bound. A throw
+            // there stops the unload before it reaches the skeleton list (an unsorted view reads the source, so it shows nothing).
+            var indexed = helper.GetAnimationsForSkeleton("humanoid01e");
+            Assert.That(indexed, Is.Not.Empty, "humanoid01e is not indexed, so this half tests nothing");
+            System.Windows.Data.CollectionViewSource.GetDefaultView(indexed);
+            containers.Remove(karlContainer);
+            eventHub.PublishGlobalEvent(new PackFileContainerRemovedEvent(karlContainer));
+            WaitForCondition(() => indexed.Count == 0 && list.Count == 0, timeoutMs: 10000,
+                failMessage: $"the unload stopped part way: {indexed.Count} humanoid01e animations, {list.Count} skeletons left");
         }
+
+        // A view applies queued changes on its own thread, throttled; pump this thread's dispatcher until it has.
+        private static void PumpUntil(Func<bool> done, string failMessage) => WaitForCondition(() =>
+        {
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () => frame.Continue = false);
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+            return done();
+        }, timeoutMs: 5000, failMessage: failMessage);
 
         private static void AssertLoadedCounts(int animationCount, int skeletonCount)
         {
