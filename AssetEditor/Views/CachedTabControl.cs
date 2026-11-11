@@ -1,5 +1,6 @@
 ﻿using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 
 namespace AssetEditor.Views
@@ -74,6 +75,23 @@ namespace AssetEditor.Views
             else if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 _itemsHolderPanel.Children.Clear();
+            }
+        }
+
+        protected override AutomationPeer OnCreateAutomationPeer() => new CachedTabControlAutomationPeer(this);
+
+        // A TabItem's automation peer reads its content from PART_SelectedContentHost, which this template does not have: the
+        // content lives in PART_ItemsHolder, so UI Automation saw no editor's content at all. This lists the visible tab's
+        // content after the tab headers, read the way TabItemAutomationPeer reads PART_SelectedContentHost.
+        sealed class CachedTabControlAutomationPeer(CachedTabControl owner) : TabControlAutomationPeer(owner)
+        {
+            protected override List<AutomationPeer> GetChildrenCore()
+            {
+                var children = base.GetChildrenCore() ?? [];
+                var visible = owner.FindChildContentPresenter(owner.SelectedItem);
+                if (visible != null)
+                    children.AddRange(new FrameworkElementAutomationPeer(visible).GetChildren() ?? []);
+                return children;
             }
         }
 
