@@ -142,6 +142,16 @@ namespace Editors.Shared.Core.Common
                 throw new InvalidDataException($"{entryName} does not read back as written");
         }
 
+        /// <summary>The copy of a table that a save writes over: the editable pack's, read from its animpack now, else the one given. A
+        /// table picked from a list read before an earlier save is that save's original, and an edit to it would undo the save.</summary>
+        public static AnimationBinWh3 Latest(IPackFileService pfs, AnimationBinWh3 table)
+        {
+            var editable = pfs.GetEditablePack();
+            var animPack = editable == null || table.Parent?.FileName is not { } path ? null : pfs.FindFile(path, editable);
+            return animPack == null ? table
+                : AnimationPackSerializer.Load(animPack, pfs).GetGenericAnimationSets().OfType<AnimationBinWh3>().FirstOrDefault(x => x.FileName == table.FileName) ?? table;
+        }
+
         /// <summary>Writes the table into the animpack it came from, at that animpack's path in the editable pack. Null when saved, else
         /// why not: the table is in a CA pack, or no editable pack is selected. The animpack spliced is the editable pack's copy when it
         /// has one, so a second table saved keeps the first; a pack loaded later holding the animpack would otherwise be read instead.</summary>

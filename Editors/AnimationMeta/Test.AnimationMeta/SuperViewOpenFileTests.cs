@@ -3,10 +3,12 @@ using Editors.AnimationMeta.SuperView;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
+using Moq;
 using Shared.Core.Commands;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
+using Shared.Core.Services;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationPack;
 using Test.TestingUtility.Shared;
@@ -18,6 +20,7 @@ namespace Test.AnimationMeta
     public class SuperViewOpenFileTests
     {
         const string ThrotVmd = @"variantmeshes\variantmeshdefinitions\skv_throt.variantmeshdefinition";
+        const string ThrotTable = @"animations/database/battle/bin/hu17_dlc16_throt.bin";
 
         AssetEditorTestRunner _runner = null!;
 
@@ -122,15 +125,92 @@ namespace Test.AnimationMeta
             Assert.That((weapons.Count > 1, onlyFirst, weapons.All(x => x.IsVisible)), Is.EqualTo((true, new List<string> { kept }, true)));
         }
 
+        // Save meta as writes the open tab's meta, edits and all, to a new file and points the slot that tab shows at it, in the
+        // table saved back into its animpack in the editable pack. The meta it was read from, and every other row, stay as they were.
+        // The path is typed as a person might, and lands lower-cased with its extension, where the table says it is.
+        [TestCase(1)]
+        [TestCase(0)]
+        public void SaveMetaAs_WritesANewMeta_AndPointsTheSlotAtIt(int tab)
+        {
+            var pfs = _runner.PackFileService;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable);
+            selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+            superView.SelectedTabControllerIndex = tab;
+            var editor = tab == 0 ? superView.PersistentMetaEditor : superView.MetaEditor;
+            var (original, originalBytes) = (editor.CurrentFile, editor.CurrentFile.DataSource.ReadData());
+            var animPackPath = selection.FragmentList.SelectedItem.PackFileReference!.FileName;
+            static (string, string, string, string) Row(AnimationBinEntryGenericFormat x) => (x.SlotName, x.AnimationFile, x.MetaFile, x.SoundFile);
+            var rows = selection.FragmentList.SelectedItem.Entries.Select(Row).ToList();
+            var assigned = rows.FindIndex(x => x.Item3 == (tab == 0 ? selection.MetaDataPersistName : selection.MetaDataName) && x.Item1 == (tab == 0 ? "PERSISTENT_METADATA_ALIVE" : "ATTACK_5"));
+
+            var field = editor.Tags.SelectMany(x => x.Variables).First(x => !x.IsReadOnly && x.Scrub == Shared.Ui.Common.Behaviors.ScrubMode.Integer);
+            var fieldAt = editor.Tags.SelectMany(x => x.Variables).ToList().IndexOf(field);
+            field.ValueAsString = (int.Parse(field.ValueAsString) + 1).ToString();
+            var edited = field.ValueAsString;
+
+            const string Saved = "animations/derpy/throt_assigned.anm.meta";
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>())).Returns(new SaveDialogResult(true, null, @"Animations\Derpy\Throt_Assigned"));
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+            superView.SaveMetaAsCommand.Execute(null);
+            Assert.That(said, Is.Empty);
+
+            var output = pfs.GetEditablePack()!;
+            var table = AnimationPackSerializer.Load(pfs.FindFile(animPackPath, output)!, pfs).GetGenericAnimationSets().First(x => x.FullPath == ThrotTable);
+            var expected = rows.Select((x, i) => i == assigned ? (x.Item1, x.Item2, Saved, x.Item4) : x).ToList();
+            Assert.That((assigned >= 0, table.Entries.Select(Row).ToList()), Is.EqualTo((true, expected)));
+
+            // The tab now shows the new file, read back from the pack with the edit in it; the slot names it; the original is untouched.
+            Assert.That((pfs.GetFullPath(editor.CurrentFile).Replace('\\', '/'), editor.HasUnsavedChanges, tab == 0 ? selection.MetaDataPersistName : selection.MetaDataName),
+                Is.EqualTo((Saved, false, Saved)));
+            Assert.That(editor.Tags.SelectMany(x => x.Variables).ElementAt(fieldAt).ValueAsString, Is.EqualTo(edited));
+            Assert.That((original.DataSource.ReadData(), pfs.FindFile(pfs.GetFullPath(original), output)), Is.EqualTo((originalBytes, (PackFile?)null)));
+        }
+
+        // A table list read before a save (as one is again on a skeleton change, a copy per pack) still offers the table as it was.
+        // An assignment made from that stale copy edits the copy the pack now holds, so the earlier assignment survives it.
+        [Test]
+        public void SaveMetaAs_FromAStaleTable_KeepsTheEarlierAssignment()
+        {
+            var pfs = _runner.PackFileService;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            // Read on its own, as a list read again would read it; the first save edits the listed copy, not this one.
+            var stale = PackFileServiceUtility.GetAllAnimPacks(pfs).SelectMany(x => AnimationPackSerializer.Load(x, pfs).GetGenericAnimationSets()).First(x => x.FullPath == ThrotTable);
+            void Pick(IAnimationBinGenericFormat table, int tab)
+            {
+                selection.FragmentList.SelectedItem = table;
+                selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+                superView.SelectedTabControllerIndex = tab;
+            }
+            _runner.Dialogs.SetupSequence(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>()))
+                .Returns(new SaveDialogResult(true, null, "animations/derpy/first")).Returns(new SaveDialogResult(true, null, "animations/derpy/second"));
+
+            Pick(selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable), 1);
+            superView.SaveMetaAsCommand.Execute(null);
+            selection.FragmentList.UpdatePossibleValues(selection.FragmentList.PossibleValues.Append(stale).ToList());
+            Pick(stale, 0);
+            superView.SaveMetaAsCommand.Execute(null);
+
+            var table = AnimationPackSerializer.Load(pfs.FindFile(stale.PackFileReference!.FileName, pfs.GetEditablePack())!, pfs).GetGenericAnimationSets().First(x => x.FullPath == ThrotTable);
+            Assert.That(table.Entries.Where(x => x.SlotName is "ATTACK_5" or "PERSISTENT_METADATA_ALIVE").Select(x => (x.SlotName, x.MetaFile)),
+                Is.SupersetOf(new[] { ("ATTACK_5", "animations/derpy/first.anm.meta"), ("PERSISTENT_METADATA_ALIVE", "animations/derpy/second.anm.meta") }));
+        }
+
         // A skeleton with no battle animation table (Glottkin's only set is cam_lord_glt01_dlc29_ghurk.bin) still lists its
         // campaign animation set, and a slot from it plays with the set's persistent meta. Its hand poses and docks take the
         // battle slot names the meta's HandPose and DockEquipment tags look up.
-        [Test]
-        public void VariantMesh_ListsItsCampaignAnimationSet()
+        const string CamThrot = @"animations/campaign/database/bin/cam_throt.bin";
+
+        // A campaign set for Throt's skeleton, made from his battle table, in a new editable pack: a global status with his
+        // persistent meta, a hand pose and a dock, and a status_battle with one fatality.
+        (IAnimationBinGenericFormat Battle, AnimationBinEntryGenericFormat Attack, AnimationBinEntryGenericFormat Persist) AddThrotCampaignSet()
         {
             var battle = PackFileServiceUtility.GetAllAnimPacks(_runner.PackFileService)
                 .SelectMany(x => AnimationPackSerializer.Load(x, _runner.PackFileService).GetGenericAnimationSets())
-                .First(x => x.FullPath == @"animations/database/battle/bin/hu17_dlc16_throt.bin");
+                .First(x => x.FullPath == ThrotTable);
             var attack = battle.Entries.First(x => x.SlotName == "ATTACK_5");
             var persist = battle.Entries.First(x => x.SlotName == "PERSISTENT_METADATA_ALIVE");
             var bin = new CampaignAnimationBin
@@ -151,6 +231,85 @@ namespace Test.AnimationMeta
             };
             var pack = _runner.CreateOutputPack();
             _runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry(@"animations\campaign\database\bin", PackFile.CreateFromBytes("cam_throt.bin", CampaignAnimationBinLoader.Write(bin, "cam_throt")))]);
+            return (battle, attack, persist);
+        }
+
+        // A campaign set is edited from SuperView as a battle table is. The slot panel follows the pick; its browse offers the
+        // skeleton's own animations; Apply points the slot at other files and Save meta as at a new meta; the set is written whole
+        // into the editable pack, paths lower-cased with forward slashes, and the other rows are left as they were.
+        [Test]
+        public void CampaignSet_SlotFilesAndSaveMetaAs_WriteTheSet()
+        {
+            var pfs = _runner.PackFileService;
+            var (battle, attack, persist) = AddThrotCampaignSet();
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == CamThrot);
+            selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "status_battle/battle_fatality");
+            Assert.That((superView.SlotAnim, superView.SlotMeta), Is.EqualTo((attack.AnimationFile, attack.MetaFile)), "the panel shows the picked slot");
+
+            Func<string, bool>? offered = null;
+            _runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>(), It.IsAny<Func<string, bool>?>()))
+                .Callback<List<string>, Func<string, bool>?>((_, filter) => offered = filter)
+                .Returns(new BrowseDialogResultFile(true, pfs.FindFile(attack.AnimationFile)!));
+            superView.SlotAnim = "";
+            superView.BrowseSlotAnimCommand.Execute(null);
+            Assert.That((offered!(attack.AnimationFile.Replace('/', '\\')), offered("animations/battle/humanoid01/not_his.anim"), superView.SlotAnim),
+                Is.EqualTo((true, false, attack.AnimationFile)));
+
+            var other = battle.Entries.Select(x => x.AnimationFile).First(x => x != attack.AnimationFile && pfs.FindFile(x) != null);
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+            superView.SlotAnim = other.ToUpperInvariant().Replace('/', '\\');
+            superView.ApplySlotFilesCommand.Execute(null);
+            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>())).Returns(new SaveDialogResult(true, null, @"Animations\Derpy\Cam_Fatality"));
+            superView.SelectedTabControllerIndex = 1;
+            superView.SaveMetaAsCommand.Execute(null);
+            Assert.That(said, Is.Empty);
+
+            const string NewMeta = "animations/derpy/cam_fatality.anm.meta";
+            var saved = CampaignAnimationBinLoader.Load(pfs.FindFile(CamThrot, pfs.GetEditablePack())!.DataSource.ReadDataAsChunk());
+            var row = saved.Status.Single(x => x.Name == "status_battle").Action.Single();
+            Assert.That((row.Animation, row.Meta, saved.Status.Single(x => x.Name == "global").PersitantMetaData.Single().AnimationMeta),
+                Is.EqualTo((other, NewMeta, persist.MetaFile)));
+            Assert.That((selection.MetaDataName, superView.SlotAnim, superView.SlotMeta, pfs.FindFile(NewMeta) != null), Is.EqualTo((NewMeta, other, NewMeta, true)));
+        }
+
+        // The campaign writer lower-cases every string, so a set with capitals is not what it writes back. One edit and then another
+        // to a row naming a path with capitals both save, as the set in hand after a save is the one read back from the file.
+        [Test]
+        public void CampaignSet_WithCapitals_TakesASecondEdit()
+        {
+            var pfs = _runner.PackFileService;
+            var (_, attack, _) = AddThrotCampaignSet();
+            // Capitals in the path the fatality, the hand pose and the dock all name, as a set written by hand might have them.
+            var file = pfs.FindFile(CamThrot, pfs.GetEditablePack())!;
+            var bytes = file.DataSource.ReadData();
+            var at = bytes.AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes(attack.AnimationFile));
+            System.Text.Encoding.UTF8.GetBytes(attack.AnimationFile.ToUpperInvariant()).CopyTo(bytes, at);
+            pfs.SaveFile(file, bytes);
+
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == CamThrot);
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+            foreach (var slot in new[] { "status_battle/battle_fatality", "DOCK_EQUIPMENT_RIGHT_HAND_2" })
+            {
+                selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == slot);
+                superView.SlotMeta = $"animations/derpy/{slot.Replace('/', '_')}.anm.meta";
+                superView.ApplySlotFilesCommand.Execute(null);
+            }
+
+            var saved = CampaignAnimationBinLoader.Load(pfs.FindFile(CamThrot, pfs.GetEditablePack())!.DataSource.ReadDataAsChunk());
+            Assert.That((at >= 0, said, saved.Status.Single(x => x.Name == "status_battle").Action.Single().Meta, saved.Status.Single(x => x.Name == "global").Docks.Single().AnimationMeta),
+                Is.EqualTo((true, new List<string>(), "animations/derpy/status_battle_battle_fatality.anm.meta", "animations/derpy/dock_equipment_right_hand_2.anm.meta")));
+        }
+
+        [Test]
+        public void VariantMesh_ListsItsCampaignAnimationSet()
+        {
+            var (_, attack, persist) = AddThrotCampaignSet();
 
             var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
             var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);

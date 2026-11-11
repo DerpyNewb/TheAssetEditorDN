@@ -15,6 +15,27 @@
             <TextBlock Text="{loc:Loc SuperView.VfxFilter}" VerticalAlignment="Center" Margin="0,0,5,0"/>
             <ComboBox ItemsSource="{Binding VfxFilterIds}" SelectedItem="{Binding VfxFilterId}"/>
         </DockPanel>
+        <Button Margin="5,0,5,5" DockPanel.Dock="Top" Content="{loc:Loc SuperView.SaveMetaAs}" ToolTip="{loc:Loc SuperView.SaveMetaAs.Tooltip}" Command="{Binding SaveMetaAsCommand}"/>
+        <GroupBox Margin="5,0,5,5" DockPanel.Dock="Top" Header="{loc:Loc SuperView.SlotFiles}" ToolTip="{loc:Loc SuperView.SlotFiles.Tooltip}">
+            <StackPanel>
+                <DockPanel Margin="0,2">
+                    <TextBlock Text="{loc:Loc SuperView.SlotFiles.Animation}" Width="70" VerticalAlignment="Center"/>
+                    <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotAnimCommand}" ToolTip="{loc:Loc SuperView.SlotFiles.BrowseAnimation}"/>
+                    <TextBox Text="{Binding SlotAnim, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                </DockPanel>
+                <DockPanel Margin="0,2">
+                    <TextBlock Text="{loc:Loc SuperView.SlotFiles.Meta}" Width="70" VerticalAlignment="Center"/>
+                    <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotMetaCommand}"/>
+                    <TextBox Text="{Binding SlotMeta, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                </DockPanel>
+                <DockPanel Margin="0,2">
+                    <TextBlock Text="{loc:Loc SuperView.SlotFiles.Sound}" Width="70" VerticalAlignment="Center"/>
+                    <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotSoundCommand}"/>
+                    <TextBox Text="{Binding SlotSound, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                </DockPanel>
+                <Button Margin="0,4,0,0" Content="{loc:Loc SuperView.SlotFiles.Apply}" Command="{Binding ApplySlotFilesCommand}"/>
+            </StackPanel>
+        </GroupBox>
 
         <TabControl DockPanel.Dock="Top" SelectedIndex="{Binding SelectedTabControllerIndex, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
             <TabItem Header="{loc:Loc MetadataEditor.Tabs.Persistent}">
