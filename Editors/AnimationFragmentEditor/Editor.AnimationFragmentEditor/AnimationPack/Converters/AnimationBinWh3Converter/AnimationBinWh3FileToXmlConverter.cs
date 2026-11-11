@@ -106,7 +106,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinW
             {
                 binFile.AnimationTableEntries.Add(new AnimationBinEntry()
                 {
-                    AnimationId = (uint)slotHelper.GetfromValue(animationEntry.Slot).Id,
+                    AnimationId = (uint)SlotId(slotHelper, animationEntry.Slot)!.Value,
                     BlendIn = animationEntry.BlendId,
                     SelectionWeight = animationEntry.BlendOut,
                     WeaponBools = ValueConverterHelper.CreateWeaponFlagInt(animationEntry.WeaponBone),
@@ -125,6 +125,16 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinW
             }
 
             return binFile.ToByteArray();
+        }
+
+        // A slot id the game's list does not name is shown as "Not found [id=N]" and saves back as N, so a table holding a slot
+        // newer than the list (a later patch's) still opens, edits and saves with that row intact.
+        static int? SlotId(BaseAnimationSlotHelper slots, string slot)
+        {
+            if (slots.GetfromValue(slot) is { } known)
+                return known.Id;
+            var unnamed = System.Text.RegularExpressions.Regex.Match(slot, @"^Not found \[id=(\d+)\]$");
+            return unnamed.Success ? int.Parse(unnamed.Groups[1].Value) : null;
         }
 
 
@@ -178,8 +188,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinW
             _animationsVersionFoundInPersistenceMeta.Clear();
             foreach (var animation in type.Animations)
             {
-                var slot = slotHelper.GetfromValue(animation.Slot);
-                if (slot == null)
+                if (SlotId(slotHelper, animation.Slot) == null)
                     errorList.Error(animation.Slot, $"Not a valid animation slot for game");
 
                 if (animation.Ref == null || animation.Ref.Count == 0)

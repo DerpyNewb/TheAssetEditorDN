@@ -68,7 +68,29 @@ namespace Shared.GameFormats.AnimationPack.AnimPackFileTypes
 
         public byte[] ToByteArray()
         {
-            throw new NotImplementedException();
+            using var memStream = new MemoryStream();
+            void Int(int value) => memStream.Write(ByteParsers.Int32.EncodeValue(value, out _));
+            void Str(string value) => memStream.Write(ByteParsers.String.WriteCaString(value));
+            void Ints(IntArrayTable table) { Int(table.Data.Count); table.Data.ForEach(Int); }
+
+            memStream.Write(ByteParsers.UInt32.EncodeValue(_version, out _));
+            memStream.Write(ByteParsers.UInt32.EncodeValue((uint)Entries.Count, out _));
+            foreach (var entry in Entries)
+            {
+                Ints(entry.AttackTable);
+                Int(entry.AttackUnknown0);
+                Int(entry.AttackUnknown1);
+                Int(entry.AttackUnknown2);
+                Str(entry.AttackAnimation);
+                Str(entry.MountAnimation);
+                Ints(entry.DefenceTable);
+                Int(entry.DefenceUnknown0);
+                Int(entry.DefenceUnknown1);
+                Int(entry.DefenceUnknown2);
+                Str(entry.DefenceAnimation);
+                Str(entry.Unknown_alwaysEmpty);
+            }
+            return memStream.ToArray();
         }
     }
 

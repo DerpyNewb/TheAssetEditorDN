@@ -114,7 +114,8 @@ namespace Shared.GameFormats.AnimationPack
             }
             catch
             {
-                return new UnknownAnimFile(animationInfoDataFile.Name, data.Buffer);
+                // The entry's own bytes, kept as they are: data.Buffer is the whole animpack, which a save then wrote inside itself.
+                return new UnknownAnimFile(animationInfoDataFile.Name, data.GetBytesFromBuffer(animationInfoDataFile.StartOffset, animationInfoDataFile.Size));
             }
         }
 
