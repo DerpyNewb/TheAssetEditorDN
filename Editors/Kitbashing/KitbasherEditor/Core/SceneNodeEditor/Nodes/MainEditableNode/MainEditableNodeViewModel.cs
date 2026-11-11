@@ -88,11 +88,13 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes
             var cleanSkeletonName = "";
             if (!string.IsNullOrWhiteSpace(newValue))
                 cleanSkeletonName = Path.GetFileNameWithoutExtension(newValue);
+            var skeletonBefore = _kitbasherRootScene.Skeleton?.SkeletonName;
             _kitbasherRootScene.SetSkeletonFromName(cleanSkeletonName);
 
-            // Changing the skeleton can cause the current attachment points to be invalid. 
-            // If we change skeleton, reset the list
-            if (oldValue != null && oldValue != newValue)
+            // Changing the skeleton can make the current attachment points invalid, so rebuild them when the scene's skeleton
+            // changed - not when the name did. The filter box sends null each time typing refilters its list, and that keeps
+            // the skeleton; keyed on the old name, the pick that followed found it null and kept the old skeleton's points.
+            if (_kitbasherRootScene.Skeleton?.SkeletonName != skeletonBefore)
                 ResetAttachmentPointList();
         }
 
