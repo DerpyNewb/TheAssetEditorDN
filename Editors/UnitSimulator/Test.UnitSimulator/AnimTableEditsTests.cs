@@ -29,14 +29,13 @@ namespace Test.UnitSimulator
             Assert.That(tables["hr1_warhorse"].FullPath, Is.EqualTo(VanillaGame.WarhorseTable));
         }
 
-        // AnimationBinWh3 writes every string lower-cased, and CA left capitals in two mounted tables' anim paths: Katarin's
-        // (.../horse01/Katarin/...) and the Kislev Patriarch's (.../bear01/Patriarch/...). Every other byte of every table comes back as it was.
+        // Every mounted table comes back byte for byte, the two with capitals in their anim paths included: Katarin's
+        // (.../horse01/Katarin/...) and the Kislev Patriarch's (.../bear01/Patriarch/...), which the writer used to lower-case.
         [Test]
-        public void EveryVanillaMountedTable_ReadAndWrittenBack_IsByteIdentical_ButForCapitals()
+        public void EveryVanillaMountedTable_ReadAndWrittenBack_IsByteIdentical()
         {
             var pfs = VanillaGame.Load().PackFileService;
             var tested = new HashSet<string>();
-            var recased = new HashSet<string>();
             foreach (var animPack in new[] { "animation_tables.animpack", "animation_tables__.animpack", "animation_tables__3.animpack" })
                 foreach (var (name, data) in AnimTableEdits.ReadEntries(Bytes(pfs, "animations/database/battle/bin/" + animPack))
                              .Where(x => x.Name.Contains("/battle/bin/") && x.Name.EndsWith(".bin") && !x.Name.Contains("matched_combat")))
@@ -44,16 +43,11 @@ namespace Test.UnitSimulator
                     var table = new AnimationBinWh3(name, data);
                     if (table.MountBin == "")
                         continue;
-                    var written = table.ToByteArray();
-                    Assert.That(written, Has.Length.EqualTo(data.Length), name);
-                    var changed = Enumerable.Range(0, data.Length).Where(i => written[i] != data[i]).ToList();
-                    Assert.That(changed.All(i => data[i] >= 'A' && data[i] <= 'Z' && written[i] == data[i] + 32), name);
-                    if (changed.Count != 0)
-                        recased.Add(name);
+                    Assert.That(table.ToByteArray(), Is.EqualTo(data), name);
                     tested.Add(name);
                 }
             Assert.That(tested, Has.Count.EqualTo(376));
-            Assert.That(recased, Is.EquivalentTo(new[]
+            Assert.That(tested, Is.SupersetOf(new[]
             {
                 "animations/database/battle/bin/hu1_wh3_katarin_hr1_warhorse_staff_and_sword.bin",
                 "animations/database/battle/bin/hu1_wh3_kislev_be1_warbear_mace_and_satchel.bin",
