@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Windows.Data;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -345,6 +346,10 @@ namespace GameWorld.Core.Services
         public ObservableCollection<string> GetAllSkeletonFileNames()
         {
             WaitForInitialLoad(nameof(GetAllSkeletonFileNames));
+            // Callers bind this list on the UI thread, and a container refresh adds and removes paths on a worker under
+            // _threadLock. Registered here, on the caller's thread before it binds, as WPF requires; without it the first
+            // change throws inside the refresh and the list stays cut short for the session.
+            BindingOperations.EnableCollectionSynchronization(_skeletonFileNames, _threadLock);
             return _skeletonFileNames;
         }
 

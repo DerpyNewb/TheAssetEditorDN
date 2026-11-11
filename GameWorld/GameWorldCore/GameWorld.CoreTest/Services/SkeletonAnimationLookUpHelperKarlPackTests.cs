@@ -72,6 +72,40 @@ namespace GameWorld.Core.Test.Services
             Assert.That(unloadedSkeletonCount, Is.EqualTo(0));
         }
 
+        // Kitbash binds the skeleton list on the UI thread, and a container refresh fills it on a worker. Without collection
+        // synchronization the first add threw inside the refresh and the list stayed one entry long for the session.
+        [Test]
+        [Timeout(60000)]
+        [Apartment(ApartmentState.STA)]
+        public void Refresh_WhileTheSkeletonListIsBound_FillsTheListAndTheView()
+        {
+            var eventHub = new InMemoryGlobalEventHub();
+            var containers = new List<IPackFileContainer>();
+            var packFileService = new Mock<IPackFileService>(MockBehavior.Strict);
+            packFileService.Setup(x => x.GetAllPackfileContainers()).Returns(() => containers.ToList());
+            var settingsService = new ApplicationSettingsService(GameTypeEnum.Warhammer3);
+            var loader = new PackFileContainerLoader(settingsService, new Mock<IStandardDialogs>().Object, new LocalizationManager(), new PackFileContainerCacheHelper(), new SimpleSystemFolderContainerFactory());
+            var karlContainer = loader.CreateFromPackFile(PackFileContainerType.Normal, PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), false)!;
+
+            using var helper = new SkeletonAnimationLookUpHelper(packFileService.Object, eventHub);
+            var list = helper.GetAllSkeletonFileNames();
+            var view = System.Windows.Data.CollectionViewSource.GetDefaultView(list);
+
+            containers.Add(karlContainer);
+            eventHub.PublishGlobalEvent(new PackFileContainerAddedEvent(karlContainer));
+            WaitForCondition(() => list.Count == ExpectedKarlSkeletonCount, timeoutMs: 45000, failMessage: $"the bound skeleton list stopped at {list.Count}");
+
+            // The view applies the queued changes on its own thread, throttled; pump it until it has.
+            WaitForCondition(() =>
+            {
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () => frame.Continue = false);
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                return view.Cast<string>().Count() == list.Count;
+            }, timeoutMs: 5000, failMessage: "the bound view never caught up with the list");
+            Assert.That(view.Cast<string>(), Is.EquivalentTo(list));
+        }
+
         private static void AssertLoadedCounts(int animationCount, int skeletonCount)
         {
             if (ExpectedKarlAnimationReferenceCount >= 0)
