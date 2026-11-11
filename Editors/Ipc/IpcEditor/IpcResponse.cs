@@ -7,6 +7,9 @@
         public string NormalizedPath { get; set; }
         public List<string> Files { get; set; }
         public bool? Truncated { get; set; }
+        public object? Data { get; set; }
+        // An editor action still running when the reply was due, most likely behind a dialog it opened.
+        public bool? Pending { get; set; }
 
         public static IpcResponse Success() => new() { Ok = true };
 

@@ -7,13 +7,20 @@
         private readonly IExternalPackFileLookup _packFileLookup;
         private readonly IExternalFileOpenExecutor _fileOpenExecutor;
         private readonly IIpcUserNotifier _userNotifier;
+        private readonly EditorRequests? _editorRequests;
+        private readonly IUiDispatcher? _uiDispatcher;
 
-        public IpcRequestHandler(IExternalPackLoader packLoader, IExternalPackFileLookup packFileLookup, IExternalFileOpenExecutor fileOpenExecutor, IIpcUserNotifier userNotifier)
+        static readonly TimeSpan EditorReplyTimeout = TimeSpan.FromSeconds(5);
+
+        public IpcRequestHandler(IExternalPackLoader packLoader, IExternalPackFileLookup packFileLookup, IExternalFileOpenExecutor fileOpenExecutor, IIpcUserNotifier userNotifier,
+            EditorRequests? editorRequests = null, IUiDispatcher? uiDispatcher = null)
         {
             _packLoader = packLoader;
             _packFileLookup = packFileLookup;
             _fileOpenExecutor = fileOpenExecutor;
             _userNotifier = userNotifier;
+            _editorRequests = editorRequests;
+            _uiDispatcher = uiDispatcher;
         }
 
         public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken cancellationToken)
@@ -27,6 +34,15 @@
             // ping: is an AssetEditor listening. load: a pack from disk, with no file opened. find: the paths open takes.
             if (Is(action, "ping"))
                 return IpcResponse.Success();
+            if (EditorRequests.Handles(action) && _editorRequests != null && _uiDispatcher != null)
+            {
+                // A command can open a modal dialog and hold the UI thread until it closes. Answer before then, so the
+                // caller can see the dialog; the dialog's own loop keeps serving the pipe's next requests.
+                var work = _uiDispatcher.InvokeAsync(() => _editorRequests.Handle(request), cancellationToken);
+                if (await Task.WhenAny(work, Task.Delay(EditorReplyTimeout, cancellationToken)) == work)
+                    return await work;
+                return new IpcResponse { Ok = true, Pending = true };
+            }
             if (Is(action, "open") == false && Is(action, "load") == false && Is(action, "find") == false)
                 return IpcResponse.Failure("Unsupported action");
 

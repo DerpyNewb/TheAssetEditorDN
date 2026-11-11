@@ -6,7 +6,8 @@ This document describes the current IPC endpoint implemented by `AssetEditor`.
 - Transport: Windows named pipe
 - Pipe name: `TheAssetEditor.Ipc`
 - Protocol: JSON line per request (`UTF-8`, newline-terminated)
-- Supported actions: `open`, `find`, `load`, `ping`
+- Supported actions: `open`, `find`, `load`, `ping`, and the editor actions `editors`, `scene`, `select`, `visible`,
+  `transform`, `command`, `camera` (see Editor actions)
 
 ## Pipe Path (Windows)
 - `\\.\pipe\TheAssetEditor.Ipc`
@@ -39,7 +40,7 @@ Send one JSON object followed by a newline.
   Forward slashes are accepted. A `packPathOnDisk` is loaded first, so a mod pack's files can be found before they are opened
 
 ### Request fields
-- `action` (required): `"open"`, `"find"`, `"load"` or `"ping"`
+- `action` (required): `"open"`, `"find"`, `"load"`, `"ping"`, or an editor action (fields under Editor actions)
 - `path` (required for `open` and `find`): pack-internal file path to open, or the text to find
 - `limit` (optional, `find` only, default `200`): the most paths to return
 - `bringToFront` (optional, default `true`): bring AssetEditor window to front
@@ -60,6 +61,39 @@ Send one JSON object followed by a newline.
 - If `packPathOnDisk` is supplied, AssetEditor attempts to ensure that pack is available before opening `path`
 - If the pack is already loaded as a standalone pack, it is not loaded again
 - If the pack is already represented inside the merged `All Game Packs` container, it is not loaded again
+
+## Editor actions
+These reach into an open editor tab. `editor` (optional) is a tab index from `editors`; without it, the current tab. All
+but `editors` and `command` work in Kitbash and in every editor built on `EditorHostBase` (SuperView, Unit Simulator,
+Skeleton and the other 3D editors); any other tab answers `"... has no 3D scene"`. Every change goes through the
+editor's own commands, so its Undo takes it back. Replies carry their result in `data`.
+
+```json
+{"action":"editors"}
+{"action":"scene"}
+{"action":"select","nodes":["Root/Editable Model/Lod 0/emp_karl_franz_body_01"]}
+{"action":"visible","nodes":["3f2c..."],"visible":false}
+{"action":"transform","translate":[0,0.1,0],"rotate":[0,90,0],"scale":[2,2,2],"pivot":"origin"}
+{"action":"command","name":"UndoCommand"}
+{"action":"camera","yaw":45,"pitch":20,"zoom":6,"lookAt":[0,1,0]}
+```
+- `editors`: `[{index, title, type, current}]`
+- `scene`: every node, depth first: `[{id, path, depth, type, visible, editable, selected, vertices, faces}]`; a node
+  with no mesh has no `vertices` or `faces`
+- `select`: `nodes` takes ids, paths from `Root`, or names. A name used by more than one node (every LOD repeats its
+  meshes' names) is refused with the ids it matches. `add: true` adds to the selection; no `nodes` clears it. Meshes only
+- `visible`: shows or hides `nodes`. Not an undo step, as the scene tree's check box is not
+- `transform`: moves the current selection, as the Kitbash transform box does: scale, then rotate (degrees, X then Y
+  then Z), then translate, each its own undo step. `pivot` is `"object"` (default) or `"origin"`. A scale with a 0 in it
+  is refused, since its undo cannot invert it
+- `command`: runs a Kitbash toolbar or menu command by its class name (case ignored) as its button runs it: `SaveCommand`,
+  `UndoCommand`, `RedoCommand`, `DeleteObjectCommand`, `DuplicateObjectCommand`, `FocusCameraCommand` and the rest. No
+  `name` lists them. Kitbash only
+- `camera`: sets whichever of `yaw`, `pitch` (degrees), `zoom` and `lookAt` are given, and returns all four
+
+The work runs on the UI thread. A command that opens a modal dialog holds that thread until the dialog closes, so after
+5 seconds the reply is `{"ok":true,"pending":true}` and the work carries on. The dialog's own message loop keeps serving
+the pipe, so the next request is answered while it is open.
 
 ## Response Format
 AssetEditor returns one JSON response line and closes the connection.
