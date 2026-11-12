@@ -58,31 +58,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinW
             };
 
             foreach (var animation in binFile.AnimationTableEntries)
-            {
-                var slotValue = slotHelper.TryGetFromId((int)animation.AnimationId);
-                var slotString = $"Not found [id={(int)animation.AnimationId}]";
-                if (slotValue != null)
-                    slotString = slotValue.Value;
-
-                outputBin.Animations.Add(new Animation()
-                {
-                    Slot = slotString,
-                    BlendId = animation.BlendIn,
-                    BlendOut = animation.SelectionWeight,
-                    Unk = animation.Unk,
-                    WeaponBone = ValueConverterHelper.ConvertIntToBoolArray((int)animation.WeaponBools),
-                });
-
-                foreach (var animationRef in animation.AnimationRefs)
-                {
-                    outputBin.Animations.Last().Ref.Add(new Instance()
-                    {
-                        File = animationRef.AnimationFile,
-                        Meta = animationRef.AnimationMetaFile,
-                        Sound = animationRef.AnimationSoundMetaFile
-                    });
-                }
-            }
+                outputBin.Animations.Add(BinXml.FromEntry(animation, slotHelper));
 
             return outputBin;
         }
@@ -103,40 +79,10 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinW
             var slotHelper = binFile.TableVersion == 4 ? AnimationSlotTypeHelperWh3.GetInstance() : AnimationSlotTypeHelper3k.GetInstance();
 
             foreach (var animationEntry in xmlBin.Animations)
-            {
-                binFile.AnimationTableEntries.Add(new AnimationBinEntry()
-                {
-                    AnimationId = (uint)SlotId(slotHelper, animationEntry.Slot)!.Value,
-                    BlendIn = animationEntry.BlendId,
-                    SelectionWeight = animationEntry.BlendOut,
-                    WeaponBools = ValueConverterHelper.CreateWeaponFlagInt(animationEntry.WeaponBone),
-                    Unk = animationEntry.Unk,
-                });
-
-                foreach (var animationInstance in animationEntry.Ref)
-                {
-                    binFile.AnimationTableEntries.Last().AnimationRefs.Add(new AnimationBinEntry.AnimationRef()
-                    {
-                        AnimationFile = animationInstance.File,
-                        AnimationMetaFile = animationInstance.Meta,
-                        AnimationSoundMetaFile = animationInstance.Sound
-                    });
-                }
-            }
+                binFile.AnimationTableEntries.Add(BinXml.ToEntry(animationEntry, slotHelper));
 
             return binFile.ToByteArray();
         }
-
-        // A slot id the game's list does not name is shown as "Not found [id=N]" and saves back as N, so a table holding a slot
-        // newer than the list (a later patch's) still opens, edits and saves with that row intact.
-        static int? SlotId(BaseAnimationSlotHelper slots, string slot)
-        {
-            if (slots.GetfromValue(slot) is { } known)
-                return known.Id;
-            var unnamed = System.Text.RegularExpressions.Regex.Match(slot, @"^Not found \[id=(\d+)\]$");
-            return unnamed.Success ? int.Parse(unnamed.Groups[1].Value) : null;
-        }
-
 
         protected override ITextConverter.SaveError Validate(XmlFormat type, string s, IPackFileService pfs, string filepath)
         {
@@ -188,7 +134,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinW
             _animationsVersionFoundInPersistenceMeta.Clear();
             foreach (var animation in type.Animations)
             {
-                if (SlotId(slotHelper, animation.Slot) == null)
+                if (BinXml.SlotId(slotHelper, animation.Slot) == null)
                     errorList.Error(animation.Slot, $"Not a valid animation slot for game");
 
                 if (animation.Ref == null || animation.Ref.Count == 0)
