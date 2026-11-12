@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using CommunityToolkit.Mvvm.Input;
+using Editors.AnimationFragmentEditor.AnimationPack.BinGrid;
 using Editors.AnimationFragmentEditor.AnimationPack.Commands;
 using Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinConverter;
 using Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinWh3Converter;
@@ -10,6 +11,7 @@ using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
+using Shared.Core.Services;
 using Shared.Core.Settings;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationMeta.Parsing;
@@ -40,12 +42,23 @@ namespace CommonControls.Editors.AnimationPack
         SimpleTextEditorViewModel _selectedItemViewModel;
         public SimpleTextEditorViewModel SelectedItemViewModel { get => _selectedItemViewModel; set => SetAndNotify(ref _selectedItemViewModel, value); }
 
-        public AnimPackViewModel(IUiCommandFactory uiCommandFactory, 
-            IPackFileService pfs, 
-            ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper, 
-            ApplicationSettingsService appSettings, 
+        // A WH3 battle table also gets the grid, shown instead of the text unless ShowAsXml. The text editor is still built for it, so
+        // the XML view is one toggle away and shows the same bytes.
+        BinGridViewModel? _binGrid;
+        public BinGridViewModel? BinGrid { get => _binGrid; private set => SetAndNotify(ref _binGrid, value); }
+
+        /// <summary>The grid's slot picker: the slot names the table has, in; the one picked, or null, out. The view sets the window.</summary>
+        public Func<IReadOnlyCollection<string>, string?> PickSlot { get; set; } = _ => null;
+
+        readonly IStandardDialogs _dialogs;
+
+        public AnimPackViewModel(IUiCommandFactory uiCommandFactory,
+            IPackFileService pfs,
+            ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper,
+            ApplicationSettingsService appSettings,
             IFileSaveService packFileSaveService,
-            MetaDataFileParser metaDataFileParser)
+            MetaDataFileParser metaDataFileParser,
+            IStandardDialogs dialogs)
         {
             _uiCommandFactory = uiCommandFactory;
             _pfs = pfs;
@@ -53,6 +66,7 @@ namespace CommonControls.Editors.AnimationPack
             _appSettings = appSettings;
             _packFileSaveService = packFileSaveService;
             _metaDataFileParser = metaDataFileParser;
+            _dialogs = dialogs;
             AnimationPackItems = new FilterCollection<IAnimationPackFile>(new List<IAnimationPackFile>(), OnItemSelected, BeforeItemSelected)
             {
                 SearchFilter = (value, rx) => { return rx.Match(value.FileName).Success; }
@@ -93,11 +107,72 @@ namespace CommonControls.Editors.AnimationPack
             AnimationPackItems.RefreshFilter();
         }
 
-        // The entry's text again, when it is the one shown, after an undo or redo changed it under the editor.
+        // The entry again, when it is the one shown, after an undo or redo changed it under the editor. A grid is reloaded rather
+        // than built anew, so it keeps its place.
         void ShowAgain(IAnimationPackFile file)
         {
-            if (AnimationPackItems.SelectedItem == file)
+            if (AnimationPackItems.SelectedItem != file)
+                return;
+            if (BinGrid?.Table == file)
+            {
+                ShowText(file);
+                BinGrid.Reload();
+            }
+            else
+            {
                 OnItemSelected(file);
+            }
+        }
+
+        void ShowText(IAnimationPackFile file)
+        {
+            SelectedItemViewModel.Text = _activeConverter!.GetText(file.ToByteArray());
+            SelectedItemViewModel.ResetChangeLog();
+        }
+
+        /// <summary>One edit to a table, from the grid: one undo step, and none at all when the table's bytes did not change.</summary>
+        public void EditTable(AnimationBinWh3 table, Action<AnimationBinWh3> change)
+        {
+            var before = table.ToByteArray();
+            change(table);
+            var after = table.ToByteArray();
+            if (before.AsSpan().SequenceEqual(after))
+                return;
+            table.IsChanged.Value = true;
+            Changed(() => { table.CreateFromBytes(before); ShowAgain(table); }, () => { table.CreateFromBytes(after); ShowAgain(table); });
+        }
+
+        bool _showAsXml;
+        /// <summary>A WH3 table shown as its XML instead of the grid. Back to the grid with text edits not yet applied asks to apply
+        /// them; a refused apply stays in the text.</summary>
+        public bool ShowAsXml
+        {
+            get => _showAsXml;
+            set
+            {
+                if (value == _showAsXml)
+                    return;
+                if (BinGrid != null)
+                {
+                    if (value)
+                    {
+                        ShowText(BinGrid.Table);
+                    }
+                    else if (SelectedItemViewModel.HasUnsavedChanges())
+                    {
+                        if (_dialogs.ShowYesNoBox("Apply the text edits to the table first?", "Show grid") != ShowMessageBoxResult.OK)
+                            ShowText(BinGrid.Table);
+                        else if (!SaveActiveFile())
+                        {
+                            NotifyPropertyChanged();
+                            return;
+                        }
+                    }
+                }
+                SetAndNotify(ref _showAsXml, value);
+                if (!value)
+                    BinGrid?.Reload();
+            }
         }
 
         bool BeforeItemSelected(IAnimationPackFile item)
@@ -140,7 +215,16 @@ namespace CommonControls.Editors.AnimationPack
                 SelectedItemViewModel.ResetChangeLog();
             }
 
+            BinGrid = seletedFile is AnimationBinWh3 { TableVersion: 4, IsUnknownFile: false } table ? CreateGrid(table) : null;
         }
+
+        BinGridViewModel CreateGrid(AnimationBinWh3 table)
+        {
+            var otherBins = AnimationPackItems.PossibleValues.OfType<AnimationBinWh3>().Where(x => x != table && x.TableVersion == 4).Select(x => x.Name).ToList();
+            return new BinGridViewModel(table, EditTable, Checks(), _dialogs, _uiCommandFactory, _pfs, _skeletonAnimationLookUpHelper, otherBins, slots => PickSlot(slots));
+        }
+
+        BinTableChecks Checks() => new(_pfs, _skeletonAnimationLookUpHelper, _metaDataFileParser, _packFile);
         public void Close() { }
         public bool HasUnsavedChanges { get; set; }
 
@@ -190,6 +274,15 @@ namespace CommonControls.Editors.AnimationPack
                 if (MessageBox.Show("Editor has unsaved changes.\nSave anyway?", "", MessageBoxButton.YesNo) == MessageBoxResult.No)
                     return false;
             }
+
+            // The grid writes every edit, so a hard error is caught here rather than on an Apply. Only the tables edited since the
+            // last save are checked: one that already failed, a skeleton from a pack not loaded say, does not hold up the rest.
+            var checks = Checks();
+            var problems = AnimationPackItems.PossibleValues.OfType<AnimationBinWh3>().Where(x => x.IsChanged.Value && x.TableVersion == 4)
+                .SelectMany(table => checks.Header(table, table.FileName).Where(x => x.IsError).Select(x => $"{table.FileName}: {x.Message}"))
+                .ToList();
+            if (problems.Count != 0 && _dialogs.ShowYesNoBox(string.Join("\n", problems) + "\n\nSave anyway?", "Save") != ShowMessageBoxResult.OK)
+                return false;
 
             var newAnimPack = new AnimationPackFileDatabase(_pfs.GetFullPath(_packFile));
 
