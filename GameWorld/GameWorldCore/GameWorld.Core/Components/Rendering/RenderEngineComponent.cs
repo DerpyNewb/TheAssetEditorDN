@@ -182,8 +182,10 @@ namespace GameWorld.Core.Components.Rendering
             var backgroundColour = ApplicationSettingsHelper.GetEnumAsColour(_applicationSettingsService.CurrentSettings.RenderEngineBackgroundColour);
 
             _normalRenderTarget = RenderTargetHelper.GetRenderTarget(device, _normalRenderTarget, imageUpScale, _graphicsResourceCreator, screenWidth, screenHeight);
-            _emissiveRenderTarget = RenderTargetHelper.GetRenderTarget(device, _emissiveRenderTarget, imageUpScale, _graphicsResourceCreator, screenWidth, screenHeight);
-            _screenRenderTarget = RenderTargetHelper.GetRenderTarget(device, _screenRenderTarget, imageUpScale, _graphicsResourceCreator, screenWidth, screenHeight);
+            // Only the scene pass is anti-aliased. The glow is blurred into the bloom, and the screen target only takes full-screen
+            // copies of resolved targets: 8x samples on either were bandwidth spent every frame, and the viewport waits on it.
+            _emissiveRenderTarget = RenderTargetHelper.GetRenderTarget(device, _emissiveRenderTarget, imageUpScale, _graphicsResourceCreator, screenWidth, screenHeight, multiSampleCount: 0);
+            _screenRenderTarget = RenderTargetHelper.GetRenderTarget(device, _screenRenderTarget, imageUpScale, _graphicsResourceCreator, screenWidth, screenHeight, multiSampleCount: 0, depthFormat: DepthFormat.None);
 
             // Configure render targets
             var backBufferRenderTarget = device.GetRenderTargets()[0].RenderTarget as RenderTarget2D;
