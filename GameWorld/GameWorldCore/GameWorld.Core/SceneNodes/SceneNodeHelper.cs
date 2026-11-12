@@ -139,9 +139,7 @@ namespace GameWorld.Core.SceneNodes
             }
 
             var potentialSkeletons = output.Where(x => string.IsNullOrWhiteSpace(x) == false);
-            if (output.Count == 0)
-                return "";
-            return potentialSkeletons.First();
+            return potentialSkeletons.FirstOrDefault() ?? "";
         }
 
         public static bool AreAllNodesVisible(Rmv2ModelNode searchStart)

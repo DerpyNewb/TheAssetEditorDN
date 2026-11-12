@@ -303,13 +303,14 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var rootFollowsBone = false;
             if (animationPath != null)
             {
-                var skeletonName = SceneNodeHelper.GetSkeletonName(loadedNode);
+                var animFile = AnimationFile.Create(animationPath);
+                // A rigid model names no skeleton; its animation does.
+                var skeletonName = SceneNodeHelper.GetSkeletonName(loadedNode) is { Length: > 0 } fromMesh ? fromMesh : animFile.Header.SkeletonName;
                 var skeletonFile = _skeletonAnimationLookUpHelper.GetSkeletonFileFromName(skeletonName);
                 if (skeletonFile == null)
                     throw new Exception($"Unable to find skeleton for animated prop. Searched for {skeletonName} and failed to find it in the skeleton animation look up helper. This is required to play the animation of the prop.");
 
                 var skeleton = new GameSkeleton(skeletonFile, propPlayer);
-                var animFile = AnimationFile.Create(animationPath);
                 var clip = new AnimationClip(animFile, skeleton);
                 propPlayer.SetAnimation(clip, skeleton);
                 // The prop's first frame against the bone when the tag starts, which is when that frame plays.
