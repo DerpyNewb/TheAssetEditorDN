@@ -116,7 +116,9 @@ namespace Editors.Shared.Core.Common.ReferenceModel
                     _logger.Here().Warning($"Campaign animation set {path} could not be read, so it is not listed: {e.Message}");
                 }
             }
-            return outputFragments;
+            // A table is read once per animpack holding it: CA repeats most in two, and a save of a CA table puts it in one of the
+            // editable pack's too. That copy is listed, as the one an edit goes to.
+            return AnimTableEdits.OneCopyEach(_pfs, outputFragments);
         }
 
         void OnFragmentSelected(IAnimationBinGenericFormat value, FilterCollection<AnimationBinEntryGenericFormat> animationSlotsCollection, string skeletonName)

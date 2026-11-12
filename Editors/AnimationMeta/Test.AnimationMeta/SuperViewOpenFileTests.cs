@@ -1,5 +1,6 @@
 using System.IO;
 using Editors.AnimationMeta.SuperView;
+using Editors.Shared.Core.Common;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
@@ -197,6 +198,45 @@ namespace Test.AnimationMeta
             var table = AnimationPackSerializer.Load(pfs.FindFile(stale.PackFileReference!.FileName, pfs.GetEditablePack())!, pfs).GetGenericAnimationSets().First(x => x.FullPath == ThrotTable);
             Assert.That(table.Entries.Where(x => x.SlotName is "ATTACK_5" or "PERSISTENT_METADATA_ALIVE").Select(x => (x.SlotName, x.MetaFile)),
                 Is.SupersetOf(new[] { ("ATTACK_5", "animations/derpy/first.anm.meta"), ("PERSISTENT_METADATA_ALIVE", "animations/derpy/second.anm.meta") }));
+        }
+
+        // A table in a CA pack is not refused: it goes alone into an animpack of the editable pack's own, under its CA name, as
+        // the Workshop's mods that edit CA tables ship them, rather than the whole CA animpack being copied over CA's. A second
+        // save finds that copy by name, so the first assignment stays, and SuperView opened again lists the table once, as saved.
+        [Test]
+        public void SaveMetaAs_OnACaTable_SavesTheTableAloneIntoAnAnimpackOfTheEditablePack()
+        {
+            var pfs = _runner.PackFileService;
+            pfs.GetAllPackfileContainers().Single(x => x.Name.Contains("Throt")).IsCaPackFile = true;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            var caAnimPack = selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable).PackFileReference!.FileName;
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+            _runner.Dialogs.SetupSequence(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>()))
+                .Returns(new SaveDialogResult(true, null, "animations/derpy/first")).Returns(new SaveDialogResult(true, null, "animations/derpy/second"));
+            foreach (var tab in new[] { 1, 0 })
+            {
+                selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable);
+                selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+                superView.SelectedTabControllerIndex = tab;
+                superView.SaveMetaAsCommand.Execute(null);
+            }
+
+            var output = pfs.GetEditablePack()!;
+            var own = pfs.FindFile("animations/database/battle/bin/!!testoutput_animation_tables.animpack", output);
+            Assert.That((said, own != null, pfs.FindFile(caAnimPack, output)), Is.EqualTo((new List<string>(), true, (PackFile?)null)));
+            Assert.That(AnimTableEdits.ReadEntries(own!.DataSource.ReadData()).Select(x => x.Name), Is.EqualTo(new[] { ThrotTable }));
+            var expected = new[] { ("ATTACK_5", "animations/derpy/first.anm.meta"), ("PERSISTENT_METADATA_ALIVE", "animations/derpy/second.anm.meta") };
+            static IEnumerable<(string, string)> Assigned(IAnimationBinGenericFormat table) =>
+                table.Entries.Where(x => x.SlotName is "ATTACK_5" or "PERSISTENT_METADATA_ALIVE").Select(x => (x.SlotName, x.MetaFile));
+            Assert.That(Assigned(AnimationPackSerializer.Load(own, pfs).GetGenericAnimationSets().Single()), Is.SupersetOf(expected));
+
+            // The list read from the packs again, as SuperView opened anew reads it.
+            superView.SceneObjects[0].Data.TriggerSkeletonChanged();
+            var listed = selection.FragmentList.PossibleValues.Where(x => x.FullPath == ThrotTable).ToList();
+            Assert.That(listed, Has.Count.EqualTo(1));
+            Assert.That(Assigned(listed[0]), Is.SupersetOf(expected));
         }
 
         // A skeleton with no battle animation table (Glottkin's only set is cam_lord_glt01_dlc29_ghurk.bin) still lists its

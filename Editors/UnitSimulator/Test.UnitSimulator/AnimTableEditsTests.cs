@@ -6,6 +6,7 @@ using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
 using Shared.GameFormats.AnimationPack;
 using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
+using Test.TestingUtility.Shared;
 
 namespace Test.UnitSimulator
 {
@@ -116,14 +117,32 @@ namespace Test.UnitSimulator
         public void AddSlot_RefusesASlotTheTableHas() =>
             Assert.Throws<ArgumentException>(() => { var t = Rider(); AnimTableEdits.AddSlot(t, "RIDER_ATTACK_1", AnimTableEdits.Row(t, 1901)); });
 
+        // A CA table is neither refused nor saved with its whole animpack: it goes alone into an animpack of the editable pack's own,
+        // named after the pack, and a second CA table joins it there with the first kept as saved. CA's animpack is not copied.
         [Test]
-        public void Save_RefusesACaPacksTable_AndWritesNothing()
+        public void Save_PutsCaTablesAloneIntoAnAnimpackOfTheEditablePacksOwn()
         {
-            var pfs = VanillaGame.Load(asCaPacks: true).PackFileService;
-            var saver = new Mock<IFileSaveService>();
-            var problem = AnimTableEdits.Save(pfs, saver.Object, VanillaGame.Tables(pfs)[VanillaGame.KnightTable]);
-            Assert.That(problem, Does.Contain("CA pack"));
-            saver.Verify(x => x.Save(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<bool>()), Times.Never);
+            var runner = new AssetEditorTestRunner();
+            var pfs = runner.PackFileService;
+            const string CaAnimPack = "animations/database/battle/bin/animation_tables.animpack";
+            var ca = runner.CreateEmptyPackFile("ca_anim", false);
+            pfs.AddFilesToPack(ca, [new NewPackFileEntry(@"animations\database\battle\bin",
+                PackFile.CreateFromBytes("animation_tables.animpack", MadeUpTables.AnimPack(Rider(), MadeUpTables.Table("m", "horse01", "", ("ATTACK_1", "m_a1.anim")))))]);
+            ca.IsCaPackFile = true;
+            var editable = runner.CreateEmptyPackFile("!!My Mod", true);
+            var saver = runner.ServiceProvider.GetRequiredService<IFileSaveService>();
+            var tables = AnimationPackSerializer.Load(pfs.FindFile(CaAnimPack)!, pfs).Files.OfType<AnimationBinWh3>().ToDictionary(x => x.Name);
+            var (rider, mount) = (tables["r"], tables["m"]);
+
+            AnimTableEdits.SetBlendAndWeight(rider, 1901, 0.5f, 3);
+            Assert.That(AnimTableEdits.Save(pfs, saver, rider), Is.Null);
+            AnimTableEdits.SetBlendAndWeight(mount, (int)mount.AnimationTableEntries[0].AnimationId, 0.75f, 2);
+            Assert.That(AnimTableEdits.Save(pfs, saver, mount), Is.Null);
+
+            var own = pfs.FindFile("animations/database/battle/bin/!!my_mod_animation_tables.animpack", editable);
+            Assert.That((own != null, pfs.FindFile(CaAnimPack, editable)), Is.EqualTo((true, (PackFile?)null)));
+            var entries = AnimTableEdits.ReadEntries(own!.DataSource.ReadData()).ToList();
+            Assert.That(entries.Select(x => (x.Name, x.Data)), Is.EqualTo(new[] { (rider.FileName, rider.ToByteArray()), (mount.FileName, mount.ToByteArray()) }));
         }
 
         [Test]
