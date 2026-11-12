@@ -389,6 +389,39 @@ namespace Test.E2EVerification
         }
 
         [Test]
+        public void AFieldEdit_KeepsTheSelection()
+        {
+            var (_, _, grid, _) = Grid();
+            var selected = new List<BinGridRow> { RowOf(grid, "STAND"), RowOf(grid, "RUN_1") };
+            grid.SelectedRows = selected;
+            RowOf(grid, "STAND").Weapon1 = true;
+            RowOf(grid, "RUN_1").BlendIn = "0.4";
+            Assert.That(grid.SelectedRows, Is.EqualTo(selected).Using<BinGridRow>((x, y) => ReferenceEquals(x, y)));
+        }
+
+        // An undo that takes a row away rebuilds the rows, so none is left pointing at a variant that is gone.
+        [Test]
+        public void UndoingAnAddedVariant_TakesItsRowAway()
+        {
+            var (opened, _, grid, _) = Grid();
+            var count = grid.Rows.Count;
+            grid.AddVariantCommand.Execute(RowOf(grid, "STAND"));
+            opened.Editor.UndoAction();
+            Assert.That(grid.Rows.Count, Is.EqualTo(count));
+            ReadEverything(grid);
+        }
+
+        // The cell commits what it shows, and a slot with no variant shows "". That must not give the slot an empty variant.
+        [Test]
+        public void AnEmptyPathOnASlotWithNoVariants_AddsNothing()
+        {
+            var (opened, table, grid, before) = Grid();
+            RowOf(grid, "CHARGE", -1).Animation = "";
+            RowOf(grid, "CHARGE", -1).Meta = "";
+            Assert.That((table.ToByteArray(), opened.Editor.HasUnsavedChanges), Is.EqualTo((before, false)));
+        }
+
+        [Test]
         public void ReadingEveryRow_ChangesNothing()
         {
             var (opened, table, grid, before) = Grid();
@@ -448,6 +481,39 @@ namespace Test.E2EVerification
             Assert.That((added.BlendIn, added.SelectionWeight, added.WeaponBools, added.Unk), Is.EqualTo((0.3f, 1f, 63, false)));
             Assert.That(added.AnimationRefs.Select(x => (x.AnimationFile, x.AnimationMetaFile, x.AnimationSoundMetaFile)), Is.EqualTo(new[] { ("", "", "") }));
             Assert.That(RowOf(grid, "STAND_IDLE_1"), Is.Not.Null);
+        }
+
+        // Adding STAND_IDLE_1 moves RUN_1 from the third slot to the fourth, and its undo moves it back.
+        [Test]
+        public void UndoingAnAddedSlot_KeepsTheSelectedSlotSelected()
+        {
+            var (opened, _, grid, _) = Grid();
+            opened.Editor.PickSlot = _ => "STAND_IDLE_1";
+            grid.AddSlotCommand.Execute(null);
+            grid.SelectedRows = [RowOf(grid, "RUN_1")];
+            opened.Editor.UndoAction();
+            Assert.That(grid.SelectedRows.Select(x => x.Slot), Is.EqualTo(new[] { "RUN_1" }));
+        }
+
+        [Test]
+        public void AddDuplicateAndPaste_SelectTheNewSlots()
+        {
+            var (opened, _, grid, _) = Grid();
+            grid.SelectedRows = [RowOf(grid, "RUN_1")];
+            opened.Editor.PickSlot = _ => "STAND_IDLE_1";
+            grid.AddSlotCommand.Execute(null);
+            Assert.That(grid.SelectedRows.Select(x => x.Slot), Is.EqualTo(new[] { "STAND_IDLE_1" }));
+
+            grid.SelectedRows = [RowOf(grid, "RUN_1")];
+            opened.Editor.PickSlot = _ => "STAND_IDLE_2";
+            grid.DuplicateSlotsCommand.Execute(null);
+            Assert.That(grid.SelectedRows.Select(x => x.Slot), Is.EqualTo(new[] { "STAND_IDLE_2" }));
+
+            grid.SelectedRows = [RowOf(grid, "WALK_1", 0), RowOf(grid, "WALK_1", 1)];
+            var text = grid.CopySlots().Replace("\"WALK_1\"", "\"WALK_2\"");
+            grid.SelectedRows = [RowOf(grid, "RUN_1")];
+            grid.PasteSlots(text);
+            Assert.That(grid.SelectedRows.Select(x => (x.Slot, x.Variant)), Is.EqualTo(new[] { ("WALK_2", 0), ("WALK_2", 1) }));
         }
 
         [Test]
@@ -703,12 +769,70 @@ namespace Test.E2EVerification
             RowOf(grid, "STAND").Meta = GraphA;
             var first = grid.DeepChecks;
             await entered.Task;
+            var secondEntered = new TaskCompletionSource();
+            var secondGate = new TaskCompletionSource();
+            grid.DeepRunner = table =>
+            {
+                secondEntered.SetResult();
+                secondGate.Task.Wait();
+                return real(table);
+            };
             RowOf(grid, "STAND").Meta = "";
-            await grid.DeepChecks;
+            var second = grid.DeepChecks;
             gate.SetResult();
             await first;
-
             Assert.That(RowOf(grid, "STAND").Findings, Is.Null);
+
+            secondGate.SetResult();
+            await second;
+            Assert.That(RowOf(grid, "STAND").Findings, Is.Null);
+        }
+
+        // A box set to what it already holds, a refused slot or an unchanged header field: the table is as it was, so the file
+        // checks are not started again.
+        [Test]
+        public void AnEditThatChangesNothing_StartsNoChecks()
+        {
+            var (_, _, grid, _) = Grid();
+            var opening = grid.DeepChecks;
+            var calls = 0;
+            grid.DeepRunner = _ => { Interlocked.Increment(ref calls); return []; };
+            var row = RowOf(grid, "STAND");
+            row.Weapon0 = row.Weapon0;
+            row.Slot = "RUN_1";
+            grid.Skeleton = grid.Skeleton;
+            Assert.That((grid.DeepChecks, calls), Is.EqualTo((opening, 0)));
+        }
+
+        // Runs that queue behind a long one: once it ends, only the latest runs. The others have checked nothing anyone will see.
+        [Test]
+        public async Task DeepRunsOvertakenWhileWaiting_DoNotRun()
+        {
+            var (_, _, grid, _) = Grid();
+            grid.DeepDelay = TimeSpan.Zero;
+            var entered = new TaskCompletionSource();
+            var gate = new TaskCompletionSource();
+            var calls = 0;
+            grid.DeepRunner = _ =>
+            {
+                if (Interlocked.Increment(ref calls) == 1)
+                {
+                    entered.SetResult();
+                    gate.Task.Wait();
+                }
+                return [];
+            };
+            RowOf(grid, "STAND").Weapon0 = true;
+            var first = grid.DeepChecks;
+            await entered.Task;
+            RowOf(grid, "STAND").Weapon1 = true;
+            var second = grid.DeepChecks;
+            await Task.Delay(200); // past its delay, so it waits on the first rather than being cancelled before it
+            RowOf(grid, "STAND").Weapon2 = true;
+            gate.SetResult();
+            await grid.DeepChecks;
+            await Task.WhenAll(first, second).ContinueWith(_ => { });
+            Assert.That(calls, Is.EqualTo(2));
         }
 
         // Browse and Open

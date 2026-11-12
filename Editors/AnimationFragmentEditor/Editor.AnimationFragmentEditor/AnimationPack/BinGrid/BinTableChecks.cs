@@ -27,6 +27,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
 
         string _animationPersistanceMetaFileName = "";
         readonly Dictionary<string, uint> _animationsVersionFoundInPersistenceMeta = [];
+        AnimationPackFileDatabase? _loadedAnimPack;
 
         public BinTableChecks(IPackFileService pfs, ISkeletonAnimationLookUpHelper skeletons, MetaDataFileParser metaParser, PackFile? animPack)
         {
@@ -105,6 +106,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             var slots = Slots(table);
             var pfs = _pfs;
             _animationsVersionFoundInPersistenceMeta.Clear();
+            _loadedAnimPack = null;
             for (var i = 0; i < table.AnimationTableEntries.Count; i++)
             {
                 var row = table.AnimationTableEntries[i];
@@ -309,7 +311,8 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
 
             var result = true;
 
-            var animPack = AnimationPackSerializer.Load(animpack, pfs);
+            // Read once per Deep pass, not once per rider variant.
+            var animPack = _loadedAnimPack ??= AnimationPackSerializer.Load(animpack, pfs);
             var itemNames = animPack.Files.ToList();
 
             var findMountBinReference = itemNames.Find(x => x.FileName.Contains(mountBinReference));

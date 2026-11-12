@@ -48,18 +48,21 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             _otherBins = otherBins;
             _pickSlot = pickSlot;
             _ui = SynchronizationContext.Current;
-            DeepRunner = x => { lock (_deepLock) return _checks.Deep(x); };
+            DeepRunner = _checks.Deep;
             BuildRows();
+            _checkedBytes = Table.ToByteArray();
             CheckPaths();
         }
 
         // Checks: Header and Files after every change, here and now; Deep, which opens files, on the thread pool after a pause, on a
-        // copy of the table, its result dropped when the table has changed again since it started.
+        // copy of the table, one run at a time. A run that a later one overtakes while it waits does not run, and a result is
+        // dropped when the table has changed again since its run started.
 
         readonly SynchronizationContext? _ui;
         readonly object _deepLock = new();
         List<BinFinding> _cheap = [];
         List<BinFinding> _deep = [];
+        byte[] _checkedBytes;
         int _deepRun;
         CancellationTokenSource? _deepCancel;
 
@@ -130,13 +133,18 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
                 await Task.Delay(delay, cancel.Token);
                 List<BinFinding>? found = null;
                 string? failure = null;
-                try
+                lock (_deepLock)
                 {
-                    found = runner(copy);
-                }
-                catch (Exception e)
-                {
-                    failure = e.Message;
+                    if (cancel.IsCancellationRequested)
+                        return;
+                    try
+                    {
+                        found = runner(copy);
+                    }
+                    catch (Exception e)
+                    {
+                        failure = e.Message;
+                    }
                 }
                 void Show()
                 {
@@ -160,6 +168,13 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
 
         void RunChecks()
         {
+            var bytes = Table.ToByteArray();
+            if (bytes.AsSpan().SequenceEqual(_checkedBytes))
+            {
+                ShowFindings();
+                return;
+            }
+            _checkedBytes = bytes;
             _deep = [];
             CheckPaths();
             StartDeepChecks();
@@ -216,12 +231,12 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
                 Refresh();
                 return;
             }
-            _edit(Table, table =>
-            {
-                var added = EmptyVariant();
-                change(added);
-                table.AnimationTableEntries[row.Entry].AnimationRefs.Add(added);
-            });
+            // The cell commits what it shows, and here that is "", which must not give the slot a variant.
+            var added = EmptyVariant();
+            change(added);
+            if (added is { AnimationFile: "", AnimationMetaFile: "", AnimationSoundMetaFile: "" })
+                return;
+            _edit(Table, table => table.AnimationTableEntries[row.Entry].AnimationRefs.Add(added));
             Reload();
         }
 
@@ -233,7 +248,11 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             else if (Table.AnimationTableEntries.Where((_, i) => i != row.Entry).Any(x => x.AnimationId == (uint)id))
                 Status = $"This table already has {name}.";
             else
+            {
                 _edit(Table, table => table.AnimationTableEntries[row.Entry].AnimationId = (uint)id);
+                foreach (var variant in Rows.Where(x => x.Entry == row.Entry))
+                    variant.SlotId = (uint)id;
+            }
             Refresh();
         }
 
@@ -331,7 +350,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             // weapons shown (63) on 153,454.
             var row = new AnimationBinEntry { AnimationId = (uint)id, BlendIn = 0.3f, SelectionWeight = 1f, WeaponBools = 63, AnimationRefs = [EmptyVariant()] };
             _edit(Table, table => AnimTableEdits.InsertInOrder(table, row));
-            Reload();
+            Reload(new HashSet<uint> { (uint)id });
         }
 
         /// <summary>A copy of each selected slot, files, blend, weight and weapons, under a slot picked for it.</summary>
@@ -355,7 +374,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
                 foreach (var (slot, row) in sources)
                     AnimTableEdits.AddSlot(table, slot, row);
             });
-            Reload();
+            Reload(copies.Select(x => (uint)BinXml.SlotId(Slots, x.Slot)!.Value).ToHashSet());
         }
 
         [RelayCommand]
@@ -417,7 +436,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
                         table.AnimationTableEntries[at] = row;
                 }
             });
-            Reload();
+            Reload(rows.Where(x => replace || !existing.Contains(x)).Select(x => x.AnimationId).ToHashSet());
             Status = $"{rows.Count - (replace ? 0 : existing.Count)} slots pasted.";
         }
 
@@ -466,16 +485,16 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
         // Rows
 
         /// <summary>Builds the rows anew from the table: after a change to which variants exist, or an undo. The selection is kept by
-        /// slot and variant where those still exist.</summary>
-        public void Reload()
+        /// slot and variant where those still exist, or moves to the given slots, the ones just added.</summary>
+        public void Reload(IReadOnlySet<uint>? select = null)
         {
-            BuildRows();
+            BuildRows(select);
             RunChecks();
         }
 
-        void BuildRows()
+        void BuildRows(IReadOnlySet<uint>? select = null)
         {
-            var selected = SelectedRows.Select(x => (x.Entry, x.Variant)).ToHashSet();
+            var selected = SelectedRows.Select(x => (x.SlotId, x.Variant)).ToHashSet();
             var rows = new ObservableCollection<BinGridRow>();
             for (var entry = 0; entry < Table.AnimationTableEntries.Count; entry++)
             {
@@ -486,7 +505,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
                     rows.Add(new BinGridRow(this, entry, variant));
             }
             Rows = rows;
-            SelectedRows = rows.Where(x => selected.Contains((x.Entry, x.Variant))).ToList();
+            SelectedRows = rows.Where(x => select?.Contains(x.SlotId) ?? selected.Contains((x.SlotId, x.Variant))).ToList();
             OnPropertyChanged(string.Empty);
         }
 

@@ -15,11 +15,16 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
         public int Entry { get; }
         public int Variant { get; }
 
+        /// <summary>The slot's id when the row was built, or last given a slot. A selection is kept by it, since an insert or an
+        /// undo moves a slot to another place in the table.</summary>
+        internal uint SlotId { get; set; }
+
         public BinGridRow(BinGridViewModel owner, int entry, int variant)
         {
             _owner = owner;
             Entry = entry;
             Variant = variant;
+            SlotId = Row.AnimationId;
         }
 
         AnimationBinEntry Row => _owner.Table.AnimationTableEntries[Entry];

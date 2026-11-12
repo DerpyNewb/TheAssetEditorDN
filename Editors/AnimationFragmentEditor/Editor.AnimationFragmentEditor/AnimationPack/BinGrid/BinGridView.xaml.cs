@@ -74,6 +74,9 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
                 Table.SelectedItems.Clear();
                 foreach (var row in _vm.SelectedRows)
                     Table.SelectedItems.Add(row);
+                // A slot just added, or kept through an undo, may be off screen.
+                if (_vm.SelectedRows.Count != 0)
+                    Table.ScrollIntoView(_vm.SelectedRows[0]);
             }
             finally
             {
