@@ -221,7 +221,11 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             if (includeEffects)
                 output.AddRange(file.GetItemsOfType<IEffectMeta>().Where(x => FilterOf(x) == 0 || FilterOf(x) == vfxFilter).Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent))));
 
-            foreach (var meteDataItem in file.GetItemsOfType<DockEquipment>())
+            // A prop docked to both hands from the same moment goes to the right hand, whichever tag comes first: in all
+            // nine vanilla cases where the animation's own keys hold the prop rigid to one hand, it is the right one.
+            var docks = file.GetItemsOfType<DockEquipment>();
+            static bool Hand(DockEquipment x, string side) => x.AnimationSlotName == $"DOCK_EQUIPMENT_{side}_HAND";
+            foreach (var meteDataItem in docks.Where(l => !Hand(l, "LEFT") || !docks.Any(r => Hand(r, "RIGHT") && r.PropBoneId == l.PropBoneId && r.StartTime == l.StartTime)))
                 CreateEquipmentDock(meteDataItem, fragment, skeleton, rootPlayer);
 
             foreach (var meteDataItem in file.GetItemsOfType<Transform_v10>())
