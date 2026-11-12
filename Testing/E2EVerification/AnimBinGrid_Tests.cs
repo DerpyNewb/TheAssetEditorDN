@@ -411,5 +411,148 @@ namespace Test.E2EVerification
             grid.MatchFileNameCommand.Execute(null);
             Assert.That(table.Name, Is.EqualTo("derpy_a"));
         }
+
+        // Slots, clipboard, find and replace
+
+        static List<string> SlotNames(AnimationBinWh3 table) => table.AnimationTableEntries.Select(x => AnimationSlotTypeHelperWh3.GetInstance().TryGetFromId((int)x.AnimationId)?.Value ?? x.AnimationId.ToString()).ToList();
+
+        [Test]
+        public void AddSlot_GoesInIdOrder_WithTheSurveyDefaults()
+        {
+            var (opened, table, grid, _) = Grid();
+            opened.Editor.PickSlot = _ => "STAND_IDLE_1";
+            grid.AddSlotCommand.Execute(null);
+
+            Assert.That(SlotNames(table), Is.EqualTo(new[] { "STAND", "STAND_IDLE_1", "WALK_1", "RUN_1", "CHARGE" }));
+            var added = table.AnimationTableEntries[1];
+            Assert.That((added.BlendIn, added.SelectionWeight, added.WeaponBools, added.Unk), Is.EqualTo((0.3f, 1f, 63, false)));
+            Assert.That(added.AnimationRefs.Select(x => (x.AnimationFile, x.AnimationMetaFile, x.AnimationSoundMetaFile)), Is.EqualTo(new[] { ("", "", "") }));
+            Assert.That(RowOf(grid, "STAND_IDLE_1"), Is.Not.Null);
+        }
+
+        [Test]
+        public void AddSlot_PickerSeesTheTablesSlots_AndACancelAddsNothing()
+        {
+            var (opened, table, grid, before) = Grid();
+            IReadOnlyCollection<string>? offered = null;
+            opened.Editor.PickSlot = x => { offered = x; return null; };
+            grid.AddSlotCommand.Execute(null);
+            Assert.That(offered, Is.EquivalentTo(new[] { "STAND", "WALK_1", "RUN_1", "CHARGE" }));
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
+        [Test]
+        public void DuplicateTwoSlots_IsOneUndo()
+        {
+            var (opened, table, grid, before) = Grid();
+            var picks = new Queue<string>(["STAND_IDLE_1", "STAND_IDLE_2"]);
+            opened.Editor.PickSlot = _ => picks.Dequeue();
+            grid.SelectedRows = [RowOf(grid, "STAND"), RowOf(grid, "RUN_1")];
+            grid.DuplicateSlotsCommand.Execute(null);
+
+            Assert.That(SlotNames(table), Is.EqualTo(new[] { "STAND", "STAND_IDLE_1", "STAND_IDLE_2", "WALK_1", "RUN_1", "CHARGE" }));
+            Assert.That(table.AnimationTableEntries[2].AnimationRefs.Single().AnimationFile, Is.EqualTo(KarlAnim));
+            opened.Editor.UndoAction();
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
+        [Test]
+        public void RemoveSlots_IsOneUndo()
+        {
+            var (opened, table, grid, before) = Grid();
+            grid.SelectedRows = [RowOf(grid, "WALK_1", 0), RowOf(grid, "WALK_1", 1), RowOf(grid, "RUN_1")];
+            grid.RemoveSlotsCommand.Execute(null);
+            Assert.That(SlotNames(table), Is.EqualTo(new[] { "STAND", "CHARGE" }));
+            opened.Editor.UndoAction();
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
+        [Test]
+        public void CopyThenPaste_IntoAnotherTable_CopiesTheRows()
+        {
+            var (opened, _, grid, _) = Grid();
+            grid.SelectedRows = [RowOf(grid, "WALK_1"), RowOf(grid, "RUN_1")];
+            var copied = "";
+            grid.SetClipboard = x => copied = x;
+            grid.CopyCommand.Execute(null);
+
+            var b = opened.Select("derpy_b");
+            opened.Editor.BinGrid!.PasteSlots(copied);
+            Assert.That(SlotNames(b), Is.EqualTo(new[] { "STAND", "WALK_1", "RUN_1", Unnamed.ToString() }));
+            Assert.That(b.AnimationTableEntries[1].AnimationRefs.Select(x => x.AnimationFile), Is.EqualTo(new[] { KarlAnim, KarlAnim }));
+        }
+
+        [TestCase(ShowMessageBoxResult.OK, KarlAnim)]
+        [TestCase(ShowMessageBoxResult.Cancel, "animations/derpy/b_stand.anim")]
+        public void PasteAnExistingSlot_OkReplaces_CancelKeeps(ShowMessageBoxResult answer, string standAfter)
+        {
+            var (opened, _, grid, _) = Grid();
+            grid.SelectedRows = [RowOf(grid, "STAND"), RowOf(grid, "RUN_1")];
+            var copied = grid.CopySlots();
+            var b = opened.Select("derpy_b");
+            Answer(opened, "Paste", answer);
+
+            opened.Editor.BinGrid!.PasteSlots(copied);
+            Assert.That(b.AnimationTableEntries[0].AnimationRefs.Single().AnimationFile, Is.EqualTo(standAfter));
+            Assert.That(SlotNames(b), Does.Contain("RUN_1"));
+            opened.Runner.Dialogs.Verify(x => x.ShowYesNoBox(It.Is<string>(m => m.Contains("STAND")), "Paste"), Times.Once);
+        }
+
+        [TestCase("hello")]
+        [TestCase("")]
+        public void PastingTextThatIsNotAnimations_ChangesNothing(string text)
+        {
+            var (opened, table, grid, before) = Grid();
+            grid.PasteSlots(text);
+            Assert.That((table.ToByteArray(), opened.Editor.HasUnsavedChanges), Is.EqualTo((before, false)));
+            Assert.That(grid.Status, Does.Contain("Nothing to paste"));
+        }
+
+        [Test]
+        public void PasteTheXmlViewsText_Works()
+        {
+            var opened = Open();
+            opened.Select("derpy_a");
+            var text = opened.Editor.SelectedItemViewModel.Text;
+            var b = opened.Select("derpy_b");
+            Answer(opened, "Paste", ShowMessageBoxResult.Cancel);
+
+            opened.Editor.BinGrid!.PasteSlots(text);
+            Assert.That(SlotNames(b), Is.EqualTo(new[] { "STAND", "WALK_1", "RUN_1", "CHARGE", Unnamed.ToString() }));
+            Assert.That(b.AnimationTableEntries[0].AnimationRefs.Single().AnimationFile, Is.EqualTo("animations/derpy/b_stand.anim"));
+        }
+
+        [Test]
+        public void ReplaceInPaths_OverSelection_CountsCells()
+        {
+            var (_, table, grid, _) = Grid();
+            grid.SelectedRows = [RowOf(grid, "WALK_1", 0), RowOf(grid, "WALK_1", 1)];
+            Assert.That(grid.ReplaceInPaths("2HANDED_hammer", "spear"), Is.EqualTo(2));
+            Assert.That(table.AnimationTableEntries.Select(x => x.AnimationRefs.Select(r => r.AnimationFile.Contains("/spear/")).ToList()),
+                Is.EqualTo(new[] { new[] { false }, new[] { true, true }, new[] { false }, Array.Empty<bool>() }));
+            Assert.That(grid.Status, Does.Contain("2"));
+        }
+
+        [Test]
+        public void ReplaceInPaths_WithOneRowSelected_ChangesEveryRow_AsOneUndo()
+        {
+            var (opened, table, grid, before) = Grid();
+            grid.SelectedRows = [RowOf(grid, "STAND")];
+            grid.FindText = "2handed_hammer";
+            grid.ReplaceText = "spear";
+            grid.ReplaceCommand.Execute(null);
+            Assert.That(table.AnimationTableEntries.SelectMany(x => x.AnimationRefs).Count(x => x.AnimationFile.Contains("/spear/")), Is.EqualTo(4));
+            opened.Editor.UndoAction();
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
+        [TestCase("nothing_like_this")]
+        [TestCase("")]
+        public void ReplaceInPaths_WithNoMatch_AddsNoUndoStep(string find)
+        {
+            var (opened, table, grid, before) = Grid();
+            Assert.That(grid.ReplaceInPaths(find, "spear"), Is.EqualTo(0));
+            Assert.That((table.ToByteArray(), opened.Editor.HasUnsavedChanges), Is.EqualTo((before, false)));
+        }
     }
 }

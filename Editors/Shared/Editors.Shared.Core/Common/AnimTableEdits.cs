@@ -74,6 +74,12 @@ namespace Editors.Shared.Core.Common
                 Unk = copyOf.Unk,
                 AnimationRefs = copyOf.AnimationRefs.Select(x => new AnimationBinEntry.AnimationRef { AnimationFile = x.AnimationFile, AnimationMetaFile = x.AnimationMetaFile, AnimationSoundMetaFile = x.AnimationSoundMetaFile }).ToList(),
             };
+            InsertInOrder(table, row);
+        }
+
+        /// <summary>Puts the row before the first with a larger slot id, as CA's tables are ordered; at the end when none is larger.</summary>
+        public static void InsertInOrder(AnimationBinWh3 table, AnimationBinEntry row)
+        {
             var at = table.AnimationTableEntries.FindIndex(x => x.AnimationId > row.AnimationId);
             table.AnimationTableEntries.Insert(at < 0 ? table.AnimationTableEntries.Count : at, row);
         }

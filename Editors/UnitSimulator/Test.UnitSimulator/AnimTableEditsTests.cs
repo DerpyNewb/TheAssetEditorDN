@@ -113,6 +113,17 @@ namespace Test.UnitSimulator
             Assert.That(added.AnimationRefs, Is.Not.SameAs(AnimTableEdits.Row(table, 1901).AnimationRefs));
         }
 
+        // The bin grid pastes rows it did not copy from this table, a slot id past the end of the list included.
+        [Test]
+        public void InsertInOrder_PutsARowBeforeTheFirstLargerId()
+        {
+            var table = Rider();
+            var ids = table.AnimationTableEntries.Select(x => x.AnimationId).ToList();
+            AnimTableEdits.InsertInOrder(table, new AnimationBinEntry { AnimationId = ids[1] - 1 });
+            AnimTableEdits.InsertInOrder(table, new AnimationBinEntry { AnimationId = 99999 });
+            Assert.That(table.AnimationTableEntries.Select(x => x.AnimationId), Is.EqualTo(new[] { ids[0], ids[1] - 1, ids[1], ids[2], 99999u }));
+        }
+
         [Test]
         public void AddSlot_RefusesASlotTheTableHas() =>
             Assert.Throws<ArgumentException>(() => { var t = Rider(); AnimTableEdits.AddSlot(t, "RIDER_ATTACK_1", AnimTableEdits.Row(t, 1901)); });

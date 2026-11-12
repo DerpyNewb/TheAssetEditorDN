@@ -3,6 +3,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinWh3Converter;
+using Editors.Shared.Core.Common;
 using GameWorld.Core.Services;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
@@ -142,6 +143,161 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
 
         [RelayCommand]
         void MatchFileName() => Name = Path.GetFileNameWithoutExtension(Table.FileName);
+
+        // Slots
+
+        IReadOnlyCollection<string> SlotNamesInTable() => Table.AnimationTableEntries.Select(x => BinXml.SlotName(Slots, x.AnimationId)).ToList();
+
+        /// <summary>The selected slots, each once, in the table's order.</summary>
+        List<int> SelectedEntries() => SelectedRows.Select(x => x.Entry).Distinct().Order().ToList();
+
+        [RelayCommand]
+        void AddSlot()
+        {
+            var picked = _pickSlot(SlotNamesInTable());
+            if (picked == null)
+                return;
+            var id = BinXml.SlotId(Slots, picked);
+            if (id == null || Table.AnimationTableEntries.Any(x => x.AnimationId == (uint)id))
+            {
+                Status = $"{picked} is not a slot this table can take.";
+                return;
+            }
+            // CA's commonest values over its 462,477 rows (2026-11-12): blend 0.3 on 397,005, weight 1 on 439,458, and all six
+            // weapons shown (63) on 153,454.
+            var row = new AnimationBinEntry { AnimationId = (uint)id, BlendIn = 0.3f, SelectionWeight = 1f, WeaponBools = 63, AnimationRefs = [EmptyVariant()] };
+            _edit(Table, table => AnimTableEdits.InsertInOrder(table, row));
+            Reload();
+        }
+
+        /// <summary>A copy of each selected slot, files, blend, weight and weapons, under a slot picked for it.</summary>
+        [RelayCommand]
+        void DuplicateSlots()
+        {
+            var taken = SlotNamesInTable().ToHashSet();
+            var copies = new List<(string Slot, int From)>();
+            foreach (var entry in SelectedEntries())
+            {
+                var picked = _pickSlot(taken);
+                if (picked == null || BinXml.SlotId(Slots, picked) == null || !taken.Add(picked))
+                    continue;
+                copies.Add((picked, entry));
+            }
+            if (copies.Count == 0)
+                return;
+            _edit(Table, table =>
+            {
+                var sources = copies.Select(x => (x.Slot, Row: table.AnimationTableEntries[x.From])).ToList();
+                foreach (var (slot, row) in sources)
+                    AnimTableEdits.AddSlot(table, slot, row);
+            });
+            Reload();
+        }
+
+        [RelayCommand]
+        void RemoveSlots()
+        {
+            var entries = SelectedEntries();
+            if (entries.Count == 0)
+                return;
+            _edit(Table, table => entries.OrderDescending().ToList().ForEach(table.AnimationTableEntries.RemoveAt));
+            SelectedRows = [];
+            Reload();
+        }
+
+        // Clipboard: the selected slots as the XML view's Animation elements, so a copy pastes into the text and the text into here.
+
+        public Action<string> SetClipboard { get; set; } = text => System.Windows.Clipboard.SetText(text);
+        public Func<string> GetClipboard { get; set; } = () => System.Windows.Clipboard.GetText();
+
+        public string CopySlots()
+        {
+            var entries = SelectedEntries();
+            var text = BinXml.ToText(entries.Select(x => Table.AnimationTableEntries[x]));
+            Status = $"{entries.Count} slots copied.";
+            return text;
+        }
+
+        [RelayCommand]
+        void Copy()
+        {
+            if (SelectedEntries().Count != 0)
+                SetClipboard(CopySlots());
+        }
+
+        [RelayCommand]
+        void Paste() => PasteSlots(GetClipboard());
+
+        /// <summary>Every Animation element in the text, as slots of this table. A slot the table has is replaced only when the
+        /// question says so.</summary>
+        public void PasteSlots(string text)
+        {
+            var rows = BinXml.FromText(text ?? "")?.DistinctBy(x => x.AnimationId).ToList();
+            if (rows == null)
+            {
+                Status = "Nothing to paste: the clipboard holds no <Animation> rows.";
+                return;
+            }
+            var existing = rows.Where(x => Table.AnimationTableEntries.Any(y => y.AnimationId == x.AnimationId)).ToList();
+            var replace = existing.Count != 0 && _dialogs.ShowYesNoBox(
+                $"{existing.Count} slots are already in this table: {string.Join(", ", existing.Select(x => BinXml.SlotName(Slots, x.AnimationId)))}. OK replaces them, Cancel keeps this table's own.",
+                "Paste") == ShowMessageBoxResult.OK;
+            _edit(Table, table =>
+            {
+                foreach (var row in rows)
+                {
+                    var at = table.AnimationTableEntries.FindIndex(x => x.AnimationId == row.AnimationId);
+                    if (at < 0)
+                        AnimTableEdits.InsertInOrder(table, row);
+                    else if (replace)
+                        table.AnimationTableEntries[at] = row;
+                }
+            });
+            Reload();
+            Status = $"{rows.Count - (replace ? 0 : existing.Count)} slots pasted.";
+        }
+
+        // Find and replace in paths
+
+        [ObservableProperty] string _findText = "";
+        [ObservableProperty] string _replaceText = "";
+
+        [RelayCommand]
+        void Replace() => ReplaceInPaths(FindText, ReplaceText);
+
+        /// <summary>Replaces text in the animation, meta and sound paths, ignoring case: of the selected rows when there are several,
+        /// else of every row. One undo step. The number of paths changed.</summary>
+        public int ReplaceInPaths(string find, string replace)
+        {
+            if (string.IsNullOrEmpty(find))
+            {
+                Status = "Type the text to find first.";
+                return 0;
+            }
+            var rows = SelectedRows.Count > 1 ? SelectedRows : Rows;
+            var variants = rows.Where(x => x.Variant >= 0).Select(x => (x.Entry, x.Variant)).Distinct().ToList();
+            var changed = 0;
+            string Swap(string path)
+            {
+                var swapped = path.Replace(find, replace ?? "", StringComparison.OrdinalIgnoreCase);
+                if (swapped != path)
+                    changed++;
+                return swapped;
+            }
+            _edit(Table, table =>
+            {
+                foreach (var (entry, variant) in variants)
+                {
+                    var reference = table.AnimationTableEntries[entry].AnimationRefs[variant];
+                    reference.AnimationFile = Swap(reference.AnimationFile);
+                    reference.AnimationMetaFile = Swap(reference.AnimationMetaFile);
+                    reference.AnimationSoundMetaFile = Swap(reference.AnimationSoundMetaFile);
+                }
+            });
+            Refresh();
+            Status = $"{changed} paths changed.";
+            return changed;
+        }
 
         // Rows
 
