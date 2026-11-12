@@ -301,6 +301,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             // Configure animation
             var rootFollowsBone = false;
+            Matrix? bindRoot = null;
             if (animationPath != null)
             {
                 var animFile = AnimationFile.Create(animationPath);
@@ -315,6 +316,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 propPlayer.SetAnimation(clip, skeleton);
                 // The prop's first frame against the bone when the tag starts, which is when that frame plays.
                 rootFollowsBone = CopyRootTransform.RootFollowsBone(skeleton, clip, BoneAt(animatedPropMeta.BoneId, rootSkeleton, rootPlayer)(animatedPropMeta.StartTime));
+                if (!rootFollowsBone && CopyRootTransform.RootKeyIsFixedTurn(skeleton, clip))
+                    bindRoot = skeleton.GetWorldTransform(0);
 
                 // Add the prop skeleton
                 var skeletonSceneNode = new SkeletonNode(skeleton)
@@ -331,7 +334,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             });
 
             // Add the animation rules; the tag's Scale is applied there, in the bones
-            var animationRule = new CopyRootTransform(rootSkeleton, animatedPropMeta.BoneId, animatedPropMeta.Position, new Quaternion(animatedPropMeta.Orientation), animatedPropMeta.Scale, rootFollowsBone);
+            var animationRule = new CopyRootTransform(rootSkeleton, animatedPropMeta.BoneId, animatedPropMeta.Position, new Quaternion(animatedPropMeta.Orientation), animatedPropMeta.Scale, rootFollowsBone, bindRoot);
             propPlayer.AnimationRules.Add(animationRule);
 
             // Add to scene

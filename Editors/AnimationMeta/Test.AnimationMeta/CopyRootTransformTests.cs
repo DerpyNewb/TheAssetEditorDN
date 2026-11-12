@@ -62,6 +62,72 @@ namespace Test.AnimationMeta
             Assert.That(Vector3.Distance(handle, expected), Is.LessThan(1e-4), $"handle at {handle}, animated at {animated}");
         }
 
+        // The ratling gun's root is keyed a quarter turn about its barrels (X) for the whole clip, off an identity bind pose.
+        // The game fires Azeros's gatling, built on it, unturned, so the root sits in its bind pose and the barrels stay put.
+        [Test]
+        public void RootKeyedToAFixedTurn_SitsInItsBindPose()
+        {
+            var quarterTurnX = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathHelper.PiOver2);
+            var prop = CreateSkeleton([("root", -1, Vector3.Zero, Quaternion.Identity), ("barrels", 0, Vector3.Zero, Quaternion.Identity)]);
+            var main = CreateSkeleton([("animroot", -1, Vector3.Zero, Quaternion.Identity), ("be_prop_3", 0, new Vector3(0.5f, 0.6f, 0.1f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.4f))]);
+            var clip = new AnimationClip(Keyed(prop, Vector3.Zero, quarterTurnX, quarterTurnX), prop);
+            Assert.That(CopyRootTransform.RootKeyIsFixedTurn(prop, clip), Is.True);
+
+            var rule = new CopyRootTransform(new Provider(main), 1, Vector3.Zero, Quaternion.Identity, 1, bindRoot: prop.GetWorldTransform(0));
+            var skin = AnimationSampler.Sample(0, 0, prop, clip, [rule]).BoneTransforms[1].WorldTransform;
+            var handle = new Vector3(0.78f, -0.2f, 0.03f); // the grip on the gun's left flank
+            var expected = Vector3.Transform(handle, main.GetWorldTransform(1));
+            Assert.That(Vector3.Distance(Vector3.Transform(handle, skin), expected), Is.LessThan(1e-4));
+        }
+
+        // Only that shape: a root keyed at its bind pose (zeppelin01_cannon, half a turn about Y in both), at identity under a
+        // turned bind pose (the Akshina Ambushers' crossbow), turning over the clip, or moving, keeps its keys.
+        [TestCase("bind")]
+        [TestCase("identity")]
+        [TestCase("turning")]
+        [TestCase("moving")]
+        public void OtherRootKeys_AreNotAFixedTurn(string shape)
+        {
+            var bind = new Quaternion(0, 0.7071068f, 0.7071068f, 0);
+            var prop = CreateSkeleton([("root", -1, Vector3.Zero, bind), ("cannon", 0, new Vector3(0, 0, -1.45f), Quaternion.Identity)]);
+            var quarter = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathHelper.PiOver2);
+            var file = shape switch
+            {
+                "bind" => Keyed(prop, Vector3.Zero, bind, bind),
+                "identity" => Keyed(prop, Vector3.Zero, Quaternion.Identity, Quaternion.Identity),
+                "turning" => Keyed(prop, Vector3.Zero, quarter, Quaternion.Identity),
+                _ => Keyed(prop, new Vector3(0, 0, 0.5f), quarter, quarter),
+            };
+            Assert.That(CopyRootTransform.RootKeyIsFixedTurn(prop, new AnimationClip(file, prop)), Is.False);
+        }
+
+        // The skeleton's pose with the root keyed to each rotation in turn, one frame each; the last frame moves the root by `move`.
+        static AnimationFile Keyed(GameSkeleton skeleton, Vector3 move, params Quaternion[] rootKeys)
+        {
+            var file = BindPose(skeleton);
+            var part = file.AnimationParts[0];
+            part.DynamicFrames.Clear();
+            for (var i = 0; i < skeleton.BoneCount; i++) // without mappings the sampler ignores the frames and draws the bind pose
+            {
+                part.TranslationMappings.Add(new AnimationFile.AnimationBoneMapping(i));
+                part.RotationMappings.Add(new AnimationFile.AnimationBoneMapping(i));
+            }
+            for (var k = 0; k < rootKeys.Length; k++)
+            {
+                var frame = new AnimationFile.Frame();
+                for (var i = 0; i < skeleton.BoneCount; i++)
+                {
+                    var (t, q) = i == 0 ? (k == rootKeys.Length - 1 ? move : Vector3.Zero, rootKeys[k]) : (skeleton.Translation[i], skeleton.Rotation[i]);
+                    frame.Transforms.Add(new RmvVector3(t.X, t.Y, t.Z));
+                    frame.Quaternion.Add(new RmvVector4(q.X, q.Y, q.Z, q.W));
+                }
+                part.DynamicFrames.Add(frame);
+            }
+            file.Header.AnimationTotalPlayTimeInSec = 1;
+            file.Header.FrameRate = rootKeys.Length - 1;
+            return file;
+        }
+
         static AnimationFile BindPose(GameSkeleton skeleton)
         {
             var file = new AnimationFile();
