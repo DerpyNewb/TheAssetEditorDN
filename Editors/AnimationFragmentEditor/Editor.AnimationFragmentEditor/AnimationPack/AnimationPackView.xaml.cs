@@ -3,6 +3,8 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Windows.Controls;
+using Editors.AnimationFragmentEditor.AnimationPack.BinGrid;
+using Shared.GameFormats.AnimationPack;
 using Shared.Ui.Common;
 
 namespace CommonControls.Editors.AnimationPack
@@ -15,6 +17,11 @@ namespace CommonControls.Editors.AnimationPack
         public AnimationPackView()
         {
             InitializeComponent();
+            DataContextChanged += (_, e) =>
+            {
+                if (e.NewValue is AnimPackViewModel editor)
+                    editor.PickSlot = taken => SlotPickerWindow.Pick(AnimationSlotTypeHelperWh3.GetInstance().Values.Select(x => x.Value), taken);
+            };
             UndoRedoKeys.Attach(this, () => (DataContext as AnimPackViewModel)?.UndoAction(), () => (DataContext as AnimPackViewModel)?.RedoAction());
         }
 

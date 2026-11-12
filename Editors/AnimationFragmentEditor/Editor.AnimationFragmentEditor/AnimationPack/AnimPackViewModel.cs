@@ -45,7 +45,18 @@ namespace CommonControls.Editors.AnimationPack
         // A WH3 battle table also gets the grid, shown instead of the text unless ShowAsXml. The text editor is still built for it, so
         // the XML view is one toggle away and shows the same bytes.
         BinGridViewModel? _binGrid;
-        public BinGridViewModel? BinGrid { get => _binGrid; private set => SetAndNotify(ref _binGrid, value); }
+        public BinGridViewModel? BinGrid
+        {
+            get => _binGrid;
+            private set
+            {
+                SetAndNotify(ref _binGrid, value);
+                NotifyPropertyChanged(nameof(ShowGrid));
+            }
+        }
+
+        /// <summary>The grid in the right pane, rather than the text editor.</summary>
+        public bool ShowGrid => BinGrid != null && !ShowAsXml;
 
         /// <summary>The grid's slot picker: the slot names the table has, in; the one picked, or null, out. The view sets the window.</summary>
         public Func<IReadOnlyCollection<string>, string?> PickSlot { get; set; } = _ => null;
@@ -170,6 +181,7 @@ namespace CommonControls.Editors.AnimationPack
                     }
                 }
                 SetAndNotify(ref _showAsXml, value);
+                NotifyPropertyChanged(nameof(ShowGrid));
                 if (!value)
                     BinGrid?.Reload();
             }

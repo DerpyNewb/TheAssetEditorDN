@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinWh3Converter;
 using Editors.Shared.Core.Common;
 using GameWorld.Core.Services;
+using Shared.Core.Commands;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
 using Shared.Core.Services;
@@ -75,6 +76,15 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
         public string? GraphProblem => HeaderProblem("LocomotionGraph");
         string? HeaderProblem(string where) => _cheap.Where(x => x.Entry == null && x.Where == where).Select(x => x.Message).FirstOrDefault();
 
+        /// <summary>Every header finding, one per line, written out under the header; null when there is none.</summary>
+        public string? HeaderFindings => _cheap.Any(x => x.Entry == null) ? string.Join("\n", _cheap.Where(x => x.Entry == null).Select(x => x.Message)) : null;
+
+        /// <summary>The background file checks are running.</summary>
+        [ObservableProperty] bool _checking;
+
+        /// <summary>The graph's finding is the "not provided" warning, not an error: its field is marked orange, not red.</summary>
+        public bool GraphIsWarning => _cheap.Any(x => x.Entry == null && x.Where == "LocomotionGraph" && !x.IsError);
+
         public string Problems
         {
             get
@@ -100,6 +110,8 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             OnPropertyChanged(nameof(NameProblem));
             OnPropertyChanged(nameof(SkeletonProblem));
             OnPropertyChanged(nameof(GraphProblem));
+            OnPropertyChanged(nameof(GraphIsWarning));
+            OnPropertyChanged(nameof(HeaderFindings));
             OnPropertyChanged(nameof(Problems));
         }
 
@@ -112,15 +124,31 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             var copy = new AnimationBinWh3(Table.FileName, Table.ToByteArray());
             var delay = DeepDelay;
             var runner = DeepRunner;
+            Checking = true;
             DeepChecks = Task.Run(async () =>
             {
                 await Task.Delay(delay, cancel.Token);
-                var found = runner(copy);
+                List<BinFinding>? found = null;
+                string? failure = null;
+                try
+                {
+                    found = runner(copy);
+                }
+                catch (Exception e)
+                {
+                    failure = e.Message;
+                }
                 void Show()
                 {
                     if (run != _deepRun)
                         return;
-                    _deep = found;
+                    Checking = false;
+                    if (failure != null)
+                    {
+                        Status = $"The file checks stopped: {failure}";
+                        return;
+                    }
+                    _deep = found!;
                     ShowFindings();
                 }
                 if (_ui == null)
@@ -231,6 +259,54 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
 
         [RelayCommand]
         void MatchFileName() => Name = Path.GetFileNameWithoutExtension(Table.FileName);
+
+        // Browse and Open, as the VFX editor's path rows do them. Browse writes the picked file's full path, lower case with forward
+        // slashes the way CA's tables hold them.
+
+        /// <summary>The "Not filtered to this skeleton" box: Browse offers every animation, not only the table skeleton's.</summary>
+        [ObservableProperty] bool _anyAnimation;
+
+        [RelayCommand]
+        void BrowseAnimation(BinGridRow? row)
+        {
+            if (row == null)
+                return;
+            var anims = AnyAnimation ? null : _skeletons.GetAnimationsForSkeleton(Skeleton).Select(x => Key(x.AnimationFile)).ToHashSet();
+            Browse([".anim"], anims == null ? null : x => anims.Contains(Key(x)), path => row.Animation = path);
+        }
+
+        [RelayCommand] void BrowseMeta(BinGridRow? row) => Browse([".anm.meta", ".meta"], null, path => row?.Meta = path);
+        [RelayCommand] void BrowseSound(BinGridRow? row) => Browse([".snd.meta"], null, path => row?.Sound = path);
+        [RelayCommand] void BrowseGraph() => Browse([".xml"], null, path => LocomotionGraph = path);
+
+        static string Key(string path) => path.Replace('\\', '/').ToLowerInvariant();
+
+        void Browse(List<string> extensions, Func<string, bool>? filter, Action<string> picked)
+        {
+            var pick = _dialogs.DisplayBrowseDialog(extensions, filter);
+            if (pick.Result && pick.File != null)
+                picked(Key(_pfs.GetFullPath(pick.File)));
+        }
+
+        [RelayCommand]
+        void OpenPath(string? path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return;
+            if (_pfs.FindFile(path) is not { } file)
+            {
+                Status = $"{path} is not in the loaded packs.";
+                return;
+            }
+            try
+            {
+                _commands.Create<OpenEditorCommand>().Execute(file);
+            }
+            catch (Exception e)
+            {
+                Status = $"{path} did not open: {e.Message}";
+            }
+        }
 
         // Slots
 

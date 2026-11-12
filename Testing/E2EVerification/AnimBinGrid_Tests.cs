@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using CommonControls.Editors.AnimationPack;
 using Editors.AnimationFragmentEditor.AnimationPack.BinGrid;
 using Moq;
@@ -91,6 +92,25 @@ namespace Test.E2EVerification
             Assert.That(opened.Editor.BinGrid?.Table, Is.SameAs(table));
             opened.Select("derpy_3k");
             Assert.That(opened.Editor.BinGrid, Is.Null);
+        }
+
+        // The view shows the grid on ShowGrid and the text editor otherwise.
+        [Test]
+        public void ShowGrid_IsAWh3TableNotShownAsXml()
+        {
+            var opened = Open();
+            var told = new List<string?>();
+            opened.Editor.PropertyChanged += (_, e) => told.Add(e.PropertyName);
+            opened.Select("derpy_a");
+            Assert.That((opened.Editor.ShowGrid, told.Contains(nameof(AnimPackViewModel.ShowGrid))), Is.EqualTo((true, true)));
+
+            told.Clear();
+            opened.Editor.ShowAsXml = true;
+            Assert.That((opened.Editor.ShowGrid, told.Contains(nameof(AnimPackViewModel.ShowGrid))), Is.EqualTo((false, true)));
+
+            opened.Editor.ShowAsXml = false;
+            opened.Select("derpy_3k");
+            Assert.That(opened.Editor.ShowGrid, Is.False);
         }
 
         [Test]
@@ -595,6 +615,61 @@ namespace Test.E2EVerification
             Assert.That(grid.Problems, Does.Contain("1 error"));
         }
 
+        // An empty graph is only a warning, and its field says so in orange; a graph that is not found is an error, in red.
+        [Test]
+        public void AnEmptyGraph_IsAWarning_AndAMissingOneAnError()
+        {
+            var (_, _, grid, _) = Grid();
+            grid.LocomotionGraph = "";
+            Assert.That((grid.GraphProblem, grid.GraphIsWarning), Is.EqualTo(("LocomotionGraph not provided", true)));
+            grid.LocomotionGraph = "animations/locomotion_graphs/derpy_missing.xml";
+            Assert.That((grid.GraphProblem, grid.GraphIsWarning), Is.EqualTo(("LocomotionGraph animations/locomotion_graphs/derpy_missing.xml is not found", false)));
+        }
+
+        // A header field's finding is written out under the header, not shown by a coloured border alone.
+        [Test]
+        public void HeaderFindings_AreWrittenOut()
+        {
+            var (_, _, grid, _) = Grid();
+            Assert.That(grid.HeaderFindings, Is.Null);
+            grid.Name = "wrong";
+            grid.LocomotionGraph = "";
+            Assert.That(grid.HeaderFindings, Does.Contain("wrong").And.Contain("LocomotionGraph not provided"));
+        }
+
+        [Test]
+        public async Task TheDeepChecks_SayWhileTheyRun()
+        {
+            var (_, _, grid, _) = Grid();
+            grid.DeepDelay = TimeSpan.Zero;
+            var real = grid.DeepRunner;
+            var entered = new TaskCompletionSource();
+            var gate = new TaskCompletionSource();
+            grid.DeepRunner = table =>
+            {
+                entered.TrySetResult();
+                gate.Task.Wait();
+                return real(table);
+            };
+            grid.StartDeepChecks();
+            await entered.Task;
+            Assert.That(grid.Checking, Is.True);
+            gate.SetResult();
+            await grid.DeepChecks;
+            Assert.That(grid.Checking, Is.False);
+        }
+
+        [Test]
+        public async Task DeepChecksThatFail_SaySo()
+        {
+            var (_, _, grid, _) = Grid();
+            grid.DeepDelay = TimeSpan.Zero;
+            grid.DeepRunner = _ => throw new InvalidOperationException("derpy broke");
+            grid.StartDeepChecks();
+            await grid.DeepChecks;
+            Assert.That((grid.Checking, grid.Status), Is.EqualTo((false, "The file checks stopped: derpy broke")));
+        }
+
         [Test]
         public async Task ADeepFinding_ShowsOnItsRow()
         {
@@ -634,6 +709,87 @@ namespace Test.E2EVerification
             await first;
 
             Assert.That(RowOf(grid, "STAND").Findings, Is.Null);
+        }
+
+        // Browse and Open
+
+        static List<(List<string> Extensions, Func<string, bool>? Filter)> BrowseAnswers(Opened opened, string? path)
+        {
+            var asked = new List<(List<string>, Func<string, bool>?)>();
+            var file = path == null ? null : opened.Runner.PackFileService.FindFile(path);
+            opened.Runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>(), It.IsAny<Func<string, bool>?>()))
+                .Callback<List<string>, Func<string, bool>?>((extensions, filter) => asked.Add((extensions, filter)))
+                .Returns(new BrowseDialogResultFile(file != null, file!));
+            return asked;
+        }
+
+        // CHARGE has no variant, so the pick also gives it one, still as one undo step.
+        [Test]
+        public void BrowseAnimation_OffersThisSkeletonsAnimations_AndWritesThePickedPath()
+        {
+            var (opened, table, grid, before) = Grid();
+            var asked = BrowseAnswers(opened, KarlAnim);
+            grid.BrowseAnimationCommand.Execute(RowOf(grid, "CHARGE", -1));
+
+            var (extensions, filter) = asked.Single();
+            Assert.That(extensions, Is.EqualTo(new[] { ".anim" }));
+            Assert.That(filter, Is.Not.Null);
+            Assert.That((filter!(KarlAnim.Replace('/', '\\').ToUpperInvariant()), filter("animations/battle/humanoid01/not_his.anim")), Is.EqualTo((true, false)));
+            Assert.That(RowOf(grid, "CHARGE").Animation, Is.EqualTo(KarlAnim));
+            opened.Editor.UndoAction();
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
+        [Test]
+        public void BrowseAnimation_NotFilteredToTheSkeleton_OffersEveryAnimation()
+        {
+            var (opened, _, grid, _) = Grid();
+            var asked = BrowseAnswers(opened, null);
+            grid.AnyAnimation = true;
+            grid.BrowseAnimationCommand.Execute(RowOf(grid, "STAND"));
+            Assert.That(asked.Single().Filter, Is.Null);
+        }
+
+        [Test]
+        public void BrowseMetaSoundAndGraph_AskForTheirOwnFileTypes()
+        {
+            var (opened, _, grid, _) = Grid();
+            var asked = BrowseAnswers(opened, GraphA);
+            grid.BrowseMetaCommand.Execute(RowOf(grid, "STAND"));
+            grid.BrowseSoundCommand.Execute(RowOf(grid, "STAND"));
+            grid.BrowseGraphCommand.Execute(null);
+
+            Assert.That(asked.Select(x => string.Join(" ", x.Extensions)), Is.EqualTo(new[] { ".anm.meta .meta", ".snd.meta", ".xml" }));
+            Assert.That(asked.Select(x => x.Filter), Is.All.Null);
+            Assert.That((RowOf(grid, "STAND").Meta, RowOf(grid, "STAND").Sound, grid.LocomotionGraph), Is.EqualTo((GraphA, GraphA, GraphA)));
+        }
+
+        [Test]
+        public void ABrowseCancelled_ChangesNothing()
+        {
+            var (opened, table, grid, before) = Grid();
+            BrowseAnswers(opened, null);
+            grid.BrowseAnimationCommand.Execute(RowOf(grid, "STAND"));
+            grid.BrowseGraphCommand.Execute(null);
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+            Assert.That(opened.Editor.HasUnsavedChanges, Is.False);
+        }
+
+        [Test]
+        public void OpenPath_OpensTheFileInItsEditor()
+        {
+            var (opened, _, grid, _) = Grid();
+            grid.OpenPathCommand.Execute(GraphA);
+            var graph = opened.Runner.PackFileService.FindFile(GraphA);
+            Assert.That(opened.Runner.ServiceProvider.GetRequiredService<IEditorManager>().GetAllEditors().OfType<IFileEditor>().Select(x => x.CurrentFile), Does.Contain(graph));
+        }
+
+        [Test]
+        public void OpenPath_NotInTheLoadedPacks_SaysSo()
+        {
+            var (_, _, grid, _) = Grid();
+            grid.OpenPathCommand.Execute("animations/derpy/missing.anim");
+            Assert.That(grid.Status, Is.EqualTo("animations/derpy/missing.anim is not in the loaded packs."));
         }
     }
 }

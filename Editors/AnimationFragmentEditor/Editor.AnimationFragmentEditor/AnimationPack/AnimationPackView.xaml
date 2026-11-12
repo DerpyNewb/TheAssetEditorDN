@@ -7,6 +7,7 @@
              xmlns:s="http://schemas.singulink.com/xaml" 
              xmlns:texteditor="clr-namespace:CommonControls.Editors.TextEditor;assembly=Editors.Shared.Core"
              xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+             xmlns:bingrid="clr-namespace:Editors.AnimationFragmentEditor.AnimationPack.BinGrid"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
     <Grid>
@@ -22,7 +23,19 @@
 
         <!-- File Menu -->
         <DockPanel Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="0">
-            <Menu DockPanel.Dock="Top">
+            <ToggleButton DockPanel.Dock="Right" Content="Show as XML" IsChecked="{Binding ShowAsXml}" Padding="8,0" Margin="0,0,4,0"
+                          ToolTip="The same table as text. Back to the grid with text edits not yet applied asks to apply them.">
+                <ToggleButton.Style>
+                    <Style TargetType="{x:Type ToggleButton}" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding BinGrid}" Value="{x:Null}">
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ToggleButton.Style>
+            </ToggleButton>
+            <Menu>
                 <MenuItem Header="{loc:Loc AnimationPack.Menu.File}">
                     <MenuItem Header="{loc:Loc AnimationPack.Menu.Save}" Command="{Binding SaveActionCommand}"/>
                     <Separator/>
@@ -99,7 +112,32 @@
         </Grid>
 
         <!-- Right side - Main view -->
-        <texteditor:TextEditorView Grid.Row="1" Grid.Column="2" DataContext="{Binding SelectedItemViewModel, UpdateSourceTrigger=PropertyChanged}"/>
+        <!-- A WH3 battle table shows as the grid unless Show as XML is on; everything else shows as text. -->
+        <Grid Grid.Row="1" Grid.Column="2">
+            <texteditor:TextEditorView DataContext="{Binding SelectedItemViewModel, UpdateSourceTrigger=PropertyChanged}">
+                <texteditor:TextEditorView.Style>
+                    <Style TargetType="{x:Type texteditor:TextEditorView}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.ShowGrid, RelativeSource={RelativeSource AncestorType={x:Type Grid}}}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </texteditor:TextEditorView.Style>
+            </texteditor:TextEditorView>
+            <bingrid:BinGridView DataContext="{Binding BinGrid}">
+                <bingrid:BinGridView.Style>
+                    <Style TargetType="{x:Type bingrid:BinGridView}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.ShowGrid, RelativeSource={RelativeSource AncestorType={x:Type Grid}}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </bingrid:BinGridView.Style>
+            </bingrid:BinGridView>
+        </Grid>
 
     </Grid>
 </UserControl>
