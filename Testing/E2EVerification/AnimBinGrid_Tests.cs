@@ -554,5 +554,86 @@ namespace Test.E2EVerification
             Assert.That(grid.ReplaceInPaths(find, "spear"), Is.EqualTo(0));
             Assert.That((table.ToByteArray(), opened.Editor.HasUnsavedChanges), Is.EqualTo((before, false)));
         }
+
+        // Findings
+
+        [Test]
+        public void AMissingAnimation_MarksItsRow()
+        {
+            var (_, _, grid, _) = Grid();
+            RowOf(grid, "STAND").Animation = "animations/nope.anim";
+            var row = RowOf(grid, "STAND");
+            Assert.That((row.HasWarning, row.HasError), Is.EqualTo((true, false)));
+            Assert.That(row.Findings, Does.Contain("animations/nope.anim"));
+            Assert.That(RowOf(grid, "RUN_1").Findings, Is.Null);
+        }
+
+        [Test]
+        public void FixingThePath_ClearsTheMark()
+        {
+            var (_, _, grid, _) = Grid();
+            RowOf(grid, "STAND").Animation = "animations/nope.anim";
+            RowOf(grid, "STAND").Animation = KarlAnim;
+            Assert.That((RowOf(grid, "STAND").HasWarning, RowOf(grid, "STAND").Findings), Is.EqualTo((false, (string?)null)));
+        }
+
+        [Test]
+        public void AnEmptySlot_IsMarkedOnOpening()
+        {
+            var (_, _, grid, _) = Grid();
+            Assert.That(RowOf(grid, "CHARGE", -1).Findings, Does.Contain("Slot does not have any animations"));
+            Assert.That(grid.Problems, Does.Contain("1 warning"));
+        }
+
+        [Test]
+        public void AWrongName_MarksTheHeader()
+        {
+            var (_, _, grid, _) = Grid();
+            Assert.That(grid.NameProblem, Is.Null);
+            grid.Name = "wrong";
+            Assert.That(grid.NameProblem, Does.Contain("wrong"));
+            Assert.That(grid.Problems, Does.Contain("1 error"));
+        }
+
+        [Test]
+        public async Task ADeepFinding_ShowsOnItsRow()
+        {
+            var (_, _, grid, _) = Grid();
+            grid.DeepDelay = TimeSpan.Zero;
+            RowOf(grid, "STAND").Meta = GraphA; // a file that is there, but no meta
+            await grid.DeepChecks;
+            Assert.That(RowOf(grid, "STAND").Findings, Does.Contain("does not appear to be a valid meta animation"));
+        }
+
+        // A run started before an edit that finishes after the next one's has checked a table that is no longer there.
+        [Test]
+        public async Task AStaleDeepResult_IsDropped()
+        {
+            var (_, _, grid, _) = Grid();
+            grid.DeepDelay = TimeSpan.Zero;
+            var real = grid.DeepRunner;
+            var entered = new TaskCompletionSource();
+            var gate = new TaskCompletionSource();
+            var calls = 0;
+            grid.DeepRunner = table =>
+            {
+                if (Interlocked.Increment(ref calls) == 1)
+                {
+                    entered.SetResult();
+                    gate.Task.Wait();
+                }
+                return real(table);
+            };
+
+            RowOf(grid, "STAND").Meta = GraphA;
+            var first = grid.DeepChecks;
+            await entered.Task;
+            RowOf(grid, "STAND").Meta = "";
+            await grid.DeepChecks;
+            gate.SetResult();
+            await first;
+
+            Assert.That(RowOf(grid, "STAND").Findings, Is.Null);
+        }
     }
 }

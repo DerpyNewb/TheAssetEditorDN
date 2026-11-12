@@ -46,7 +46,95 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             _skeletons = skeletons;
             _otherBins = otherBins;
             _pickSlot = pickSlot;
-            Reload();
+            _ui = SynchronizationContext.Current;
+            DeepRunner = x => { lock (_deepLock) return _checks.Deep(x); };
+            BuildRows();
+            CheckPaths();
+        }
+
+        // Checks: Header and Files after every change, here and now; Deep, which opens files, on the thread pool after a pause, on a
+        // copy of the table, its result dropped when the table has changed again since it started.
+
+        readonly SynchronizationContext? _ui;
+        readonly object _deepLock = new();
+        List<BinFinding> _cheap = [];
+        List<BinFinding> _deep = [];
+        int _deepRun;
+        CancellationTokenSource? _deepCancel;
+
+        public TimeSpan DeepDelay { get; set; } = TimeSpan.FromMilliseconds(500);
+
+        /// <summary>The deep checks, on a copy of the table. BinTableChecks.Deep by default; a test swaps it to hold a run back.</summary>
+        public Func<AnimationBinWh3, List<BinFinding>> DeepRunner { get; set; }
+
+        /// <summary>The latest deep run, for a test to wait on.</summary>
+        public Task DeepChecks { get; private set; } = Task.CompletedTask;
+
+        public string? NameProblem => HeaderProblem("Name");
+        public string? SkeletonProblem => HeaderProblem("Skeleton");
+        public string? GraphProblem => HeaderProblem("LocomotionGraph");
+        string? HeaderProblem(string where) => _cheap.Where(x => x.Entry == null && x.Where == where).Select(x => x.Message).FirstOrDefault();
+
+        public string Problems
+        {
+            get
+            {
+                var all = _cheap.Concat(_deep).ToList();
+                var errors = all.Count(x => x.IsError);
+                var warnings = all.Count - errors;
+                return $"{errors} {(errors == 1 ? "error" : "errors")}, {warnings} {(warnings == 1 ? "warning" : "warnings")}";
+            }
+        }
+
+        void CheckPaths()
+        {
+            _cheap = [.. _checks.Header(Table, Table.FileName), .. _checks.Files(Table)];
+            ShowFindings();
+        }
+
+        void ShowFindings()
+        {
+            var byEntry = _cheap.Concat(_deep).Where(x => x.Entry != null).ToLookup(x => x.Entry!.Value);
+            foreach (var row in Rows)
+                row.SetFindings(byEntry[row.Entry].ToList());
+            OnPropertyChanged(nameof(NameProblem));
+            OnPropertyChanged(nameof(SkeletonProblem));
+            OnPropertyChanged(nameof(GraphProblem));
+            OnPropertyChanged(nameof(Problems));
+        }
+
+        /// <summary>Starts the deep checks over the table as it is now. The animpack editor calls it when it opens the grid.</summary>
+        public void StartDeepChecks()
+        {
+            _deepCancel?.Cancel();
+            var cancel = _deepCancel = new CancellationTokenSource();
+            var run = ++_deepRun;
+            var copy = new AnimationBinWh3(Table.FileName, Table.ToByteArray());
+            var delay = DeepDelay;
+            var runner = DeepRunner;
+            DeepChecks = Task.Run(async () =>
+            {
+                await Task.Delay(delay, cancel.Token);
+                var found = runner(copy);
+                void Show()
+                {
+                    if (run != _deepRun)
+                        return;
+                    _deep = found;
+                    ShowFindings();
+                }
+                if (_ui == null)
+                    Show();
+                else
+                    _ui.Post(_ => Show(), null);
+            }, cancel.Token);
+        }
+
+        void RunChecks()
+        {
+            _deep = [];
+            CheckPaths();
+            StartDeepChecks();
         }
 
         // The header strip
@@ -305,6 +393,12 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
         /// slot and variant where those still exist.</summary>
         public void Reload()
         {
+            BuildRows();
+            RunChecks();
+        }
+
+        void BuildRows()
+        {
             var selected = SelectedRows.Select(x => (x.Entry, x.Variant)).ToHashSet();
             var rows = new ObservableCollection<BinGridRow>();
             for (var entry = 0; entry < Table.AnimationTableEntries.Count; entry++)
@@ -326,6 +420,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             OnPropertyChanged(string.Empty);
             foreach (var row in Rows)
                 row.Refresh();
+            RunChecks();
         }
     }
 }

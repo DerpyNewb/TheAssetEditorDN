@@ -84,6 +84,20 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             Refresh();
         }
 
+        // What the checks found on this row's slot, shown as a mark on the row with the messages as its tooltip.
+        IReadOnlyList<BinFinding> _findings = [];
+        public string? Findings => _findings.Count == 0 ? null : string.Join("\n", _findings.Select(x => x.Message).Distinct());
+        public bool HasError => _findings.Any(x => x.IsError);
+        public bool HasWarning => _findings.Count != 0 && !HasError;
+
+        internal void SetFindings(IReadOnlyList<BinFinding> findings)
+        {
+            _findings = findings;
+            OnPropertyChanged(nameof(Findings));
+            OnPropertyChanged(nameof(HasError));
+            OnPropertyChanged(nameof(HasWarning));
+        }
+
         /// <summary>Every cell read again from the table.</summary>
         public void Refresh() => OnPropertyChanged(string.Empty);
     }

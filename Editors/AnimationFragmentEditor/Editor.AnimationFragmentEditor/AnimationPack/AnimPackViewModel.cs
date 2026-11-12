@@ -221,7 +221,9 @@ namespace CommonControls.Editors.AnimationPack
         BinGridViewModel CreateGrid(AnimationBinWh3 table)
         {
             var otherBins = AnimationPackItems.PossibleValues.OfType<AnimationBinWh3>().Where(x => x != table && x.TableVersion == 4).Select(x => x.Name).ToList();
-            return new BinGridViewModel(table, EditTable, Checks(), _dialogs, _uiCommandFactory, _pfs, _skeletonAnimationLookUpHelper, otherBins, slots => PickSlot(slots));
+            var grid = new BinGridViewModel(table, EditTable, Checks(), _dialogs, _uiCommandFactory, _pfs, _skeletonAnimationLookUpHelper, otherBins, slots => PickSlot(slots));
+            grid.StartDeepChecks();
+            return grid;
         }
 
         BinTableChecks Checks() => new(_pfs, _skeletonAnimationLookUpHelper, _metaDataFileParser, _packFile);
