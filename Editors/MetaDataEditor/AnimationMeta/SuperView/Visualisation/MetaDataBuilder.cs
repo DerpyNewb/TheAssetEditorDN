@@ -147,8 +147,25 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             // Hand poses are keys across both files, so they are built from both at once.
             CreateHandPoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
+
+            // The model's own state is one answer from both files' tags at once. Only SuperView's asset has a model to change.
+            if (skeleton is SceneObject scene)
+            {
+                var disable = Both<DisableModel>(usePersistent ? persistent : null, metaData);
+                if (disable.Count != 0)
+                    output.Add(new DisableModelInstance(scene, disable));
+            }
             return output;
         }
+
+        static List<T> Both<T>(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData) =>
+            [.. persistent?.GetItemsOfType<T>() ?? [], .. metaData?.GetItemsOfType<T>() ?? []];
+
+        // Whether a tag that changes the model is on at a time. Start < End is the window between them; Start = End (or End
+        // before Start) is on from Start to the end of the clip, so 0/0 is the whole clip. That is how vanilla's DISABLE_MODEL
+        // tags read: 0/0 on the engines' "invisible" stands, an instant where a matched-combat victim is swallowed.
+        public static bool IsOn(DecodedMetaEntryBase tag, float time) =>
+            tag.EndTime > tag.StartTime ? time >= tag.StartTime && time <= tag.EndTime : time >= tag.StartTime;
 
         // The vfx filter ids the two metas' EFFECT tags carry, lowest first, 0 (every entity) left out.
         public static List<int> VfxFilterIds(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData) =>
