@@ -6,6 +6,9 @@
         public string Path { get; set; }
         public bool? BringToFront { get; set; }
         public bool? OpenInExistingKitbashTab { get; set; }
+        // open: the editor to open the file in, by its EditorEnums name with or without "_Editor" ("SuperView",
+        // "VariantMesh", "XML_VariantMesh_Editor"). Left out, a model opens in Kitbash and anything else as a double-click does.
+        public string? OpenWith { get; set; }
         public string PackPathOnDisk { get; set; }
         public int? Limit { get; set; }
 

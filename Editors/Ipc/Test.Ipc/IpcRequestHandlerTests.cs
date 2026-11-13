@@ -1,5 +1,6 @@
 ﻿using Editors.Ipc;
 using Shared.Core.PackFiles.Models;
+using Shared.Core.ToolCreation;
 
 namespace Test.Ipc
 {
@@ -264,14 +265,16 @@ namespace Test.Ipc
             public PackFile? LastFile { get; private set; }
             public bool LastBringToFront { get; private set; }
             public bool LastOpenInExistingKitbashTab { get; private set; }
+            public EditorEnums? LastOpenWith { get; private set; }
 
-            public Task OpenAsync(PackFile file, bool bringToFront, bool openInExistingKitbashTab, CancellationToken cancellationToken)
+            public Task<string?> OpenAsync(PackFile file, bool bringToFront, bool openInExistingKitbashTab, EditorEnums? openWith, CancellationToken cancellationToken)
             {
                 OpenCallCount++;
                 LastFile = file;
                 LastBringToFront = bringToFront;
                 LastOpenInExistingKitbashTab = openInExistingKitbashTab;
-                return Task.CompletedTask;
+                LastOpenWith = openWith;
+                return Task.FromResult<string?>(null);
             }
         }
 

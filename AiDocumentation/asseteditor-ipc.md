@@ -46,8 +46,13 @@ Send one JSON object followed by a newline.
 - `bringToFront` (optional, default `true`): bring AssetEditor window to front
 - `packPathOnDisk` (optional): disk path to a `.pack` to load first if needed
 - `openInExistingKitbashTab` (optional, default `false`): if `true`, and a Kitbash tab exists, import supported files into that tab instead of opening a new tab
+- `openWith` (optional, `open` only): the editor to open the file in, by its `EditorEnums` name with or without the
+  `_Editor` suffix, case ignored: `"SuperView"`, `"VariantMesh"`, `"XML_VariantMesh_Editor"`, `"Kitbash"`. An editor that
+  cannot open the file is refused with the list of those that can, and an unknown name with every name. With
+  `openWith`, `openInExistingKitbashTab` applies only when it names Kitbash
 
 ## Open Behavior by File Type
+With no `openWith`:
 - `.rigid_model_v2`: normal open flow (or import into existing Kitbash tab if `openInExistingKitbashTab=true`)
 - `.wsmodel`: forced to open in Kitbash Editor
 - `.variantmeshdefinition`: forced to open in Kitbash Editor and imported as a reference on open
