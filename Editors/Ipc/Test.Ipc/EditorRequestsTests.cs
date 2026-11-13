@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Editors.Ipc;
+using Editors.KitbasherEditor.UiCommands;
 using GameWorld.Core.Components;
 using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Components.Selection;
@@ -7,6 +8,7 @@ using GameWorld.Core.SceneNodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using Shared.Core.Commands;
+using Shared.Core.Events;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
 
@@ -101,6 +103,34 @@ namespace Test.Ipc
             Assert.That(_mesh.IsVisible, Is.False);
             Send(new IpcRequest { Action = "visible", Nodes = [_mesh.Id], Visible = true });
             Assert.That(_mesh.IsVisible, Is.True);
+        }
+
+        [Test]
+        public void Select_AReferenceMesh_IsRefused_AsTheViewportRefusesIt()
+        {
+            Service<IUiCommandFactory>().Create<ImportReferenceMeshCommand>(x => x.Configure(KarlRmv)).Execute();
+            var references = Service<SceneManager>().GetNodeByName<GroupNode>(SpecialNodes.ReferenceMeshs)!;
+            var reference = SceneNodeHelper.GetChildrenOfType<Rmv2MeshNode>(references).First();
+
+            var reply = Send(new IpcRequest { Action = "select", Nodes = [reference.Id] });
+
+            Assert.That(reply.Ok, Is.False);
+            Assert.That(reply.Error, Does.Contain(reference.Id));
+            Assert.That(Selected(), Is.Empty);
+        }
+
+        [Test]
+        public void Transform_OfAPartLockedAfterItWasSelected_IsRefused_AndMovesNothing()
+        {
+            var before = _mesh.Geometry.GetVertexById(0);
+            Send(new IpcRequest { Action = "select", Nodes = [_mesh.Id] });
+            _mesh.IsSelectable = false;
+
+            var reply = Send(new IpcRequest { Action = "transform", Translate = [1, 0, 0] });
+
+            Assert.That(reply.Ok, Is.False);
+            Assert.That(reply.Error, Does.Contain(_mesh.Id));
+            Assert.That(_mesh.Geometry.GetVertexById(0), Is.EqualTo(before));
         }
 
         [Test]
