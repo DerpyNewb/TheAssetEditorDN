@@ -119,6 +119,8 @@ namespace Test.VfxEditor
 
             var empty = Doc("<VARIANT_MESH>\r\n</VARIANT_MESH>");
             Check(empty, [VmdEdits.AddSlot(empty, null).Splice], "<VARIANT_MESH>\r\n\t<SLOT name=\"slot_1\" />\r\n</VARIANT_MESH>");
+            var noted = Doc("<VARIANT_MESH>\r\n\t<!-- todo -->\r\n</VARIANT_MESH>");
+            Check(noted, [VmdEdits.AddSlot(noted, null).Splice], "<VARIANT_MESH>\r\n\t<!-- todo -->\r\n\t<SLOT name=\"slot_1\" />\r\n</VARIANT_MESH>");
             var closed = Doc("<VARIANT_MESH/>");
             Check(closed, [VmdEdits.AddSlot(closed, null).Splice], "<VARIANT_MESH>\r\n\t<SLOT name=\"slot_1\" />\r\n</VARIANT_MESH>");
         }

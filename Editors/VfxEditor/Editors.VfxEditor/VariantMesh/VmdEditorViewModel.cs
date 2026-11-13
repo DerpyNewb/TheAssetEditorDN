@@ -7,6 +7,7 @@ using Serilog;
 using Shared.Core.Commands;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
@@ -24,15 +25,37 @@ namespace Editors.VfxEditor.VariantMesh
         readonly IFileSaveService _fileSaveService;
         readonly IStandardDialogs _dialogs;
         readonly IUiCommandFactory _commands;
+        readonly IGlobalEventHub _globalEventHub;
         List<VmdRowRef> _refs = [];
         Func<VmdRowRef, bool>? _select;
 
-        public VmdEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs, IUiCommandFactory commands)
+        // The checks run after every edit; the packs are asked about each path once (a query on the game's cache), and again only
+        // after a pack changes. The file's own path is found once per load or save.
+        readonly Dictionary<string, bool> _exists = new(StringComparer.OrdinalIgnoreCase);
+        string? _ownPath;
+
+        public VmdEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs, IUiCommandFactory commands,
+            IGlobalEventHub globalEventHub)
         {
             _packFileService = packFileService;
             _fileSaveService = fileSaveService;
             _dialogs = dialogs;
             _commands = commands;
+            _globalEventHub = globalEventHub;
+            // Every pack, file and folder change derives from this event.
+            globalEventHub.Register<PackFileContainerManipulationEvent>(this, _ =>
+            {
+                _exists.Clear();
+                RunChecks();
+            });
+        }
+
+        bool Exists(string path)
+        {
+            var key = path.Replace('/', '\\');
+            if (!_exists.TryGetValue(key, out var found))
+                _exists[key] = found = _packFileService.FindFile(path) != null;
+            return found;
         }
 
         // CA's most used names first (variants.pack, 2026-11-13); any other name can be typed.
@@ -67,6 +90,7 @@ namespace Editors.VfxEditor.VariantMesh
                 Document.Changed -= OnDocumentChanged;
             CurrentFile = file;
             DisplayName = file.Name;
+            _ownPath = _packFileService.GetFullPath(file);
             (Document, LoadError) = VmdLayout.Load(file.DataSource.ReadData());
             if (Document != null)
                 Document.Changed += OnDocumentChanged;
@@ -118,8 +142,7 @@ namespace Editors.VfxEditor.VariantMesh
                 Problems = "";
                 return;
             }
-            var own = CurrentFile == null ? null : _packFileService.GetFullPath(CurrentFile);
-            var findings = VmdChecks.Run(Document, _refs, path => _packFileService.FindFile(path) != null, own);
+            var findings = VmdChecks.Run(Document, _refs, Exists, _ownPath);
             var byRow = findings.ToLookup(f => f.Row);
             for (var i = 0; i < Rows.Count; i++)
                 Rows[i].SetFindings(byRow[i].ToList());
@@ -215,9 +238,9 @@ namespace Editors.VfxEditor.VariantMesh
         [RelayCommand]
         void RemoveEntry(VmdRow? row)
         {
+            FlushPendingEdits?.Invoke();   // first: writing a pending cell moves the offsets the entry is found by
             if (row?.Entry is not { } entry)
                 return;
-            FlushPendingEdits?.Invoke();
             Edit(d => [d.Remove(entry)]);
         }
 
@@ -240,6 +263,7 @@ namespace Editors.VfxEditor.VariantMesh
 
         internal string CopyText()
         {
+            FlushPendingEdits?.Invoke();
             if (Document == null || SelectedRows.Count == 0)
             {
                 Status = "Select the slots to copy.";
@@ -300,6 +324,7 @@ namespace Editors.VfxEditor.VariantMesh
         [RelayCommand]
         void BrowsePath(VmdRow? row)
         {
+            FlushPendingEdits?.Invoke();
             if (row?.Entry is not { } entry)
                 return;
             var path = Browse(entry.Name == "VARIANT_MESH" ? [".wsmodel", ".rigid_model_v2"] : [".variantmeshdefinition"]);
@@ -310,6 +335,7 @@ namespace Editors.VfxEditor.VariantMesh
         [RelayCommand]
         void BrowseImposter(VmdRow? row)
         {
+            FlushPendingEdits?.Invoke();
             if (row is not { HasTags: true })
                 return;
             var path = Browse([".rigid_model_v2", ".wsmodel"]);
@@ -326,6 +352,7 @@ namespace Editors.VfxEditor.VariantMesh
         [RelayCommand]
         void OpenPath(string? path)
         {
+            FlushPendingEdits?.Invoke();
             if (string.IsNullOrWhiteSpace(path))
                 return;
             if (_packFileService.FindFile(path) is { } file)
@@ -364,6 +391,7 @@ namespace Editors.VfxEditor.VariantMesh
                 if (saved == null)
                     return false;
                 CurrentFile = saved;
+                _ownPath = path;
                 HasUnsavedChanges = false;
                 Status = "Saved " + path;
                 OnPropertyChanged(nameof(CurrentFile));
@@ -379,6 +407,7 @@ namespace Editors.VfxEditor.VariantMesh
 
         public void Close()
         {
+            _globalEventHub.UnRegister(this);
             if (Document != null)
                 Document.Changed -= OnDocumentChanged;
         }

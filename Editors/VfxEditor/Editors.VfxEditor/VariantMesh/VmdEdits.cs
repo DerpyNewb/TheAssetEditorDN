@@ -95,10 +95,16 @@ namespace Editors.VfxEditor.VariantMesh
                 return (document.InsertAfter(after, xml), name);
             if (parent.Children.Count > 0)
                 return (document.InsertInto(parent, xml), name);
-            // The file's own mesh, empty: its first slot on its own line, as CA lays a file out.
-            return (parent.SelfClosing
-                ? new Splice(parent.StartTagClose, parent.End, $">\r\n\t{xml}\r\n</{parent.Name}>")
-                : new Splice(parent.ContentStart, parent.ContentEnd, $"\r\n\t{xml}\r\n"), name);
+            // The file's own mesh, with no elements: its first slot on its own line, as CA lays a file out, after anything else in
+            // it (a comment) so that stays.
+            if (parent.SelfClosing)
+                return (new Splice(parent.StartTagClose, parent.End, $">\r\n\t{xml}\r\n</{parent.Name}>"), name);
+            if (string.IsNullOrWhiteSpace(document.Text[parent.ContentStart..parent.ContentEnd]))
+                return (new Splice(parent.ContentStart, parent.ContentEnd, $"\r\n\t{xml}\r\n"), name);
+            var at = parent.ContentEnd;
+            while (char.IsWhiteSpace(document.Text[at - 1]))
+                at--;
+            return (new Splice(at, at, $"\r\n\t{xml}"), name);
         }
 
         /// <summary>A reference for a .variantmeshdefinition, a model for anything else, as the slot's last entry.</summary>

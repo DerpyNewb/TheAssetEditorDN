@@ -2,8 +2,11 @@ using System.Text;
 using Editors.VfxEditor.VariantMesh;
 using Moq;
 using Shared.Core.Commands;
+using Shared.Core.Events;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
+using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
 using Shared.Core.ToolCreation;
 using Test.TestingUtility.Shared;
@@ -221,6 +224,82 @@ namespace Test.VfxEditor
             Assert.That(editor.Rows[3].Path, Is.EqualTo("warmachines/pilot_head.wsmodel"));
             editor.UndoCommand.Execute(null);
             Assert.That(editor.Rows, Is.EqualTo(before));
+        }
+
+        // A cell still being edited is written before a command reads the file: FlushPendingEdits stands in for the grid's commit.
+
+        [Test]
+        public void Remove_entry_finds_its_entry_after_a_pending_edit_is_written()
+        {
+            var (_, editor) = Open(VmdFixtures.Unit);
+            editor.FlushPendingEdits = () => editor.Rows[0].Path = "a\\a_much_longer_body.wsmodel";   // moves every offset after it
+
+            editor.RemoveEntryCommand.Execute(editor.Rows[1]);
+
+            Assert.That(Text(editor), Is.EqualTo(VmdFixtures.Unit.Replace("a\\body.wsmodel", "a\\a_much_longer_body.wsmodel")
+                .Replace("\r\n\t\t<VARIANT_MESH model=\"a\\sword.wsmodel\" />", "")));
+        }
+
+        [Test]
+        public void Copy_takes_a_cell_still_being_edited()
+        {
+            var (_, editor) = Open(VmdFixtures.Unit);
+            editor.SelectedRows = [editor.Rows[1]];
+            editor.FlushPendingEdits = () => editor.Rows[1].Path = "b\\axe.wsmodel";
+
+            Assert.That(editor.CopyText(), Does.Contain("b\\axe.wsmodel"));
+        }
+
+        [Test]
+        public void Browse_writes_a_cell_still_being_edited_first_as_its_own_step()
+        {
+            var (runner, editor) = Open(VmdFixtures.Unit);
+            runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>()))
+                .Returns(new BrowseDialogResultFile(true, runner.PackFileService.FindFile(FilePath)!));
+            editor.FlushPendingEdits = () => editor.Rows[0].Tags = "equipment";
+
+            editor.BrowsePathCommand.Execute(editor.Rows[1]);
+            Assert.That((editor.Rows[0].Tags, editor.Rows[1].Path), Is.EqualTo(("equipment", FilePath)));
+            editor.UndoCommand.Execute(null);
+            Assert.That((editor.Rows[0].Tags, editor.Rows[1].Path), Is.EqualTo(("equipment", "a\\sword.wsmodel")));
+        }
+
+        [Test]
+        public void Open_writes_a_cell_still_being_edited_first()
+        {
+            var (_, editor) = Open(VmdFixtures.Unit);
+            editor.FlushPendingEdits = () => editor.Rows[0].Tags = "equipment";
+
+            editor.OpenPathCommand.Execute("gone.wsmodel");
+
+            Assert.That((editor.Rows[0].Tags, editor.Status), Is.EqualTo(("equipment", "Not found in the loaded packs: gone.wsmodel")));
+        }
+
+        // The checks ask the packs about each path once, not on every edit, and ask again when a pack changes, which also clears
+        // a warning about a file just added.
+        [Test]
+        public void Each_path_is_looked_up_once_until_a_pack_changes()
+        {
+            var packs = new Mock<IPackFileService>();
+            packs.Setup(x => x.GetFullPath(It.IsAny<PackFile>(), It.IsAny<IPackFileContainer?>())).Returns(FilePath);
+            Action<PackFileContainerManipulationEvent>? packsChanged = null;
+            var hub = new Mock<IGlobalEventHub>();
+            hub.Setup(x => x.Register(It.IsAny<object>(), It.IsAny<Action<PackFileContainerManipulationEvent>>()))
+                .Callback<object, Action<PackFileContainerManipulationEvent>>((_, action) => packsChanged = action);
+            var editor = new VmdEditorViewModel(packs.Object, Mock.Of<IFileSaveService>(), Mock.Of<IStandardDialogs>(), Mock.Of<IUiCommandFactory>(), hub.Object);
+            editor.LoadFile(PackFile.CreateFromBytes("unit.variantmeshdefinition", Encoding.UTF8.GetBytes(VmdFixtures.Unit)));
+
+            editor.Rows[2].Probability = "0.5";
+            editor.Rows[2].Probability = "0.4";
+
+            packs.Verify(x => x.FindFile("a\\body.wsmodel", It.IsAny<IPackFileContainer?>()), Times.Once);
+            packs.Verify(x => x.GetFullPath(It.IsAny<PackFile>(), It.IsAny<IPackFileContainer?>()), Times.Once);
+            Assert.That(editor.Rows[0].HasWarning, Is.True);
+
+            packs.Setup(x => x.FindFile("a\\body.wsmodel", It.IsAny<IPackFileContainer?>())).Returns(PackFile.CreateFromBytes("body.wsmodel", []));
+            packsChanged!(new PackFileContainerFilesAddedEvent(Mock.Of<IPackFileContainer>(), []));
+
+            Assert.That(editor.Rows[0].HasWarning, Is.False);
         }
 
         [Test]
