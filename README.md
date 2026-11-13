@@ -7,7 +7,7 @@
 
 A fork of [donkeyProgramming's AssetEditor](https://github.com/donkeyProgramming/TheAssetEditor), the modding tool for Total War games with editors for 3D models, animations, audio, textures and more in one desktop app. It is built on upstream v0.78, with upstream's later master merged in, and adds a VFX editor, a Unit Simulator, a particle preview much closer to the game's, better LOD generation and a long list of fixes.
 
-Releases are numbered DN v1, v1.1, v1.2 and so on, and the title bar shows both numbers, as in "AssetEditor v0.78 - DN v1.6".
+Releases are numbered DN v1, v1.1, v1.2 and so on, and the title bar shows both numbers, as in "AssetEditor v0.78 - DN v1.7".
 
 **[Latest Release](https://github.com/DerpyNewb/TheAssetEditorDN/releases/latest)** · **[Documentation](https://donkeyprogramming.github.io/TheAssetEditor/)** · **[Video Tutorial](https://www.youtube.com/watch?v=ZlmG2AVL5-g)** · **[Upstream](https://github.com/donkeyProgramming/TheAssetEditor)**
 
@@ -28,6 +28,9 @@ Flipbooks, trails, decals, HDR glow at the game's bloom threshold, light particl
 
 ### SuperView and the Anm.Meta editor
 Vanilla `.anm.meta` files re-save byte-identical. Tag descriptions, a New dialog, PROP_10 and above, EFFECT particles, hand poses and animated props drawn in place, and `.variantmeshdefinition` files open and play. In SuperView, the Slot files panel changes the animation, meta and sound a slot plays and saves the battle table or campaign animation set it belongs to, and Save meta as gives a slot its own copy of a shared meta.
+
+### Grids for battle tables and variant meshes
+A WH3 battle animation table in an animpack, and a `.variantmeshdefinition`, each open as a grid with a row per slot entry. Paths have Browse and Open, slots can be added, removed, copied and pasted, find and replace works across paths, every edit can be undone, and problems are marked on their own row. Show as XML at the top right switches to the text and back.
 
 ### Dockable panels
 In SuperView, the Unit Simulator and the Skeleton, Campaign Animation Creator, Animation Retarget and KeyFrame editors, the panels around the 3D view dock, tab, float, auto-hide and close. General > Panels reopens a closed one, General > Reset layout puts the default back, and each editor keeps its own layout between sessions.
