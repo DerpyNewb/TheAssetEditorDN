@@ -131,7 +131,7 @@ namespace Editors.VfxEditor.VariantMesh
 
         void View_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.H && Keyboard.Modifiers == ModifierKeys.Control)
+            if (e.Key == Key.H && Keyboard.Modifiers == ModifierKeys.Control && FindBox.IsVisible)
             {
                 FindBox.Focus();
                 FindBox.SelectAll();

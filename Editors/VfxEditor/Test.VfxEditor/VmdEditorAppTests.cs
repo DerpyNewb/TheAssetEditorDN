@@ -343,6 +343,81 @@ namespace Test.VfxEditor
             Assert.That(editor.LoadError, Does.Contain("line 3"));
             Assert.That(editor.Rows, Is.Empty);
             Assert.That(editor.Save(), Is.False);
+            editor.ShowAsXml = true;
+            Assert.That(editor.ShowAsXml, Is.False);
+        }
+
+        // Show as XML
+
+        [Test]
+        public void Show_as_xml_shows_the_file_and_back_applies_the_text_as_one_undo_step()
+        {
+            var (_, editor) = Open(VmdFixtures.Unit);
+            editor.ShowAsXml = true;
+            Assert.That(editor.XmlView.Text, Is.EqualTo(VmdFixtures.Unit));
+
+            var edited = VmdFixtures.Unit.Replace("a\\sword.wsmodel", "b\\axe.wsmodel");
+            editor.XmlView.Text = edited;
+            Assert.That(editor.HasUnsavedChanges, Is.True);
+            editor.ShowAsXml = false;
+
+            Assert.That(editor.ShowAsXml, Is.False);
+            Assert.That(Text(editor), Is.EqualTo(edited));
+            Assert.That(editor.Rows[1].Path, Is.EqualTo("b\\axe.wsmodel"));
+            editor.UndoCommand.Execute(null);
+            Assert.That(Text(editor), Is.EqualTo(VmdFixtures.Unit));
+        }
+
+        [Test]
+        public void Show_as_xml_writes_a_cell_still_being_edited_first()
+        {
+            var (_, editor) = Open(VmdFixtures.Unit);
+            editor.FlushPendingEdits = () => editor.Rows[1].Path = "b\\axe.wsmodel";
+            editor.ShowAsXml = true;
+            Assert.That(editor.XmlView.Text, Does.Contain("b\\axe.wsmodel"));
+        }
+
+        [TestCase("<VARIANT_MESH>\r\n\t<SLOT name=\"a\">\r\n</VARIANT_MESH>", "line 3")]
+        [TestCase("<SLOT name=\"a\" />", "<VARIANT_MESH>")]
+        public void Text_that_is_not_a_variant_mesh_keeps_the_xml_view_and_says_why(string text, string reason)
+        {
+            var (_, editor) = Open(VmdFixtures.Unit);
+            editor.ShowAsXml = true;
+            editor.XmlView.Text = text;
+            editor.ShowAsXml = false;
+
+            Assert.That(editor.ShowAsXml, Is.True);
+            Assert.That(editor.Status, Does.Contain(reason));
+            Assert.That(Text(editor), Is.EqualTo(VmdFixtures.Unit));
+            Assert.That(editor.Save(), Is.False);
+        }
+
+        [Test]
+        public void Save_in_the_xml_view_saves_the_text()
+        {
+            var (runner, editor) = Open(VmdFixtures.Unit);
+            editor.ShowAsXml = true;
+            var edited = VmdFixtures.Unit.Replace("weapon_2", "shield");
+            editor.XmlView.Text = edited;
+
+            Assert.That(editor.Save(), Is.True);
+            var saved = runner.PackFileService.FindFile(FilePath, runner.PackFileService.GetEditablePack())!.DataSource.ReadData();
+            Assert.That(Encoding.UTF8.GetString(saved), Is.EqualTo(edited));
+            Assert.That(editor.ShowAsXml, Is.True);
+        }
+
+        // In the XML view the text box has its own undo; the grid's would change the file under text that no longer matches it.
+        [Test]
+        public void Undo_does_nothing_to_the_file_while_the_xml_view_is_shown()
+        {
+            var (_, editor) = Open(VmdFixtures.Unit);
+            editor.Rows[1].Path = "b\\axe.wsmodel";
+            editor.ShowAsXml = true;
+            editor.UndoCommand.Execute(null);
+            Assert.That(Text(editor), Does.Contain("b\\axe.wsmodel"));
+            editor.ShowAsXml = false;
+            editor.UndoCommand.Execute(null);
+            Assert.That(Text(editor), Is.EqualTo(VmdFixtures.Unit));
         }
     }
 }

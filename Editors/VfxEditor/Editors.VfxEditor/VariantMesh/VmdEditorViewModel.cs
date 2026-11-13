@@ -13,6 +13,7 @@ using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
 using Shared.Core.ToolCreation;
 using Shared.CoreLog;
+using Shared.Ui.Editors.TextEditor;
 
 namespace Editors.VfxEditor.VariantMesh
 {
@@ -48,6 +49,13 @@ namespace Editors.VfxEditor.VariantMesh
                 _exists.Clear();
                 RunChecks();
             });
+            XmlView.SaveCommand = SaveFileCommand;
+            // Typing in the XML view is an unsaved change, so closing the tab asks.
+            XmlView.PropertyChanged += (_, _) =>
+            {
+                if (ShowAsXml && XmlView.Text != Document?.Text)
+                    HasUnsavedChanges = true;
+            };
         }
 
         bool Exists(string path)
@@ -80,6 +88,54 @@ namespace Editors.VfxEditor.VariantMesh
         [ObservableProperty] bool _hasUnsavedChanges;
 
         public bool HasLoadError => LoadError != null;
+
+        /// <summary>The file as text in the shared text editor, shown instead of the grid while ShowAsXml is on.</summary>
+        public SimpleTextEditorViewModel XmlView { get; } = new();
+
+        bool _showAsXml;
+        /// <summary>The bin grid's Show as XML. Back to the grid applies what was typed as one undo step; text that is not a variant
+        /// mesh keeps the XML view, and the status line says why.</summary>
+        public bool ShowAsXml
+        {
+            get => _showAsXml;
+            set
+            {
+                if (value == _showAsXml || Document == null)
+                    return;
+                if (value)
+                {
+                    FlushPendingEdits?.Invoke();
+                    XmlView.Text = Document.Text;
+                    XmlView.ResetChangeLog();
+                }
+                else if (!ApplyXml())
+                    return;   // the toggle reads the value back after setting it, so it stays on
+                SetProperty(ref _showAsXml, value);
+            }
+        }
+
+        bool ApplyXml()
+        {
+            var text = XmlView.Text;
+            if (Document == null || text == Document.Text)
+                return true;
+            string? error;
+            try
+            {
+                error = XmlSpanParser.Parse(text).Children.FirstOrDefault()?.Name == "VARIANT_MESH" ? null : "its first element is not <VARIANT_MESH>";
+            }
+            catch (VfxParseException e)
+            {
+                error = e.Message;
+            }
+            if (error != null)
+            {
+                Status = $"The XML was not applied: {error}";
+                return false;
+            }
+            Edit(d => [new Splice(0, d.Text.Length, text)]);
+            return true;
+        }
 
         /// <summary>Set by the view: writes a cell still being edited before a save, undo or command that does not take its focus.</summary>
         public Action? FlushPendingEdits { get; set; }
@@ -363,9 +419,13 @@ namespace Editors.VfxEditor.VariantMesh
 
         // Saving, undo
 
+        // In the XML view the text box has its own undo; the grid's would change the file under text that no longer matches it.
+
         [RelayCommand]
         void Undo()
         {
+            if (ShowAsXml)
+                return;
             FlushPendingEdits?.Invoke();
             Document?.Undo();
         }
@@ -373,6 +433,8 @@ namespace Editors.VfxEditor.VariantMesh
         [RelayCommand]
         void Redo()
         {
+            if (ShowAsXml)
+                return;
             FlushPendingEdits?.Invoke();
             Document?.Redo();
         }
@@ -382,7 +444,7 @@ namespace Editors.VfxEditor.VariantMesh
         public bool Save()
         {
             FlushPendingEdits?.Invoke();
-            if (Document == null || CurrentFile == null)
+            if (Document == null || CurrentFile == null || (ShowAsXml && !ApplyXml()))
                 return false;
             var path = _packFileService.GetFullPath(CurrentFile);
             try

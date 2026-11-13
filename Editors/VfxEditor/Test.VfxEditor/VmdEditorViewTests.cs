@@ -1,6 +1,7 @@
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Editors.VfxEditor.VariantMesh;
@@ -66,12 +67,49 @@ namespace Test.VfxEditor
             }
         }
 
+        // The toggle at the top right, as in the bin grid: the file's text in the shared text editor, and what is typed there goes back
+        // into the file when the grid comes back.
+        [Test, Apartment(ApartmentState.STA)]
+        public void Show_as_xml_swaps_the_grid_for_the_text_and_back()
+        {
+            var (_, editor) = VmdEditorAppTests.Open(VmdFixtures.Unit);
+            var (window, grid) = Host(editor);
+            try
+            {
+                var toggle = Descendants(window).OfType<ToggleButton>().Single(t => t.Content as string == "Show as XML");
+                toggle.IsChecked = true;
+                Pump();
+                var text = Descendants(window).OfType<ICSharpCode.AvalonEdit.TextEditor>().Single();
+                Assert.That((grid.IsVisible, text.IsVisible, text.Text), Is.EqualTo((false, true, VmdFixtures.Unit)));
+
+                // Text that is not a variant mesh: the toggle stays on and the text stays up.
+                text.Document.Text = "<VARIANT_MESH>";
+                toggle.IsChecked = false;
+                Pump();
+                Assert.That((toggle.IsChecked, text.IsVisible), Is.EqualTo((true, true)));
+
+                text.Document.Text = VmdFixtures.Unit.Replace("a\\sword.wsmodel", "b\\axe.wsmodel");
+                toggle.IsChecked = false;
+                Pump();
+                Assert.That((grid.IsVisible, text.IsVisible), Is.EqualTo((true, false)));
+                Assert.That(editor.Rows[1].Path, Is.EqualTo("b\\axe.wsmodel"));
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
         static (Window Window, DataGrid Grid) Host(VmdEditorViewModel editor)
         {
             _ = System.IO.Packaging.PackUriHelper.UriSchemePack;
             var window = new Window { Width = 1400, Height = 700, Left = -20000, Top = -20000, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None };
             foreach (var theme in new[] { "ColourDictionaries/DarkTheme.xaml", "ControlColours.xaml", "Controls.xaml" })
                 window.Resources.MergedDictionaries.Add((ResourceDictionary)Application.LoadComponent(new Uri("/AssetEditor;component/Themes/" + theme, UriKind.Relative)));
+            // The shared text editor (Show as XML) reads its combo box template while it is built, before the view is in the window, so
+            // from the app's resources, which the test has no App.xaml to give.
+            var app = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            app.Resources["ComboBoxTemplate"] = window.Resources["ComboBoxTemplate"];
             window.Content = new VmdEditorView { DataContext = editor };
             window.Show();
             Pump();
