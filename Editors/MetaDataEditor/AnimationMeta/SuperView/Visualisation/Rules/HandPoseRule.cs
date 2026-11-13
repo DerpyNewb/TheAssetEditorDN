@@ -18,9 +18,14 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Rules
         readonly List<Key> _keys;
 
         public HandPoseRule(GameSkeleton skeleton, string handBoneName, IEnumerable<Key> keys)
+            : this(skeleton.GetBoneIndexByName(handBoneName) is var hand && hand >= 0 ? skeleton.GetAllChildBones(hand) : [], keys)
         {
-            var hand = skeleton.GetBoneIndexByName(handBoneName);
-            _fingerBones = hand < 0 ? [] : skeleton.GetAllChildBones(hand).ToHashSet();
+        }
+
+        // FACE_POSE keys work the same way on the bones the builder takes for the face.
+        public HandPoseRule(IEnumerable<int> bones, IEnumerable<Key> keys)
+        {
+            _fingerBones = bones.ToHashSet();
             _keys = keys.OrderBy(x => x.Time).ToList();    // stable: on a tie the later tag wins
         }
 

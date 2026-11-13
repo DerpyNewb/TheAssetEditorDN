@@ -147,6 +147,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             // Hand poses are keys across both files, so they are built from both at once.
             CreateHandPoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
+            CreateFacePoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
 
             // The model's own state is one answer from both files' tags at once. Only SuperView's asset has a model to change.
             if (skeleton is SceneObject scene)
@@ -204,19 +205,58 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
         AnimationFrame? LoadHandPose(int handPoseId, IAnimationBinGenericFormat? fragment, GameSkeleton skeleton)
         {
-            if (handPoseId < 0 || handPoseId >= s_handPoseSlots.Length)
-                return null;
+            var pose = LoadPose(s_handPoseSlots, handPoseId, fragment, skeleton);
+            if (pose == null && handPoseId >= 0 && handPoseId < s_handPoseSlots.Length)
+                _logger.Here().Warning($"Hand pose {s_handPoseSlots[handPoseId]} is not in the animation set, so the fingers keep the animation's pose");
+            return pose;
+        }
 
-            var slot = s_handPoseSlots[handPoseId];
-            var animPath = fragment?.Entries.FirstOrDefault(x => x.SlotName == slot)?.AnimationFile;
-            var file = string.IsNullOrWhiteSpace(animPath) ? null : _packFileService.FindFile(animPath);
-            if (file == null)
-            {
-                _logger.Here().Warning($"Hand pose {slot} is not in the animation set, so the fingers keep the animation's pose");
+        // The first frame of the set's animation for slots[id]; null for an id outside the list or a slot the set lacks.
+        AnimationFrame? LoadPose(string[] slots, int id, IAnimationBinGenericFormat? fragment, GameSkeleton skeleton)
+        {
+            if (id < 0 || id >= slots.Length)
                 return null;
+            var animPath = fragment?.Entries.FirstOrDefault(x => x.SlotName == slots[id])?.AnimationFile;
+            var file = string.IsNullOrWhiteSpace(animPath) ? null : _packFileService.FindFile(animPath);
+            return file == null ? null : AnimationSampler.Sample(0, 0, skeleton, new AnimationClip(AnimationFile.Create(file), skeleton));
+        }
+
+        // FacePoseId indexes these slots, in the order of the WH3 slot table (the tag's field help lists the same order).
+        static readonly string[] s_facePoseSlots =
+        [
+            "FACE_POSE_RELAX", "FACE_POSE_RELAX_BLINK", "FACE_POSE_ANGRY", "FACE_POSE_ANGRY_BLINK", "FACE_POSE_ANGRY_SCREAM",
+            "FACE_POSE_DEAD", "FACE_POSE_DEAD2", "FACE_POSE_DEATH_SCREAM", "FACE_POSE_WORRIED", "FACE_POSE_WORRIED_BLINK",
+        ];
+
+        // FACE_POSE keys pose the face the way hand-pose keys pose the fingers: from Start Time until the next key, -1
+        // releasing it. Which bones the game counts as the face is not known, and CA's face-pose animations key the whole
+        // skeleton, so the face is taken to be the bones the set's face poses disagree on. Across vanilla's 21 face-pose
+        // folders that is the jaw, eyelids, eyebrows, eyes, lips, tongue and beard; one relax-blink pose also turns a leg and
+        // a skirt bone by under a degree. The weapon bones are left out: a 64-frame blink that sits among the high elves' face
+        // poses, in their folder and their campaign sets, holds them 1.6 m away. A set with fewer than two face poses has nothing to compare.
+        void CreateFacePoses(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData, IAnimationBinGenericFormat? fragment, ISkeletonProvider skeleton, AnimationPlayer rootPlayer)
+        {
+            var tags = (persistent?.GetItemsOfType<FacePose>() ?? []).Select(x => (Time: -1f, Tag: x))
+                .Concat((metaData?.GetItemsOfType<FacePose>() ?? []).Select(x => (Time: x.StartTime, Tag: x)))
+                .ToList();
+            if (tags.Count == 0 || skeleton.Skeleton is not { } gameSkeleton)
+                return;
+
+            var poses = s_facePoseSlots.Select((_, id) => LoadPose(s_facePoseSlots, id, fragment, gameSkeleton)).ToList();
+            var loaded = poses.OfType<AnimationFrame>().ToList();
+            if (loaded.Count < 2)
+            {
+                LogOnce($"FACE_POSE: the animation set has {loaded.Count} of the {s_facePoseSlots.Length} FACE_POSE slots, too few to tell the face from the body, so faces are not posed");
+                return;
             }
 
-            return AnimationSampler.Sample(0, 0, skeleton, new AnimationClip(AnimationFile.Create(file), skeleton));
+            static bool Differ(AnimationFrame.BoneKeyFrame a, AnimationFrame.BoneKeyFrame b) =>
+                Math.Abs(Quaternion.Dot(a.Rotation, b.Rotation)) < 0.99999f || Vector3.Distance(a.Translation, b.Translation) > 1e-4f;
+            var face = Enumerable.Range(0, gameSkeleton.BoneCount)
+                .Where(bone => !gameSkeleton.BoneNames[bone].StartsWith("be_prop", StringComparison.OrdinalIgnoreCase))
+                .Where(bone => loaded.Skip(1).Any(x => Differ(x.BoneTransforms[bone], loaded[0].BoneTransforms[bone])));
+            var keys = tags.Select(x => new HandPoseRule.Key(x.Time, x.Tag.FacePoseId >= 0 && x.Tag.FacePoseId < poses.Count ? poses[x.Tag.FacePoseId] : null, x.Tag.Weight));
+            rootPlayer.AnimationRules.Add(new HandPoseRule(face, keys));
         }
 
         private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment, int vfxFilter, bool includeEffects = true, bool persistent = false)
