@@ -126,6 +126,9 @@ namespace Editors.VfxEditor.VariantMesh
             {
                 throw new ArgumentException($"The clipboard text is not XML: {e.Message}");
             }
+            // A whole file (its own model-less mesh holding slots, alone) pastes its slots.
+            if (parsed.Children is [{ Name: "VARIANT_MESH" } file] && file.Attr("model") == null && file.ChildrenNamed("SLOT").Any())
+                parsed = file;
             var slots = parsed.ChildrenNamed("SLOT").Select(e => xml[e.Start..e.End]).ToList();
             var entries = parsed.Children.Where(VmdLayout.IsEntry).Select(e => xml[e.Start..e.End]).ToList();
             if (slots.Count == 0 && entries.Count == 0)

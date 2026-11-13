@@ -5,11 +5,9 @@ namespace Editors.VfxEditor.VariantMesh
 {
     /// <summary>A grid row: one entry (a VARIANT_MESH or VARIANT_MESH_REFERENCE) of a slot, or a slot with none (Entry -1). Slot is
     /// the SLOT's path in the document, Entry its index among the slot's entries, Label the slot names from the outermost.</summary>
-    public sealed record VmdRowRef(int[] Slot, int Entry, int Depth, string Label, bool IsFirst)
-    {
-        /// <summary>The row's identity across a rebuild that keeps the structure: the slot path and the entry.</summary>
-        public string Key => string.Join(",", Slot) + ":" + Entry;
-    }
+    /// <summary>Key is the row's identity across edits: its slot and entry counted among slots and entries only, so a tag added or
+    /// removed, which moves the slots' places in the file, leaves every row as it was.</summary>
+    public sealed record VmdRowRef(int[] Slot, int Entry, int Depth, string Label, bool IsFirst, string Key);
 
     /// <summary>A .variantmeshdefinition read as a VfxDocument (docs/superpowers/specs/2026-11-13-asseteditor-variant-mesh-grid-design.md),
     /// and its rows in file order, each nested slot right after the entry that holds it.</summary>
@@ -49,22 +47,24 @@ namespace Editors.VfxEditor.VariantMesh
         public static List<VmdRowRef> Rows(VfxDocument document)
         {
             var rows = new List<VmdRowRef>();
-            AddSlots(Top(document), 0, "", rows);
+            AddSlots(Top(document), 0, "", "", rows);
             return rows;
         }
 
-        static void AddSlots(SpanElement mesh, int depth, string prefix, List<VmdRowRef> rows)
+        static void AddSlots(SpanElement mesh, int depth, string prefix, string keyPrefix, List<VmdRowRef> rows)
         {
+            var ordinal = 0;
             foreach (var slot in mesh.ChildrenNamed("SLOT"))
             {
                 var label = prefix + (slot.Attr("name") ?? "");
+                var key = keyPrefix + ordinal++;
                 var entries = Entries(slot);
                 if (entries.Count == 0)
-                    rows.Add(new VmdRowRef(slot.Path, -1, depth, label, true));
+                    rows.Add(new VmdRowRef(slot.Path, -1, depth, label, true, key + ":-1"));
                 for (var i = 0; i < entries.Count; i++)
                 {
-                    rows.Add(new VmdRowRef(slot.Path, i, depth, label, i == 0));
-                    AddSlots(entries[i], depth + 1, label + " / ", rows);
+                    rows.Add(new VmdRowRef(slot.Path, i, depth, label, i == 0, $"{key}:{i}"));
+                    AddSlots(entries[i], depth + 1, label + " / ", $"{key}:{i}/", rows);
                 }
             }
         }

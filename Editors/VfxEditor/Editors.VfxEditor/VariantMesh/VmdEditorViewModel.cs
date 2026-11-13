@@ -168,7 +168,16 @@ namespace Editors.VfxEditor.VariantMesh
             return row => Inside(Document!.At(row.Slot).Start) || (VmdLayout.EntryOf(Document!, row) is { } entry && Inside(entry.Start));
         }
 
-        IEnumerable<SpanElement> SelectedSlots => SelectedRows.Select(r => r.SlotElement).DistinctBy(s => s.Start);
+        /// <summary>The selected rows' slots, each once; a slot inside another selected slot goes with that one, so Copy and Remove
+        /// take it once.</summary>
+        List<SpanElement> SelectedSlots
+        {
+            get
+            {
+                var slots = SelectedRows.Select(r => r.SlotElement).DistinctBy(s => s.Start).ToList();
+                return slots.Where(s => !slots.Any(o => o.Start < s.Start && s.End <= o.End)).ToList();
+            }
+        }
 
         // Rows
 
@@ -183,11 +192,11 @@ namespace Editors.VfxEditor.VariantMesh
         void RemoveSlots()
         {
             FlushPendingEdits?.Invoke();
-            var slots = SelectedSlots.ToList();
-            // A slot inside another selected slot goes with it.
-            slots = slots.Where(s => !slots.Any(o => o != s && o.Start < s.Start && s.End <= o.End)).ToList();
+            var slots = SelectedSlots;
             if (slots.Count == 0)
                 return;
+            // Nothing stays selected: the next slot takes the removed one's place, and a second click would remove it too.
+            SelectedRows = [];
             Edit(d => slots.Select(d.Remove));
             Status = $"Removed {Plural(slots.Count, "slot")}";
         }

@@ -167,6 +167,62 @@ namespace Test.VfxEditor
             Assert.That(editor.Rows[1].Findings, Does.Contain("also named"));
         }
 
+        // Final review: a block selected from a slot down through its inner slots copied the inner ones twice.
+        [Test]
+        public void Copy_of_a_slot_with_its_inner_slots_selected_copies_it_once()
+        {
+            var (_, editor) = Open(VmdFixtures.Gyrobomber);
+            editor.SelectedRows = editor.Rows.Skip(1).Take(6).ToList();   // pilot down to the last pilot / helmet
+
+            var copied = editor.CopyText();
+
+            Assert.That(copied, Does.StartWith("<SLOT name=\"pilot\" >").And.EndWith("</SLOT>"));
+            Assert.That(copied.Split("<SLOT name=\"helmet\"").Length, Is.EqualTo(2));
+        }
+
+        // Final review: a whole file copied out of the text editor went into the selected slot as one model-less mesh.
+        [Test]
+        public void Paste_of_a_whole_file_pastes_its_slots()
+        {
+            var (_, editor) = Open(VmdFixtures.Unit);
+            editor.SelectedRows = [editor.Rows[2]];
+            editor.PasteText("<VARIANT_MESH>\r\n\t<SLOT name=\"cape\" >\r\n\t\t<VARIANT_MESH model=\"c.wsmodel\" />\r\n\t</SLOT>\r\n</VARIANT_MESH>");
+
+            Assert.That(editor.Rows.Select(r => (r.Slot, r.Path)), Is.EqualTo(new[] {
+                ("body", "a\\body.wsmodel"), ("weapon_1", "a\\sword.wsmodel"), ("weapon_2", ""), ("cape", "c.wsmodel") }));
+        }
+
+        // Final review: the next slot took the removed slot's place and its selection, so a second click removed it too.
+        [Test]
+        public void Remove_slot_leaves_nothing_selected()
+        {
+            var (_, editor) = Open(VmdFixtures.Unit.Replace("<SLOT name=\"weapon_2\" attach_point=\"be_prop_1\" />",
+                "<SLOT name=\"weapon_2\" attach_point=\"be_prop_1\" ><VARIANT_MESH model=\"a\\gun.wsmodel\" /></SLOT>"));
+            editor.SelectedRows = [editor.Rows[1]];
+            editor.RemoveSlotsCommand.Execute(null);
+
+            Assert.That(editor.Rows.Select(r => r.Slot), Is.EqualTo(new[] { "body", "weapon_2" }));
+            Assert.That(editor.SelectedRows, Is.Empty);
+        }
+
+        // Final review: the first tag on a mesh that holds slots goes before them, which moved their places in the file, so the
+        // rows were rebuilt inside the grid's commit of the Tags cell. Tags are values: the rows stay.
+        [Test]
+        public void A_tag_edit_keeps_the_rows()
+        {
+            var (_, editor) = Open(VmdFixtures.Gyrobomber);
+            var before = editor.Rows.ToList();
+            editor.SelectedRows = [editor.Rows[3]];
+
+            editor.Rows[1].Tags = "equipment";
+
+            Assert.That(editor.Rows, Is.EqualTo(before));
+            Assert.That(editor.SelectedRows, Is.EqualTo(new[] { before[3] }));
+            Assert.That(editor.Rows[3].Path, Is.EqualTo("warmachines/pilot_head.wsmodel"));
+            editor.UndoCommand.Execute(null);
+            Assert.That(editor.Rows, Is.EqualTo(before));
+        }
+
         [Test]
         public void Replace_runs_over_every_row_when_one_is_selected()
         {
