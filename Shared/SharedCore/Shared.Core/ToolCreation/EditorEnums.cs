@@ -27,6 +27,7 @@
         UnitSimulator_Editor,
         MusicDat_Editor,
         MusicProject_Editor,
+        VariantMesh_Editor,
         None,
     }
 }

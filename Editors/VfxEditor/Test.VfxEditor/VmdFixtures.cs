@@ -5,6 +5,19 @@ namespace Test.VfxEditor
     {
         public static string Lines(params string[] lines) => string.Join("\r\n", lines);
 
+        // A unit's file: a body with two tags on its closing line, a weapon, and an empty weapon slot.
+        public static readonly string Unit = Lines(
+            "<VARIANT_MESH>",
+            "\t<SLOT name=\"body\" >",
+            "\t\t<VARIANT_MESH model=\"a\\body.wsmodel\" >",
+            "\t\t\t<META_DATA>audio_entity_type:x</META_DATA>\t\t\t<META_DATA>audio_armour_type:leather</META_DATA></VARIANT_MESH>",
+            "\t</SLOT>",
+            "\t<SLOT name=\"weapon_1\" attach_point=\"be_prop_0\" >",
+            "\t\t<VARIANT_MESH model=\"a\\sword.wsmodel\" />",
+            "\t</SLOT>",
+            "\t<SLOT name=\"weapon_2\" attach_point=\"be_prop_1\" />",
+            "</VARIANT_MESH>");
+
         // dwf_gyrobomber's shape: a slot whose mesh has no model and holds slots of its own.
         public static readonly string Gyrobomber = Lines(
             "<VARIANT_MESH>",

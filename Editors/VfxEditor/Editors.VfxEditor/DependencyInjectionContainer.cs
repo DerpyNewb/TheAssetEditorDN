@@ -1,5 +1,6 @@
 using Editors.VfxEditor.ViewModels;
 using Editors.VfxEditor.Preview;
+using Editors.VfxEditor.VariantMesh;
 using Editors.VfxEditor.Views;
 using Editors.VfxEditor.Vocabulary;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,9 @@ namespace Editors.VfxEditor
             serviceCollection.AddScoped<IEditorInterface, VfxEditorViewModel>();
             serviceCollection.AddSingleton<VfxVocabularyService>();
             RegisterGameComponent<VfxPreviewComponent>(serviceCollection);
+
+            serviceCollection.AddTransient<VmdEditorView>();
+            serviceCollection.AddScoped<VmdEditorViewModel>();
         }
 
         public override void RegisterTools(IEditorDatabase editorDatabase)
@@ -27,6 +31,12 @@ namespace Editors.VfxEditor
                 .AddToToolbar("VFX Editor")
                 .AddExtention(".xml", EditorPriorites.High)
                 .ValidForFoldersContaining("vfx\\")
+                .Build(editorDatabase);
+
+            // Joins the text editor, Kitbash and SuperView in the chooser a variant mesh opens with.
+            EditorInfoBuilder
+                .Create<VmdEditorViewModel, VmdEditorView>(EditorEnums.VariantMesh_Editor)
+                .AddExtention(".variantmeshdefinition", EditorPriorites.High)
                 .Build(editorDatabase);
         }
     }

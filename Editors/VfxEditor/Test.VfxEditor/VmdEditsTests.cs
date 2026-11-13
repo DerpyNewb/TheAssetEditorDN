@@ -7,18 +7,6 @@ namespace Test.VfxEditor
     // Each edit gives exactly the expected text, and one undo gives back exactly the original.
     class VmdEditsTests
     {
-        static readonly string Unit = Lines(
-            "<VARIANT_MESH>",
-            "\t<SLOT name=\"body\" >",
-            "\t\t<VARIANT_MESH model=\"a\\body.wsmodel\" >",
-            "\t\t\t<META_DATA>audio_entity_type:x</META_DATA>\t\t\t<META_DATA>audio_armour_type:leather</META_DATA></VARIANT_MESH>",
-            "\t</SLOT>",
-            "\t<SLOT name=\"weapon_1\" attach_point=\"be_prop_0\" >",
-            "\t\t<VARIANT_MESH model=\"a\\sword.wsmodel\" />",
-            "\t</SLOT>",
-            "\t<SLOT name=\"weapon_2\" attach_point=\"be_prop_1\" />",
-            "</VARIANT_MESH>");
-
         static VfxDocument Doc(string text = "") => VfxDocument.FromText(text.Length == 0 ? Unit : text);
         static SpanElement Slot(VfxDocument d, string name) => VmdLayout.Top(d).ChildrenNamed("SLOT").Single(s => s.Attr("name") == name);
         static SpanElement Mesh(VfxDocument d, string slot) => VmdLayout.Entries(Slot(d, slot))[0];
