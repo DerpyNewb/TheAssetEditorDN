@@ -41,6 +41,36 @@ namespace GameWorld.Core.Services.SceneSaving
                 GameTypeEnum.Pharaoh => MaterialStrategy.WsModel_Pharaoh,
                 _ => MaterialStrategy.None,
             };
+
+            ApplyLastChoices();
+        }
+
+        // Upstream #322: each new Kitbash editor started from the defaults again.
+        void ApplyLastChoices()
+        {
+            var settings = _applicationSettingsService.CurrentSettings;
+            var last = settings.KitbashSaveChoices;
+            if (last == null || last.Game != settings.CurrentGame)
+                return;
+
+            if (Enum.TryParse<GeometryStrategy>(last.GeometryStrategy, out var geometry))
+                GeometryOutputType = geometry;
+            if (Enum.TryParse<MaterialStrategy>(last.MaterialStrategy, out var material))
+                MaterialOutputType = material;
+            if (Enum.TryParse<LodStrategy>(last.LodStrategy, out var lod))
+                LodGenerationMethod = lod;
+            OnlySaveVisible = last.OnlySaveVisible;
+            DisplayDialogOnNextSave = last.DisplayDialogOnNextSave;
+        }
+
+        /// <summary>Keeps the save dialog's choices in the app settings, so the next editor's save offers them. Output path and
+        /// LOD settings stay per model.</summary>
+        public void RememberChoices()
+        {
+            var settings = _applicationSettingsService.CurrentSettings;
+            settings.KitbashSaveChoices = new KitbashSaveChoices(settings.CurrentGame, GeometryOutputType.ToString(), MaterialOutputType.ToString(),
+                LodGenerationMethod.ToString(), OnlySaveVisible, DisplayDialogOnNextSave);
+            _applicationSettingsService.Save();
         }
 
         public void RefreshLodSettings()

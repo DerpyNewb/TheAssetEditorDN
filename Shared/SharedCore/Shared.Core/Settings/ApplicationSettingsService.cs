@@ -14,6 +14,10 @@ namespace Shared.Core.Settings
 
     public record RecentPackFileInfo(string Path, PackFileContainerType ContainerType, bool IsReadOnly);
 
+    /// <summary>The Kitbash save dialog's choices at the last save, for the game they were made in. The strategies are their enum
+    /// names as text, because the enums live in GameWorld.Core; a name that no longer parses is skipped.</summary>
+    public record KitbashSaveChoices(GameTypeEnum Game, string GeometryStrategy, string MaterialStrategy, string LodStrategy, bool OnlySaveVisible, bool DisplayDialogOnNextSave);
+
     public class ApplicationSettings
     {
         public record GamePathPair(GameTypeEnum Game, string Path);
@@ -47,6 +51,8 @@ namespace Shared.Core.Settings
         public int BackupsKept { get; set; } = 10;
         /// <summary>Empty is DirectoryHelper.BackupDirectory.</summary>
         public string BackupFolder { get; set; } = "";
+        /// <summary>Offered again by the next Kitbash save; null until a save dialog has been confirmed once.</summary>
+        public KitbashSaveChoices? KitbashSaveChoices { get; set; }
     }
 
     public class ApplicationSettingsService
