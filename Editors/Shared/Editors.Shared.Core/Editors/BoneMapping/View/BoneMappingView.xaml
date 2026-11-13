@@ -240,7 +240,9 @@
 
             <TextBox Grid.Row="1" BorderBrush="Black" Text="{Binding ParentModelBones.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
             <Button x:Name="ClearParentModelBonesFilterButton" Grid.Row="1" Grid.Column ="1"  Content="{loc:Loc KitbasherTool.BoneMapping.Clear}" Click="{s:MethodBinding ClearParentModelBonesFilter}"/>
-            <TreeView 
+            <TreeView
+                x:Name="TargetBoneTree"
+                PreviewMouseLeftButtonDown="TargetBoneTree_PreviewMouseLeftButtonDown"
                 Grid.Row="2"
                 Grid.ColumnSpan="2"
                 HorizontalContentAlignment="Stretch" 

@@ -132,7 +132,14 @@ namespace Shared.Ui.Editors.BoneMapping
 
         private void OnParentBoneSelected(AnimatedBone bone)
         {
-            if (bone == null)
+            if (bone != null)
+                MapSelectedMeshBoneTo(bone);
+        }
+
+        /// <summary>Maps the selected mesh bone onto a target bone; the view calls it for a click on the target already selected.</summary>
+        public void MapSelectedMeshBoneTo(AnimatedBone bone)
+        {
+            if (MeshBones.SelectedItem == null)
                 return;
 
             MeshBones.SelectedItem.MappedBoneIndex.Value = bone.BoneIndex.Value;
