@@ -7,6 +7,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\GameWorld\GameWorldCore\GameWorld.Core\GameWorld.Core.csproj" />
+      <ProjectReference Include="..\ImportExportEditor\Editors.ImportExport\Editors.ImportExport.csproj" />
     </ItemGroup>
 
 </Project>

@@ -8,6 +8,7 @@ using Editors.TextureEditor.ViewModels;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles;
 using Shared.Core.ToolCreation;
+using Shared.GameFormats.RigidModel.Types;
 using Test.TestingUtility.Shared;
 using Shared.Core.Commands;
 
@@ -131,6 +132,72 @@ namespace Test.E2EVerification
                 Assert.That(warning, Is.Null);
             else
                 Assert.That(warning, Does.Contain(named).And.Contain("BC3_UNORM_SRGB"));
+        }
+
+        // The texture editor was view-only. Replace from image writes a picked image over the open texture, at its path in the editable
+        // pack, in the format and with the mips picked, and then shows it.
+        [TestCase(null, true, "BC3_UNORM")]
+        [TestCase(DXGI_FORMAT.BC7_UNORM_SRGB, false, "BC7_UNORM_SRGB")]
+        public void ReplaceFromImage_WritesTheImageAtTheTexturesPath_InTheEditablePack(DXGI_FORMAT? format, bool mipmaps, string expectedFormat)
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("derpy_ca_like", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry(@"variantmeshes\derpy", PackFile.CreateFromBytes("derpy_test_mask.dds", Dds(DXGI_FORMAT.BC3_UNORM, legacyHeader: false, 0, 0, 0, 255)))]);
+            var editable = runner.CreateEmptyPackFile("derpy_editable", true);
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<TextureEditorViewModel>(runner.PackFileService.FindFile(@"variantmeshes\derpy\derpy_test_mask.dds", source)!, EditorEnums.Texture_Editor);
+
+            Assert.That(editor.ReplaceTextureType.Value, Is.EqualTo(TextureType.Mask), "the type was not guessed from the name");
+            editor.ReplaceFormat.Value = editor.ReplaceFormats.Single(x => x.Format == format);
+            editor.ReplaceMipmaps.Value = mipmaps;
+            Assert.That(editor.CanReplace(), Is.Null);
+            editor.Replace(Encode("derpy.png"));
+
+            var written = runner.PackFileService.FindFile(@"variantmeshes\derpy\derpy_test_mask.dds", editable);
+            Assert.That(written, Is.Not.Null, "nothing was written into the editable pack");
+            Assert.That(editor.CurrentFile, Is.SameAs(written), "the editor does not show the new texture");
+            var (metadata, pixel) = Decode(written!.DataSource.ReadData());
+            Assert.That(metadata.Format.ToString(), Is.EqualTo(expectedFormat));
+            Assert.That((metadata.Width, metadata.Height), Is.EqualTo((8, 8)), "6x5 rounded up to whole 4x4 blocks");
+            Assert.That(metadata.MipLevels, mipmaps ? Is.EqualTo(4) : Is.EqualTo(1));
+            Assert.That(new[] { pixel.R, pixel.G, pixel.B }, Is.EqualTo(new[] { R, G, B }).Within(8));
+            Assert.That(editor.ViewModel.Width.Value, Is.EqualTo(8));
+        }
+
+        [Test]
+        public void ReplaceFromImage_IsRefused_WithNoEditablePack_OrOnAnImageFile()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("derpy_ca_like", false);
+            runner.PackFileService.AddFilesToPack(source, [
+                new NewPackFileEntry(@"variantmeshes\derpy", PackFile.CreateFromBytes("derpy_test_mask.dds", Dds(DXGI_FORMAT.BC3_UNORM, legacyHeader: false))),
+                new NewPackFileEntry(@"variantmeshes\derpy", PackFile.CreateFromBytes("derpy_test.png", Encode("derpy_test.png")))]);
+            var open = runner.CommandFactory.Create<OpenEditorCommand>();
+
+            var dds = open.Execute<TextureEditorViewModel>(runner.PackFileService.FindFile(@"variantmeshes\derpy\derpy_test_mask.dds")!, EditorEnums.Texture_Editor);
+            Assert.That(dds.CanReplace(), Does.Contain("No editable pack"));
+
+            runner.CreateEmptyPackFile("derpy_editable", true);
+            var png = open.Execute<TextureEditorViewModel>(runner.PackFileService.FindFile(@"variantmeshes\derpy\derpy_test.png")!, EditorEnums.Texture_Editor);
+            Assert.That(png.CanReplace(), Does.Contain(".dds"));
+            Assert.That(dds.CanReplace(), Is.Null);
+        }
+
+        static (TexMetadata Metadata, Color Pixel) Decode(byte[] dds)
+        {
+            var handle = GCHandle.Alloc(dds, GCHandleType.Pinned);
+            try
+            {
+                using var image = TexHelper.Instance.LoadFromDDSMemory(handle.AddrOfPinnedObject(), dds.Length, DDS_FLAGS.NONE);
+                var metadata = image.GetMetadata();
+                using var plain = image.Decompress(0, TexHelper.Instance.IsSRGB(metadata.Format) ? DXGI_FORMAT.R8G8B8A8_UNORM_SRGB : DXGI_FORMAT.R8G8B8A8_UNORM);
+                var rgba = new byte[4];
+                Marshal.Copy(plain.GetImage(0, 0, 0).Pixels, rgba, 0, 4);
+                return (metadata, Color.FromArgb(rgba[3], rgba[0], rgba[1], rgba[2]));
+            }
+            finally
+            {
+                handle.Free();
+            }
         }
 
         internal static byte[] Encode(string name, int width = 6, int height = 5)

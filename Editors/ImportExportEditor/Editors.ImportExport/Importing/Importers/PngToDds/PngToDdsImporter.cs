@@ -23,25 +23,27 @@ namespace Editors.ImportExport.Importing.Importers.PngToDds
 
         /// <param name="convert">Normal maps from blue (most 3D software) to CA's orange layout, material maps from Blender's
         /// (metal in blue) to CA's (metal in red). Nothing for the other types.</param>
-        public static PackFile Import(byte[] image, TextureType textureType, GameTypeEnum gameType, string outFileName, bool convert = true)
+        /// <param name="format">A block-compressed format to write; the one the game uses for <paramref name="textureType"/> when left out.</param>
+        /// <param name="mipmaps">A full mip chain, as CA's textures have, or the top level alone.</param>
+        public static PackFile Import(byte[] image, TextureType textureType, GameTypeEnum gameType, string outFileName, bool convert = true, DXGI_FORMAT? format = null, bool mipmaps = true)
         {
             var (pixels, width, height) = Decode(image);
             if (convert)
                 Convert(pixels, textureType);
 
-            var format = DDSFormatHelper.GetDDSFormat(gameType, textureType);
+            var target = format ?? DDSFormatHelper.GetDDSFormat(gameType, textureType);
             // CA's base colours with cut-outs are BC3: BC1 keeps one bit of alpha.
-            if (format == DXGI_FORMAT.BC1_UNORM_SRGB && textureType is TextureType.BaseColour or TextureType.Diffuse && HasAlpha(pixels))
-                format = DXGI_FORMAT.BC3_UNORM_SRGB;
+            if (format == null && target == DXGI_FORMAT.BC1_UNORM_SRGB && textureType is TextureType.BaseColour or TextureType.Diffuse && HasAlpha(pixels))
+                target = DXGI_FORMAT.BC3_UNORM_SRGB;
 
             // A block-compressed texture's top level is a whole number of 4x4 blocks.
             using var source = ToScratchImage(pixels, width, height);
             using var sized = width % 4 == 0 && height % 4 == 0 ? null : source.Resize((width + 3) / 4 * 4, (height + 3) / 4 * 4, TEX_FILTER_FLAGS.DEFAULT);
 
             // The pixels are already in the target's encoding, so the SRGB flags only tell DirectXTex not to convert them.
-            var srgb = TexHelper.Instance.IsSRGB(format);
-            using var mips = (sized ?? source).GenerateMipMaps(srgb ? TEX_FILTER_FLAGS.SRGB : TEX_FILTER_FLAGS.DEFAULT, 0);
-            using var dds = mips.Compress(format, (srgb ? TEX_COMPRESS_FLAGS.SRGB : TEX_COMPRESS_FLAGS.DEFAULT) | TEX_COMPRESS_FLAGS.PARALLEL, 0.5f);
+            var srgb = TexHelper.Instance.IsSRGB(target);
+            using var mips = mipmaps ? (sized ?? source).GenerateMipMaps(srgb ? TEX_FILTER_FLAGS.SRGB : TEX_FILTER_FLAGS.DEFAULT, 0) : null;
+            using var dds = (mips ?? sized ?? source).Compress(target, (srgb ? TEX_COMPRESS_FLAGS.SRGB : TEX_COMPRESS_FLAGS.DEFAULT) | TEX_COMPRESS_FLAGS.PARALLEL, 0.5f);
             using var stream = dds.SaveToDDSMemory(DDS_FLAGS.NONE);
 
             var bytes = new byte[stream.Length];
