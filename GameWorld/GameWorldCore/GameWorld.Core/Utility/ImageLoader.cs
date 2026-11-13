@@ -105,12 +105,13 @@ namespace GameWorld.Core.Utility
             if (imageContent == null)
                 return null;
 
-            if (Path.GetExtension(fileName).ToLower() == ".png")
+            // Pfim reads DDS and TGA only; MonoGame decodes the image files.
+            if (Path.GetExtension(fileName).ToLower() is ".png" or ".jpg" or ".jpeg")
             {
                 using var stream = new MemoryStream(imageContent);
-                if (graphicsResourceCreator == null)
-                    return Texture2D.FromStream(device, stream);
-                return graphicsResourceCreator.CreateTextureFromStream(stream);
+                var decoded = graphicsResourceCreator == null ? Texture2D.FromStream(device, stream) : graphicsResourceCreator.CreateTextureFromStream(stream);
+                out_imageInfo = new ImageInformation { Width = decoded.Width, Height = decoded.Height, Format = ImageFormat.Rgba32, BitsPerPixel = 32 };
+                return decoded;
             }
 
             var image = LoadImageFromBytes(imageContent, out out_imageInfo);

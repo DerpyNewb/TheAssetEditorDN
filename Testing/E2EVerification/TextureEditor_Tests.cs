@@ -96,5 +96,32 @@ namespace Test.E2EVerification
             editor.ViewModel.FormatACheckbox = true;
             Assert.That(editor.ViewModel.ActiveImage.Value, Is.SameAs(previews[4]));
         }
+
+        // .jpg was not registered, only .jpeg. And every image that is not a .dds came back with no image information, which the
+        // preview read at once, so a .png or .jpeg failed to open too.
+        [TestCase("derpy_test.png")]
+        [TestCase("derpy_test.jpg")]
+        [TestCase("derpy_test.jpeg")]
+        public void AnImageFile_OpensInTheTextureEditor(string name)
+        {
+            var (runner, file) = PackWith(name, Encode(name));
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<TextureEditorViewModel>(file);
+
+            Assert.That(editor.ViewModel.Width.Value, Is.EqualTo(6));
+            Assert.That(editor.ViewModel.Height.Value, Is.EqualTo(5));
+            var red = Pixel(editor.ViewModel.PreviewImage[1]);
+            Assert.That(red.R, Is.InRange(R - 8, R + 8), "the red channel preview");
+        }
+
+        internal static byte[] Encode(string name, int width = 6, int height = 5)
+        {
+            var pixels = Enumerable.Range(0, width * height).SelectMany(_ => new[] { B, G, R, (byte)255 }).ToArray();
+            var source = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+            BitmapEncoder encoder = Path.GetExtension(name) is ".png" ? new PngBitmapEncoder() : new JpegBitmapEncoder { QualityLevel = 100 };
+            encoder.Frames.Add(BitmapFrame.Create(source));
+            using var stream = new MemoryStream();
+            encoder.Save(stream);
+            return stream.ToArray();
+        }
     }
 }
