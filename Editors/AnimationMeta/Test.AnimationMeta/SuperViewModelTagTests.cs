@@ -1,8 +1,10 @@
+using System.Reflection;
 using Editors.AnimationMeta.SuperView.Visualisation;
 using Editors.Shared.Core.Common;
 using GameWorld.Core.Animation;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Shared.GameFormats.Animation;
 using Shared.GameFormats.AnimationMeta.Definitions;
 using Shared.GameFormats.AnimationMeta.Parsing;
@@ -11,7 +13,7 @@ using Test.TestingUtility.Shared;
 
 namespace Test.AnimationMeta
 {
-    // Tags that change the main model itself in SuperView, built the way SuperView builds them: on its SceneObject.
+    // Tags SuperView draws on its asset, built the way SuperView builds them: on its SceneObject.
     public class SuperViewModelTagTests
     {
         AssetEditorTestRunner _runner = null!;
@@ -107,6 +109,31 @@ namespace Test.AnimationMeta
             foreach (var instance in instances)
                 instance.CleanUp();
             Assert.That(_scene.ModelNode.IsVisible, Is.True, "shown again once the tag is gone");
+        }
+
+        static List<Vector3> Lines(SimpleDrawableNode node) =>
+            [.. ((List<VertexPositionColor>)typeof(SimpleDrawableNode).GetField("_lineVertexList", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(node)!).Select(x => x.Position)];
+
+        SimpleDrawableNode Drawn(string name) => _scene.MainNode.Children.OfType<SimpleDrawableNode>().Single(x => x.Name == name);
+
+        static Vector4 Yaw90 => new(0, MathF.Sin(MathHelper.PiOver4), 0, MathF.Cos(MathHelper.PiOver4));
+
+        [Test]
+        public void CrewLocation_IsALocatorAtItsPosition_TurnedByItsOrientation_NamedByItsFilter()
+        {
+            Build(null, Meta(new CrewLocation_v10 { Filter = "crew2", Position = new Vector3(1, 0, -2), Orientation = Yaw90 }));
+
+            // The X axis, turned 90 degrees about Y, points along -Z.
+            var lines = Lines(Drawn("Crew:crew2"));
+            Assert.That(lines, Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(1, 0, -2.3f)) < 1e-4f), "X axis end");
+            Assert.That(lines, Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(1, 0.3f, -2)) < 1e-4f), "Y axis end");
+        }
+
+        [Test]
+        public void CrewLocation_Version2_FromThePersistentMeta_IsDrawnToo()
+        {
+            Build(Meta(new CrewLocation_v2 { Filter = "crew1", Position = new Vector3(0, 0, -4) }), Meta());
+            Assert.That(Lines(Drawn("Crew:crew1")), Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(0.3f, 0, -4)) < 1e-4f));
         }
     }
 }

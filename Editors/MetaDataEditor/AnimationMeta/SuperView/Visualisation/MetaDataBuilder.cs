@@ -235,6 +235,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             output.AddRange(file.GetItemsOfType<SplashAttack_v10>().Select(meteDataItem => CreateSplashAttack(meteDataItem, root, $"SplashAttack_{Math.Round(meteDataItem.EndTime, 2)}", 0.1f, selectedAttribute)));
 
+            output.AddRange(file.GetItemsOfType<CrewLocation_v10>().Select(x => CreateCrewLocation(x, x.Filter, x.Position, x.Orientation, root, selectedAttribute)));
+            output.AddRange(file.GetItemsOfType<CrewLocation_v2>().Select(x => CreateCrewLocation(x, x.Filter, x.Position, x.Orientation, root, selectedAttribute)));
+
             if (includeEffects)
                 output.AddRange(file.GetItemsOfType<IEffectMeta>().Where(x => FilterOf(x) == 0 || FilterOf(x) == vfxFilter).Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent))));
 
@@ -374,6 +377,32 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return new DrawableMetaInstance(metaData.StartTime, metaData.EndTime, node.Name, node);
         }
 
+        // CREW_LOCATION: where an engine's crew member stands and which way he faces, in the model's space; the tag names no
+        // bone. Its filter names the crew member: crew1 to crew3 and reserve1 to reserve3 on every vanilla tag that has one.
+        // All 740 vanilla tags are 0/0, for the whole animation.
+        private IMetaDataInstance CreateCrewLocation(ParsedMetadataAttribute tag, string filter, Vector3 position, Vector4 orientation, SceneNode root, ParsedMetadataAttribute? selectedAttribute)
+        {
+            var name = "Crew:" + (string.IsNullOrWhiteSpace(filter) ? "(no filter)" : filter);
+            var node = new SimpleDrawableNode(name);
+            AddAxes(node, position, Matrix.CreateFromQuaternion(new Quaternion(orientation)), name, selectedAttribute == tag ? s_selectedColor : s_color);
+            root.AddObject(node);
+            return new DrawableMetaInstance(0, 0, name, node);
+        }
+
+        // A locator's three axes turned by its rotation, X red, Y green and Z blue, with a label at its position.
+        void AddAxes(SimpleDrawableNode node, Vector3 position, Matrix rotation, string label, Color color)
+        {
+            const float Length = 0.3f;
+            const float TextOffset = Length * 1.5f + 0.01f;
+            node.AddItem(new WorldTextRenderItem(_resourceLibrary, label, position, color));
+            foreach (var (axis, name, axisColor) in new[] { (Vector3.UnitX, "X", Color.Red), (Vector3.UnitY, "Y", Color.Green), (Vector3.UnitZ, "Z", Color.Blue) })
+            {
+                var local = Vector3.Transform(axis, rotation);
+                node.AddItem(LineHelper.AddLine(position, position + local * Length, axisColor));
+                node.AddItem(new WorldTextRenderItem(_resourceLibrary, name, position + local * TextOffset, axisColor));
+            }
+        }
+
         private IMetaDataInstance CreateSplashAttack(SplashAttack_v10 splashAttack, SceneNode root, string displayName, float scale, ParsedMetadataAttribute? selectedAttribute)
         {
             // A half-typed or brand-new tag (all zeros) gets its locators drawn and a log line, not an
@@ -453,27 +482,11 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 LogOnce($"EFFECT {effect.VfxName}: {problem}");
 
             var color = selectedAttribute == effect ? s_selectedColor : s_color;
-            var locatorScale = 0.3f;
-            var textOffset = locatorScale * 1.5f + 0.01f;
-
-            var rotationQuat = new Quaternion(effect.Orientation);
-            var rotMatrix = Matrix.CreateFromQuaternion(rotationQuat);
-
-            var localX = Vector3.Transform(Vector3.UnitX, rotMatrix);
-            var localY = Vector3.Transform(Vector3.UnitY, rotMatrix);
-            var localZ = Vector3.Transform(Vector3.UnitZ, rotMatrix);
+            var rotMatrix = Matrix.CreateFromQuaternion(new Quaternion(effect.Orientation));
 
             var node = new SimpleDrawableNode("Effect:" + effect.VfxName);
-            node.AddItem(LineHelper.AddLine(effect.Position, effect.Position + localX * locatorScale, Color.Red));
-            node.AddItem(LineHelper.AddLine(effect.Position, effect.Position + localY * locatorScale, Color.Green));
-            node.AddItem(LineHelper.AddLine(effect.Position, effect.Position + localZ * locatorScale, Color.Blue));
-
             var label = resolved is { Found: false } ? effect.VfxName + " (not found)" : effect.VfxName;
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, label, effect.Position, color));
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, "X", effect.Position + localX * textOffset, Color.Red));
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, "Y", effect.Position + localY * textOffset, Color.Green));
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, "Z", effect.Position + localZ * textOffset, Color.Blue));
-
+            AddAxes(node, effect.Position, rotMatrix, label, color);
             root.AddObject(node);
 
             // An untracked effect stays where its bone was at the tag's Start Time.
