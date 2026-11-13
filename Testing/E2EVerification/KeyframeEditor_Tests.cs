@@ -189,5 +189,35 @@ namespace Test.E2EVerification
             Assert.That(editor.FramesDurationInSeconds, Is.EqualTo("3"), $"was {riderDuration} before the edit");
             Assert.That(editor.IsDirty.Value, Is.True, "loading a mount animation discarded the unsaved flag");
         }
+
+        // Both slot pickers in the mount-link panel had their handlers commented out, so picking a slot loaded nothing.
+        // A mount slot X now plays its animation and picks the rider's RIDER_X, which plays the rider's.
+        [Test]
+        public void Warhammer3_MountLink_PickingASlot_LoadsItAndTheRiderPartner()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
+            var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+            var sceneObjectEditor = runner.GetRequiredServiceInCurrentEditorScope<SceneObjectEditor>();
+            sceneObjectEditor.SetMesh(editor.Rider, runner.PackFileService.FindFile(KarlMesh)!);
+            sceneObjectEditor.SetMesh(editor.Mount, runner.PackFileService.FindFile(KarlMesh)!);
+
+            var link = editor.MountLinkController;
+            var riderStand = new Shared.GameFormats.AnimationPack.AnimationBinEntryGenericFormat { SlotName = "RIDER_STAND", AnimationFile = IdleAnimation };
+            var riderMissing = new Shared.GameFormats.AnimationPack.AnimationBinEntryGenericFormat { SlotName = "RIDER_RUN", AnimationFile = "animations/nope.anim" };
+            link.SelectedRiderTag.UpdatePossibleValues(new[] { riderMissing, riderStand });
+            link.SelectedMountTag.UpdatePossibleValues(new[] { new Shared.GameFormats.AnimationPack.AnimationBinEntryGenericFormat { SlotName = "STAND", AnimationFile = IdleAnimation } });
+
+            link.SelectedMountTag.SelectedItem = link.SelectedMountTag.Values.Single();
+
+            Assert.That(editor.Mount.AnimationClip, Is.Not.Null, "the mount slot loaded no animation");
+            Assert.That(link.SelectedRiderTag.SelectedItem, Is.SameAs(riderStand), "the rider's RIDER_STAND was not picked");
+            Assert.That(editor.Rider.AnimationClip, Is.Not.Null, "the rider slot loaded no animation");
+
+            // A slot naming an .anim no pack has leaves the rider with nothing, not the last clip.
+            link.SelectedRiderTag.SelectedItem = riderMissing;
+            Assert.That(editor.Rider.AnimationClip, Is.Null);
+        }
     }
 }

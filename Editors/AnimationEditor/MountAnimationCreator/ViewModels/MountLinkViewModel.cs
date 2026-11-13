@@ -115,37 +115,34 @@ namespace AnimationEditor.MountAnimationCreator.ViewModels
             _validateAction();
         }
 
+        // The mount's slot X plays with the rider's RIDER_X, so picking a mount slot also picks its rider partner.
         private void MountTagSeleted(AnimationBinEntryGenericFormat value)
         {
-           //if (value != null)
-           //{
-           //    var file = _pfs.FindFile(value.AnimationFile);
-           //    var animationRef = _skeletonAnimationLookUpHelper.FindAnimationRefFromPackFile(file);
-           //    _assetViewModelEditor.SetAnimation(_mount, animationRef);
-           //
-           //    var lookUp = "RIDER_" + value.SlotName;
-           //    SelectedRiderTag.Filter = "";
-           //    SelectedRiderTag.SelectedItem = SelectedRiderTag.Values.FirstOrDefault(x => x.SlotName == lookUp);
-           //}
-           //_validateAction();
+            if (value != null)
+            {
+                SetAnimationIfFound(_mount, value.AnimationFile);
+
+                var lookUp = "RIDER_" + value.SlotName;
+                SelectedRiderTag.Filter = "";
+                var partner = SelectedRiderTag.Values.FirstOrDefault(x => x.SlotName == lookUp);
+                if (partner != null)
+                    SelectedRiderTag.SelectedItem = partner;
+            }
+            _validateAction();
         }
 
         private void RiderTagSelected(AnimationBinEntryGenericFormat value)
         {
-          // if (value != null)
-          // {
-          //     var file = _pfs.FindFile(value.AnimationFile);
-          //     if (file == null)
-          //     {
-          //         _assetViewModelEditor.SetAnimation(_rider, null);
-          //     }
-          //     else
-          //     {
-          //         var animationRef = _skeletonAnimationLookUpHelper.FindAnimationRefFromPackFile(file);
-          //         _assetViewModelEditor.SetAnimation(_rider, animationRef);
-          //     }
-          // }
-          // _validateAction();
+            if (value != null)
+                SetAnimationIfFound(_rider, value.AnimationFile);
+            _validateAction();
+        }
+
+        // A table can name an .anim no loaded pack has; the part then plays nothing rather than its last clip.
+        void SetAnimationIfFound(SceneObject sceneObject, string animationFile)
+        {
+            var found = string.IsNullOrWhiteSpace(animationFile) == false && _pfs.FindFile(animationFile) != null;
+            _assetViewModelEditor.SetAnimation(sceneObject, found ? animationFile : null);
         }
     }
 }
