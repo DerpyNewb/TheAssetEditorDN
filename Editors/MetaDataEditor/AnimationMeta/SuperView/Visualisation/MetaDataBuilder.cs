@@ -279,7 +279,10 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             output.AddRange(file.GetItemsOfType<CrewLocation_v2>().Select(x => CreateCrewLocation(x, x.Filter, x.Position, x.Orientation, root, selectedAttribute)));
 
             if (includeEffects)
-                output.AddRange(file.GetItemsOfType<IEffectMeta>().Where(x => FilterOf(x) == 0 || FilterOf(x) == vfxFilter).Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent))));
+            {
+                output.AddRange(file.GetItemsOfType<IEffectMeta>().Where(x => FilterOf(x) == 0 || FilterOf(x) == vfxFilter).Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, (ParsedMetadataAttribute)x, "Effect", root, skeleton, selectedAttribute, rootPlayer, persistent))));
+                output.AddRange(file.GetItemsOfType<Blood_v11>().Select(x => Keep(x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(new BloodEffect(x), x, "Blood", root, skeleton, selectedAttribute, rootPlayer, persistent))));
+            }
 
             // A prop docked to both hands from the same moment goes to the right hand, whichever tag comes first: in all
             // nine vanilla cases where the animation's own keys hold the prop rigid to one hand, it is the right one.
@@ -513,18 +516,32 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return instance;
         }
 
-        private IMetaDataInstance CreateEffect(IEffectMeta effect, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute, AnimationPlayer rootPlayer, bool persistent)
+        // BLOOD carries an EFFECT's fields and is drawn as one. Version 12 declares Position, Orientation, NodeIndex and
+        // Scale again with `new`, so they are read through the type the tag really is.
+        sealed class BloodEffect(Blood_v11 tag) : IEffectMeta
+        {
+            public string VfxName { get; set; } = tag.VfxName;
+            public bool Tracking { get; set; } = tag.Tracking;
+            public Vector3 Position { get; set; } = tag is Blood_v12 v ? v.Position : tag.Position;
+            public Vector4 Orientation { get; set; } = tag is Blood_v12 v ? v.Orientation : tag.Orientation;
+            public int NodeIndex { get; set; } = tag is Blood_v12 v ? v.NodeIndex : tag.NodeIndex;
+            public float Scale { get; } = tag is Blood_v12 v ? v.Scale : tag.Scale;
+            public float EffectStartTime { get; set; } = tag.StartTime;
+            public float EffectEndTime { get; set; } = tag.EndTime;
+        }
+
+        private IMetaDataInstance CreateEffect(IEffectMeta effect, ParsedMetadataAttribute tag, string kind, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute, AnimationPlayer rootPlayer, bool persistent)
         {
             var resolved = ShowVfx ? Resolve(effect) : null;
             if (resolved is { Found: false })
-                LogOnce($"EFFECT {effect.VfxName}: {VfxResolver.PathOf(effect.VfxName)} is not in any loaded pack, so only its locator is drawn");
+                LogOnce($"{tag.Name} {effect.VfxName}: {VfxResolver.PathOf(effect.VfxName)} is not in any loaded pack, so only its locator is drawn");
             foreach (var problem in resolved?.Problems ?? [])
-                LogOnce($"EFFECT {effect.VfxName}: {problem}");
+                LogOnce($"{tag.Name} {effect.VfxName}: {problem}");
 
-            var color = selectedAttribute == effect ? s_selectedColor : s_color;
+            var color = selectedAttribute == tag ? s_selectedColor : s_color;
             var rotMatrix = Matrix.CreateFromQuaternion(new Quaternion(effect.Orientation));
 
-            var node = new SimpleDrawableNode("Effect:" + effect.VfxName);
+            var node = new SimpleDrawableNode($"{kind}:{effect.VfxName}");
             var label = resolved is { Found: false } ? effect.VfxName + " (not found)" : effect.VfxName;
             AddAxes(node, effect.Position, rotMatrix, label, color);
             root.AddObject(node);
@@ -549,7 +566,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             foreach (var emitter in settings)
             {
                 foreach (var gap in emitter.Skipped)
-                    LogOnce($"EFFECT {effect.VfxName}, emitter {emitter.Name}: {gap}");
+                    LogOnce($"{tag.Name} {effect.VfxName}, emitter {emitter.Name}: {gap}");
             }
 
             var offset = Matrix.CreateScale(ScaleOf(effect)) * rotMatrix * Matrix.CreateTranslation(effect.Position);
@@ -559,7 +576,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var loop = persistent ? rootPlayer.AnimationClip?.PlayTimeInSec ?? 0 : 0;
             float MainTime(float effectTime) => loop > 0 ? ((effectTime + startTime) % loop + loop) % loop : effectTime + startTime;
             var simulator = new ParticleSimulator(settings, StableSeed(effect), t => offset * boneAt(MainTime(t)), spawnEnd,
-                message => LogOnce($"EFFECT {effect.VfxName}, {message}"));
+                message => LogOnce($"{tag.Name} {effect.VfxName}, {message}"));
             var particles = root.AddObject(new VfxEffectNode("Vfx:" + effect.VfxName,
                 new ParticleRenderItem(simulator, _vfxTextures, () => _shaders.GetStaticEffect(ShaderTypes.Particle), _vfxMeshes)));
 
@@ -636,6 +653,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             Effect_v7 e => e.Scale,
             Effect_v11 e => e.Scale,
             Effect_v12 e => e.Scale,
+            BloodEffect e => e.Scale,
             _ => 1,
         };
 

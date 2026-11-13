@@ -134,6 +134,25 @@ namespace Test.AnimationMeta
             Assert.That(States(instance).Max(x => Vector3.Distance(x.Position, new Vector3(1, 1, 0))), Is.LessThan(0.01f));
         }
 
+        // BLOOD carries an EFFECT's fields and plays the same way. Version 12 re-declares Position, Orientation, NodeIndex and
+        // Scale with `new`, so reading them through the version 11 type gets the hidden, never-loaded copies.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Blood_IsDrawnAsAnEffect_OnItsBone_FromItsStartTime(bool version12)
+        {
+            Blood_v11 tag = version12
+                ? new Blood_v12 { VfxName = "test_smoke", NodeIndex = 1, StartTime = 0.5f, Tracking = true, Scale = 1 }
+                : new Blood_v11 { VfxName = "test_smoke", NodeIndex = 1, StartTime = 0.5f, Tracking = true, Scale = 1 };
+            var instance = (VfxEffectInstance)Build(null, Meta(tag)).Single();
+
+            instance.Update(0.4f);
+            Assert.That(States(instance), Is.Empty, "particles before the tag's Start Time");
+            instance.Update(1.5f);
+            Assert.That(States(instance).Count, Is.EqualTo(30).Within(1));
+            Assert.That(States(instance).Max(x => Vector3.Distance(x.Position, new Vector3(3, 1, 0))), Is.LessThan(0.01f), "on the fx bone");
+            Assert.That(_root.Children.Select(x => x.Name), Does.Contain("Blood:test_smoke"));
+        }
+
         [Test]
         public void MissingEffect_KeepsItsLocator_AndDrawsNoParticles()
         {
