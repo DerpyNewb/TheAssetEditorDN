@@ -111,6 +111,7 @@ namespace GameWorld.Core.Utility
                 using var stream = new MemoryStream(imageContent);
                 var decoded = graphicsResourceCreator == null ? Texture2D.FromStream(device, stream) : graphicsResourceCreator.CreateTextureFromStream(stream);
                 out_imageInfo = new ImageInformation { Width = decoded.Width, Height = decoded.Height, Format = ImageFormat.Rgba32, BitsPerPixel = 32 };
+                decoded.Tag = out_imageInfo;
                 return decoded;
             }
 
@@ -118,7 +119,11 @@ namespace GameWorld.Core.Utility
             if (image == null)
                 return null;
 
-            return ConvertTexture2D(fileName, image, device, graphicsResourceCreator);
+            // The texture carries what its file said, which a shader needs to read a base colour the way the game does.
+            var texture = ConvertTexture2D(fileName, image, device, graphicsResourceCreator);
+            if (texture != null)
+                texture.Tag = out_imageInfo;
+            return texture;
         }
     }
 }

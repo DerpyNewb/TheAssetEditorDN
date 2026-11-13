@@ -31,6 +31,10 @@ namespace GameWorld.Core.Utility
         public uint Header10_ArraySize { get; set; }
         public uint Header10_MiscFlags2 { get; set; }
 
+        // Only a DX10 header can name an _SRGB format. A legacy header (DXT1, DXT5) cannot, so the game reads its colours as linear.
+        public bool HasSrgbFlag => Header10_DxgiFormat.ToString().EndsWith("_SRGB", System.StringComparison.Ordinal);
+        public string FormatName => Header10_DxgiFormat != 0 ? Header10_DxgiFormat.ToString() : $"legacy {Header_PixelFormat.FourCC}";
+
 
         public void SetFromImage(IImage image)
         {

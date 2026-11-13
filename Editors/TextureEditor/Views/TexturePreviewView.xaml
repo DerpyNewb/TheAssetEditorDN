@@ -88,6 +88,13 @@
             </GroupBox>
         </DockPanel>
 
+        <Border DockPanel.Dock="Top" BorderBrush="#FFB547" BorderThickness="2" Padding="6" Margin="0,0,0,4"
+                Visibility="{Binding ViewModel.ColourSpaceWarning.Value, Converter={StaticResource NullToVisibilityConverter}, FallbackValue=Collapsed}">
+            <TextBlock TextWrapping="Wrap">
+                <Run Text="Warning: " FontWeight="Bold"/><Run Text="{Binding ViewModel.ColourSpaceWarning.Value, Mode=OneWay}"/>
+            </TextBlock>
+        </Border>
+
         <DockPanel DockPanel.Dock="Bottom" >
             <Label DockPanel.Dock="Left" Content="{loc:Loc TextureEditor.Labels.ImagePath}" FontWeight="Bold"/>
             <Label DockPanel.Dock="Left" HorizontalAlignment="Left" VerticalAlignment="Center" Content="{Binding Path=ViewModel.ImagePath.Value, UpdateSourceTrigger=PropertyChanged}"/>

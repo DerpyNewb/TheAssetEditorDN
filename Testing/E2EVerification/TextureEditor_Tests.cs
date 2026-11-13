@@ -26,9 +26,11 @@ namespace Test.E2EVerification
             var pixels = Enumerable.Range(0, size * size).SelectMany(_ => new[] { b, g, r, a }).ToArray();
             Marshal.Copy(pixels, 0, image.GetImage(0, 0, 0).Pixels, pixels.Length);
 
+            // The SRGB flags keep the bytes as they are: without them DirectXTex converts the colours into an sRGB format.
+            var srgb = TexHelper.Instance.IsSRGB(format);
             using var encoded = format == DXGI_FORMAT.B8G8R8A8_UNORM ? null
-                : TexHelper.Instance.IsCompressed(format) ? image.Compress(format, TEX_COMPRESS_FLAGS.DEFAULT, 0.5f)
-                : image.Convert(format, TEX_FILTER_FLAGS.DEFAULT, 0.5f);
+                : TexHelper.Instance.IsCompressed(format) ? image.Compress(format, srgb ? TEX_COMPRESS_FLAGS.SRGB : TEX_COMPRESS_FLAGS.DEFAULT, 0.5f)
+                : image.Convert(format, srgb ? TEX_FILTER_FLAGS.SRGB : TEX_FILTER_FLAGS.DEFAULT, 0.5f);
             using var stream = (encoded ?? image).SaveToDDSMemory(legacyHeader ? DDS_FLAGS.FORCE_DX9_LEGACY : DDS_FLAGS.NONE);
             var bytes = new byte[stream.Length];
             stream.ReadExactly(bytes);
@@ -111,6 +113,24 @@ namespace Test.E2EVerification
             Assert.That(editor.ViewModel.Height.Value, Is.EqualTo(5));
             var red = Pixel(editor.ViewModel.PreviewImage[1]);
             Assert.That(red.R, Is.InRange(R - 8, R + 8), "the red channel preview");
+        }
+
+        // The game reads a base colour with no sRGB flag as linear and draws it lighter. Nothing in the viewer showed it: it draws the
+        // bytes as they are, and so the file looked right right up to the game.
+        [TestCase("derpy_test_base_colour.dds", DXGI_FORMAT.BC3_UNORM, true, "legacy")]
+        [TestCase("derpy_test_base_colour.dds", DXGI_FORMAT.BC1_UNORM, false, "BC1_UNORM")]
+        [TestCase("derpy_test_base_colour.dds", DXGI_FORMAT.BC3_UNORM_SRGB, false, null)]
+        [TestCase("derpy_test_mask.dds", DXGI_FORMAT.BC3_UNORM, true, null)]
+        public void ABaseColourWithNoSrgbFlag_IsWarnedAbout(string name, DXGI_FORMAT format, bool legacyHeader, string? named)
+        {
+            var (runner, file) = PackWith(name, Dds(format, legacyHeader));
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<TextureEditorViewModel>(file, EditorEnums.Texture_Editor);
+
+            var warning = editor.ViewModel.ColourSpaceWarning.Value;
+            if (named == null)
+                Assert.That(warning, Is.Null);
+            else
+                Assert.That(warning, Does.Contain(named).And.Contain("BC3_UNORM_SRGB"));
         }
 
         internal static byte[] Encode(string name, int width = 6, int height = 5)
