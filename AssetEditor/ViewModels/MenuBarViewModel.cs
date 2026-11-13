@@ -180,14 +180,10 @@ namespace AssetEditor.ViewModels
         [RelayCommand] private void OpenKostalynTutorial() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure("https://www.youtube.com/watch?v=AXw99yc74CY")).Execute();
         [RelayCommand] private void OpenRecolouringModelsTutorial() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure("https://youtu.be/azDq2IRnr1U?si=GammGsisnCzGKYiA")).Execute();
 
-        [RelayCommand]
-        private void OpenHelp()
-        {
-            var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            var fullPath = Path.Combine(appDirectory, "Doc", "index.html");
-            Console.WriteLine(fullPath);
-            _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure(fullPath)).Execute();
-        }
+        // The build copies the repo's docs folder beside the exe as "docs" (AssetEditor.csproj); "Doc" never existed.
+        public static string HelpPagePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "docs", "index.html");
+
+        [RelayCommand] private void OpenHelp() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure(HelpPagePath)).Execute();
 
         // Closing the window, not shutting the app down, so the unsaved-changes prompt runs as it does for the X button.
         [RelayCommand] private static void Exit() => Application.Current?.MainWindow?.Close();

@@ -36,6 +36,12 @@ internal class MenuBar_Tests
         }
     }
 
+    [Test]
+    public void Help_PointsAtThePageTheBuildShips()
+    {
+        Assert.That(File.Exists(MenuBarViewModel.HelpPagePath), Is.True, MenuBarViewModel.HelpPagePath);
+    }
+
     // Touched files > Extract always wrote c:\temp\extractedPack.pack, with no dialog, and failed when c:\temp was missing.
     [TestCase(true)]
     [TestCase(false)]
