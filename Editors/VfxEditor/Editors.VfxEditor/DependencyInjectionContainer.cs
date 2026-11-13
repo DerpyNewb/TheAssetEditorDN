@@ -33,10 +33,11 @@ namespace Editors.VfxEditor
                 .ValidForFoldersContaining("vfx\\")
                 .Build(editorDatabase);
 
-            // Joins the text editor, Kitbash and SuperView in the chooser a variant mesh opens with.
+            // Joins the text editor, Kitbash and SuperView in the chooser a variant mesh opens with, ranked first so it is the one
+            // picked already; the text editor is next.
             EditorInfoBuilder
                 .Create<VmdEditorViewModel, VmdEditorView>(EditorEnums.VariantMesh_Editor)
-                .AddExtention(".variantmeshdefinition", EditorPriorites.High)
+                .AddExtention(".variantmeshdefinition", EditorPriorites.High + 1)
                 .Build(editorDatabase);
         }
     }

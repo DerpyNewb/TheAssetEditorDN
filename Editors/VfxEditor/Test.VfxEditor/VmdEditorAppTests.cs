@@ -34,7 +34,27 @@ namespace Test.VfxEditor
             var runner = new AssetEditorTestRunner();
             var database = (IEditorDatabase)runner.ServiceProvider.GetService(typeof(IEditorDatabase))!;
             var info = database.GetEditorInfos().Single(x => x.EditorEnum == EditorEnums.VariantMesh_Editor);
-            Assert.That(info.Extensions.Select(x => (x.Extention, x.Priority)), Is.EqualTo(new[] { (".variantmeshdefinition", EditorPriorites.High) }));
+            Assert.That(info.Extensions.Select(x => (x.Extention, x.Priority)), Is.EqualTo(new[] { (".variantmeshdefinition", EditorPriorites.High + 1) }));
+        }
+
+        // A double-click asks which editor; the grid is the one picked already, so Enter opens it. The app's own editors, in a
+        // database whose chooser records what it was offered.
+        [Test]
+        public void The_chooser_offers_the_grid_first()
+        {
+            var runner = new AssetEditorTestRunner();
+            var registered = ((IEditorDatabase)runner.ServiceProvider.GetService(typeof(IEditorDatabase))!).GetEditorInfos();
+            List<EditorEnums>? offered = null;
+            var chooser = new Mock<IToolSelectorUiProvider>();
+            chooser.Setup(x => x.CreateAndShow(It.IsAny<IEnumerable<EditorEnums>>()))
+                .Callback<IEnumerable<EditorEnums>>(x => offered = x.ToList()).Returns(EditorEnums.None);
+            var database = new EditorDatabase(Mock.Of<IScopeRepository>(), chooser.Object);
+            foreach (var info in registered)
+                database.Register(info);
+
+            database.Create(FilePath, null);
+
+            Assert.That(offered, Is.EqualTo(new[] { EditorEnums.VariantMesh_Editor, EditorEnums.XML_VariantMesh_Editor, EditorEnums.Kitbash_Editor, EditorEnums.SuperView_Editor }));
         }
 
         [Test]
