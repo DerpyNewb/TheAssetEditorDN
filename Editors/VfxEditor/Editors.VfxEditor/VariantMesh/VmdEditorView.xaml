@@ -1,4 +1,356 @@
 <UserControl x:Class="Editors.VfxEditor.VariantMesh.VmdEditorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Editors.VfxEditor.VariantMesh"
+             PreviewKeyDown="View_PreviewKeyDown">
+    <UserControl.InputBindings>
+        <KeyBinding Modifiers="Ctrl" Key="S" Command="{Binding SaveFileCommand}"/>
+        <KeyBinding Modifiers="Ctrl" Key="Z" Command="{Binding UndoCommand}"/>
+        <KeyBinding Modifiers="Ctrl" Key="Y" Command="{Binding RedoCommand}"/>
+    </UserControl.InputBindings>
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <local:VmdFileNameConverter x:Key="FileName"/>
+
+        <!-- Colours: the theme's own brushes, plus Vmd.Error, Vmd.Warning and Vmd.WarningStripe, which the code-behind sets for the
+             theme in use (the bin grid's, measured for contrast in every theme). Every finding is also told in words (the row's tooltip
+             and the count under the grid) and by shape (solid or dashed stripe), so colour is never the only sign. -->
+
+        <Style x:Key="Label" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="12,0,6,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource ABrush.Foreground.Disabled}"/>
+        </Style>
+
+        <Style x:Key="ToolButton" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Padding" Value="8,1"/>
+        </Style>
+
+        <!-- A path cell: the file name, the full path on hover, "(none)" muted when empty. Tag carries the full path. -->
+        <Style x:Key="PathText" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="Padding" Value="4,1"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding Tag, RelativeSource={RelativeSource Self}}"/>
+            <Style.Triggers>
+                <Trigger Property="Text" Value="(none)">
+                    <Setter Property="Foreground" Value="{DynamicResource ABrush.Foreground.Disabled}"/>
+                    <Setter Property="ToolTip" Value="{x:Null}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="CellText" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="Padding" Value="4,1"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+
+        <Style x:Key="CellEdit" TargetType="{x:Type TextBox}" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="BorderThickness" Value="0"/>
+            <EventSetter Event="Loaded" Handler="EditBox_Loaded"/>
+        </Style>
+
+        <!-- The slot's own cells (name, attach point, probability) are edited on its first row. On its later rows they are inactive
+             and faded, as WCAG allows an inactive control to be. -->
+        <Style x:Key="SlotCell" TargetType="{x:Type DataGridCell}" BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsFirst}" Value="False">
+                    <Setter Property="IsEnabled" Value="False"/>
+                    <Setter Property="Opacity" Value="0.4"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Browse and Open on a path cell: right-click or the Menu key. The item's Tag names the column. -->
+        <ContextMenu x:Key="PathMenu">
+            <MenuItem Header="Browse..." Tag="Path" Click="Browse_Click"/>
+            <MenuItem Header="Open" Tag="Path" Click="Open_Click"/>
+        </ContextMenu>
+        <ContextMenu x:Key="ImposterMenu">
+            <MenuItem Header="Browse..." Tag="Imposter" Click="Browse_Click"/>
+            <MenuItem Header="Open" Tag="Imposter" Click="Open_Click"/>
+        </ContextMenu>
+        <!-- A row with no entry has no path; a reference has no tags or imposter. Those cells are inactive. -->
+        <Style x:Key="PathCell" TargetType="{x:Type DataGridCell}" BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Setter Property="ContextMenu" Value="{StaticResource PathMenu}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasEntry}" Value="False">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="MeshCell" TargetType="{x:Type DataGridCell}" BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasTags}" Value="False">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ImposterCell" TargetType="{x:Type DataGridCell}" BasedOn="{StaticResource MeshCell}">
+            <Setter Property="ContextMenu" Value="{StaticResource ImposterMenu}"/>
+        </Style>
+
+        <Style x:Key="EntryButton" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Foreground" Value="{DynamicResource Button.Static.Foreground}"/>
+            <Setter Property="Background" Value="{DynamicResource Button.Static.Background}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Button.Static.Border}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Face" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+                            <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Face" Property="Background" Value="{DynamicResource Button.MouseOver.Background}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Face" Property="Background" Value="{DynamicResource Button.Pressed.Background}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Face" Property="BorderBrush" Value="{DynamicResource ABrush.Foreground.Static}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ContextMenu x:Key="ColumnMenu">
+            <MenuItem Header="Show the Imposter column" IsCheckable="True" Click="ShowImposter_Click"
+                      ToolTip="A mesh's imposter_model, a stand-in model. Set on 165 of CA's 21,717 meshes (2026-11-13)."/>
+        </ContextMenu>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- Toolbar -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,6,4,4">
+            <Button Content="Add slot" Click="AddSlot_Click" Style="{StaticResource ToolButton}"
+                    ToolTip="A new empty slot after the selected one, at its level, with its name open for typing"/>
+            <Button Content="Remove slot" Command="{Binding RemoveSlotsCommand}" Style="{StaticResource ToolButton}"
+                    ToolTip="Removes the selected rows' slots, with everything in them"/>
+            <Button Content="Copy" Command="{Binding CopyCommand}" Style="{StaticResource ToolButton}"
+                    ToolTip="Ctrl+C. The selected rows' slots as XML, which the text editor and another file's grid also take"/>
+            <Button Content="Paste" Command="{Binding PasteCommand}" Style="{StaticResource ToolButton}"
+                    ToolTip="Ctrl+V. Slots go after the selected slot; meshes and references go into it"/>
+            <Button Content="Undo" Command="{Binding UndoCommand}" Style="{StaticResource ToolButton}" Margin="20,0,0,0" ToolTip="Ctrl+Z"/>
+            <Button Content="Redo" Command="{Binding RedoCommand}" Style="{StaticResource ToolButton}" ToolTip="Ctrl+Y"/>
+            <Button Content="Save" Command="{Binding SaveFileCommand}" Style="{StaticResource ToolButton}" ToolTip="Ctrl+S. Into the editable pack"/>
+            <TextBlock Text="Find" Style="{StaticResource Label}" Margin="20,0,6,0"/>
+            <TextBox x:Name="FindBox" Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}" Width="150"
+                     ToolTip="Ctrl+H. Matches the model, reference and imposter paths, ignoring case">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Enter" Command="{Binding ReplaceCommand}"/>
+                </TextBox.InputBindings>
+            </TextBox>
+            <TextBlock Text="Replace with" Style="{StaticResource Label}"/>
+            <TextBox Text="{Binding ReplaceText, UpdateSourceTrigger=PropertyChanged}" Width="150">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Enter" Command="{Binding ReplaceCommand}"/>
+                </TextBox.InputBindings>
+            </TextBox>
+            <Button Content="Replace" Command="{Binding ReplaceCommand}" Style="{StaticResource ToolButton}"
+                    ToolTip="In the selected rows, or in every row when one or none is selected"/>
+        </StackPanel>
+
+        <!-- Status line -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="6,3">
+            <TextBlock Text="{Binding Problems}" ToolTip="Hover a marked row to read its findings"/>
+            <TextBlock Text="{Binding Status}" Margin="20,0,0,0" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+
+        <Grid>
+            <DataGrid x:Name="Table" ItemsSource="{Binding Rows}"
+                      AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False"
+                      SelectionMode="Extended" SelectionUnit="FullRow" HeadersVisibility="Column" FrozenColumnCount="1"
+                      EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                      SelectionChanged="Table_SelectionChanged">
+                <DataGrid.Style>
+                    <Style TargetType="{x:Type DataGrid}" BasedOn="{StaticResource {x:Type DataGrid}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasLoadError}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.Style>
+                <DataGrid.CommandBindings>
+                    <CommandBinding Command="ApplicationCommands.Copy" Executed="Copy_Executed"/>
+                    <CommandBinding Command="ApplicationCommands.Paste" Executed="Paste_Executed"/>
+                </DataGrid.CommandBindings>
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="{x:Type DataGridColumnHeader}" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                        <Setter Property="ContextMenu" Value="{StaticResource ColumnMenu}"/>
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+                <!-- A row with a finding: a stripe on its left edge, solid for an error and dashed for a warning, and the findings on hover. -->
+                <DataGrid.RowStyle>
+                    <Style TargetType="{x:Type DataGridRow}" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                        <Setter Property="BorderThickness" Value="4,0,0,0"/>
+                        <Setter Property="BorderBrush" Value="Transparent"/>
+                        <Setter Property="ToolTip" Value="{Binding Findings}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasWarning}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Vmd.WarningStripe}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Vmd.Error}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Slot" Width="200" CellStyle="{StaticResource SlotCell}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Slot}" Style="{StaticResource CellText}" ToolTip="{Binding Slot}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <ComboBox IsEditable="True" Loaded="EditBox_Loaded" Text="{Binding SlotName, UpdateSourceTrigger=LostFocus}"
+                                          ItemsSource="{x:Static local:VmdEditorViewModel.SlotNames}" ToolTip="This slot's own name"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Attach point" Width="110" CellStyle="{StaticResource SlotCell}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding AttachPoint}" Style="{StaticResource CellText}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <ComboBox IsEditable="True" Loaded="EditBox_Loaded" Text="{Binding AttachPoint, UpdateSourceTrigger=LostFocus}"
+                                          ItemsSource="{x:Static local:VmdEditorViewModel.AttachPoints}" ToolTip="The bone the slot hangs on. Empty removes it"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Probability" Width="76" CellStyle="{StaticResource SlotCell}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Probability}" TextAlignment="Right">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource CellText}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ProbabilityInvalid}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Vmd.Error}"/>
+                                                    <Setter Property="TextDecorations" Value="Underline"/>
+                                                    <Setter Property="ToolTip" Value="Not a number, so it is not written. Use a dot for decimals."/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Probability, UpdateSourceTrigger=LostFocus}" Style="{StaticResource CellEdit}" ToolTip="0 to 1. Empty removes it"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Kind" Width="70" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Kind}" Style="{StaticResource CellText}" Foreground="{DynamicResource ABrush.Foreground.Disabled}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Path" Width="1.3*" MinWidth="140" CellStyle="{StaticResource PathCell}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Path, Converter={StaticResource FileName}}" Tag="{Binding Path}" Style="{StaticResource PathText}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Path, UpdateSourceTrigger=LostFocus}" Style="{StaticResource CellEdit}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Tags" Width="*" MinWidth="120" CellStyle="{StaticResource MeshCell}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Tags}" Style="{StaticResource CellText}" ToolTip="{Binding Tags}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Tags, UpdateSourceTrigger=LostFocus}" Style="{StaticResource CellEdit}"
+                                         ToolTip="The mesh's META_DATA, separated by commas: audio_armour_type:leather, equipment"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn x:Name="ImposterColumn" Header="Imposter" Width="160" Visibility="Collapsed" CellStyle="{StaticResource ImposterCell}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Imposter, Converter={StaticResource FileName}}" Tag="{Binding Imposter}" Style="{StaticResource PathText}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Imposter, UpdateSourceTrigger=LostFocus}" Style="{StaticResource CellEdit}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Entry" Width="58" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Button Content="+" Style="{StaticResource EntryButton}" AutomationProperties.Name="Add a model or reference"
+                                            ToolTip="Add a model to this slot. A .variantmeshdefinition picked is added as a reference"
+                                            Command="{Binding DataContext.AddEntryCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}" CommandParameter="{Binding}"/>
+                                    <Button Content="-" Margin="2,0,0,0" ToolTip="Remove this model or reference" AutomationProperties.Name="Remove this entry"
+                                            Command="{Binding DataContext.RemoveEntryCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}" CommandParameter="{Binding}">
+                                        <Button.Style>
+                                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource EntryButton}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasEntry}" Value="False">
+                                                        <Setter Property="Visibility" Value="Hidden"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- A file the grid cannot read says why, and where to open it instead. -->
+            <TextBlock Text="{Binding LoadError}" Visibility="{Binding HasLoadError, Converter={StaticResource BoolToVis}}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" TextAlignment="Center"/>
+
+            <!-- The empty state: a file with no slots says how to start one. -->
+            <TextBlock Text="This file has no slots yet. Add slot starts one, and Paste takes slots copied from another file or the text editor."
+                       HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Rows.Count}" Value="0"/>
+                                    <Condition Binding="{Binding HasLoadError}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+    </DockPanel>
 </UserControl>

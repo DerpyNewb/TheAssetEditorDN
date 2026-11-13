@@ -14,9 +14,9 @@ namespace Test.VfxEditor
     class VmdEditorAppTests
     {
         const string Folder = "variantmeshes\\variantmeshdefinitions";
-        const string FilePath = Folder + "\\unit.variantmeshdefinition";
+        internal const string FilePath = Folder + "\\unit.variantmeshdefinition";
 
-        static (AssetEditorTestRunner Runner, VmdEditorViewModel Editor) Open(string text)
+        internal static (AssetEditorTestRunner Runner, VmdEditorViewModel Editor) Open(string text)
         {
             var runner = new AssetEditorTestRunner();
             var source = runner.CreateEmptyPackFile("source", false);
