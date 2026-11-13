@@ -106,6 +106,21 @@ namespace Test.Ipc
         }
 
         [Test]
+        public void Visible_IsOneUndoStep_ThatPutsBackWhatEachNodeHad()
+        {
+            var main = Service<SceneManager>().GetNodeByName<MainEditableNode>(SpecialNodes.EditableModel)!;
+            var other = SceneNodeHelper.GetChildrenOfType<Rmv2MeshNode>(main).First(x => x != _mesh);
+            other.IsVisible = false;
+
+            Send(new IpcRequest { Action = "visible", Nodes = [_mesh.Id, other.Id], Visible = false });
+            Assert.That(_mesh.IsVisible, Is.False);
+
+            Assert.That(Send(new IpcRequest { Action = "command", Name = "UndoCommand" }).Ok, Is.True);
+            Assert.That(_mesh.IsVisible, Is.True, "undo did not show the mesh it hid");
+            Assert.That(other.IsVisible, Is.False, "undo showed a mesh that was hidden before");
+        }
+
+        [Test]
         public void Select_AReferenceMesh_IsRefused_AsTheViewportRefusesIt()
         {
             Service<IUiCommandFactory>().Create<ImportReferenceMeshCommand>(x => x.Configure(KarlRmv)).Execute();

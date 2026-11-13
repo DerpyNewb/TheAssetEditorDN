@@ -83,7 +83,8 @@ editor's own commands, so its Undo takes it back. Replies carry their result in 
 - `select`: `nodes` takes ids, paths from `Root`, or names. A name used by more than one node (every LOD repeats its
   meshes' names) is refused with the ids it matches. `add: true` adds to the selection; no `nodes` clears it. Meshes only.
   A mesh the viewport will not pick is refused too: every reference mesh, and a part locked in the scene tree
-- `visible`: shows or hides `nodes`. Not an undo step, as the scene tree's check box is not
+- `visible`: shows or hides `nodes`, as one undo step that gives each node back what it had. (The scene tree's check box
+  is still not an undo step)
 - `transform`: moves the current selection, as the Kitbash transform box does: scale, then rotate (degrees, X then Y
   then Z), then translate, each its own undo step. `pivot` is `"object"` (default) or `"origin"`. A scale with a 0 in it
   is refused, since its undo cannot invert it, and so is a selection holding a part locked after it was selected

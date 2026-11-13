@@ -148,8 +148,8 @@ namespace Editors.Ipc
                 return IpcResponse.Failure(error);
             if (nodes.Count == 0)
                 return IpcResponse.Failure("visible needs \"nodes\"");
-            foreach (var node in nodes)
-                node.IsVisible = request.Visible.Value;
+            Get<IUiCommandFactory>(editor).CreateWithBuilder<SetVisibilityCommand>()
+                .Configure(x => x.Configure(nodes, request.Visible.Value)).BuildAndExecute();
             return Data(nodes.Select(x => x.Id).ToList());
         }
 

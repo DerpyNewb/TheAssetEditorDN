@@ -139,6 +139,7 @@ namespace GameWorld.Core
             serviceCollection.AddTransient<DuplicateFacesCommand>();
             serviceCollection.AddTransient<VertexSelectionCommand>();
             serviceCollection.AddTransient<ObjectSelectionCommand>();
+            serviceCollection.AddTransient<SetVisibilityCommand>();
             serviceCollection.AddTransient<DeleteFaceCommand>();
             serviceCollection.AddTransient<DeleteObjectsCommand>();
             serviceCollection.AddTransient<ReduceMeshCommand>();
