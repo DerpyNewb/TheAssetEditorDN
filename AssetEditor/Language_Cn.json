@@ -976,6 +976,7 @@
   "KitbashTool.ReRigging.Title": "重绑工具",
   "KitbashTool.ReRigging.Ok": "确定",
   "KitbashTool.ReRigging.Cancel": "取消",
+  "KitbashTool.ReRigging.UnmappedBones": "Bones the mesh uses with no target. Map each one before OK:",
   "KitbashTool.MeshView.Title": "Mesh",
   "KitbashTool.MeshView.Name": "名称",
   "KitbashTool.MeshView.VertexType": "顶点类型",

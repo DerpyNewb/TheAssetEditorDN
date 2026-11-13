@@ -911,6 +911,7 @@
     "KitbashTool.ReRigging.Title":  "Re-Rigging Tool",
     "KitbashTool.ReRigging.Ok":  "OK",
     "KitbashTool.ReRigging.Cancel":  "Cancel",
+    "KitbashTool.ReRigging.UnmappedBones": "Bones the mesh uses with no target. Map each one before OK:",
     "KitbashTool.MeshView.Title":  "Mesh",
     "KitbashTool.MeshView.Name":  "Name",
     "KitbashTool.MeshView.VertexType":  "Vertex Type",

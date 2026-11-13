@@ -168,11 +168,17 @@ namespace Shared.Ui.Editors.BoneMapping
         protected virtual void MappingUpdated()
         { }
 
+        /// <summary>False where an invalid mapping must not be applied at all, rather than applied after asking.</summary>
+        protected virtual bool CanApplyInvalidMapping => true;
+
         public bool OnOkButton()
         {
             var res = Validate(out var errorText);
             if (res == false)
             {
+                if (CanApplyInvalidMapping == false)
+                    return false;
+
                 var message = string.Format(_localizationManager.Get("KitbasherTool.BoneMapping.ConfirmWithValidationError"), errorText);
                 var title = _localizationManager.Get("KitbasherTool.BoneMapping.ErrorTitle");
                 var messageBoxResult = MessageBox.Show(message, title, MessageBoxButton.OKCancel);
