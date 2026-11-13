@@ -148,7 +148,14 @@ namespace AssetEditor.ViewModels
 
         [RelayCommand] private void TouchedFileRecorderStart() => _touchedFilesRecorder.Start();
         [RelayCommand] private void TouchedFileRecorderPrint() => _touchedFilesRecorder.Print();
-        [RelayCommand] private void TouchedFileRecorderExtract() => _touchedFilesRecorder.ExtractFilesToPack(@"c:\temp\extractedPack.pack");
+        [RelayCommand]
+        private void TouchedFileRecorderExtract()
+        {
+            var dialog = _standardDialogs.ShowSystemSaveFileDialog("touched_files.pack", "Pack files (*.pack)|*.pack", "pack");
+            if (!dialog.Result || string.IsNullOrWhiteSpace(dialog.FilePath))
+                return;
+            _touchedFilesRecorder.ExtractFilesToPack(Path.ChangeExtension(dialog.FilePath, ".pack"));
+        }
         [RelayCommand] private void TouchedFileRecorderStop() => _touchedFilesRecorder.Stop();
 
         public bool IsDebuggerAttached => Debugger.IsAttached;

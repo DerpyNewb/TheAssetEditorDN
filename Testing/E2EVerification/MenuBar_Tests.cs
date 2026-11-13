@@ -1,6 +1,10 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using AssetEditor.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
+using Shared.Core.Services;
+using Test.TestingUtility.Shared;
 
 namespace Test.E2EVerification;
 
@@ -29,6 +33,33 @@ internal class MenuBar_Tests
                 continue;    // bound elsewhere, such as the recent-pack items' own commands
             Assert.That(typeof(MenuBarViewModel).GetProperty(match.Groups[1].Value), Is.Not.Null,
                 $"{(string?)item.Attribute("Header")} binds {match.Groups[1].Value}, which MenuBarViewModel does not have");
+        }
+    }
+
+    // Touched files > Extract always wrote c:\temp\extractedPack.pack, with no dialog, and failed when c:\temp was missing.
+    [TestCase(true)]
+    [TestCase(false)]
+    public void TouchedFilesExtract_SavesWhereTheDialogSays_AndNothingOnCancel(bool chosen)
+    {
+        var directory = Directory.CreateTempSubdirectory("ae_touched_");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "picked.pack");
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.Dialogs.Setup(x => x.ShowSystemSaveFileDialog(It.IsAny<string>(), It.IsAny<string>(), "pack"))
+                .Returns(new SystemSaveFileDialogResult(chosen, path));
+
+            var menu = runner.ServiceProvider.GetRequiredService<MenuBarViewModel>();
+            menu.TouchedFileRecorderExtractCommand.Execute(null);
+
+            Assert.That(File.Exists(path), Is.EqualTo(chosen));
+            Assert.That(File.Exists(@"c:\temp\extractedPack.pack") && File.GetLastWriteTimeUtc(@"c:\temp\extractedPack.pack") > DateTime.UtcNow.AddMinutes(-1),
+                Is.False, "still wrote the old fixed path");
+        }
+        finally
+        {
+            directory.Delete(true);
         }
     }
 }
