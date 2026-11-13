@@ -190,6 +190,53 @@ namespace Test.E2EVerification
             Assert.That(editor.IsDirty.Value, Is.True, "loading a mount animation discarded the unsaved flag");
         }
 
+        // A one-frame clip saved as one dynamic frame and no static frame, a file CA never ships and the game crashes on
+        // (upstream #159). It now saves the way CA stores a pose: every bone static, no dynamic frames, held for
+        // round(time x 20) + 1 frames and never under 3. Loading it back gives the same pose.
+        [TestCase(0.3f, 7, 0.3f)]
+        [TestCase(0f, 3, 0.1f)]
+        public void Warhammer3_OneFrameClip_SavesAsAPose(float playTime, int expectedFrameCount, float expectedTime)
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
+            var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+            var sceneObjectEditor = runner.GetRequiredServiceInCurrentEditorScope<SceneObjectEditor>();
+            sceneObjectEditor.SetMesh(editor.Rider, runner.PackFileService.FindFile(KarlMesh)!);
+            sceneObjectEditor.SetAnimation(editor.Rider, IdleAnimation);
+
+            var clip = editor.Rider.AnimationClip!.Clone();
+            clip.DynamicFrames.RemoveRange(1, clip.DynamicFrames.Count - 1);
+            clip.PlayTimeInSec = playTime;
+            var skeleton = editor.Rider.Skeleton;
+
+            var bytes = Shared.GameFormats.Animation.AnimationFile.ConvertToBytes(clip.ConvertToFileFormat(skeleton));
+            var saved = Shared.GameFormats.Animation.AnimationFile.Create(new Shared.ByteParsing.ByteChunk(bytes));
+            var part = saved.AnimationParts.Single();
+
+            Assert.That(part.DynamicFrames, Is.Empty);
+            Assert.That(part.StaticFrame, Is.Not.Null);
+            Assert.That(part.TranslationMappings.All(x => x.IsStatic) && part.RotationMappings.All(x => x.IsStatic), Is.True);
+            Assert.That(part.PoseFrameCount, Is.EqualTo(expectedFrameCount));
+            Assert.That(saved.Header.FrameRate, Is.EqualTo(20));
+            Assert.That(saved.Header.AnimationTotalPlayTimeInSec, Is.EqualTo(expectedTime).Within(1e-6));
+
+            // The pose must come back as close as the same frame does through the dynamic path, whose 16-bit rotations
+            // already lose a little.
+            var asDynamic = editor.Rider.AnimationClip!.Clone();
+            asDynamic.DynamicFrames.RemoveRange(3, asDynamic.DynamicFrames.Count - 3);
+            var dynamicBack = new AnimationClip(Shared.GameFormats.Animation.AnimationFile.Create(new Shared.ByteParsing.ByteChunk(
+                Shared.GameFormats.Animation.AnimationFile.ConvertToBytes(asDynamic.ConvertToFileFormat(skeleton)))), skeleton);
+
+            var reloaded = new AnimationClip(saved, skeleton);
+            Assert.That(reloaded.DynamicFrames, Has.Count.EqualTo(1));
+            for (var bone = 0; bone < skeleton.BoneCount; bone++)
+            {
+                Assert.That(reloaded.DynamicFrames[0].Position[bone], Is.EqualTo(dynamicBack.DynamicFrames[0].Position[bone]), $"bone {bone} position");
+                Assert.That(reloaded.DynamicFrames[0].Rotation[bone], Is.EqualTo(dynamicBack.DynamicFrames[0].Rotation[bone]), $"bone {bone} rotation");
+            }
+        }
+
         // Both slot pickers in the mount-link panel had their handlers commented out, so picking a slot loaded nothing.
         // A mount slot X now plays its animation and picks the rider's RIDER_X, which plays the rider's.
         [Test]
