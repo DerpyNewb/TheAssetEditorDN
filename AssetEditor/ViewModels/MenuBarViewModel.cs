@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 using AssetEditor.Services;
 using AssetEditor.UiCommands;
 using CommunityToolkit.Mvvm.Input;
@@ -180,6 +181,9 @@ namespace AssetEditor.ViewModels
             Console.WriteLine(fullPath);
             _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure(fullPath)).Execute();
         }
+
+        // Closing the window, not shutting the app down, so the unsaved-changes prompt runs as it does for the X button.
+        [RelayCommand] private static void Exit() => Application.Current?.MainWindow?.Close();
         [RelayCommand] private void OpenModdingWiki() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure("https://tw-modding.com/index.php/Tutorial:AssetEditor")).Execute();
         
         [RelayCommand] private void OpenPatreon() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure("https://www.patreon.com/TheAssetEditor")).Execute();
