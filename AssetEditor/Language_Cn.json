@@ -459,7 +459,6 @@
 
   "TextureEditor.Buttons.ImageDetails": "图像详情",
   "TextureEditor.Labels.ImagePath": "图像路径:",
-  "TextureEditor.Labels.UvChannels": "UV 通道",
   "TextureEditor.Labels.Format": "格式",
   "TextureEditor.Labels.Width": "宽度",
   "TextureEditor.Labels.Height": "高度",

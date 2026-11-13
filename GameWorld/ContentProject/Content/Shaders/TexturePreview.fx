@@ -33,7 +33,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	float4 output = float4(0,0,0,0);
 	if (ApplyOnlyAlpha)
 	{
-		output.xyz = 1.0f - texel.w;
+		output.xyz = texel.w;
 		output.a = 1;
 	}
 	else

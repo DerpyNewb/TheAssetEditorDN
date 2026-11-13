@@ -20,14 +20,6 @@
             <GroupBox>
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
-                        <Label Width="{StaticResource labelWidth}" Content="{loc:Loc TextureEditor.Labels.UvChannels}"/>
-                        <Label>:</Label>
-                        <ComboBox  HorizontalAlignment="Center" VerticalAlignment="Center" 
-                                   SelectedValue="{Binding Path=ViewModel.UvChannelSelectedValue.Value, UpdateSourceTrigger=PropertyChanged}" 
-                                   ItemsSource="{Binding Path=ViewModel.UvChannelPossibleValues, UpdateSourceTrigger=PropertyChanged}"/>
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
                         <Label Width="{StaticResource labelWidth}" Content="{loc:Loc TextureEditor.Labels.Format}"/>
                         <Label>:</Label>
                         <Label  HorizontalAlignment="Center" VerticalAlignment="Center" Content="{Binding Path=ViewModel.Format.Value, UpdateSourceTrigger=PropertyChanged}"/>
@@ -88,7 +80,7 @@
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
                         <StackPanel>
                             <Label HorizontalContentAlignment="Center" Width="40" >A</Label>
-                            <RadioButton GroupName="RGBA" IsChecked="{Binding FormatACheckbox, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <RadioButton GroupName="RGBA" IsChecked="{Binding ViewModel.FormatACheckbox, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </StackPanel>
                         <Image Source="{Binding Path=ViewModel.PreviewImage[4], UpdateSourceTrigger=PropertyChanged}" Width="{StaticResource LayerImageSize}" Height="{StaticResource LayerImageSize}" HorizontalAlignment="Right"/>
                     </StackPanel>
