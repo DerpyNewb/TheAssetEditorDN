@@ -1,7 +1,9 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Editors.AnimationMeta.MetaEditor.Check;
 using Editors.AnimationMeta.MetaEditor.Commands;
+using Editors.AnimationMeta.MetaEditor.Examples;
 using Shared.Core.Events;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
@@ -42,6 +44,9 @@ namespace Editors.AnimationMeta.Presentation
             }
         }
         public PackFile CurrentFile { get; set; }
+
+        /// <summary>The clip and skeleton Check meta checks against, which SuperView knows and the standalone editor does not.</summary>
+        public Func<MetaCheckScene>? CheckScene { get; set; }
 
         public MetaDataEditorViewModel(IUiCommandFactory uiCommandFactory, MetaDataFileParser metaDataFileParser, IEventHub eventHub)
         {
@@ -100,6 +105,8 @@ namespace Editors.AnimationMeta.Presentation
             _edits.Break();
             NotifyUndoRedo();
             SaveActionCommand.NotifyCanExecuteChanged();
+            CheckActionCommand.NotifyCanExecuteChanged();
+            ExamplesActionCommand.NotifyCanExecuteChanged();
         }
 
         /// <summary>Rebuilds the rows from the file, which every caller but LoadFile has just changed: an entry added, deleted, moved
@@ -215,6 +222,8 @@ namespace Editors.AnimationMeta.Presentation
         [RelayCommand] void PasteAction() => _uiCommandFactory.Create<CopyPastCommand>().ExecutePaste(this);
         [RelayCommand] void CopyAction() => _uiCommandFactory.Create<CopyPastCommand>().ExecuteCopy(this);
         bool HasFile() => ParsedFile != null;
+        [RelayCommand(CanExecute = nameof(HasFile))] void CheckAction() => _uiCommandFactory.Create<CheckMetaCommand>(x => x.Configure(this)).Execute();
+        [RelayCommand(CanExecute = nameof(HasFile))] void ExamplesAction() => _uiCommandFactory.Create<OpenVanillaExamplesCommand>(x => x.Configure(this)).Execute();
         [RelayCommand(CanExecute = nameof(HasFile))] void SaveAction() =>_uiCommandFactory.Create<SaveCommand>().Execute(this);
     }
 }

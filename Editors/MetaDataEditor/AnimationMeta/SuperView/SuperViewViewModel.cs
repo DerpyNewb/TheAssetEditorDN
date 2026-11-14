@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Editors.AnimationMeta.MetaEditor.Check;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.SuperView.Visualisation;
 using Editors.Shared.Core.Common;
@@ -170,6 +171,10 @@ namespace Editors.AnimationMeta.SuperView
         {
             PersistentMetaEditor = new MetaDataEditorViewModel(_uiCommandFactory, _metaDataFileParser, _eventHub);
             MetaEditor = new MetaDataEditorViewModel(_uiCommandFactory, _metaDataFileParser, _eventHub);
+            // Check meta checks against the playing clip and the skeleton. A persistent meta plays under every clip of the set,
+            // so its tab gets no clip length to check start times against.
+            MetaEditor.CheckScene = () => new MetaCheckScene(_asset.Data.Player.AnimationClip?.PlayTimeInSec, _asset.Data.Skeleton?.BoneNames);
+            PersistentMetaEditor.CheckScene = () => new MetaCheckScene(null, _asset.Data.Skeleton?.BoneNames);
             
             var assetViewModel = _sceneObjectViewModelBuilder.CreateAsset("SuperViewRoot", true, "Root", Color.Black,null);
             SceneObjects.Add(assetViewModel);

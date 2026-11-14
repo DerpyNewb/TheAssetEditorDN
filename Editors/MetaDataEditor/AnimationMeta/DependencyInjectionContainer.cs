@@ -1,5 +1,7 @@
 ﻿using AnimationEditor.Common.BaseControl;
+using Editors.AnimationMeta.MetaEditor.Check;
 using Editors.AnimationMeta.MetaEditor.Commands;
+using Editors.AnimationMeta.MetaEditor.Examples;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.Presentation.View;
 using Editors.AnimationMeta.SuperView;
@@ -24,6 +26,11 @@ namespace Editors.AnimationMeta
 
             serviceCollection.AddScoped<IMetaDataBuilder, MetaDataBuilder>(); // Needs heavy refactorying!
             RegisterGameComponent<MetaTagGizmoComponent>(serviceCollection);
+
+            // Read from the game's packs once per session, for every editor.
+            serviceCollection.AddSingleton<VanillaMetaExamples>();
+            serviceCollection.AddTransient<CheckMetaCommand>();
+            serviceCollection.AddTransient<OpenVanillaExamplesCommand>();
 
             // Commands for metadata editor
             serviceCollection.AddTransient<CopyPastCommand>();
