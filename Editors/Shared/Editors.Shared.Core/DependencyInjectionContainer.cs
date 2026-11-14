@@ -9,7 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.DependencyInjection;
 using Shared.Core.ToolCreation;
 using Shared.Ui.Editors.BoneMapping;
+using Shared.Ui.Common.MenuSystem;
 using Shared.Ui.Editors.TextEditor;
+using System.Windows.Input;
 
 namespace Editors.Shared.Core
 {
@@ -35,6 +37,7 @@ namespace Editors.Shared.Core
             serviceCollection.AddScoped<EditorHostView>();
 
             serviceCollection.AddScoped<IEditorHostParameters, EditorHostParameters>();
+            serviceCollection.AddSingleton(new HotkeyDefinition(EditorHostBase.PlayPauseHotkey, "Hotkeys.Group.AnimationEditors", "Hotkeys." + EditorHostBase.PlayPauseHotkey, new Hotkey(Key.Space, ModifierKeys.None)));
 
         }
 

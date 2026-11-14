@@ -9,7 +9,7 @@ namespace Editors.KitbasherEditor.UiCommands
     {
         public string ToolTip { get; set; } = "Focus camera on selected";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.Always;
-        public Hotkey? HotKey { get; } = new Hotkey(Key.F, ModifierKeys.Control);
+        public Hotkey? HotKey => new Hotkey(Key.F, ModifierKeys.Control);
 
         private readonly FocusSelectableObjectService _cameraFocusComponent;
 

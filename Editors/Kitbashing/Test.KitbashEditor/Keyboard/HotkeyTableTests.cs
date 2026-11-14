@@ -5,6 +5,7 @@ using GameWorld.Core.Components.Gizmo;
 using GameWorld.Core.Components.Selection;
 using GameWorld.Core.SceneNodes;
 using KitbasherEditor.ViewModels.MenuBarViews;
+using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.Commands;
 using Shared.Ui.Common.MenuSystem;
 using Test.KitbashEditor.LoadAndSave;
@@ -59,6 +60,37 @@ namespace Test.KitbashEditor.Keyboard
                 .Select(g => $"{g.Key}: {string.Join(", ", g.Select(x => x.Key.Name))}");
 
             Assert.That(shared, Is.Empty);
+        }
+
+        Dictionary<Type, MenuAction> Actions() => (Dictionary<Type, MenuAction>)typeof(MenuBarViewModel).GetField("_uiCommands", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(Service<MenuBarViewModel>())!;
+
+        // Settings, Hotkeys reads each default off a command it never built; the built command is what the menu runs.
+        [Test]
+        public void SettingsListsEveryHotkeyTheMenuHas_WithTheDefaultTheBuiltCommandGives()
+        {
+            var built = Actions().ToDictionary(x => MenuBarViewModel.HotkeyId(x.Key),
+                x => ((Editors.KitbasherEditor.Core.MenuBarViews.IKitbasherUiCommand)x.Value.GetType().GetField("_instance", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(x.Value)!).HotKey)
+                .Where(x => x.Value != null).ToDictionary();
+            var listed = _runner.ServiceProvider.GetRequiredService<HotkeyService>().Definitions.Where(x => x.Group == "Hotkeys.Group.Kitbash").ToDictionary(x => x.Id, x => x.Default);
+
+            Assert.That(built, Has.Count.EqualTo(19));
+            Assert.That(listed, Is.EquivalentTo(built));
+        }
+
+        [Test]
+        public void ARebind_MovesTheCommandToItsNewKey_AltCombinationsToo_AndItsTooltipSaysSo()
+        {
+            var menu = Service<MenuBarViewModel>();
+            var scaleUp = Actions().Single(x => x.Key.Name == "ScaleGizmoUpCommand");
+            var size = GizmoSize();
+
+            _runner.ServiceProvider.GetRequiredService<HotkeyService>().Set(new Dictionary<string, Hotkey?> { [MenuBarViewModel.HotkeyId(scaleUp.Key)] = new Hotkey(Key.G, ModifierKeys.Alt) });
+
+            menu.OnKeyReleased(Key.Add, Key.None, ModifierKeys.None);
+            Assert.That(GizmoSize(), Is.EqualTo(size), "the old key");
+            menu.OnKeyReleased(Key.System, Key.G, ModifierKeys.Alt);
+            Assert.That(GizmoSize(), Is.GreaterThan(size), "the new key, which comes as Key.System while Alt is held");
+            Assert.That(scaleUp.Value.ToolTipAttribute.Value, Does.EndWith("(Alt+G)"));
         }
     }
 }

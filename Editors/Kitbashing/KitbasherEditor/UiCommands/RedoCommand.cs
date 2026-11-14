@@ -6,9 +6,9 @@ namespace Editors.KitbasherEditor.UiCommands
 {
     public class RedoCommand : ITransientKitbasherUiCommand
     {
-        public string ToolTip { get; set; } = "Redo (Ctrl+Y)";
+        public string ToolTip { get; set; } = "Redo";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.Custom;
-        public Hotkey? HotKey { get; } = new Hotkey(Key.Y, ModifierKeys.Control);
+        public Hotkey? HotKey => new Hotkey(Key.Y, ModifierKeys.Control);
 
         private readonly global::Shared.Core.Events.CommandManager _commandExecutor;
 

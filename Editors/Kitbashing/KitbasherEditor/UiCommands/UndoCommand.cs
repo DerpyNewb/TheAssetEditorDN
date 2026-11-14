@@ -10,7 +10,7 @@ namespace Editors.KitbasherEditor.UiCommands
     {
         public string ToolTip { get; set; } = "Undo Last item";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.Custom;
-        public Hotkey? HotKey { get; } = new Hotkey(Key.Z, ModifierKeys.Control);
+        public Hotkey? HotKey => new Hotkey(Key.Z, ModifierKeys.Control);
 
         private readonly global::Shared.Core.Events.CommandManager _commandExecutor;
 

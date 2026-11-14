@@ -26,6 +26,7 @@ namespace Shared.Ui
             services.AddSingleton<IFileSystemAccess, FileSystemAccess>();
             services.AddTransient<IToolSelectorUiProvider, ToolSelectorUiProvider>();
             services.AddScoped<PackFileTreeViewFactory>();
+            services.AddSingleton<HotkeyService>();
 
             // Context menu
             services.AddSingleton(provider =>

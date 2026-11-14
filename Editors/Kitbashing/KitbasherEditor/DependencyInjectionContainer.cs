@@ -28,6 +28,7 @@ using KitbasherEditor.Views;
 using Microsoft.Extensions.DependencyInjection;
 using GameWorld.Core.Rendering.Geometry;
 using Shared.Core.DependencyInjection;
+using System.Runtime.CompilerServices;
 using Shared.Core.DevConfig;
 using Shared.Core.ToolCreation;
 using Shared.Ui.Common.MenuSystem;
@@ -125,6 +126,11 @@ namespace Editors.KitbasherEditor
             // Commands
             RegisterAllAsOriginalType<ITransientKitbasherUiCommand>(serviceCollection, ServiceLifetime.Transient);
             RegisterAllAsOriginalType<IScopedKitbasherUiCommand>(serviceCollection, ServiceLifetime.Scoped);
+            foreach (var command in typeof(IKitbasherUiCommand).Assembly.GetTypes().Where(x => typeof(IKitbasherUiCommand).IsAssignableFrom(x) && x.IsAbstract == false && x.ContainsGenericParameters == false))
+            {
+                if (((IKitbasherUiCommand)RuntimeHelpers.GetUninitializedObject(command)).HotKey is { } hotkey)
+                    serviceCollection.AddSingleton(new HotkeyDefinition(MenuBarViewModel.HotkeyId(command), "Hotkeys.Group.Kitbash", "Hotkeys." + MenuBarViewModel.HotkeyId(command), hotkey));
+            }
             serviceCollection.AddTransient<CopyTexturesToPackCommand>();
             serviceCollection.AddTransient<ImportReferenceMeshCommand>();
 

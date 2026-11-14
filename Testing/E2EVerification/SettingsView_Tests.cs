@@ -2,7 +2,14 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Editors.Shared.Core.Common.BaseControl;
+using Shared.Core.Services;
+using Shared.Core.Settings;
+using Microsoft.Extensions.DependencyInjection;
+using Shared.Ui.Common.MenuSystem;
+using Test.TestingUtility.Shared;
 
 namespace Test.E2EVerification
 {
@@ -33,14 +40,26 @@ namespace Test.E2EVerification
 
         internal static bool InTemplate(XElement e) => e.Ancestors(Wpf + "DataTemplate").Any();
 
+        // A binding in a row template names a property of the row: the item type of the list whose template it is in.
+        static Type ItemOf(XElement e)
+        {
+            var list = e.Ancestors(Wpf + "DataTemplate").First().Ancestors(Wpf + "ItemsControl").First();
+            return BindingPath.Match((string)list.Attribute("ItemsSource")!).Groups[1].Value switch
+            {
+                "GameDirectores" => ViewModel("GamePathItem"),
+                "HotkeyGroups" => typeof(HotkeyGroup),
+                "Rows" => typeof(HotkeyRow),
+                var source => throw new InvalidOperationException($"a list of {source} the test does not know"),
+            };
+        }
+
         [Test]
         public void EveryBinding_NamesAPropertyItsItemHas()
         {
             var settings = ViewModel("SettingsViewModel");
-            var gameFolder = ViewModel("GamePathItem");
             var bindings = Bindings(View()).ToList();
 
-            var missing = bindings.Where(b => (InTemplate(b.Element) ? gameFolder : settings).GetProperty(b.Path) == null)
+            var missing = bindings.Where(b => (InTemplate(b.Element) ? ItemOf(b.Element) : settings).GetProperty(b.Path) == null)
                 .Select(b => b.Path).ToList();
 
             Assert.That(bindings.Count(b => InTemplate(b.Element)), Is.GreaterThan(0), "the game folder rows are bound to nothing");
@@ -48,7 +67,7 @@ namespace Test.E2EVerification
         }
 
         [Test]
-        public void TheView_IsFourTabs_AndEverySettingSitsInOneOfThem_UnderAGroupTitle()
+        public void TheView_IsFiveTabs_AndEverySettingSitsInOneOfThem_UnderAGroupTitle()
         {
             var view = View();
             var tabs = view.Descendants(Wpf + "TabItem").ToList();
@@ -59,7 +78,7 @@ namespace Test.E2EVerification
 
             var placed = settings.ToDictionary(s => s, s => tabs.Count(t => Bindings(t).Any(b => b.Path == s)));
 
-            Assert.That(tabs, Has.Count.EqualTo(4));
+            Assert.That(tabs, Has.Count.EqualTo(5));
             Assert.That(settings, Has.Count.GreaterThan(5), "the view model's settings were not found");
             Assert.That(placed.Where(x => x.Value != 1).Select(x => x.Key), Is.Empty, "a setting in no tab, or in two");
             Assert.That(tabs.Where(t => t.Descendants(Wpf + "TextBlock").Any(b => (string?)b.Attribute("Style") == "{StaticResource GroupTitle}") == false), Is.Empty,
@@ -72,6 +91,36 @@ namespace Test.E2EVerification
             var keys = LocKeys(SettingsFile("SettingsView.xaml"), SettingsFile("SettingsWindow.xaml"));
 
             Assert.That(keys, Has.Count.GreaterThan(10), "the walk found too few keys to mean anything");
+            Assert.That(MissingInALanguage(keys), Is.Empty);
+        }
+
+        // A key pressed in a box changes nothing until Save.
+        [Test]
+        public void ACapturedKey_TakesEffectOnceSaved()
+        {
+            var runner = new AssetEditorTestRunner();
+            var loc = runner.ServiceProvider.GetRequiredService<LocalizationManager>();
+            loc.LoadLanguage("en");
+            var hotkeys = runner.ServiceProvider.GetRequiredService<HotkeyService>();
+            var settings = Activator.CreateInstance(ViewModel("SettingsViewModel"), runner.ServiceProvider.GetRequiredService<ApplicationSettingsService>(), loc, hotkeys)!;
+            var groups = (List<HotkeyGroup>)settings.GetType().GetProperty("HotkeyGroups")!.GetValue(settings)!;
+            var play = groups.SelectMany(x => x.Rows).Single(x => x.Definition.Id == EditorHostBase.PlayPauseHotkey);
+            Assert.That(play.Name, Is.EqualTo("Play or pause the animation"));
+
+            play.Capture(Key.P, ModifierKeys.Control);
+            Assert.That(hotkeys.Get(EditorHostBase.PlayPauseHotkey), Is.EqualTo(new Hotkey(Key.Space, ModifierKeys.None)), "before Save");
+            ((ICommand)settings.GetType().GetProperty("SaveCommand")!.GetValue(settings)!).Execute(null);
+            Assert.That(hotkeys.Get(EditorHostBase.PlayPauseHotkey), Is.EqualTo(new Hotkey(Key.P, ModifierKeys.Control)), "after");
+        }
+
+        // The Hotkeys tab's names come from the editors' registrations, not the XAML.
+        [Test]
+        public void EveryHotkeyTheWindowLists_IsNamedInEveryLanguage()
+        {
+            var keys = new AssetEditorTestRunner().ServiceProvider.GetRequiredService<HotkeyService>().Definitions
+                .SelectMany(x => new[] { x.Group, x.Name }).Append("SettingsWindow.HotkeyClash").Distinct().ToList();
+
+            Assert.That(keys, Has.Count.EqualTo(23), "19 for Kitbash, one for the animation editors, their two groups and the warning");
             Assert.That(MissingInALanguage(keys), Is.Empty);
         }
 

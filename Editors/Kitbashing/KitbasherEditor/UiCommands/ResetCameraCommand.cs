@@ -9,7 +9,7 @@ namespace Editors.KitbasherEditor.UiCommands
     {
         public string ToolTip { get; set; } = "Reset camera";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.Always;
-        public Hotkey? HotKey { get; } = new Hotkey(Key.F4, ModifierKeys.None);
+        public Hotkey? HotKey => new Hotkey(Key.F4, ModifierKeys.None);
 
 
         private readonly FocusSelectableObjectService _cameraFocusComponent;

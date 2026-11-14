@@ -7,6 +7,8 @@ namespace Editors.KitbasherEditor.Core.MenuBarViews
     {
         public string ToolTip { get; set; }
         public ActionEnabledRule EnabledRule { get; }
+        /// <summary>The default. Kitbash's DependencyInjectionContainer reads it off a command it never constructed, so it must not
+        /// read the command's fields.</summary>
         public Hotkey? HotKey { get; }
 
         public void Execute();

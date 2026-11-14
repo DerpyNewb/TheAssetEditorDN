@@ -14,11 +14,13 @@ using Editors.Shared.Core.Common.BaseControl;
 using GameWorld.Core.Animation;
 using Material.Icons;
 using Material.Icons.WPF;
+using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.Commands;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationMeta.Definitions;
 using Shared.GameFormats.AnimationMeta.Parsing;
 using Shared.GameFormats.AnimationPack;
+using Shared.Ui.Common.MenuSystem;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
 
@@ -402,6 +404,22 @@ namespace Test.AnimationMeta
                 target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseUpEvent });
                 Pump();
             }
+        }
+
+        [Test]
+        public void Space_PlaysAndPausesTheClip_AndARebindMovesIt()
+        {
+            MainPlayer.Pause();
+            Assert.That(_superView.OnKeyPressed(Key.Space, ModifierKeys.None), Is.True);
+            Assert.That(MainPlayer.IsPlaying, Is.True, "played");
+            _superView.OnKeyPressed(Key.Space, ModifierKeys.None);
+            Assert.That(MainPlayer.IsPlaying, Is.False, "paused");
+
+            _runner.ServiceProvider.GetRequiredService<HotkeyService>().Set(new Dictionary<string, Hotkey?> { [EditorHostBase.PlayPauseHotkey] = new Hotkey(Key.P, ModifierKeys.Control) });
+            Assert.That(_superView.OnKeyPressed(Key.Space, ModifierKeys.None), Is.False, "Space is left to whatever has focus");
+            Assert.That(MainPlayer.IsPlaying, Is.False);
+            Assert.That(_superView.OnKeyPressed(Key.P, ModifierKeys.Control), Is.True);
+            Assert.That(MainPlayer.IsPlaying, Is.True, "Ctrl+P plays it");
         }
 
         static Button TickButton(DependencyObject view, MetaDataEntry row) => FindAll<Button>(view).Single(x => x.DataContext is TimelineTick tick && tick.Tag == row._input);

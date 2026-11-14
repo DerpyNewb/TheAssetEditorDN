@@ -45,12 +45,7 @@ namespace Shared.Ui.Common.MenuSystem
 
         public string ToopTipText()
         {
-            if (Hotkey == null)
-                return "";
-
-            if (Hotkey.ModifierKeys == ModifierKeys.None)
-                return $" ({Hotkey.Key})";
-            return $" ({Hotkey.Key} + {Hotkey.ModifierKeys})";
+            return Hotkey == null ? "" : $" ({Hotkey})";
         }
 
         public void UpdateToolTip()

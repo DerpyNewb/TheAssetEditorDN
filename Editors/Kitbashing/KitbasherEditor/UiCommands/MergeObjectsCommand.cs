@@ -11,7 +11,7 @@ namespace Editors.KitbasherEditor.UiCommands
     {
         public string ToolTip { get; set; } = "Merge selected meshes";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.TwoOrMoreObjectsSelected;
-        public Hotkey? HotKey { get; } = new Hotkey(Key.M, ModifierKeys.Control);
+        public Hotkey? HotKey => new Hotkey(Key.M, ModifierKeys.Control);
 
         private readonly SelectionManager _selectionManager;
         private readonly ObjectEditor _objectEditor;

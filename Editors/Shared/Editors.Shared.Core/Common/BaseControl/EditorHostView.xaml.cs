@@ -2,6 +2,7 @@
 using AvalonDock.Layout;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Editors.Shared.Core.Common.BaseControl;
 using Editors.Shared.Core.Common.ReferenceModel;
@@ -22,11 +23,37 @@ namespace AnimationEditor.Common.BaseControl
         IReadOnlyDictionary<string, object> _defaultContents = new Dictionary<string, object>();
         EditorHostBase? _savesTo;
 
+        Window? _window;
+
         public EditorHostView()
         {
             InitializeComponent();
             Loaded += OnLoaded;
+            Loaded += (_, _) => WatchKeys(Window.GetWindow(this));
+            Unloaded += (_, _) => WatchKeys(null);
             IsVisibleChanged += OnVisibleChanged;
+        }
+
+        // The editor's hotkeys work anywhere in its window while its tab shows, as Kitbash's do. A preview, so a focused button
+        // does not take Space as a click as well.
+        void WatchKeys(Window? window)
+        {
+            if (_window != null)
+                _window.PreviewKeyDown -= OnWindowKeyDown;
+            _window = window;
+            if (_window != null)
+                _window.PreviewKeyDown += OnWindowKeyDown;
+        }
+
+        void OnWindowKeyDown(object sender, KeyEventArgs e) => HandleKey(e, Keyboard.Modifiers);
+
+        /// <summary>Text boxes keep their keys; a held key does not repeat.</summary>
+        public void HandleKey(KeyEventArgs e, ModifierKeys modifiers)
+        {
+            if (IsVisible == false || e.IsRepeat || e.OriginalSource is TextBoxBase or PasswordBox || DataContext is not EditorHostBase host)
+                return;
+            if (host.OnKeyPressed(e.Key == Key.System ? e.SystemKey : e.Key, modifiers))
+                e.Handled = true;
         }
 
         // The app collapses an editor whose tab is not selected, and a floating pane is a window of its own: it goes and comes

@@ -11,6 +11,8 @@ using GameWorld.Core.Utility.RenderSettingsDialog;
 using GameWorld.Core.WpfWindow;
 using Shared.Core.Misc;
 using Shared.Core.ToolCreation;
+using Shared.Ui.Common.MenuSystem;
+using System.Windows.Input;
 
 namespace Editors.Shared.Core.Common.BaseControl
 {
@@ -52,6 +54,18 @@ namespace Editors.Shared.Core.Common.BaseControl
             _sceneObjectEditor = inputParams.SceneObjectEditor;
 
             inputParams.ComponentInserter.Execute();
+        }
+
+        /// <summary>Space by default; the Hotkeys tab in Settings changes it.</summary>
+        public const string PlayPauseHotkey = "AnimationEditors.PlayPause";
+
+        /// <summary>Plays or pauses the animation when the key is the play/pause hotkey. False leaves the key to whatever has focus.</summary>
+        public bool OnKeyPressed(Key key, ModifierKeys modifiers)
+        {
+            if (_inputParams.Hotkeys.Get(PlayPauseHotkey)?.Matches(key, modifiers) != true)
+                return false;
+            Player.ToggleAnimationPausePlay();
+            return true;
         }
 
         [RelayCommand] void ResetCamera() => _focusSelectableObjectService.ResetCamera();

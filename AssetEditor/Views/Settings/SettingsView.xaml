@@ -220,6 +220,47 @@
             </StackPanel>
         </TabItem>
 
+        <!-- A box takes the next key pressed in it (OnHotkeyKeyDown). A row whose key another row of its editor has says which. -->
+        <TabItem Header="{loc:Loc SettingsWindow.Tab.Hotkeys}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="{loc:Loc SettingsWindow.HotkeysHint}" TextWrapping="Wrap" Margin="5, 12, 10, 0"/>
+                <ItemsControl ItemsSource="{Binding HotkeyGroups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource GroupTitle}" Text="{Binding Name}"/>
+                                <Separator Style="{StaticResource GroupLine}"/>
+                                <ItemsControl ItemsSource="{Binding Rows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0, 0, 0, 5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" MinWidth="230" SharedSizeGroup="Label"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Name}" Margin="5, 0, 15, 0" VerticalAlignment="Center"/>
+                                                <TextBox Grid.Column="1" Style="{StaticResource HintedTextBox}" Tag="{loc:Loc SettingsWindow.HotkeyNone}"
+                                                         Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" IsReadOnlyCaretVisible="False" Width="150" Padding="2.5, 0, 0, 0"
+                                                         PreviewKeyDown="OnHotkeyKeyDown" ToolTip="{loc:Loc SettingsWindow.HotkeyBoxTooltip}" AutomationProperties.Name="{Binding Name}"/>
+                                                <Button Grid.Column="2" Content="{loc:Loc SettingsWindow.HotkeyDefault}" Command="{Binding ResetCommand}" IsEnabled="{Binding IsChanged}" Padding="8, 0" Margin="5, 0, 0, 0"/>
+                                                <Button Grid.Column="3" Content="{loc:Loc SettingsWindow.HotkeyClear}" Command="{Binding ClearCommand}" IsEnabled="{Binding HasHotkey}" Padding="8, 0" Margin="5, 0, 0, 0"/>
+                                                <TextBlock Grid.Column="4" Text="{Binding Clash}" TextWrapping="Wrap" Margin="10, 0, 10, 0" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
         <TabItem Header="{loc:Loc SettingsWindow.Tab.GameFolders}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>

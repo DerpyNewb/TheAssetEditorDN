@@ -4,6 +4,7 @@ using GameWorld.Core.Components.Grid;
 using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Services;
 using GameWorld.Core.WpfWindow;
+using Shared.Ui.Common.MenuSystem;
 
 namespace Editors.Shared.Core.Common.BaseControl
 {
@@ -18,6 +19,7 @@ namespace Editors.Shared.Core.Common.BaseControl
         RenderEngineComponent RenderEngine { get; }
         SceneRenderParametersStore SceneParameters { get; }
         GridComponent Grid { get; }
+        HotkeyService Hotkeys { get; }
     }
 
     public class EditorHostParameters : IEditorHostParameters
@@ -31,7 +33,8 @@ namespace Editors.Shared.Core.Common.BaseControl
             SceneObjectEditor sceneObjectEditor,
             RenderEngineComponent renderEngine,
             SceneRenderParametersStore sceneParameters,
-            GridComponent grid)
+            GridComponent grid,
+            HotkeyService hotkeys)
         {
             ComponentInserter = componentInserter;
             AnimationPlayerViewModel = animationPlayerViewModel;
@@ -42,6 +45,7 @@ namespace Editors.Shared.Core.Common.BaseControl
             RenderEngine = renderEngine;
             SceneParameters = sceneParameters;
             Grid = grid;
+            Hotkeys = hotkeys;
         }
 
         public IComponentInserter ComponentInserter { get; }
@@ -54,5 +58,6 @@ namespace Editors.Shared.Core.Common.BaseControl
         public RenderEngineComponent RenderEngine { get; }
         public SceneRenderParametersStore SceneParameters { get; }
         public GridComponent Grid { get; }
+        public HotkeyService Hotkeys { get; }
     }
 }

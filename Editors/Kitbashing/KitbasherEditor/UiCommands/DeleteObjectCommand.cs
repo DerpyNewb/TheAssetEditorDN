@@ -10,7 +10,7 @@ namespace Editors.KitbasherEditor.UiCommands
     {
         public string ToolTip { get; set; } = "Delete";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.ObjectOrFaceSelected;
-        public Hotkey? HotKey { get; } = new Hotkey(Key.Delete, ModifierKeys.None);
+        public Hotkey? HotKey => new Hotkey(Key.Delete, ModifierKeys.None);
 
 
         private readonly SelectionManager _selectionManager;

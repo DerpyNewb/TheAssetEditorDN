@@ -10,7 +10,7 @@ namespace Editors.KitbasherEditor.UiCommands
     {
         public string ToolTip { get; set; } = "Duplicate selection";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.ObjectOrFaceSelected;
-        public Hotkey? HotKey { get; } = new Hotkey(Key.D, ModifierKeys.Control);
+        public Hotkey? HotKey => new Hotkey(Key.D, ModifierKeys.Control);
 
         private readonly SelectionManager _selectionManager;
         private readonly ObjectEditor _objectEditor;

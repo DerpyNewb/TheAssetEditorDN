@@ -53,6 +53,9 @@ namespace Shared.Core.Settings
         public string BackupFolder { get; set; } = "";
         /// <summary>Offered again by the next Kitbash save; null until a save dialog has been confirmed once.</summary>
         public KitbashSaveChoices? KitbashSaveChoices { get; set; }
+        /// <summary>The hotkeys changed in the settings window, by id, as text such as "Ctrl+Z"; empty is no hotkey. One left out keeps
+        /// its default.</summary>
+        public Dictionary<string, string> Hotkeys { get; set; } = [];
     }
 
     public class ApplicationSettingsService

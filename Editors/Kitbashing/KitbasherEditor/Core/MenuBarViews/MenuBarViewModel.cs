@@ -33,10 +33,12 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
         private readonly MenuItemVisibilityRuleEngine _menuItemVisibilityRuleEngine;
         private readonly ActionHotkeyHandler _hotKeyHandler = new ActionHotkeyHandler();
         private readonly LocalizationManager _localizationManager;
+        private readonly HotkeyService _hotkeys;
         private readonly Dictionary<Type, MenuAction> _uiCommands = new();
 
-        public MenuBarViewModel(Shared.Core.Events.CommandManager commandExecutor, IEventHub eventHub, MenuItemVisibilityRuleEngine menuItemVisibilityRuleEngine, TransformToolViewModel transformToolViewModel, IUiCommandFactory uiCommandFactory, LocalizationManager localizationManager, BonePicker bonePicker)
+        public MenuBarViewModel(Shared.Core.Events.CommandManager commandExecutor, IEventHub eventHub, MenuItemVisibilityRuleEngine menuItemVisibilityRuleEngine, TransformToolViewModel transformToolViewModel, IUiCommandFactory uiCommandFactory, LocalizationManager localizationManager, BonePicker bonePicker, HotkeyService hotkeys)
         {
+            _hotkeys = hotkeys;
             _commandExecutor = commandExecutor;
             _menuItemVisibilityRuleEngine = menuItemVisibilityRuleEngine;
             _uiCommandFactory = uiCommandFactory;
@@ -55,6 +57,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             eventHub.Register<CommandStackChangedEvent>(this, OnUndoStackChanged);
             eventHub.Register<CommandStackUndoEvent>(this, _ => UpdateUndoRedo());
             eventHub.Register<SelectionChangedEvent>(this, OnSelectionChanged);
+            eventHub.Register<HotkeysChangedEvent>(this, _ => ApplyHotkeys());
         }
 
         void RegisterActions()
@@ -241,22 +244,30 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             _uiCommands[typeof(T)] = new KitbasherMenuItem<T>(_uiCommandFactory);
         }
 
+        /// <summary>A Kitbash command's hotkey in the settings file and the settings window.</summary>
+        public static string HotkeyId(Type command) => "Kitbash." + command.Name;
+
         void RegisterHotkeys()
         {
-            var actionList = _uiCommands
-                .Where(x => x.Value.Hotkey != null)
-                .Select(x => x.Value);
-
-            foreach (var item in actionList)
-            {
-                item.UpdateToolTip();
+            foreach (var item in _uiCommands.Values)
                 _hotKeyHandler.Register(item);
+            ApplyHotkeys();
+        }
+
+        // Each command's hotkey as the settings window has it, again whenever that window saves.
+        void ApplyHotkeys()
+        {
+            foreach (var (command, action) in _uiCommands)
+            {
+                action.Hotkey = _hotkeys.Get(HotkeyId(command));
+                action.UpdateToolTip();
             }
         }
 
+        // With Alt held the key comes as Key.System, the real one in systemKey.
         public bool OnKeyReleased(Key key, Key systemKey, ModifierKeys modifierKeys)
         {
-            return _hotKeyHandler.TriggerCommand(key, modifierKeys);
+            return _hotKeyHandler.TriggerCommand(key == Key.System ? systemKey : key, modifierKeys);
         }
 
         public void OnKeyDown(Key key, Key systemKey, ModifierKeys modifiers)

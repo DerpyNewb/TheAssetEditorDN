@@ -11,6 +11,7 @@ using Shared.Core.Misc;
 using Shared.Core.Services;
 using Shared.Core.Settings;
 using Shared.Ui.BaseDialogs.ColourPickerButton;
+using Shared.Ui.Common.MenuSystem;
 
 namespace AssetEditor.ViewModels
 {
@@ -18,6 +19,7 @@ namespace AssetEditor.ViewModels
     {
         private readonly ApplicationSettingsService _settingsService;
         private readonly LocalizationManager _localizationManager;
+        private readonly HotkeyService _hotkeys;
 
         public ObservableCollection<string> AvailableLangauges { get; set; } = [];
         public ObservableCollection<ThemeType> AvailableThemes { get; set; } = [];
@@ -25,6 +27,7 @@ namespace AssetEditor.ViewModels
         public ObservableCollection<GameTypeEnum> Games { get; set; } = [];
         public ObservableCollection<GamePathItem> GameDirectores { get; set; } = [];
         public ObservableCollection<CameraControlMode> CameraModes { get; set; } = [];
+        public List<HotkeyGroup> HotkeyGroups { get; }
 
         [ObservableProperty] private string _selectedLanguage;
         [ObservableProperty] private ThemeType _currentTheme;
@@ -47,10 +50,11 @@ namespace AssetEditor.ViewModels
 
         public string DefaultBackupFolder => DirectoryHelper.BackupDirectory;
 
-        public SettingsViewModel(ApplicationSettingsService settingsService, LocalizationManager localizationManager)
+        public SettingsViewModel(ApplicationSettingsService settingsService, LocalizationManager localizationManager, HotkeyService hotkeys)
         {
             _settingsService = settingsService;
             _localizationManager = localizationManager;
+            _hotkeys = hotkeys;
 
             AvailableLangauges = new ObservableCollection<string>(_localizationManager.GetPossibleLanguages());
             SelectedLanguage = _localizationManager.SelectedLangauge;
@@ -77,6 +81,11 @@ namespace AssetEditor.ViewModels
             BackupBeforeSave = _settingsService.CurrentSettings.BackupBeforeSave;
             BackupsKept = _settingsService.CurrentSettings.BackupsKept;
             BackupFolder = _settingsService.CurrentSettings.BackupFolder;
+            HotkeyGroups = hotkeys.Definitions.GroupBy(x => x.Group)
+                .Select(group => new HotkeyGroup(localizationManager.Get(group.Key),
+                    group.Select(x => new HotkeyRow(x, localizationManager.Get(x.Name), hotkeys.Get(x.Id))).OrderBy(x => x.Name).ToList(),
+                    localizationManager.Get("SettingsWindow.HotkeyClash")))
+                .OrderBy(x => x.Name).ToList();
 
             foreach (var game in GameInformationDatabase.Games.Values.OrderBy(game => game.DisplayName))
             {
@@ -127,6 +136,7 @@ namespace AssetEditor.ViewModels
             foreach (var item in GameDirectores)
                 _settingsService.CurrentSettings.GameDirectories.Add(new ApplicationSettings.GamePathPair(item.GameType, item.Path));
            
+            _hotkeys.Set(HotkeyGroups.SelectMany(x => x.Rows).ToDictionary(x => x.Definition.Id, x => x.Hotkey));
             _localizationManager.LoadLanguage(SelectedLanguage);
             _settingsService.Save();
             if (restart)
