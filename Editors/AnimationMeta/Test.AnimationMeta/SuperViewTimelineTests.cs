@@ -422,6 +422,22 @@ namespace Test.AnimationMeta
             Assert.That(MainPlayer.IsPlaying, Is.True, "Ctrl+P plays it");
         }
 
+        // Play after a pause carries on from the paused time; it used to go back to frame 0 every time.
+        [Test]
+        public void Play_CarriesOnFromWhereTheClipWasPaused_AndStartsAgainOnlyFromTheEnd()
+        {
+            var length = MainPlayer.GetAnimationLengthUs();
+            _superView.ScrubTo(0.5);
+            _superView.OnKeyPressed(Key.Space, ModifierKeys.None);
+            Assert.That(MainPlayer.IsPlaying, Is.True);
+            Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo(length / 2.0).Within(length * 1e-3), "where it was paused");
+
+            _superView.OnKeyPressed(Key.Space, ModifierKeys.None);
+            MainPlayer.SetTime(length);
+            _superView.OnKeyPressed(Key.Space, ModifierKeys.None);
+            Assert.That(MainPlayer.GetTimeUs(), Is.Zero, "from the end it starts again");
+        }
+
         static Button TickButton(DependencyObject view, MetaDataEntry row) => FindAll<Button>(view).Single(x => x.DataContext is TimelineTick tick && tick.Tag == row._input);
         static Rectangle Part(Button button, string part) => (Rectangle)button.Template.FindName(part, button);
 

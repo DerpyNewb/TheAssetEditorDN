@@ -123,16 +123,18 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
             }
         }
 
+        // A paused clip carries on from where it stopped; one at its very end starts again.
         void Play(SceneObject asset)
         {
-            asset.Player.CurrentFrame = 0;
+            if (asset.Player.GetTimeUs() >= asset.Player.GetAnimationLengthUs())
+                asset.Player.CurrentFrame = 0;
             asset.Player.Play();
 
             foreach (var metaItem in asset.MetaDataItems)
             {
                 if (metaItem.Player != null)
                 {
-                    metaItem.Player.CurrentFrame = 0;
+                    metaItem.Player.CurrentFrame = asset.Player.CurrentFrame;
                     metaItem.Player.Play();
                 }
             }
