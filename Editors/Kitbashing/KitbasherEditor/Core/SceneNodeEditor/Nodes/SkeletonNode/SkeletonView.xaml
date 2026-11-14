@@ -34,6 +34,12 @@
 
         </DockPanel>
 
+        <CheckBox DockPanel.Dock="Top" Margin="5,4,2,4"
+                  Content="{loc:Loc KitbashTool.SkeletonView.ShowWeights}"
+                  ToolTip="{loc:Loc KitbashTool.SkeletonView.ShowWeightsTooltip}"
+                  AutomationProperties.AutomationId="ShowBoneWeights"
+                  IsChecked="{Binding ShowWeights, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
+
         <TreeView DockPanel.Dock="Top" ItemsSource="{Binding Bones, UpdateSourceTrigger=PropertyChanged}">
             <b:Interaction.Behaviors>
                 <behaviors:BindableSelectedItemBehavior SelectedItem="{Binding SelectedBone, Mode=TwoWay}" />

@@ -20,6 +20,7 @@ PixelInputType MainVertexShader(in VertexInputType input)
     output.position = mul(output.position, Projection);
 
     output.tex = input.tex;
+    output.boneWeight = BoneWeight(input);
 
     output.normal = normalize(mul(output.normal, (float3x3) World));
     output.tangent = normalize(mul(output.tangent, (float3x3) World));

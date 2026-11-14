@@ -18,6 +18,10 @@ namespace GameWorld.Core.SceneNodes
 
         public int? SelectedBoneIndex { get; set; }
         public float SkeletonScale { get; set; } = 1;
+
+        /// <summary>The model's meshes draw how strongly the selected bone moves each vertex, instead of their textures.</summary>
+        public bool ShowWeights { get; set; }
+        public int WeightViewBone => ShowWeights && SelectedBoneIndex.HasValue ? SelectedBoneIndex.Value : -1;
         public float SelectedBoneScaleMult { get; set; } = 1.5f;
 
         public GameSkeleton? Skeleton { get; set; }
@@ -71,6 +75,7 @@ namespace GameWorld.Core.SceneNodes
             typedTarget.LineColour = LineColour;
             typedTarget.SelectedBoneIndex = SelectedBoneIndex;
             typedTarget.SkeletonScale = SkeletonScale;
+            typedTarget.ShowWeights = ShowWeights;
             typedTarget.Skeleton = Skeleton;
             base.CopyInto(target);
         }

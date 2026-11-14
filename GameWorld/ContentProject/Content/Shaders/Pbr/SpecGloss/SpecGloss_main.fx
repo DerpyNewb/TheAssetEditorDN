@@ -57,6 +57,9 @@ float4 mainPS(in PixelInputType input, bool bIsFrontFace : SV_IsFrontFace) : SV_
 
     if (UseAlpha == 1)    
         alpha_test(material.diffuse.a);
+
+    if (Animation_WeightBone >= 0)
+        return float4(WeightColour(input.boneWeight, input.normal, CameraPos - input.worldPosition) * ModelColour.rgb, ModelColour.a);
     
     float3 normalizedViewDirection = -normalize(CameraPos - input.worldPosition);
     float3 rotatedNormalizedLightDirection = normalize(mul(light_Direction_Constant, (float3x3) DirLightTransform));
