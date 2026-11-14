@@ -393,6 +393,8 @@
   "SkeletonEditor.Buttons.FocusSelectedBone": "聚焦选中骨骼",
   "SkeletonEditor.Buttons.Bake": "烘焙",
   "SkeletonEditor.Buttons.Save": "保存",
+  "SkeletonEditor.Buttons.SaveAs": "另存为...",
+  "SkeletonEditor.Tooltips.SkeletonPath": "保存时写入的文件。输入可编辑包中的路径即可将骨骼保存到该处。",
   "SkeletonEditor.Buttons.Undo": "撤销",
   "SkeletonEditor.Buttons.Redo": "重做",
   "SkeletonEditor.SettingsGroupHeader": "设置:",

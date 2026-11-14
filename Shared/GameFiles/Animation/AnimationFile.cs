@@ -97,6 +97,9 @@ namespace Shared.GameFormats.Animation
         public class AnimationPart
         {
             public Frame StaticFrame { get; set; } = null;
+            // A part with no dynamic frames (a pose) still carries a frame count: how many frames the pose is held for.
+            // CA writes round(play time x 20) + 1, never under 3.
+            public int PoseFrameCount { get; set; } = 3;
             public List<Frame> DynamicFrames = new List<Frame>();
             public List<AnimationBoneMapping> RotationMappings { get; set; } = new List<AnimationBoneMapping>();
             public List<AnimationBoneMapping> TranslationMappings { get; set; } = new List<AnimationBoneMapping>();
@@ -257,6 +260,10 @@ namespace Shared.GameFormats.Animation
                     var frame = ReadFrame(chunk, (uint)animPosCount, (uint)animRotCount);
                     animPart.DynamicFrames.Add(frame);
                 }
+            }
+            else
+            {
+                animPart.PoseFrameCount = frameCount;
             }
 
             return new List<AnimationPart>() { animPart };
@@ -478,7 +485,7 @@ namespace Shared.GameFormats.Animation
                 {
                     writer.Write(0);   // animPosCount
                     writer.Write(0);   // animRotCount
-                    writer.Write(3);   // Frame count, why 3 when empty?
+                    writer.Write(animationPart.PoseFrameCount);
                 }
             }
 
@@ -505,12 +512,15 @@ namespace Shared.GameFormats.Animation
 
             for (var i = 0; i < frame.Quaternion.Count(); i++)
             {
-                writer.Write((short)(frame.Quaternion[i].X * short.MaxValue));
-                writer.Write((short)(frame.Quaternion[i].Y * short.MaxValue));
-                writer.Write((short)(frame.Quaternion[i].Z * short.MaxValue));
-                writer.Write((short)(frame.Quaternion[i].W * short.MaxValue));
+                writer.Write(ToShort(frame.Quaternion[i].X));
+                writer.Write(ToShort(frame.Quaternion[i].Y));
+                writer.Write(ToShort(frame.Quaternion[i].Z));
+                writer.Write(ToShort(frame.Quaternion[i].W));
             }
         }
+
+        // Rounded, not truncated: a value read as s / 32767 times 32767 lands a hair under s, and truncating it wrote s - 1.
+        static short ToShort(float value) => (short)Math.Clamp(Math.Round(value * short.MaxValue), short.MinValue, short.MaxValue);
 
         static Frame ReadFrame(ByteChunk chunk, uint positions, uint rotations)
         {

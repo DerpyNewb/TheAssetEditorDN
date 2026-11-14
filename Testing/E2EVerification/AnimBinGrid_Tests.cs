@@ -888,6 +888,70 @@ namespace Test.E2EVerification
             Assert.That((RowOf(grid, "STAND").Meta, RowOf(grid, "STAND").Sound, grid.LocomotionGraph), Is.EqualTo((GraphA, GraphA, GraphA)));
         }
 
+        // Picking an animation fills an empty Meta cell with the animation's own meta when exactly one exists, in the same undo step.
+        // CA's tables use <anim>.meta for 98% of the animations that have only that, and <anim>.anm.meta for 69% of those with only
+        // that; with both, CA picks either, so the cell stays empty. A set Meta is never changed.
+        static void AddFiles(Opened opened, params string[] paths) => opened.Runner.PackFileService.AddFilesToPack(opened.Runner.PackFileService.GetEditablePack()!,
+            paths.Select(x => new NewPackFileEntry(Path.GetDirectoryName(x)!, PackFile.CreateFromBytes(Path.GetFileName(x), [0]))).ToList());
+
+        [TestCase("animations/derpy/anm_only.anim", "animations/derpy/anm_only.anm.meta")]
+        [TestCase("animations/derpy/dot_only.anim", "animations/derpy/dot_only.meta")]
+        [TestCase("animations/derpy/both.anim", "")]
+        [TestCase("animations/derpy/neither.anim", "")]
+        [TestCase("Animations\\Derpy\\ANM_ONLY.anim", "animations/derpy/anm_only.anm.meta")]
+        public void TypingAnAnimation_FillsAnEmptyMetaWithItsOwn_AsOneUndo(string animation, string meta)
+        {
+            var (opened, table, grid, before) = Grid();
+            AddFiles(opened, "animations/derpy/anm_only.anm.meta", "animations/derpy/dot_only.meta", "animations/derpy/both.anm.meta", "animations/derpy/both.meta");
+
+            RowOf(grid, "STAND").Animation = animation;
+
+            Assert.That((RowOf(grid, "STAND").Animation, RowOf(grid, "STAND").Meta), Is.EqualTo((animation, meta)));
+            opened.Editor.UndoAction();
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
+        [Test]
+        public void TypingAnAnimation_KeepsAMetaThatIsSet()
+        {
+            var (opened, _, grid, _) = Grid();
+            AddFiles(opened, "animations/derpy/anm_only.anm.meta");
+            RowOf(grid, "STAND").Meta = "animations/derpy/chosen.anm.meta";
+
+            RowOf(grid, "STAND").Animation = "animations/derpy/anm_only.anim";
+
+            Assert.That(RowOf(grid, "STAND").Meta, Is.EqualTo("animations/derpy/chosen.anm.meta"));
+        }
+
+        // A DataGrid can commit a cell that was only clicked into. The same animation written back must not fill a meta CA left empty.
+        [Test]
+        public void TheSameAnimationWrittenBack_FillsNothing()
+        {
+            var (opened, table, grid, before) = Grid();
+            AddFiles(opened, KarlAnim[..^".anim".Length] + ".anm.meta");
+
+            RowOf(grid, "STAND").Animation = KarlAnim;
+
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+            Assert.That(opened.Editor.HasUnsavedChanges, Is.False);
+        }
+
+        // CHARGE has no variant: the pick gives it one with the meta already in it, still one undo step.
+        [Test]
+        public void BrowseAnimation_FillsTheMetaToo()
+        {
+            var (opened, table, grid, before) = Grid();
+            AddFiles(opened, "animations/derpy/anm_only.anim", "animations/derpy/anm_only.anm.meta");
+            BrowseAnswers(opened, "animations/derpy/anm_only.anim");
+            grid.AnyAnimation = true;
+
+            grid.BrowseAnimationCommand.Execute(RowOf(grid, "CHARGE", -1));
+
+            Assert.That(RowOf(grid, "CHARGE").Meta, Is.EqualTo("animations/derpy/anm_only.anm.meta"));
+            opened.Editor.UndoAction();
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
         [Test]
         public void ABrowseCancelled_ChangesNothing()
         {
@@ -914,6 +978,79 @@ namespace Test.E2EVerification
             var (_, _, grid, _) = Grid();
             grid.OpenPathCommand.Execute("animations/derpy/missing.anim");
             Assert.That(grid.Status, Is.EqualTo("animations/derpy/missing.anim is not in the loaded packs."));
+        }
+
+        // Preview: the grid had no playback. It opens SuperView with the table's skeleton, this table picked and the selected row's
+        // slot (its variant, not the slot's first) playing.
+
+        static Editors.Shared.Core.Common.ReferenceModel.SceneObjectViewModel? PreviewedScene(Opened opened)
+        {
+            var last = opened.Runner.ServiceProvider.GetRequiredService<IEditorManager>().GetAllEditors().Last();
+            return last.GetType().Name == "SuperViewViewModel" ? ((Editors.Shared.Core.Common.BaseControl.EditorHostBase)last).SceneObjects[0] : null;
+        }
+
+        [TestCase("STAND", 0, 0)]
+        [TestCase("WALK_1", 1, 1)]
+        public void Preview_OpensSuperViewOnThisTable_PlayingTheSelectedSlot(string slot, int variant, int entry)
+        {
+            var (opened, table, grid, _) = Grid();
+            grid.SelectedRows = [RowOf(grid, slot, variant)];
+
+            grid.PreviewCommand.Execute(null);
+
+            var scene = PreviewedScene(opened);
+            Assert.That(scene, Is.Not.Null, "SuperView did not open");
+            Assert.That(scene!.Data.SkeletonName.Value, Does.EndWith("humanoid01.anim"));
+            var sets = scene.FragAndSlotSelection;
+            Assert.That(sets.FragmentList.SelectedItem?.FullPath.Replace('\\', '/'), Is.EqualTo(table.FileName.Replace('\\', '/')));
+            Assert.That(sets.FragmentSlotList.SelectedItem, Is.SameAs(sets.FragmentSlotList.PossibleValues.Where(x => x.SlotName == slot).ElementAt(entry)));
+            Assert.That(scene.Data.AnimationClip, Is.Not.Null, "the slot's animation is not playing");
+            Assert.That(grid.Status, Is.Empty);
+        }
+
+        [Test]
+        public void Preview_WithUnsavedEdits_SaysSuperViewShowsTheSavedTable()
+        {
+            var (opened, _, grid, _) = Grid();
+            RowOf(grid, "STAND").Weight = "2";
+
+            grid.PreviewCommand.Execute(null);
+
+            Assert.That(PreviewedScene(opened), Is.Not.Null);
+            Assert.That(grid.Status, Does.Contain("last saved"));
+        }
+
+        [Test]
+        public void Preview_OfATableTheSavedAnimpackLacks_SaysSo()
+        {
+            var (opened, table, grid, _) = Grid();
+            table.FileName = Bin + "derpy_never_saved.bin";
+
+            grid.PreviewCommand.Execute(null);
+
+            Assert.That(PreviewedScene(opened), Is.Not.Null);
+            Assert.That(grid.Status, Is.EqualTo("SuperView lists this table once the animpack is saved."));
+        }
+
+        [Test]
+        public void TheToolbar_HasAPreviewButton()
+        {
+            var view = Path.Combine(SettingsView_Tests.Root(), "Editors", "AnimationFragmentEditor", "Editor.AnimationFragmentEditor", "AnimationPack", "BinGrid", "BinGridView.xaml");
+            var bound = SettingsView_Tests.Bindings(System.Xml.Linq.XDocument.Load(view)).Where(x => x.Path == nameof(BinGridViewModel.PreviewCommand)).ToList();
+
+            Assert.That(bound.Select(x => x.Element.Name.LocalName), Is.EqualTo(new[] { "Button" }));
+        }
+
+        [Test]
+        public void Preview_WithASkeletonNotInThePacks_OpensNothing()
+        {
+            var (opened, _, grid, _) = Grid();
+            grid.Skeleton = "nope";
+
+            grid.PreviewCommand.Execute(null);
+
+            Assert.That(PreviewedScene(opened), Is.Null);
+            Assert.That(grid.Status, Is.EqualTo("The skeleton nope is not in the loaded packs."));
         }
     }
 }

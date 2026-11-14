@@ -4,11 +4,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinWh3Converter;
 using Editors.Shared.Core.Common;
+using Editors.Shared.Core.Common.BaseControl;
 using GameWorld.Core.Services;
 using Shared.Core.Commands;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
 using Shared.Core.Services;
+using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationPack;
 using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
 
@@ -240,6 +242,31 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             Reload();
         }
 
+        /// <summary>A picked or typed animation. An empty Meta cell takes the animation's own meta, in the same undo step, when exactly
+        /// one exists: of CA's table rows whose animation has only &lt;anim&gt;.meta, 98% use it, and of those with only &lt;anim&gt;.anm.meta,
+        /// 69% do, nearly all the rest a unit's own meta no path rule finds. With both, CA picks either, so neither is guessed. A Meta
+        /// that is set is never changed.</summary>
+        public void SetAnimation(BinGridRow row, string? path)
+        {
+            var meta = MatchingMeta(path);
+            EditVariant(row, x =>
+            {
+                // A cell committed with the animation it already had fills nothing: 8,250 of CA's rows leave the meta empty on purpose.
+                if (meta != null && string.IsNullOrEmpty(x.AnimationMetaFile) && x.AnimationFile != path)
+                    x.AnimationMetaFile = meta;
+                x.AnimationFile = path ?? "";
+            });
+        }
+
+        string? MatchingMeta(string? animation)
+        {
+            if (animation == null || !animation.EndsWith(".anim", StringComparison.OrdinalIgnoreCase))
+                return null;
+            var stem = Key(animation)[..^".anim".Length];
+            var found = new[] { stem + ".anm.meta", stem + ".meta" }.Where(x => _pfs.FindFile(x) != null).ToList();
+            return found.Count == 1 ? found[0] : null;
+        }
+
         public void SetSlot(BinGridRow row, string name)
         {
             var id = BinXml.SlotId(Slots, name ?? "");
@@ -305,6 +332,34 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             var pick = _dialogs.DisplayBrowseDialog(extensions, filter);
             if (pick.Result && pick.File != null)
                 picked(Key(_pfs.GetFullPath(pick.File)));
+        }
+
+        /// <summary>SuperView with the table's skeleton, this table picked and the selected row's slot playing on it. A table names no
+        /// model, so the skeleton plays alone; a model can be added in SuperView. SuperView reads the animpack as saved.</summary>
+        [RelayCommand]
+        void Preview()
+        {
+            var skeleton = _pfs.FindFile($"animations/skeletons/{Skeleton}.anim");
+            if (skeleton == null)
+            {
+                Status = $"The skeleton {Skeleton} is not in the loaded packs.";
+                return;
+            }
+            if (_commands.Create<OpenEditorCommand>().Execute(EditorEnums.SuperView_Editor) is not EditorHostBase { SceneObjects: [var scene, ..] })
+                return;
+            scene.SetSkeleton(skeleton);
+
+            var sets = scene.FragAndSlotSelection;
+            var set = sets.FragmentList.PossibleValues?.FirstOrDefault(x => Key(x.FullPath) == Key(Table.FileName));
+            if (set == null)
+            {
+                Status = "SuperView lists this table once the animpack is saved.";
+                return;
+            }
+            sets.FragmentList.SelectedItem = set;
+            if (SelectedRows.FirstOrDefault() is { } row)
+                sets.FragmentSlotList.SelectedItem = sets.FragmentSlotList.PossibleValues?.Where(x => x.SlotName == row.Slot).ElementAtOrDefault(Math.Max(row.Variant, 0));
+            Status = Table.IsChanged.Value ? "SuperView shows the table as last saved. Save to see the edits there." : "";
         }
 
         [RelayCommand]

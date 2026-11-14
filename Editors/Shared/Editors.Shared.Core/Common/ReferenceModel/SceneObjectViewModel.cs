@@ -86,6 +86,9 @@ namespace Editors.Shared.Core.Common.ReferenceModel
 
         public void SetMesh(PackFile file) => _sceneObjectBuilder.SetMesh(Data, file);
 
+        /// <summary>A skeleton with no model, which lists that skeleton's animation sets.</summary>
+        public void SetSkeleton(PackFile file) => _sceneObjectBuilder.SetSkeleton(Data, file);
+
         public void RemoveMesh() => _sceneObjectBuilder.RemoveMesh(Data);
 
         public void Dispose()

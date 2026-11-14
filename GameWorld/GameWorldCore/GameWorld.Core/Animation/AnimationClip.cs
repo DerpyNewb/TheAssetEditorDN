@@ -165,6 +165,11 @@ namespace GameWorld.Core.Animation
             output.AnimationParts.Add(new AnimationPart());
 
             output.Bones = new BoneInfo[skeleton.BoneCount];
+            // One frame is a pose. CA never ships a file with one or two dynamic frames, and the game crashes on one
+            // (upstream #159). CA stores a pose as a static frame: every bone mapped static (10000 + index), no dynamic
+            // frames, and a frame count saying how long it is held, round(time x 20) + 1 and never under 3.
+            var isPose = DynamicFrames.Count == 1;
+            var mappingOffset = isPose ? 10000 : 0;
             for (var i = 0; i < skeleton.BoneCount; i++)
             {
                 output.Bones[i] = new BoneInfo()
@@ -174,10 +179,19 @@ namespace GameWorld.Core.Animation
                     ParentId = skeleton.GetParentBoneIndex(i)
                 };
 
-                output.AnimationParts[0].RotationMappings.Add(new AnimationBoneMapping(i));
-                output.AnimationParts[0].TranslationMappings.Add(new AnimationBoneMapping(i));
+                output.AnimationParts[0].RotationMappings.Add(new AnimationBoneMapping(mappingOffset + i));
+                output.AnimationParts[0].TranslationMappings.Add(new AnimationBoneMapping(mappingOffset + i));
             }
 
+            if (isPose)
+            {
+                var part = output.AnimationParts[0];
+                output.Header.FrameRate = 20; // every CA pose; (frames - 1) / time is 0 or NaN for one frame
+                part.StaticFrame = CreateFrameFromKeyFrame(0, skeleton);
+                part.PoseFrameCount = Math.Max(3, (int)Math.Round(PlayTimeInSec * output.Header.FrameRate) + 1);
+                output.Header.AnimationTotalPlayTimeInSec = (part.PoseFrameCount - 1) / output.Header.FrameRate;
+                return output;
+            }
 
             for (var i = 0; i < DynamicFrames.Count; i++)
                 output.AnimationParts[0].DynamicFrames.Add(CreateFrameFromKeyFrame(i, skeleton));

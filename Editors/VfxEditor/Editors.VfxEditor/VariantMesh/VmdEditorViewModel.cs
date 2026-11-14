@@ -417,6 +417,19 @@ namespace Editors.VfxEditor.VariantMesh
                 Status = "Not found in the loaded packs: " + path;
         }
 
+        /// <summary>The file in SuperView, which draws the model and plays its skeleton's animation sets. SuperView reads the file as
+        /// saved in the pack, so unsaved edits are not in it.</summary>
+        [RelayCommand]
+        void Preview()
+        {
+            FlushPendingEdits?.Invoke();
+            if (CurrentFile == null)
+                return;
+            _commands.Create<OpenEditorCommand>().Execute(CurrentFile, EditorEnums.SuperView_Editor);
+            if (HasUnsavedChanges)
+                Status = "SuperView shows the file as last saved. Save to see the edits there.";
+        }
+
         // Saving, undo
 
         // In the XML view the text box has its own undo; the grid's would change the file under text that no longer matches it.

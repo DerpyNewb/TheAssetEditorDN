@@ -160,6 +160,8 @@
                 <Button Content="Undo" Command="{Binding UndoCommand}" Style="{StaticResource ToolButton}" Margin="20,0,0,0" ToolTip="Ctrl+Z"/>
                 <Button Content="Redo" Command="{Binding RedoCommand}" Style="{StaticResource ToolButton}" ToolTip="Ctrl+Y"/>
                 <Button Content="Save" Command="{Binding SaveFileCommand}" Style="{StaticResource ToolButton}" ToolTip="Ctrl+S. Into the editable pack"/>
+                <Button Content="Preview" Command="{Binding PreviewCommand}" Style="{StaticResource ToolButton}"
+                        ToolTip="Opens the file in SuperView, as last saved: the model, and its skeleton's animation sets to play"/>
                 <TextBlock Text="Find" Style="{StaticResource Label}" Margin="20,0,6,0"/>
                 <TextBox x:Name="FindBox" Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}" Width="150"
                          ToolTip="Ctrl+H. Matches the model, reference and imposter paths, ignoring case">
