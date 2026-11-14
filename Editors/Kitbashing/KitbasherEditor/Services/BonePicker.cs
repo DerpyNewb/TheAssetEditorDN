@@ -6,11 +6,8 @@ using Microsoft.Xna.Framework;
 
 namespace Editors.KitbasherEditor.Services
 {
-    /// <summary>
-    /// Picking bones in Kitbash's 3D view. While pick mode is on, a click picks the bone of the shown skeleton nearest the cursor
-    /// instead of selecting, so the mesh, face or vertex selection stays as it was. The skeleton draws the picked bone highlighted,
-    /// the weight heatmap shows it, and the Pin tool's Bone mode, the Snap window and the Skeleton panel select it.
-    /// </summary>
+    /// <summary>While pick mode is on, a click picks the nearest bone of the shown skeleton instead of selecting, so the mesh,
+    /// face or vertex selection is kept.</summary>
     public class BonePicker
     {
         /// <summary>How far from a drawn bone, in pixels, a click still picks it.</summary>

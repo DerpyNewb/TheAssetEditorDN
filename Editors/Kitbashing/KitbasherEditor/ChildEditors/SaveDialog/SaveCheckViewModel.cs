@@ -43,7 +43,6 @@ namespace Editors.KitbasherEditor.ChildEditors.SaveDialog
         /// <summary>Set by Save anyway. A save goes ahead only when this is true.</summary>
         public bool SaveAnyway { get; private set; }
 
-        /// <summary>Asks the window to close.</summary>
         public event Action? CloseRequested;
 
         /// <summary>A tool a fix asked for during a save, to open once the modal window has closed and the main window answers again.</summary>

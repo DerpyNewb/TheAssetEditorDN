@@ -108,11 +108,8 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
             if (step == null)
                 return false;
 
-            // Pin zeroes a target's pivot without moving its vertices, which moves the mesh, and Skin Wrap matches vertices by
-            // position without the pivot, so the tool used to refuse a mesh with a pivot. Each pivot now goes into its vertices
-            // first, in the same undo step, so the mesh still draws where it did. Skin Wrap's sources are matched by position too,
-            // while Pin's source vertex only gives its weights. Bone mode bakes as well: the save check warns about a pivot on a
-            // model with a skeleton.
+            // Pin and Skin Wrap ignore a mesh's pivot, so the targets' pivots (and Skin Wrap's sources') go into their vertices
+            // first, in the same undo step. Bone mode bakes too, because the save check warns about a pivot on a rigged model.
             var baked = targets
                 .Concat(SelectedRiggingMode == RiggingMode.SkinWrap ? SkinWrapMode.SourceMeshes : [])
                 .Where(x => x.PivotPoint != Vector3.Zero)

@@ -58,10 +58,8 @@ namespace Editors.AnimationMeta.SuperView
         }
     }
 
-    /// <summary>A translate handle in SuperView on each position field of the tag picked in the meta panel. Kitbash's
-    /// GizmoComponent moves what the scene selection holds and bakes the move into mesh vertices; this drives the same Gizmo widget
-    /// at a tag's field instead, the way the BMD and CSC editors drive theirs at their elements. Picking follows the meta panel,
-    /// so there is no clicking a marker in the view.</summary>
+    /// <summary>A translate handle on each position field of the tag picked in the meta panel. It drives the shared Gizmo widget
+    /// at that field, as the BMD and CSC editors do, rather than at the scene selection.</summary>
     public class MetaTagGizmoComponent : BaseComponent, IDisposable
     {
         // SPLASH_ATTACK's two ends are the most positions one tag has; each gets a handle of its own.

@@ -45,7 +45,7 @@
         <code>SOUND_TRIGGER</code> and <code>SPLASH_ATTACK</code>. The label carries the time, such as
         <code>FirePos @1.13s</code>, and an orange ring lights round the marker for a quarter of a second from that time.
         A tag with a longer window, such as <code>SplashAttack 0.20-1.00s</code>, stays lit for the whole window.
-        Almost every vanilla event tag is an instant, so most of them flash.
+        Almost every vanilla event tag is an instant, so most light up for only that quarter of a second.
     </p>
 
     <h2>The tag timeline</h2>
@@ -115,7 +115,7 @@
     </ul>
 
     <div class="note">
-        <strong>Copy CA's values.</strong> The values a new tag starts with are placeholders, not CA's. Start from how the
+        <strong>Copy CA's values.</strong> A new tag starts with placeholder values. Start from how the
         game's own animations use the tag instead, with the vanilla examples below.
     </div>
 
@@ -175,7 +175,7 @@
     <h2>Things that catch people out</h2>
 
     <ul>
-        <li><strong>Which weapons show is the animation set's choice, not the meta's.</strong> Each slot of a WH3 animation
+        <li><strong>The animation set decides which weapons show.</strong> Each slot of a WH3 animation
             set carries a weapon flag per <code>be_prop</code> bone, and the game hides the weapons whose flag is off.
             Edit those in the animation set.</li>
         <li><strong>Weapon bone numbers.</strong> The docking and weapon tags name a weapon bone by number. SuperView reads

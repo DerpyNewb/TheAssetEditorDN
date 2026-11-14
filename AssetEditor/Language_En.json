@@ -480,7 +480,7 @@
   "SuperView.SlotFiles.Apply": "Apply to slot",
   "SuperView.SlotFiles.BrowseAnimation": "Only animations for this set's skeleton are listed.",
   "SuperView.Timeline": "Tag timeline",
-  "SuperView.Timeline.Tooltip": "Each tick is a tag from the persistent or the animation meta, at its Start Time, with a bar on to its End Time when that's later. A dashed tick is outside the clip and sits at the nearer edge. The selected tag's tick is red. Click a tick to move the playhead there and select its tag.",
+  "SuperView.Timeline.Tooltip": "Each tick is a tag from the persistent or the animation meta, at its Start Time, with a bar running to its End Time when that's later. A dashed tick is outside the clip and sits at the nearer edge. The selected tag's tick is red. Click a tick to move the playhead there and select its tag.",
   "EditorHost.Menu.Lighting": "Lighting...",
   "EditorHost.Menu.Lighting.ToolTip": "The Kitbash editor's render settings: the light's intensity, colour and turn, which light the models and lit smoke, and the grid",
   "EditorHost.Menu.Screenshot": "Screenshot",

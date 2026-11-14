@@ -17,12 +17,8 @@ namespace Editors.AnimationMeta.MetaEditor.Examples
 
     public record VanillaExampleField(string Name, string Value);
 
-    /// <summary>
-    /// A few vanilla uses of each tag and version, read from the loaded CA packs the first time any are asked for and kept for
-    /// the session. The packs are read on the user's machine, so nothing of CA's is stored in this repo; MetaDataDatabase holds
-    /// only the use counts. WH3's 67,530 metas, all in anim2.pack, took 32.5 s to read on one thread and 5.5 to 9.7 s on
-    /// eleven (2026-11-14), so the scan runs off the UI thread and Scan hands back the task.
-    /// </summary>
+    /// <summary>A few vanilla uses of each tag version, read from the loaded CA packs on first request and kept for the session;
+    /// nothing of CA's is stored in the repo. Reading WH3's 67,530 metas takes 5 to 10 s, so the scan runs off the UI thread.</summary>
     public class VanillaMetaExamples
     {
         public const int PerKey = 5;
@@ -120,12 +116,8 @@ namespace Editors.AnimationMeta.MetaEditor.Examples
         // The editor shows "StartTime" as "Start Time"; the examples use the same names so a value can be matched to its box.
         static string SpacedName(string name) => Regex.Replace(name, "(?<!^)([A-Z])", " $1");
 
-        /// <summary>
-        /// Prefers examples whose values differ in more than their times: of SOUND_TRIGGER_11's 261,641 vanilla uses, the first
-        /// five are otherwise the same tag at five moments, which shows one way to use it, not five. Of those, one file's comes
-        /// first: four of FIRE_POS_10's first five were from one file, be1_elemental_cast_fwd_01, which showed one animation, not five. Other values
-        /// from a file already shown come next, and ones that differ only in their times fill the rest.
-        /// </summary>
+        /// <summary>Order: values that differ in more than their times, one file each first, then more from a file already shown,
+        /// then ones that differ only in their times.</summary>
         sealed class Kept
         {
             readonly List<VanillaExample> _distinct = [];

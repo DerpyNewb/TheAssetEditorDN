@@ -11,9 +11,6 @@ namespace Editors.AnimationMeta.SuperView
     public sealed record TimelineTick(ParsedMetadataAttribute Tag, bool Persistent, float StartTime, double From, double To,
         bool IsWindow, bool Outside, bool IsSelected, string Tooltip);
 
-    // The timeline strip: a tick for every tag with times in both metas at its Start Time, a bar on to its End Time where that
-    // is later, and the tag selected in the shown tab in red, as the viewport draws it. A click on a tick moves the playhead
-    // to the tag and selects it.
     public partial class SuperViewViewModel
     {
         [ObservableProperty] IReadOnlyList<TimelineTick> _timelineTicks = [];

@@ -30,9 +30,8 @@ namespace Editors.AnimationMeta.Presentation
         [RelayCommand(CanExecute = nameof(SelectedTagHasTimes))] void SetStartToNow() => SetToNow(nameof(DecodedMetaEntryBase.StartTime));
         [RelayCommand(CanExecute = nameof(SelectedTagHasTimes))] void SetEndToNow() => SetToNow(nameof(DecodedMetaEntryBase.EndTime));
 
-        // Written through the field's box, as if typed: the box shows it, the file is marked unsaved and SuperView redraws.
-        // The coalescer is broken on both sides, so the press is an undo step of its own and does not join a drag or a typed
-        // edit of the same tag made a moment before or after it.
+        // Written through the field's box, as if typed, so the box, the unsaved mark and SuperView all follow. _edits.Break()
+        // on both sides makes the press an undo step of its own, never part of a drag or typed edit around it.
         void SetToNow(string property)
         {
             if (!SelectedTagHasTimes())
