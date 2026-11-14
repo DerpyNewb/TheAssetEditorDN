@@ -153,8 +153,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             if (skeleton is SceneObject scene)
             {
                 var disable = Both<DisableModel>(usePersistent ? persistent : null, metaData);
-                if (disable.Count != 0)
-                    output.Add(new DisableModelInstance(scene, disable));
+                var alpha = Both<Alpha_v10>(usePersistent ? persistent : null, metaData).OrderBy(x => x.StartTime).ToList();
+                if (disable.Count + alpha.Count != 0)
+                    output.Add(new DisableModelInstance(scene, t => disable.Any(x => IsOn(x, t)) || AlphaIsZero(alpha, t)));
                 var rescale = Both<ReScale>(usePersistent ? persistent : null, metaData);
                 if (rescale.Count != 0)
                     output.Add(new RescaleInstance(scene, rescale));
@@ -170,6 +171,16 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         // tags read: 0/0 on the engines' "invisible" stands, an instant where a matched-combat victim is swallowed.
         public static bool IsOn(DecodedMetaEntryBase tag, float time) =>
             tag.EndTime > tag.StartTime ? time >= tag.StartTime && time <= tag.EndTime : time >= tag.StartTime;
+
+        // ALPHA tags are keys: all 1,400 vanilla ones are instants, at 0 or 1, and a death keys 1 a moment before its 0,
+        // which only means something if the game fades from one key to the next. Read as fades or as snaps, the alpha is 0
+        // from a 0 key until the next key, unless that key is above 0, where a fade would already be under way. The preview
+        // draws meshes opaque, so it hides the model only where both readings agree it is invisible. Keys sorted by time.
+        static bool AlphaIsZero(List<Alpha_v10> keys, float time)
+        {
+            var i = keys.FindLastIndex(x => x.StartTime <= time);
+            return i >= 0 && keys[i].DesiredAlpha <= 0 && (i + 1 == keys.Count || keys[i + 1].DesiredAlpha <= 0);
+        }
 
         // The vfx filter ids the two metas' EFFECT tags carry, lowest first, 0 (every entity) left out.
         public static List<int> VfxFilterIds(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData) =>

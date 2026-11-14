@@ -111,6 +111,38 @@ namespace Test.AnimationMeta
             Assert.That(_scene.ModelNode.IsVisible, Is.True, "shown again once the tag is gone");
         }
 
+        static Alpha_v10 AlphaKey(float at, float alpha) => new() { StartTime = at, EndTime = at, DesiredAlpha = alpha };
+
+        // Vanilla's deaths key 1 then 0 a moment later: the model is gone from the 0 key on.
+        [TestCase(0.4f, true)]
+        [TestCase(0.7f, true)]
+        [TestCase(0.9f, false)]
+        public void Alpha_AZeroKeyAfterAOneKey_HidesTheModelFromIt(float time, bool shown)
+        {
+            var instances = Build(null, Meta(AlphaKey(0.8f, 0), AlphaKey(0.5f, 1)));
+            Assert.That(ModelShownAt(instances, time), Is.EqualTo(shown));
+        }
+
+        // A resurrection keys 0, 0, then 1. Between the two zeros the model is gone whichever way the game reads keys; after
+        // the second it is fading in, or still gone, and the preview cannot tell, so it is drawn.
+        [TestCase(0.3f, false)]
+        [TestCase(0.6f, true)]
+        [TestCase(0.9f, true)]
+        public void Alpha_IsHiddenOnlyWhereItIsZeroUnderEitherReading(float time, bool shown)
+        {
+            var instances = Build(null, Meta(AlphaKey(0.2f, 0), AlphaKey(0.4f, 0), AlphaKey(0.8f, 1)));
+            Assert.That(ModelShownAt(instances, time), Is.EqualTo(shown));
+        }
+
+        [Test]
+        public void Alpha_AndDisableModel_BothHideTheModel()
+        {
+            var instances = Build(null, Meta(new DisableModel { StartTime = 0.1f, EndTime = 0.3f }, AlphaKey(0.8f, 0)));
+            Assert.That(ModelShownAt(instances, 0.2f), Is.False, "the DISABLE_MODEL window");
+            Assert.That(ModelShownAt(instances, 0.5f), Is.True, "between them");
+            Assert.That(ModelShownAt(instances, 0.9f), Is.False, "after the zero key");
+        }
+
         float ScaleAt(List<IMetaDataInstance> instances, float time)
         {
             foreach (var instance in instances)
