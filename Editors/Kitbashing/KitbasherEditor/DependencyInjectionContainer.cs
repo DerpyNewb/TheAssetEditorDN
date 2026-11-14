@@ -2,6 +2,7 @@
 using Editors.KitbasherEditor.ChildEditors.PhotoStudio;
 using Editors.KitbasherEditor.ChildEditors.PinTool;
 using Editors.KitbasherEditor.ChildEditors.PinTool.Commands;
+using Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths;
 using Editors.KitbasherEditor.ChildEditors.ReRiggingTool;
 using Editors.KitbasherEditor.ChildEditors.VertexDebugger;
 using Editors.KitbasherEditor.Commands;
@@ -84,6 +85,10 @@ namespace Editors.KitbasherEditor
             serviceCollection.AddTransient<PinMeshToVertexCommand>();
             serviceCollection.AddTransient<SkinWrapRiggingCommand>();
             serviceCollection.AddTransient<BindMeshToBoneCommand>();
+
+            // Replace in texture paths
+            serviceCollection.AddTransient<ReplaceTexturePathsViewModel>();
+            RegisterWindow<ReplaceTexturePathsWindow>(serviceCollection);
 
             // PhotoStudio
             serviceCollection.AddTransient<OpenPhotoStudioCommand>();

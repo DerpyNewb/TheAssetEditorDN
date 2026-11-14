@@ -1,0 +1,42 @@
+<UserControl x:Class="Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths.ReplaceTexturePathsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+             mc:Ignorable="d">
+    <Grid Margin="6">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+        </Grid.RowDefinitions>
+
+        <Label Grid.Row="0" Grid.Column="0" Content="{loc:Loc KitbashTool.ReplaceTexturePaths.Find}"/>
+        <TextBox Grid.Row="0" Grid.Column="1" Margin="3" VerticalContentAlignment="Center" Text="{Binding Find, UpdateSourceTrigger=PropertyChanged}"/>
+
+        <Label Grid.Row="1" Grid.Column="0" Content="{loc:Loc KitbashTool.ReplaceTexturePaths.ReplaceWith}"/>
+        <TextBox Grid.Row="1" Grid.Column="1" Margin="3" VerticalContentAlignment="Center" Text="{Binding Replace, UpdateSourceTrigger=PropertyChanged}"/>
+
+        <CheckBox Grid.Row="2" Grid.Column="1" Margin="3" Content="{loc:Loc KitbashTool.ReplaceTexturePaths.MatchCase}" IsChecked="{Binding MatchCase}"/>
+        <CheckBox Grid.Row="3" Grid.Column="1" Margin="3" Content="{loc:Loc KitbashTool.ReplaceTexturePaths.OnlySelected}" IsChecked="{Binding OnlySelected}" IsEnabled="{Binding HasSelection}"
+                  ToolTip="{loc:Loc KitbashTool.ReplaceTexturePaths.OnlySelectedTooltip}"/>
+
+        <TextBlock Grid.Row="4" Grid.Column="1" Margin="3,6,3,6">
+            <Run Text="{loc:Loc KitbashTool.ReplaceTexturePaths.ChangeCount}"/>
+            <Run Text="{Binding ChangeCount, Mode=OneWay}" FontWeight="Bold"/>
+        </TextBlock>
+
+        <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="70" Margin="3" Content="{loc:Loc KitbashTool.ReplaceTexturePaths.Replace}" Click="ReplaceButtonClick" IsEnabled="{Binding CanApply}" IsDefault="True"/>
+            <Button Width="70" Margin="3" Content="{loc:Loc KitbashTool.ReplaceTexturePaths.Cancel}" Click="CancelButtonClick" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

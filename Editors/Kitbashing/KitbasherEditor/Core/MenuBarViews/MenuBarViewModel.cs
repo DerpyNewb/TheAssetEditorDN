@@ -3,6 +3,7 @@ using System.Windows.Input;
 using Editors.KitbasherEditor.ChildEditors.MeshFitter;
 using Editors.KitbasherEditor.ChildEditors.PhotoStudio;
 using Editors.KitbasherEditor.ChildEditors.PinTool.UiCommands;
+using Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths;
 using Editors.KitbasherEditor.ChildEditors.ReRiggingTool;
 using Editors.KitbasherEditor.ChildEditors.SaveDialog;
 using Editors.KitbasherEditor.ChildEditors.VertexDebugger;
@@ -102,6 +103,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             RegisterUiCommand<OpenReriggingToolCommand>();
             RegisterUiCommand<OpenPinToolCommand>();
             RegisterUiCommand<AssignMaterialFromOtherMeshUiCommand>();
+            RegisterUiCommand<OpenReplaceTexturePathsCommand>();
 
             RegisterUiCommand<ExpandFaceSelectionCommand>();
             RegisterUiCommand<ConvertFaceToVertexCommand>();
@@ -136,6 +138,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateToolBarItem<GroupItemsCommand>(toolsToolbar, "(Un)Group selection");
             builder.CreateToolBarItem<ReduceMeshCommand>(toolsToolbar, "\"Reduce mesh by 10%\"");
             builder.CreateToolBarItem<SortMeshesCommand>(toolsToolbar, "Sort models by name");
+            builder.CreateToolBarItem<OpenReplaceTexturePathsCommand>(toolsToolbar, _localizationManager.Get("KitbashTool.ReplaceTexturePaths.Menu"));
             builder.CreateToolBarSeparator(toolsToolbar);
             builder.CreateToolBarItem<MirrorMeshCommand>(toolsToolbar, "Mirror left to right");
             builder.CreateToolBarItem<MirrorMeshKeepBonesCommand>(toolsToolbar, "Mirror left to right, keep bones");
