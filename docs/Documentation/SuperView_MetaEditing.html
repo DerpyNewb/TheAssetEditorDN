@@ -35,17 +35,18 @@
     <h2>Reading the viewport</h2>
 
     <p>
-        Tags with a position are drawn as markers with a label. A marker is black, and red while its tag is selected in the
-        meta editor.
+        Tags with a position are drawn as markers with a label. A marker is white on a dark background and black on a light
+        one, and red while its tag is selected in the meta editor.
     </p>
 
     <p>
         Event tags also show when they fire. These are <code>FIRE_POS</code> (where the projectile spawns),
         <code>IMPACT_POS</code> (the hit), <code>TARGET_POS</code>, <code>CAMERA_SHAKE_POS</code>,
         <code>SOUND_TRIGGER</code> and <code>SPLASH_ATTACK</code>. The label carries the time, such as
-        <code>FirePos @1.13s</code>, and an orange ring lights round the marker for a quarter of a second from that time.
-        A tag with a longer window, such as <code>SplashAttack 0.20-1.00s</code>, stays lit for the whole window.
-        Almost every vanilla event tag is an instant, so most light up for only that quarter of a second.
+        <code>FirePos @1.13s</code>, and the marker and its label turn yellow for a quarter of a second from that time, even
+        while the tag is selected. A tag with a longer window, such as <code>SplashAttack 0.20-1.00s</code>, stays yellow
+        for the whole window, and a splash attack's whole area turns yellow with it. Almost every vanilla event tag is an
+        instant, so most turn yellow for only that quarter of a second.
     </p>
 
     <h2>The tag timeline</h2>
@@ -56,6 +57,12 @@
         see the tag and its time. Click it to move the animation to that moment, paused, and select the tag in the editor.
         The selected tag's tick is red. A tag that starts before the clip or after its end is drawn as a dashed tick at the
         nearer edge.
+    </p>
+
+    <p>
+        The strip is also a slider for the animation. The blue line with a triangle on top is the playhead, and it follows
+        the animation as it plays. Click anywhere on the strip away from a tick, or drag along it from anywhere, to move the
+        animation to that point. The animation pauses there, so you can step on from it with the playback bar.
     </p>
 
     <h2>Timing a tag</h2>

@@ -3,6 +3,7 @@ using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -207,6 +208,38 @@ namespace Test.AnimationMeta
         }
 
         [Test]
+        public void ScrubTo_PausesTheClipThere_AndMovesThePlayhead()
+        {
+            var lengthUs = MainPlayer.GetAnimationLengthUs();
+            MainPlayer.Play();
+
+            _superView.ScrubTo(0.5);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo((long)Math.Round(0.5 * lengthUs)));
+                Assert.That(MainPlayer.IsPlaying, Is.False, "paused there");
+                Assert.That(_superView.PlayheadFraction, Is.EqualTo(0.5).Within(1e-4));
+                Assert.That(_superView.Player.SelectedAnimationCurrentTime.Value, Is.EqualTo(Length * 0.5f).Within(1e-4), "the playback bar's readout");
+            });
+
+            _superView.ScrubTo(2);
+            Assert.That((MainPlayer.GetTimeUs(), _superView.PlayheadFraction), Is.EqualTo((lengthUs, 1d)), "past the end is the end");
+            _superView.ScrubTo(-1);
+            Assert.That((MainPlayer.GetTimeUs(), _superView.PlayheadFraction), Is.EqualTo((0L, 0d)), "before the start is the start");
+        }
+
+        // Playback moves the player a frame at a time, which raises the frame event the playback bar's readout follows.
+        [Test]
+        public void ThePlayhead_FollowsThePlayer_AsItPlays()
+        {
+            MainPlayer.CurrentFrame = MainPlayer.FrameCount() / 2;
+
+            Assert.That(_superView.PlayheadFraction, Is.EqualTo(MainPlayer.GetTimeUs() / (double)MainPlayer.GetAnimationLengthUs()).Within(1e-6));
+            Assert.That(_superView.PlayheadFraction, Is.GreaterThan(0.3).And.LessThan(0.7));
+        }
+
+        [Test]
         public void SetStartAndEndToNow_SetThePlayersTime()
         {
             var row = Add("SPLASH_ATTACK_10", 0.1f, 0.1f);
@@ -321,6 +354,53 @@ namespace Test.AnimationMeta
             finally
             {
                 host.Close();
+            }
+        }
+
+        // A press is raised as the tunnelling PreviewMouseDown a real click is; PreviewMouseLeftButtonDown is a direct event, so
+        // raised on a tick it never reaches the strip. Scrubbing pauses the clip, which is how the test tells a scrub happened.
+        [Test, Apartment(ApartmentState.STA)]
+        public void TheStripView_DrawsThePlayhead_AndIsASliderForTheClip()
+        {
+            var tick = Add("FIRE_POS_10", Length * 0.5f, Length * 0.5f);
+            var view = new MetaTimelineView { DataContext = _superView };
+            var host = new Window { Content = view, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None, Left = -10000, Width = 400, Height = 120 };
+            try
+            {
+                host.Show();
+                Pump();
+                var ticks = (ItemsControl)view.FindName("Ticks");
+                var strip = (Border)view.FindName("Strip");
+                var playhead = FindAll<Canvas>(view).Single(x => AutomationProperties.GetAutomationId(x) == "MetaTimelinePlayhead");
+                var width = ticks.ActualWidth;
+                double PlayheadX() => playhead.TranslatePoint(new Point(0, 0), ticks).X;
+                Assert.That(width, Is.GreaterThan(300));
+
+                _superView.ScrubTo(0.25);
+                Pump();
+                Assert.That(PlayheadX(), Is.EqualTo(0.25 * width - 1).Within(0.5), "a quarter of the way along");
+
+                view.Scrub(0.75 * width);
+                Pump();
+                Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo(0.75 * MainPlayer.GetAnimationLengthUs()).Within(MainPlayer.GetAnimationLengthUs() * 1e-3), "the clip");
+                Assert.That(PlayheadX(), Is.EqualTo(0.75 * width - 1).Within(0.5), "the playhead");
+
+                MainPlayer.Play();
+                Press(Part(TickButton(view, tick), "Tick"));
+                Assert.That(MainPlayer.IsPlaying, Is.True, "a press on a tick is left to its click");
+                Press(strip);
+                Assert.That(MainPlayer.IsPlaying, Is.False, "a press on the strip scrubs, which pauses the clip");
+            }
+            finally
+            {
+                host.Close();
+            }
+
+            static void Press(UIElement target)
+            {
+                target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseDownEvent });
+                target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseUpEvent });
+                Pump();
             }
         }
 

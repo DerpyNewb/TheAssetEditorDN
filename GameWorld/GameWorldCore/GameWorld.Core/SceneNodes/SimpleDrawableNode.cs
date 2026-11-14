@@ -17,6 +17,9 @@ namespace GameWorld.Core.SceneNodes
             Name = name;
         }
 
+        /// <summary>When set, every line and label of the node draws in this colour instead of its own.</summary>
+        public Color? Tint { get; set; }
+
         public void AddItem(WorldTextRenderItem item)
         {
             _renderList.Add(item);
@@ -33,16 +36,17 @@ namespace GameWorld.Core.SceneNodes
             foreach (var item in _renderList)
             {
                 item.ModelMatrix = m;
+                item.Tint = Tint;
                 renderEngine.AddRenderItem(RenderBuckedId.Font, item);
             }
 
             for (var i = 0; i < _lineVertexList.Count; i += 2)
             {
                 var transformedPos0 = Vector3.Transform(_lineVertexList[i+0].Position, m);
-                var transformed0 = new VertexPositionColor(transformedPos0, _lineVertexList[i+0].Color);
+                var transformed0 = new VertexPositionColor(transformedPos0, Tint ?? _lineVertexList[i+0].Color);
 
                 var transformedPos1 = Vector3.Transform(_lineVertexList[i + 1].Position, m);
-                var transformed1 = new VertexPositionColor(transformedPos1, _lineVertexList[i + 1].Color);
+                var transformed1 = new VertexPositionColor(transformedPos1, Tint ?? _lineVertexList[i + 1].Color);
 
                 renderEngine.AddRenderLines([transformed0, transformed1]);
             }

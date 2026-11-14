@@ -12,6 +12,11 @@ namespace GameWorld.Core.Rendering.RenderItems
         readonly string _text;
         public Matrix ModelMatrix { get; set; } = Matrix.Identity;
 
+        /// <summary>Drawn in place of the colour the label was made with, while set.</summary>
+        public Color? Tint { get; set; }
+
+        public Color Colour => Tint ?? _color;
+
         public WorldTextRenderItem(RenderEngineComponent resourceLib, string text, Vector3 pos)
         {
             _resourceLib = resourceLib;
@@ -40,7 +45,7 @@ namespace GameWorld.Core.Rendering.RenderItems
             var scale = 1.0f / (_pos - parameters.CameraPosition).Length();
 
             x = 0;
-            _resourceLib.CommonSpriteBatch.DrawString(_resourceLib.DefaultFont, _text, centeredPosition + new Vector2(measure.X * 0.5f, measure.Y * 0.5f), _color, x, new Vector2(measure.X * 0.5f, measure.Y * 0.5f), scale * 5, SpriteEffects.None, 0.99f);
+            _resourceLib.CommonSpriteBatch.DrawString(_resourceLib.DefaultFont, _text, centeredPosition + new Vector2(measure.X * 0.5f, measure.Y * 0.5f), Colour, x, new Vector2(measure.X * 0.5f, measure.Y * 0.5f), scale * 5, SpriteEffects.None, 0.99f);
             x += 0.05f;
         }
     }

@@ -16,6 +16,9 @@ namespace Editors.AnimationMeta.SuperView
         [ObservableProperty] IReadOnlyList<TimelineTick> _timelineTicks = [];
         [ObservableProperty] bool _hasTimeline;
 
+        /// <summary>Where the playhead is, as a fraction of the clip.</summary>
+        [ObservableProperty] double _playheadFraction;
+
         // A tag time is a float of seconds and the clip's length whole microseconds, so a tag at the last frame can come out a
         // hair past the end; that is still in the clip.
         const float EdgeSeconds = 1e-4f;
@@ -29,6 +32,32 @@ namespace Editors.AnimationMeta.SuperView
             MetaEditor.Now = Now;
             PersistentMetaEditor.PropertyChanged += OnTimelineSourceChanged;
             MetaEditor.PropertyChanged += OnTimelineSourceChanged;
+            // The playback bar's readout moves on every frame the player shows, and with every jump made here.
+            Player.SelectedAnimationCurrentTime.PropertyChanged += (_, _) => UpdatePlayhead();
+        }
+
+        void UpdatePlayhead()
+        {
+            var length = _asset.Data.Player.GetAnimationLengthUs();
+            PlayheadFraction = length > 0 ? Math.Clamp(_asset.Data.Player.GetTimeUs() / (double)length, 0, 1) : 0;
+        }
+
+        /// <summary>Pauses the clip at a fraction of its length, as a click or drag on the strip does.</summary>
+        public void ScrubTo(double fraction)
+        {
+            if (HasTimeline)
+                MoveTo((long)Math.Round(Math.Clamp(fraction, 0, 1) * _asset.Data.Player.GetAnimationLengthUs()));
+        }
+
+        void MoveTo(long timeUs)
+        {
+            var player = _asset.Data.Player;
+            player.Pause();
+            player.SetTime(timeUs);
+            // SetTime raises no frame event, so the playback bar's readout is moved with it.
+            Player.SelectedAnimationCurrentTime.Value = timeUs / 1_000_000f;
+            Player.SelectedAnimationCurrentFrame.Value = player.CurrentFrame;
+            UpdatePlayhead();
         }
 
         void OnTimelineSourceChanged(object? sender, PropertyChangedEventArgs e)
@@ -45,6 +74,7 @@ namespace Editors.AnimationMeta.SuperView
             var shown = SelectedTabControllerIndex == 0 ? PersistentMetaEditor : MetaEditor;
             HasTimeline = length > 0;
             TimelineTicks = length > 0 ? [.. Ticks(PersistentMetaEditor, true), .. Ticks(MetaEditor, false)] : [];
+            UpdatePlayhead();
 
             IEnumerable<TimelineTick> Ticks(MetaDataEditorViewModel editor, bool persistent)
             {
@@ -88,13 +118,7 @@ namespace Editors.AnimationMeta.SuperView
                 return;
 
             // A tag outside the clip is gone to at the nearer end. The player stops there, as the bar's frame buttons stop it.
-            var player = _asset.Data.Player;
-            var timeUs = Math.Clamp((long)Math.Round(tick.StartTime * 1_000_000d), 0, player.GetAnimationLengthUs());
-            player.Pause();
-            player.SetTime(timeUs);
-            // SetTime raises no frame event, so the playback bar's readout is moved with it.
-            Player.SelectedAnimationCurrentTime.Value = timeUs / 1_000_000f;
-            Player.SelectedAnimationCurrentFrame.Value = player.CurrentFrame;
+            MoveTo(Math.Clamp((long)Math.Round(tick.StartTime * 1_000_000d), 0, _asset.Data.Player.GetAnimationLengthUs()));
 
             // The tab first, so the rebuild the selection sets off highlights the tag in the tab that shows it. Delete acts on every
             // row marked selected, which the list keeps in step with its own clicks but not with this one.

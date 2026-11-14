@@ -17,58 +17,70 @@
     <!-- Shown once the slot's animation is loaded: without a clip there is no length to place the tags along. -->
     <GroupBox Header="{loc:Loc SuperView.Timeline}" ToolTip="{loc:Loc SuperView.Timeline.Tooltip}"
               Visibility="{Binding HasTimeline, Converter={StaticResource HasTimelineToVisibility}}">
-        <Border Height="22" BorderThickness="1"
-                Background="{DynamicResource ABrush.Tone2.Background.Static}" BorderBrush="{DynamicResource ABrush.Tone4.Border.Static}">
-            <ItemsControl ItemsSource="{Binding TimelineTicks}" AutomationProperties.AutomationId="MetaTimeline">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <local:MetaTimelinePanel ClipToBounds="True"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <!-- The selected tick is drawn over any it shares a time with; most vanilla metas stack several at 0. -->
-                <ItemsControl.ItemContainerStyle>
-                    <Style TargetType="ContentPresenter">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                <Setter Property="Panel.ZIndex" Value="1"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ItemsControl.ItemContainerStyle>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type local:TimelineTick}">
-                        <Button Command="{Binding DataContext.SelectTickCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                Focusable="False" Cursor="Hand" ToolTip="{Binding Tooltip}"
-                                AutomationProperties.AutomationId="MetaTimelineTick" AutomationProperties.Name="{Binding Tooltip}">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <!-- The transparent ground is the click target; the mark keeps MetaTimelinePanel.Pad clear on each side. -->
-                                    <Grid Background="Transparent">
-                                        <Grid Margin="3,0">
-                                            <Rectangle x:Name="Bar" Height="6" VerticalAlignment="Center" Opacity="0.6" Visibility="Collapsed"
-                                                       Fill="{DynamicResource ABrush.ColourfulGlyph.Static}"/>
-                                            <Rectangle x:Name="Tick" Width="2" HorizontalAlignment="Left" Fill="{DynamicResource ABrush.Foreground.Static}"/>
+        <!-- A press away from a tick, or a drag from anywhere, scrubs the clip (MetaTimelineView.xaml.cs). -->
+        <Border x:Name="Strip" Height="22" BorderThickness="1"
+                Background="{DynamicResource ABrush.Tone2.Background.Static}" BorderBrush="{DynamicResource ABrush.Tone4.Border.Static}"
+                PreviewMouseLeftButtonDown="OnPress" PreviewMouseMove="OnMove" PreviewMouseLeftButtonUp="OnRelease" LostMouseCapture="OnLostCapture">
+            <Grid>
+                <ItemsControl x:Name="Ticks" ItemsSource="{Binding TimelineTicks}" AutomationProperties.AutomationId="MetaTimeline">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <local:MetaTimelinePanel ClipToBounds="True"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <!-- The selected tick is drawn over any it shares a time with; most vanilla metas stack several at 0. -->
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="Panel.ZIndex" Value="1"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:TimelineTick}">
+                            <Button Command="{Binding DataContext.SelectTickCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                    Focusable="False" Cursor="Hand" ToolTip="{Binding Tooltip}"
+                                    AutomationProperties.AutomationId="MetaTimelineTick" AutomationProperties.Name="{Binding Tooltip}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <!-- The transparent ground is the click target; the mark keeps MetaTimelinePanel.Pad clear on each side. -->
+                                        <Grid Background="Transparent">
+                                            <Grid Margin="3,0">
+                                                <Rectangle x:Name="Bar" Height="6" VerticalAlignment="Center" Opacity="0.6" Visibility="Collapsed"
+                                                           Fill="{DynamicResource ABrush.ColourfulGlyph.Static}"/>
+                                                <Rectangle x:Name="Tick" Width="2" HorizontalAlignment="Left" Fill="{DynamicResource ABrush.Foreground.Static}"/>
+                                            </Grid>
                                         </Grid>
-                                    </Grid>
-                                    <ControlTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding IsWindow}" Value="True">
-                                            <Setter TargetName="Bar" Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                        <!-- Red, as the viewport draws the selected tag. -->
-                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                            <Setter TargetName="Tick" Property="Fill" Value="Red"/>
-                                            <Setter TargetName="Bar" Property="Fill" Value="Red"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding Outside}" Value="True">
-                                            <Setter TargetName="Tick" Property="OpacityMask" Value="{StaticResource Dashes}"/>
-                                        </DataTrigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                                        <ControlTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsWindow}" Value="True">
+                                                <Setter TargetName="Bar" Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <!-- Red, as the viewport draws the selected tag. -->
+                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                <Setter TargetName="Tick" Property="Fill" Value="Red"/>
+                                                <Setter TargetName="Bar" Property="Fill" Value="Red"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Outside}" Value="True">
+                                                <Setter TargetName="Tick" Property="OpacityMask" Value="{StaticResource Dashes}"/>
+                                            </DataTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Canvas x:Name="Playhead" Width="2" HorizontalAlignment="Left" IsHitTestVisible="False" Panel.ZIndex="2"
+                        AutomationProperties.AutomationId="MetaTimelinePlayhead">
+                    <Canvas.RenderTransform>
+                        <TranslateTransform x:Name="PlayheadShift"/>
+                    </Canvas.RenderTransform>
+                    <Rectangle Width="2" Height="20" Fill="{DynamicResource ABrush.ColourfulGlyph.Static}"/>
+                    <Polygon Points="-3,0 5,0 1,5" Fill="{DynamicResource ABrush.ColourfulGlyph.Static}"/>
+                </Canvas>
+            </Grid>
         </Border>
     </GroupBox>
 </UserControl>

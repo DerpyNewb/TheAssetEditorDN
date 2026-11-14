@@ -63,7 +63,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
         private static Color s_color = Color.Black;
         private static Color s_selectedColor = Color.Red;
-        private static readonly Color s_firingColor = Color.Orange;
+        public static readonly Color FiringColour = Color.Yellow;
 
         public bool ShowVfx { get; set; } = true;
         public int? VfxFilterId { get; set; }
@@ -180,8 +180,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
         // Whether an event tag is firing at a time: FIRE_POS spawns its projectile at Start Time, IMPACT_POS is the hit,
         // SOUND_TRIGGER plays, CAMERA_SHAKE_POS shakes. 99.6% of the vanilla ones are instants (End = Start; FIRE_POS 2,778
-        // of 2,791, IMPACT_POS 13,921 of 13,923, every TARGET_POS), so the marker flashes from Start Time for FlashSeconds,
-        // long enough to see at full speed. A tag with a longer window fires for the whole window.
+        // of 2,791, IMPACT_POS 13,921 of 13,923, every TARGET_POS), so the marker turns FiringColour from Start Time for
+        // FlashSeconds, long enough to see at full speed. A tag with a longer window fires for the whole window.
         public const float FlashSeconds = 0.25f;
         public static bool IsFiring(float startTime, float endTime, float time) =>
             time >= startTime && time <= Math.Max(endTime, startTime + FlashSeconds);
@@ -189,19 +189,6 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         static string WithTime(string name, float startTime, float endTime) => endTime > startTime
             ? FormattableString.Invariant($"{name} {startTime:0.00}-{endTime:0.00}s")
             : FormattableString.Invariant($"{name} @{startTime:0.00}s");
-
-        // The marker's flash: a ring twice the marker's size round each point, hidden until the tag fires.
-        IMetaDataInstance Firing(SceneNode marker, IMetaDataInstance markerInstance, float startTime, float endTime, float size, params Vector3[] at)
-        {
-            var flash = new SimpleDrawableNode(marker.Name + ":firing") { IsVisible = false };
-            foreach (var point in at)
-            {
-                flash.AddItem(LineHelper.AddCircle(point, size * 2, s_firingColor));
-                flash.AddItem(LineHelper.AddCircle(point, size * 2.2f, s_firingColor));
-            }
-            marker.AddObject(flash);
-            return new FiringInstance(markerInstance, flash, startTime, endTime);
-        }
 
         // ALPHA tags are keys: all 1,400 vanilla ones are instants, at 0 or 1, and a death keys 1 a moment before its 0,
         // which only means something if the game fades from one key to the next. Read as fades or as snaps, the alpha is 0
@@ -507,10 +494,10 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             node.AddItem(LineHelper.AddCircle(position, scale, color));
             root.AddObject(node);
 
-            return Firing(node, new DrawableMetaInstance(metaData.StartTime, metaData.EndTime, node.Name, node), metaData.StartTime, metaData.EndTime, scale, position);
+            return new FiringInstance(new DrawableMetaInstance(metaData.StartTime, metaData.EndTime, node.Name, node), node, metaData.StartTime, metaData.EndTime);
         }
 
-        // CREW_LOCATION: where an engine's crew member stands and which way he faces, in the model's space; the tag names no
+        // CREW_LOCATION: where an engine's crew member stands and which way it faces, in the model's space; the tag names no
         // bone. Its filter names the crew member: crew1 to crew3 and reserve1 to reserve3 on every vanilla tag that has one.
         // All 740 vanilla tags are 0/0, for the whole animation.
         private IMetaDataInstance CreateCrewLocation(ParsedMetadataAttribute tag, string filter, Vector3 position, Vector4 orientation, SceneNode root, ParsedMetadataAttribute? selectedAttribute)
@@ -523,7 +510,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         }
 
         // A named locator at a position relative to a bone, riding that bone as the animation plays, the way an EFFECT's
-        // locator does. Like the other event locators it is drawn for the whole animation and flashes when the tag fires.
+        // locator does. Like the other event locators it is drawn for the whole animation and turns yellow when the tag fires.
         private IMetaDataInstance CreateBoneLocator(ParsedMetadataAttribute tag, string name, float startTime, float endTime, int bone, Vector3 position, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, ParsedMetadataAttribute? selectedAttribute)
         {
             var color = selectedAttribute == tag ? s_selectedColor : s_color;
@@ -531,7 +518,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             node.AddItem(new WorldTextRenderItem(_resourceLibrary, WithTime(name, startTime, endTime), position, color));
             node.AddItem(LineHelper.AddLocator(position, 0.2f, color));
             root.AddObject(node);
-            var instance = Firing(node, new VfxEffectInstance(node, BoneAt(bone, skeleton, rootPlayer), 0), startTime, endTime, 0.1f, position);
+            var instance = new FiringInstance(new VfxEffectInstance(node, BoneAt(bone, skeleton, rootPlayer), 0), node, startTime, endTime);
             instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
             return instance;
         }
@@ -569,7 +556,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             node.AddItem(new WorldTextRenderItem(_resourceLibrary, WithTime("SplashAttack", splashAttack.StartTime, splashAttack.EndTime), textPos, color));
             node.AddItem(LineHelper.AddLine(splashAttack.StartPosition, splashAttack.EndPosition, color));
             root.AddObject(node);
-            var instance = Firing(node, new DrawableMetaInstance(splashAttack.StartTime, splashAttack.EndTime, node.Name, node), splashAttack.StartTime, splashAttack.EndTime, scale, splashAttack.StartPosition, splashAttack.EndPosition);
+            var instance = new FiringInstance(new DrawableMetaInstance(splashAttack.StartTime, splashAttack.EndTime, node.Name, node), node, splashAttack.StartTime, splashAttack.EndTime);
 
             if (MathUtil.CompareEqualFloats(distance))
             {

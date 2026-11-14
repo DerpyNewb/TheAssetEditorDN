@@ -208,10 +208,12 @@ namespace Test.AnimationMeta
         {
             foreach (var instance in instances)
                 instance.Update(time);
-            return Drawn(marker).Children.Single().IsVisible;
+            var tint = Drawn(marker).Tint;
+            Assert.That(tint, Is.Null.Or.EqualTo(MetaDataBuilder.FiringColour), marker);
+            return tint == MetaDataBuilder.FiringColour;
         }
 
-        // FIRE_POS is an instant, the projectile's spawn: its marker flashes from then for a quarter second.
+        // FIRE_POS is an instant, the projectile's spawn: its marker turns yellow from then for a quarter second.
         [TestCase(0.45f, false)]
         [TestCase(0.5f, true)]
         [TestCase(0.7f, true)]
@@ -222,15 +224,29 @@ namespace Test.AnimationMeta
             Assert.That(FiringAt(instances, "FirePos", time), Is.EqualTo(firing));
         }
 
+        // The marker itself changes colour; nothing is added round it.
         [Test]
-        public void FirePos_TheFlashIsARingRoundItsPosition_AndTheLabelSaysWhen()
+        public void FirePos_FiringTintsTheMarkerItself_AndTheLabelSaysWhen()
         {
-            var at = new Vector3(0, 2, 1);
-            Build(null, Meta(new FirePos_v10 { StartTime = 0.5f, EndTime = 0.5f, Position = at }));
+            var instances = Build(null, Meta(new FirePos_v10 { StartTime = 0.5f, EndTime = 0.5f, Position = new Vector3(0, 2, 1) }));
+            var marker = Drawn("FirePos");
+            var lines = Lines(marker);
 
-            var flash = (SimpleDrawableNode)Drawn("FirePos").Children.Single();
-            Assert.That(Lines(flash), Has.All.Matches<Vector3>(p => Vector3.Distance(p, at) > 0.5f && Vector3.Distance(p, at) < 0.7f), "wider than the marker's 0.3");
-            Assert.That(Labels(Drawn("FirePos")), Is.EqualTo(new[] { "FirePos @0.50s" }));
+            Assert.That(FiringAt(instances, "FirePos", 0.6f), Is.True);
+            Assert.That(marker.Children, Is.Empty, "no ring node");
+            Assert.That(Lines(marker), Is.EqualTo(lines), "the same lines, recoloured as they are drawn");
+            Assert.That(MetaDataBuilder.FiringColour, Is.EqualTo(Color.Yellow));
+            Assert.That(Labels(marker), Is.EqualTo(new[] { "FirePos @0.50s" }));
+        }
+
+        // A splash attack's cone, sphere or corridor is part of its marker, so the whole area turns yellow with it.
+        [Test]
+        public void SplashAttack_TheAreaIsPartOfTheMarkerThatTurnsYellow()
+        {
+            var tag = new SplashAttack_v10 { StartTime = 0.2f, EndTime = 1, StartPosition = Vector3.Zero, EndPosition = new Vector3(0, 0, 2), AoeShape = 1, WidthForCorridor = 1 };
+            var instances = Build(null, Meta(tag));
+            Assert.That(FiringAt(instances, "SplashAttack_1", 0.5f), Is.True);
+            Assert.That(Lines(Drawn("SplashAttack_1")), Has.Some.Matches<Vector3>(p => Math.Abs(new Vector2(p.X, p.Y).Length() - 0.5f) < 1e-3f), "the corridor's circles, half its width out, are in the tinted node");
         }
 
         // A tag with a window longer than the flash fires for the whole window.
@@ -259,7 +275,7 @@ namespace Test.AnimationMeta
         }
 
         [Test]
-        public void CleanUp_TakesTheFlashWithTheMarker()
+        public void CleanUp_TakesTheMarkerAway()
         {
             var instances = Build(null, Meta(new FirePos_v10 { StartTime = 0.5f, EndTime = 0.5f }));
             foreach (var instance in instances)

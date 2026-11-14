@@ -166,19 +166,20 @@ namespace Test.AnimationMeta
             Assert.That(Vector3.Distance(node.ModelMatrix.Translation, new Vector3(3, 1, 0)), Is.LessThan(0.01f), "still on it at 1.5 s");
         }
 
-        // Its flash is a child of the locator, so it rides the same bone, and it shows only as the sound plays.
+        // The locator riding its bone turns yellow only as the sound plays.
         [Test]
-        public void SoundTrigger_FlashesOnItsBone_WhenItPlays()
+        public void SoundTrigger_TurnsYellowOnItsBone_WhenItPlays()
         {
             var instance = Build(null, Meta(new SoundTrigger_v11 { SoundEvent = "Play_test_swing", BoneIndex = 1, StartTime = 0.5f, EndTime = 0.5f })).Single();
-            var flash = _root.Children.Single(x => x.Name == "Sound:Play_test_swing").Children.Single();
+            var locator = (SimpleDrawableNode)_root.Children.Single(x => x.Name == "Sound:Play_test_swing");
 
             instance.Update(0.4f);
-            Assert.That(flash.IsVisible, Is.False, "before it plays");
+            Assert.That(locator.Tint, Is.Null, "before it plays");
             instance.Update(0.6f);
-            Assert.That(flash.IsVisible, Is.True, "as it plays");
+            Assert.That(locator.Tint, Is.EqualTo(MetaDataBuilder.FiringColour), "as it plays");
+            Assert.That(locator.Children, Is.Empty, "no ring node");
             instance.Update(1.5f);
-            Assert.That(flash.IsVisible, Is.False, "after");
+            Assert.That(locator.Tint, Is.Null, "after");
         }
 
         [Test]

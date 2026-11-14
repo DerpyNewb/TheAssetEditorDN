@@ -13,7 +13,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         public sealed record Mark(Drawn Drawn, string Tooltip);
 
         const string NotDrawn = "SuperView doesn't draw this tag, so changing it moves nothing in the viewport.";
-        const string Locator = "SuperView draws a locator at this tag's position. It flashes orange when the tag fires.";
+        const string Locator = "SuperView draws a locator at this tag's position. It turns yellow when the tag fires.";
 
         // Keyed by the types MetaDataBuilder asks the metas for, so a tag version, or a tag that inherits a drawn one
         // (IMPACT_DIRECTION_POS is an IMPACT_POS), is matched the way the builder matches it. The first entry a tag's type
@@ -27,9 +27,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             (typeof(TargetPos_10), Drawn.Yes, Locator),
             (typeof(FirePos_v10), Drawn.Yes, Locator),
             (typeof(CameraShakePos), Drawn.Yes, Locator),
-            (typeof(SplashAttack_v10), Drawn.Yes, "SuperView draws the attack's area between its start and end positions. It flashes orange while the attack is on."),
-            (typeof(SoundTrigger_v10), Drawn.Yes, "SuperView draws a locator on this tag's bone. It flashes orange when the sound plays."),
-            (typeof(SoundTrigger_v4), Drawn.Yes, "SuperView draws a locator on this tag's bone. It flashes orange when the sound plays."),
+            (typeof(SplashAttack_v10), Drawn.Yes, "SuperView draws the attack's area between its start and end positions. It turns yellow while the attack is on."),
+            (typeof(SoundTrigger_v10), Drawn.Yes, "SuperView draws a locator on this tag's bone. It turns yellow when the sound plays."),
+            (typeof(SoundTrigger_v4), Drawn.Yes, "SuperView draws a locator on this tag's bone. It turns yellow when the sound plays."),
             (typeof(Transform_v10), Drawn.Partly, "SuperView moves and turns this tag's target bone for the whole clip. It ignores the tag's times, its source bone and its blend times."),
             (typeof(DisableModel), Drawn.Yes, "SuperView hides the model while this tag is on."),
             (typeof(ReScale), Drawn.Yes, "SuperView draws the model at this tag's scale while the tag is on."),

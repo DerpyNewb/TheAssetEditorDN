@@ -480,7 +480,7 @@
   "SuperView.SlotFiles.Apply": "应用到槽位",
   "SuperView.SlotFiles.BrowseAnimation": "只列出适用于此动画集骨骼的动画。",
   "SuperView.Timeline": "标签时间轴",
-  "SuperView.Timeline.Tooltip": "每个刻度是持久元数据或动画元数据中的一个标签，位于其 Start Time；若 End Time 更晚，则有一条横条延伸到 End Time。虚线刻度在片段之外，放在较近的一端。所选标签的刻度为红色。点击刻度可将播放头移到该处并选中其标签。",
+  "SuperView.Timeline.Tooltip": "每个刻度是持久元数据或动画元数据中的一个标签，位于其 Start Time；若 End Time 更晚，则有一条横条延伸到 End Time。虚线刻度在片段之外，放在较近的一端。所选标签的刻度为红色。点击刻度可将播放头移到该处并选中其标签。点击时间轴上的其他位置或沿其拖动，即可在动画中移动播放头。",
   "EditorHost.Menu.Lighting": "灯光...",
   "EditorHost.Menu.Lighting.ToolTip": "打开 Kitbash 编辑器的渲染设置：灯光强度、颜色和方向（照亮模型和受光烟雾）以及网格",
   "EditorHost.Menu.Screenshot": "截图",
