@@ -11,6 +11,8 @@ using Shared.GameFormats.AnimationMeta.Definitions;
 using Shared.GameFormats.AnimationMeta.Parsing;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
+using XnaQuaternion = Microsoft.Xna.Framework.Quaternion;
+using XnaVector3 = Microsoft.Xna.Framework.Vector3;
 
 namespace Test.AnimationMeta
 {
@@ -90,6 +92,28 @@ namespace Test.AnimationMeta
             Assert.That(splashAttack.Filter, Is.EqualTo(strValue));
             Assert.That(splashAttack.AoeShape, Is.EqualTo(intValue));
             Assert.That(splashAttack.EndPosition.X, Is.EqualTo(vectorValue));
+        }
+
+        // An orientation's Z box turns the tag about Z. It turned it about X, and 180 in any box wrote NaN into the tag.
+        [Test]
+        public void MetaDataEditor_OrientationZBoxAt180_TurnsTheTagHalfwayAboutZ()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Throt.pack"), true);
+            var metaPackFile = runner.PackFileService.FindFile(@"animations/battle/humanoid17/throt_whip_catcher/attacks/hu17_whip_catcher_attack_05.anm.meta");
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<MetaDataEditorViewModel>(metaPackFile!, Shared.Core.ToolCreation.EditorEnums.Meta_Editor);
+            var boxes = editor.Tags[0].Variables.OfType<OrientationAttributeViewModel>().Single().Value;
+
+            boxes.X.Value = 0;
+            boxes.Y.Value = 0;
+            boxes.Z.Value = 180;
+
+            var q = ((IAnimatedPropMeta)editor.ParsedFile!.Attributes[0]).Orientation;
+            var rotation = new XnaQuaternion(q);
+            Assert.That(float.IsFinite(q.X) && float.IsFinite(q.Y) && float.IsFinite(q.Z) && float.IsFinite(q.W), Is.True, $"stored {q}");
+            Assert.That(XnaVector3.Transform(XnaVector3.UnitX, rotation), Is.EqualTo(-XnaVector3.UnitX).Using<XnaVector3>((a, b) => XnaVector3.Distance(a, b) < 1e-4f), "X turned to -X");
+            Assert.That(XnaVector3.Transform(XnaVector3.UnitZ, rotation), Is.EqualTo(XnaVector3.UnitZ).Using<XnaVector3>((a, b) => XnaVector3.Distance(a, b) < 1e-4f), "Z stays put");
         }
 
         // A changed file shows red on its tab and asks before it closes, so every change counts until it is saved: an edited field,

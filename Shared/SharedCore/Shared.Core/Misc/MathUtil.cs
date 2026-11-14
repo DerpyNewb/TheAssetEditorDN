@@ -257,68 +257,53 @@ namespace Shared.Core.Misc
             return u * a + v * b + w * c;
         }
 
-        public static Vector3 QuaternionToEuler(Quaternion q1)
+        /// <summary>Radians as (heading about Y, attitude about Z, bank about X), the inverse of <see cref="EulerToQuaternions"/>.</summary>
+        public static Vector3 QuaternionToEuler(Quaternion q)
         {
-            double heading = 0;
-            double attitude = 0;
-            double bank = 0;
+            double x = q.X, y = q.Y, z = q.Z, w = q.W;
+            var sinAttitude = 2 * (x * y + z * w);
+            var headingSin = 2 * (y * w - x * z);
+            var headingCos = 1 - 2 * (y * y + z * z);
+            var cosAttitude = Math.Sqrt(headingSin * headingSin + headingCos * headingCos);
+            var attitude = Math.Atan2(sinAttitude, cosAttitude);
 
-            double test = q1.X * q1.Y + q1.Z * q1.W;
-            if (test > 0.499)
-            { // singularity at north pole
-                heading = 2 * Math.Atan2(q1.X, q1.W);
-                attitude = Math.PI / 2;
-                bank = 0;
-                return new Vector3((float)heading, (float)attitude, (float)bank);
-            }
-            if (test < -0.499)
-            { // singularity at south pole
-                heading = -2 * Math.Atan2(q1.X, q1.W);
-                attitude = -Math.PI / 2;
-                bank = 0;
-                return new Vector3((float)heading, (float)attitude, (float)bank);
-            }
-            double sqx = q1.X * q1.X;
-            double sqy = q1.Y * q1.Y;
-            double sqz = q1.Z * q1.Z;
-            heading = Math.Atan2(2 * q1.Y * q1.W - 2 * q1.X * q1.Z, 1 - 2 * sqy - 2 * sqz);
-            attitude = Math.Asin(2 * test);
-            bank = Math.Atan2(2 * q1.X * q1.W - 2 * q1.Y * q1.Z, 1 - 2 * sqx - 2 * sqz);
+            // Straight up or down, heading and bank turn about one axis, so heading takes both. This used to start at 0.499, which
+            // moved a rotation at 87 degrees to 90 and turned it 3 degrees the next time a box was edited.
+            if (cosAttitude < 1e-6)
+                return new Vector3((float)(Math.Sign(sinAttitude) * 2 * Math.Atan2(x, w)), (float)attitude, 0);
+
+            var heading = Math.Atan2(headingSin, headingCos);
+            var bank = Math.Atan2(2 * (x * w - y * z), 1 - 2 * (x * x + z * z));
             return new Vector3((float)heading, (float)attitude, (float)bank);
         }
 
+        /// <summary>Degrees as the X, Y and Z boxes show them, each turning about its own axis.</summary>
         public static Vector3 QuaternionToEulerDegree(Quaternion quaternions)
         {
             var euler = QuaternionToEuler(quaternions);
-            var degrees = new Vector3(MathHelper.ToDegrees(euler.X), MathHelper.ToDegrees(euler.Y), MathHelper.ToDegrees(euler.Z));
-            return degrees;
+            return new Vector3(MathHelper.ToDegrees(euler.Z), MathHelper.ToDegrees(euler.X), MathHelper.ToDegrees(euler.Y));
         }
 
+        /// <summary>Radians: heading about Y, then attitude about Z, then bank about X.</summary>
         public static Quaternion EulerToQuaternions(double heading, double attitude, double bank)
         {
-            // Assuming the angles are in radians.
-            var c1 = Math.Cos(heading);
-            var s1 = Math.Sin(heading);
-            var c2 = Math.Cos(attitude);
-            var s2 = Math.Sin(attitude);
-            var c3 = Math.Cos(bank);
-            var s3 = Math.Sin(bank);
-            var w = Math.Sqrt(1.0 + c1 * c2 + c1 * c3 - s1 * s2 * s3 + c2 * c3) / 2.0;
-            var w4 = 4.0 * w;
-            var x = (c2 * s3 + c1 * s3 + s1 * s2 * c3) / w4;
-            var y = (s1 * c2 + s1 * c3 + c1 * s2 * s3) / w4;
-            var z = (-s1 * s3 + c1 * s2 * c3 + s2) / w4;
+            // From half angles. The old form divided by w, which is 0 at any half turn, so 180 in a box wrote NaN.
+            var (s1, c1) = Math.SinCos(heading / 2);
+            var (s2, c2) = Math.SinCos(attitude / 2);
+            var (s3, c3) = Math.SinCos(bank / 2);
+            var w = c1 * c2 * c3 - s1 * s2 * s3;
+            var x = s1 * s2 * c3 + c1 * c2 * s3;
+            var y = s1 * c2 * c3 + c1 * s2 * s3;
+            var z = c1 * s2 * c3 - s1 * c2 * s3;
 
-            return new Quaternion((float)x, (float)y, (float)z, (float)w);
+            // q and -q are one rotation; w >= 0 is the sign the old form wrote, so a tag saved again keeps its numbers.
+            var sign = w < 0 ? -1 : 1;
+            return new Quaternion((float)(sign * x), (float)(sign * y), (float)(sign * z), (float)(sign * w));
         }
 
-        public static Quaternion EulerDegreesToQuaternion(Vector3 eulerDegrees)
-        {
-            var x = MathHelper.ToRadians(eulerDegrees.X);
-            var y = MathHelper.ToRadians(eulerDegrees.Y);
-            var z = MathHelper.ToRadians(eulerDegrees.Z);
-            return EulerToQuaternions(x, y, z);
-        }
+        /// <summary>Degrees from the X, Y and Z boxes, each turning about its own axis.</summary>
+        public static Quaternion EulerDegreesToQuaternion(Vector3 eulerDegrees) =>
+            EulerToQuaternions(MathHelper.ToRadians(eulerDegrees.Y), MathHelper.ToRadians(eulerDegrees.Z), MathHelper.ToRadians(eulerDegrees.X));
 
 
     }
