@@ -707,7 +707,7 @@
   "KitbashTool.SaveDialog.Browse": "Browse",
   "KitbashTool.SaveDialog.MeshFormat": "Mesh Format:",
   "KitbashTool.SaveDialog.WsModelFormat": "WS model Format:",
-  "KitbashTool.SaveDialog.LodStrategy": "Lod Stategy:",
+  "KitbashTool.SaveDialog.LodStrategy": "Lod Strategy:",
   "KitbashTool.SaveDialog.NumberOfLods": "Number of lods:",
   "KitbashTool.SaveDialog.LodInfo": "Lod Info:",
   "KitbashTool.SaveDialog.Cancel": "Cancel",

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SuperView and Meta Editing</title>
+    <link rel="stylesheet" href="DocumentationShared.css">
+    <script src="DocumentationShared.js" defer></script>
+</head>
+<body>
+
+    <h1>SuperView and Meta Editing</h1>
+
+    <p>
+        An animation's <strong>meta file</strong> (<code>.anm.meta</code>, or <code>.snd.meta</code> for sounds) holds
+        <strong>tags</strong>: timed events and settings that ride on the animation. A tag can fire a projectile, play a
+        sound, show an effect, put a weapon in a hand or hide the model. SuperView plays a unit's animation with its tags
+        drawn on it, and the meta editor beside it is where you change them.
+    </p>
+
+    <h2>Opening a unit in SuperView</h2>
+
+    <ol>
+        <li>Open the unit's variant mesh definition from the pack explorer and pick <strong>SuperView</strong> when
+            AssetEditor asks which editor to use. The battle table grid's <strong>Preview</strong> button opens SuperView too.</li>
+        <li>Pick the unit's animation set in <strong>Fragment</strong>, then an animation in <strong>Slot</strong>.
+            The model plays it, and the meta editor loads that slot's meta file.</li>
+    </ol>
+
+    <p>
+        The meta editor has two tabs. <strong>Animation</strong> holds the tags of the slot you picked.
+        <strong>Persistent</strong> holds the tags of the set's persistent meta, which apply whatever the unit is doing,
+        such as a prop it always carries or an effect that never stops.
+    </p>
+
+    <h2>Reading the viewport</h2>
+
+    <p>
+        Tags with a position are drawn as markers with a label. A marker is black, and red while its tag is selected in the
+        meta editor.
+    </p>
+
+    <p>
+        Event tags also show when they fire. These are <code>FIRE_POS</code> (where the projectile spawns),
+        <code>IMPACT_POS</code> (the hit), <code>TARGET_POS</code>, <code>CAMERA_SHAKE_POS</code>,
+        <code>SOUND_TRIGGER</code> and <code>SPLASH_ATTACK</code>. The label carries the time, such as
+        <code>FirePos @1.13s</code>, and an orange ring lights round the marker for a quarter of a second from that time.
+        A tag with a longer window, such as <code>SplashAttack 0.20-1.00s</code>, stays lit for the whole window.
+        Almost every vanilla event tag is an instant, so most of them flash.
+    </p>
+
+    <h2>The tag timeline</h2>
+
+    <p>
+        The <strong>Tag timeline</strong> strip, above the Persistent and Animation tabs, shows every tag with a time at once.
+        Each tag is a tick at its start time, and a tag whose end time is later gets a bar running to its end. Hover a tick to
+        see the tag and its time. Click it to move the animation to that moment, paused, and select the tag in the editor.
+        The selected tag's tick is red. A tag that starts before the clip or after its end is drawn as a dashed tick at the
+        nearer edge.
+    </p>
+
+    <h2>Timing a tag</h2>
+
+    <p>
+        To put a tag on a particular frame, step or scrub the animation to it, select the tag, and click
+        <strong>Set start to now</strong> or <strong>Set end to now</strong> under the tag list. The time goes into the
+        tag's field, and each click is one undo step. The buttons only show in SuperView, because the meta editor on its own
+        has no animation to read the time from.
+    </p>
+
+    <h2>Moving a tag in the viewport</h2>
+
+    <p>
+        Select a tag with a position on the Animation tab, and a handle with red, green and blue arrows appears on its marker.
+        Drag an arrow to move the tag along it. The position fields follow as you drag, and one Ctrl+Z undoes the whole drag.
+        Alt and a drag still turn the camera.
+    </p>
+
+    <p>
+        This works for <code>FIRE_POS</code>, <code>IMPACT_POS</code>, <code>TARGET_POS</code>, <code>CAMERA_SHAKE_POS</code>,
+        <code>CREW_LOCATION</code> (its position only; its facing is still typed in) and both ends of
+        <code>SPLASH_ATTACK</code>. It also works for <code>SOUND_TRIGGER</code> and <code>EFFECT</code>, whose positions
+        are measured from a bone: the handle stands where the marker is at the current moment, and the tag stores the
+        position relative to its bone. Tags on the Persistent tab get no handle.
+    </p>
+
+    <p>
+        <strong>Show VFX</strong> turns the effects' particles on and off. <strong>VFX filter</strong> picks which unit's
+        effects play: a unit and its Regiment of Renown often share one meta file, with a different id on each effect.
+    </p>
+
+    <h2>What SuperView draws</h2>
+
+    <p>
+        SuperView draws the tags that change what you see: props and animated props, effects and blood, the event markers
+        above, splash attack areas, crew positions, weapons moved between hands and hips, hand and face poses, and the tags
+        that hide, fade or rescale the model. Many other tags change how the game uses the animation rather than how it
+        looks, and those are edited blind: nothing in the viewport changes when you edit them.
+    </p>
+
+    <p>
+        An eye beside each tag in the tag list says which kind it is, and the New tag window has the same mark in its
+        <strong>SuperView</strong> column. An open eye means SuperView draws the tag. An outlined eye means it draws part of
+        it, and the tooltip says which part is missing. A faint crossed-out eye means SuperView doesn't draw it at all.
+    </p>
+
+    <h2>Editing tags</h2>
+
+    <ul>
+        <li><strong>New</strong> adds a tag. The <strong>Vanilla WH3 uses</strong> column says how often CA's own files use
+            each tag version. Pick a version with uses; versions with none are dimmed, and many of them come from other
+            games and don't take effect in WH3.</li>
+        <li>Select a tag to see its fields. Hover a field for what it means.</li>
+        <li><strong>Copy</strong> and <strong>Paste</strong> copy tags from one file to another, and <strong>Up</strong> and
+            <strong>Down</strong> reorder them. Every change can be undone.</li>
+    </ul>
+
+    <div class="note">
+        <strong>Copy CA's values.</strong> The values a new tag starts with are placeholders, not CA's. Start from how the
+        game's own animations use the tag instead, with the vanilla examples below.
+    </div>
+
+    <h2>Vanilla examples</h2>
+
+    <p>
+        When you pick a tag in the New tag window, the panel under the list shows up to five of the game's own animations
+        that use it. Files that use the tag in different ways come first. Pick one to see its values, then click
+        <strong>Insert like this one</strong> to add the new tag with those values instead of the placeholders.
+    </p>
+
+    <p>
+        <strong>Vanilla examples</strong> under the tag list opens the same list for the selected tag, in a window that
+        follows your selection. <strong>Copy into selected tag</strong> replaces the selected tag's values with the
+        example's, as one undo step.
+    </p>
+
+    <p>
+        The examples are read from the game's packs the first time you ask, which takes a few seconds. After that they show
+        at once. With no game packs loaded, there are no examples to show.
+    </p>
+
+    <h2>Check meta</h2>
+
+    <p>
+        <strong>Check meta</strong> lists problems in the open meta file. Click a problem to select its tag, and use
+        <strong>Check again</strong> after fixing it. It looks for:
+    </p>
+
+    <ul>
+        <li>a tag whose end time is before its start time;</li>
+        <li>a tag that starts after the animation ends;</li>
+        <li>a tag version the game's own files never use, with the version they use most;</li>
+        <li>a weapon bone number that names no <code>be_prop</code> bone on the skeleton, whichever way the game counts;</li>
+        <li>an effect whose file isn't in any loaded pack, and an effect with no file named at all.</li>
+    </ul>
+
+    <p>
+        Some checks need to know the animation and its skeleton, so they only run in SuperView. The window lists any check
+        it couldn't run.
+    </p>
+
+    <h2>Saving</h2>
+
+    <p>
+        <strong>Save</strong> writes over the meta file you opened. Many animation sets can name the same file, so a change
+        there reaches every one of them. <strong>Save meta as... and assign to slot</strong> saves a new file in your
+        editable pack instead, points this slot at it and leaves the original alone. <strong>Slot files</strong> lets you
+        point the slot at a different animation, meta or sound file.
+    </p>
+
+    <p>
+        Saving doesn't damage what it can't read. A tag the editor can't decode is shown in red and written back
+        unchanged.
+    </p>
+
+    <h2>Things that catch people out</h2>
+
+    <ul>
+        <li><strong>Which weapons show is the animation set's choice, not the meta's.</strong> Each slot of a WH3 animation
+            set carries a weapon flag per <code>be_prop</code> bone, and the game hides the weapons whose flag is off.
+            Edit those in the animation set.</li>
+        <li><strong>Weapon bone numbers.</strong> The docking and weapon tags name a weapon bone by number. SuperView reads
+            number n as <code>be_prop_(n-1)</code>. Whether the game counts the same way hasn't been confirmed, so check a
+            docking change in game.</li>
+        <li><strong>Docking needs the animation set.</strong> A tag that moves a weapon to a hand uses the set's
+            <code>DOCK_EQUIPMENT_*</code> animation for where it sits, so pick the set before judging it.</li>
+    </ul>
+
+</body>
+</html>
