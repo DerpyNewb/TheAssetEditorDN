@@ -150,6 +150,10 @@ namespace GameWorld.Core.Components.Gizmo
             _isEnabled = true;
         }
 
+        // A drag on a rotate ring turns in steps of this many degrees. Read before Initialize, these are the gizmo's defaults.
+        public bool RotationSnap { get => _gizmo?.SnapEnabled ?? false; set => _gizmo.SnapEnabled = value; }
+        public float RotationSnapDegrees { get => _gizmo?.RotationSnapValue ?? 30; set => _gizmo.RotationSnapValue = value; }
+
         public void SetGizmoPivot(PivotType type)
         {
             _gizmo.ActivePivot = type;

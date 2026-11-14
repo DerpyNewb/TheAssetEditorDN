@@ -5,6 +5,7 @@ using Editors.KitbasherEditor.ChildEditors.PhotoStudio;
 using Editors.KitbasherEditor.ChildEditors.PinTool.UiCommands;
 using Editors.KitbasherEditor.ChildEditors.ReRiggingTool;
 using Editors.KitbasherEditor.ChildEditors.SaveDialog;
+using Editors.KitbasherEditor.ChildEditors.SnapTool;
 using Editors.KitbasherEditor.ChildEditors.VertexDebugger;
 using Editors.KitbasherEditor.Core.MenuBarViews;
 using Editors.KitbasherEditor.UiCommands;
@@ -97,6 +98,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             RegisterUiCommand<OpenMeshFitterToolCommand>();
             RegisterUiCommand<OpenReriggingToolCommand>();
             RegisterUiCommand<OpenPinToolCommand>();
+            RegisterUiCommand<OpenSnapToolCommand>();
             RegisterUiCommand<AssignMaterialFromOtherMeshUiCommand>();
 
             RegisterUiCommand<ExpandFaceSelectionCommand>();
@@ -132,6 +134,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateToolBarItem<GroupItemsCommand>(toolsToolbar, "(Un)Group selection");
             builder.CreateToolBarItem<ReduceMeshCommand>(toolsToolbar, "\"Reduce mesh by 10%\"");
             builder.CreateToolBarItem<SortMeshesCommand>(toolsToolbar, "Sort models by name");
+            builder.CreateToolBarItem<OpenSnapToolCommand>(toolsToolbar, "Snap to bone or vertex...");
 
             var renderingToolbar = builder.CreateRootToolBar("Rendering");
             builder.CreateToolBarItem<FocusCameraCommand>(renderingToolbar, "Focus camera");

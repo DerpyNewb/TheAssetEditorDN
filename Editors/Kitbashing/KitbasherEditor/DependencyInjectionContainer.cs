@@ -3,6 +3,7 @@ using Editors.KitbasherEditor.ChildEditors.PhotoStudio;
 using Editors.KitbasherEditor.ChildEditors.PinTool;
 using Editors.KitbasherEditor.ChildEditors.PinTool.Commands;
 using Editors.KitbasherEditor.ChildEditors.ReRiggingTool;
+using Editors.KitbasherEditor.ChildEditors.SnapTool;
 using Editors.KitbasherEditor.ChildEditors.VertexDebugger;
 using Editors.KitbasherEditor.Commands;
 using Editors.KitbasherEditor.Core;
@@ -77,6 +78,10 @@ namespace Editors.KitbasherEditor
             // Vertex debugger
             serviceCollection.AddScoped<VertexDebuggerViewModel>();
             RegisterWindow<VertexDebuggerWindow>(serviceCollection);
+
+            // Snap tool
+            serviceCollection.AddScoped<SnapToolViewModel>();
+            RegisterWindow<SnapToolWindow>(serviceCollection);
 
             // Pin tool
             serviceCollection.AddTransient<PinToolViewModel>();

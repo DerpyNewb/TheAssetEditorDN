@@ -1,0 +1,50 @@
+<UserControl x:Class="Editors.KitbasherEditor.ChildEditors.SnapTool.SnapToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+             xmlns:behaviors="clr-namespace:Shared.Ui.Common.Behaviors;assembly=Shared.Ui"
+             xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="380">
+    <DockPanel Margin="4" LastChildFill="True">
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" TextWrapping="Wrap" Margin="2,6,2,2"/>
+
+        <GroupBox DockPanel.Dock="Bottom" Header="{loc:Loc KitbashTool.SnapTool.Gizmo}" Margin="0,4,0,0">
+            <StackPanel Orientation="Horizontal" Margin="2">
+                <CheckBox VerticalAlignment="Center" IsChecked="{Binding RotationSnap}" Content="{loc:Loc KitbashTool.SnapTool.RotationSnap}"/>
+                <TextBox Width="60" Margin="6,0,0,0" Text="{Binding RotationSnapStep.TextValue, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
+                    <b:Interaction.Behaviors>
+                        <behaviors:TextBoxInputBehavior InputMode="DecimalInput"/>
+                        <behaviors:NumberScrubBehavior/>
+                    </b:Interaction.Behaviors>
+                </TextBox>
+                <Label Content="{loc:Loc KitbashTool.SnapTool.Degrees}"/>
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox DockPanel.Dock="Bottom" Header="{loc:Loc KitbashTool.SnapTool.VertexTarget}" Margin="0,4,0,0">
+            <StackPanel Margin="2">
+                <Button Content="{loc:Loc KitbashTool.SnapTool.UseVertices}" Command="{Binding UseSelectedVerticesAsTargetCommand}" Margin="0,2"/>
+                <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <Label Content="{loc:Loc KitbashTool.SnapTool.Target}"/>
+                    <TextBlock Text="{Binding TargetText}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <DockPanel Margin="0,2">
+                    <Button DockPanel.Dock="Right" Content="{loc:Loc KitbashTool.SnapTool.ClearTarget}" Command="{Binding ClearTargetCommand}" Margin="4,0,0,0"/>
+                    <Button Content="{loc:Loc KitbashTool.SnapTool.MoveToTarget}" Command="{Binding MoveToTargetCommand}"/>
+                </DockPanel>
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox Header="{loc:Loc KitbashTool.SnapTool.Bone}">
+            <DockPanel Margin="2">
+                <TextBox DockPanel.Dock="Top" Text="{Binding Bones.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Margin="0,2"/>
+                <TextBlock DockPanel.Dock="Bottom" Text="{loc:Loc KitbashTool.SnapTool.BindPoseHint}" TextWrapping="Wrap" Margin="0,2"/>
+                <Button DockPanel.Dock="Bottom" Content="{loc:Loc KitbashTool.SnapTool.MoveToBone}" Command="{Binding MoveToBoneCommand}" Margin="0,2"/>
+                <ListBox ItemsSource="{Binding Bones.Values}" SelectedItem="{Binding Bones.SelectedItem, Mode=TwoWay}"/>
+            </DockPanel>
+        </GroupBox>
+    </DockPanel>
+</UserControl>
