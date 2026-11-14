@@ -374,6 +374,8 @@
     "SkeletonEditor.Buttons.FocusSelectedBone":  "Focus selected bone",
     "SkeletonEditor.Buttons.Bake":  "Bake",
     "SkeletonEditor.Buttons.Save":  "Save",
+    "SkeletonEditor.Buttons.SaveAs":  "Enregistrer sous...",
+    "SkeletonEditor.Tooltips.SkeletonPath":  "The file Save writes to. Type a path in the editable pack to save the skeleton there.",
     "SkeletonEditor.Buttons.Undo":  "Annuler",
     "SkeletonEditor.Buttons.Redo":  "Rétablir",
     "SkeletonEditor.SettingsGroupHeader":  "Settings:",

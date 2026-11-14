@@ -300,7 +300,12 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             RefreshBoneList();
         }
 
-        public void SaveSkeletonAction()
+        public void SaveSkeletonAction() => SaveSkeleton(bytes => _packFileSaveService.Save(SkeletonName, bytes, false));
+
+        // A path picked in the editable pack. The .bone_inv_trans_mats goes beside it, and the editor goes on with the new file.
+        public void SaveSkeletonAsAction() => SaveSkeleton(bytes => _packFileSaveService.SaveAs(".anim", bytes));
+
+        void SaveSkeleton(Func<byte[], PackFile?> writeAnimation)
         {
             if (_techSkeletonNode.Skeleton == null)
                 return;
@@ -316,8 +321,12 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             animFile.Header.SkeletonName = SourceSkeletonName;
             var animationBytes = AnimationFile.ConvertToBytes(animFile);
 
-            var result = _packFileSaveService.Save(SkeletonName, animationBytes, false);
+            var result = writeAnimation(animationBytes);
+            if (result == null)
+                return; // Save as cancelled
+            CurrentFile = result;
             SkeletonName = _packFileService.GetFullPath(result);
+            DisplayName = Path.GetFileName(SkeletonName);
 
             var invMatrixFile = _techSkeletonNode.Skeleton.CreateInvMatrixFile();
             var invMatrixPath = Path.ChangeExtension(SkeletonName, ".bone_inv_trans_mats");
