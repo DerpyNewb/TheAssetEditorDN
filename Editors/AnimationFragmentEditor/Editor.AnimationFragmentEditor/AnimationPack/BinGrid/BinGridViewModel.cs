@@ -240,6 +240,31 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             Reload();
         }
 
+        /// <summary>A picked or typed animation. An empty Meta cell takes the animation's own meta, in the same undo step, when exactly
+        /// one exists: of CA's table rows whose animation has only &lt;anim&gt;.meta, 98% use it, and of those with only &lt;anim&gt;.anm.meta,
+        /// 69% do, nearly all the rest a unit's own meta no path rule finds. With both, CA picks either, so neither is guessed. A Meta
+        /// that is set is never changed.</summary>
+        public void SetAnimation(BinGridRow row, string? path)
+        {
+            var meta = MatchingMeta(path);
+            EditVariant(row, x =>
+            {
+                // A cell committed with the animation it already had fills nothing: 8,250 of CA's rows leave the meta empty on purpose.
+                if (meta != null && string.IsNullOrEmpty(x.AnimationMetaFile) && x.AnimationFile != path)
+                    x.AnimationMetaFile = meta;
+                x.AnimationFile = path ?? "";
+            });
+        }
+
+        string? MatchingMeta(string? animation)
+        {
+            if (animation == null || !animation.EndsWith(".anim", StringComparison.OrdinalIgnoreCase))
+                return null;
+            var stem = Key(animation)[..^".anim".Length];
+            var found = new[] { stem + ".anm.meta", stem + ".meta" }.Where(x => _pfs.FindFile(x) != null).ToList();
+            return found.Count == 1 ? found[0] : null;
+        }
+
         public void SetSlot(BinGridRow row, string name)
         {
             var id = BinXml.SlotId(Slots, name ?? "");

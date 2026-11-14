@@ -39,7 +39,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             set => _owner.SetSlot(this, value);
         }
 
-        public string Animation { get => Ref?.AnimationFile ?? ""; set => _owner.EditVariant(this, x => x.AnimationFile = value ?? ""); }
+        public string Animation { get => Ref?.AnimationFile ?? ""; set => _owner.SetAnimation(this, value); }
         public string Meta { get => Ref?.AnimationMetaFile ?? ""; set => _owner.EditVariant(this, x => x.AnimationMetaFile = value ?? ""); }
         public string Sound { get => Ref?.AnimationSoundMetaFile ?? ""; set => _owner.EditVariant(this, x => x.AnimationSoundMetaFile = value ?? ""); }
 

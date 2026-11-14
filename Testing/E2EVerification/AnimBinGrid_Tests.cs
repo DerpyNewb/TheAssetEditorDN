@@ -888,6 +888,70 @@ namespace Test.E2EVerification
             Assert.That((RowOf(grid, "STAND").Meta, RowOf(grid, "STAND").Sound, grid.LocomotionGraph), Is.EqualTo((GraphA, GraphA, GraphA)));
         }
 
+        // Picking an animation fills an empty Meta cell with the animation's own meta when exactly one exists, in the same undo step.
+        // CA's tables use <anim>.meta for 98% of the animations that have only that, and <anim>.anm.meta for 69% of those with only
+        // that; with both, CA picks either, so the cell stays empty. A set Meta is never changed.
+        static void AddFiles(Opened opened, params string[] paths) => opened.Runner.PackFileService.AddFilesToPack(opened.Runner.PackFileService.GetEditablePack()!,
+            paths.Select(x => new NewPackFileEntry(Path.GetDirectoryName(x)!, PackFile.CreateFromBytes(Path.GetFileName(x), [0]))).ToList());
+
+        [TestCase("animations/derpy/anm_only.anim", "animations/derpy/anm_only.anm.meta")]
+        [TestCase("animations/derpy/dot_only.anim", "animations/derpy/dot_only.meta")]
+        [TestCase("animations/derpy/both.anim", "")]
+        [TestCase("animations/derpy/neither.anim", "")]
+        [TestCase("Animations\\Derpy\\ANM_ONLY.anim", "animations/derpy/anm_only.anm.meta")]
+        public void TypingAnAnimation_FillsAnEmptyMetaWithItsOwn_AsOneUndo(string animation, string meta)
+        {
+            var (opened, table, grid, before) = Grid();
+            AddFiles(opened, "animations/derpy/anm_only.anm.meta", "animations/derpy/dot_only.meta", "animations/derpy/both.anm.meta", "animations/derpy/both.meta");
+
+            RowOf(grid, "STAND").Animation = animation;
+
+            Assert.That((RowOf(grid, "STAND").Animation, RowOf(grid, "STAND").Meta), Is.EqualTo((animation, meta)));
+            opened.Editor.UndoAction();
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
+        [Test]
+        public void TypingAnAnimation_KeepsAMetaThatIsSet()
+        {
+            var (opened, _, grid, _) = Grid();
+            AddFiles(opened, "animations/derpy/anm_only.anm.meta");
+            RowOf(grid, "STAND").Meta = "animations/derpy/chosen.anm.meta";
+
+            RowOf(grid, "STAND").Animation = "animations/derpy/anm_only.anim";
+
+            Assert.That(RowOf(grid, "STAND").Meta, Is.EqualTo("animations/derpy/chosen.anm.meta"));
+        }
+
+        // A DataGrid can commit a cell that was only clicked into. The same animation written back must not fill a meta CA left empty.
+        [Test]
+        public void TheSameAnimationWrittenBack_FillsNothing()
+        {
+            var (opened, table, grid, before) = Grid();
+            AddFiles(opened, KarlAnim[..^".anim".Length] + ".anm.meta");
+
+            RowOf(grid, "STAND").Animation = KarlAnim;
+
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+            Assert.That(opened.Editor.HasUnsavedChanges, Is.False);
+        }
+
+        // CHARGE has no variant: the pick gives it one with the meta already in it, still one undo step.
+        [Test]
+        public void BrowseAnimation_FillsTheMetaToo()
+        {
+            var (opened, table, grid, before) = Grid();
+            AddFiles(opened, "animations/derpy/anm_only.anim", "animations/derpy/anm_only.anm.meta");
+            BrowseAnswers(opened, "animations/derpy/anm_only.anim");
+            grid.AnyAnimation = true;
+
+            grid.BrowseAnimationCommand.Execute(RowOf(grid, "CHARGE", -1));
+
+            Assert.That(RowOf(grid, "CHARGE").Meta, Is.EqualTo("animations/derpy/anm_only.anm.meta"));
+            opened.Editor.UndoAction();
+            Assert.That(table.ToByteArray(), Is.EqualTo(before));
+        }
+
         [Test]
         public void ABrowseCancelled_ChangesNothing()
         {
