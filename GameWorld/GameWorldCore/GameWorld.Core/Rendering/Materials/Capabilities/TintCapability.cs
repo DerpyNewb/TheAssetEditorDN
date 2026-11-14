@@ -39,19 +39,12 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
 
         public ICapability Clone()
         {
-            return new TintCapability()
-            {
-                
-                DiffuseTintMask = DiffuseTintMask,
-                DiffuseTintColour = DiffuseTintColour,
-                DiffuseTintVariation = DiffuseTintVariation,
-                UseFactionColours = UseFactionColours,
-                Faction3Mask = Faction3Mask,
-                Faction1_TintVariation = Faction1_TintVariation,
-                Faction2_TintVariation = Faction2_TintVariation,
-                Faction3_TintVariation = Faction3_TintVariation,
-                FactionColours = [FactionColours[0], FactionColours[1], FactionColours[2]]
-            };
+            // Every field, so a change of material keeps the mesh's Preview capability and tint settings. A hand-written list
+            // dropped ApplyCapability, UseTinting and TintColours.
+            var clone = (TintCapability)MemberwiseClone();
+            clone.FactionColours = [.. FactionColours];
+            clone.TintColours = [.. TintColours];
+            return clone;
         }
 
         public (bool Result, string Message) AreEqual(ICapability otherCap)

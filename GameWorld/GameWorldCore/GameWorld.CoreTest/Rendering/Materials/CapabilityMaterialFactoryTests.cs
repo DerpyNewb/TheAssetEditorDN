@@ -2,6 +2,7 @@ using GameWorld.Core.Rendering.Materials;
 using GameWorld.Core.Rendering.Materials.Capabilities;
 using GameWorld.Core.Rendering.Materials.Shaders;
 using GameWorld.Core.Test.TestUtility;
+using Microsoft.Xna.Framework;
 using Shared.Core.Settings;
 using Shared.GameFormats.RigidModel;
 using Shared.GameFormats.RigidModel.Types;
@@ -117,9 +118,15 @@ namespace GameWorld.Core.Test.Rendering.Materials
             var material = factory.Create(RmvMaterialHelper.Create(ModelMaterialEnum.weighted), null);
             Assert.That(material.GetCapability<TintCapability>().ApplyCapability, Is.EqualTo(setting));
 
-            material.GetCapability<TintCapability>().ApplyCapability = !setting;
-            var changed = factory.ChangeMaterial(material, CapabilityMaterialsEnum.MetalRoughPbr_Emissive);
-            Assert.That(changed.GetCapability<TintCapability>().ApplyCapability, Is.EqualTo(!setting));
+            var tint = material.GetCapability<TintCapability>();
+            tint.ApplyCapability = !setting;
+            tint.UseTinting = true;
+            tint.TintColours[1] = Vector3.One;
+            var changed = factory.ChangeMaterial(material, CapabilityMaterialsEnum.MetalRoughPbr_Emissive).GetCapability<TintCapability>();
+            Assert.That(changed.ApplyCapability, Is.EqualTo(!setting));
+            Assert.That(changed.UseTinting, Is.True);
+            Assert.That(changed.TintColours[1], Is.EqualTo(Vector3.One));
+            Assert.That(changed.TintColours, Is.Not.SameAs(tint.TintColours), "the clone shares the source's colour array");
         }
 
         [Test]
