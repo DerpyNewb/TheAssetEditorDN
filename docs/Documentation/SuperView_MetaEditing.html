@@ -66,10 +66,19 @@
     </p>
 
     <p>
-        Press <strong>Space</strong> to play or pause the animation. It works anywhere in the editor's window except in a text
-        box, and in the other animation editors too. To use another key, open <strong>Settings</strong>, go to the
-        <strong>Hotkeys</strong> tab, click the box beside <strong>Play or pause the animation</strong> and press the keys you
-        want. Kitbash's hotkeys are on the same tab.
+        Press <strong>Space</strong> to play or pause the animation, and the <strong>Left</strong> and <strong>Right</strong>
+        arrows to step it back or on one frame; hold an arrow to keep stepping. They work anywhere in the editor's window and
+        in the other animation editors too, except where the focus needs the key itself: a text box, or a list, tree or slider
+        for the arrows. To use other keys, open <strong>Settings</strong>, go to the <strong>Hotkeys</strong> tab, click the
+        box beside <strong>Play or pause the animation</strong>, <strong>Go back one frame</strong> or <strong>Go forward one
+        frame</strong>, and press the keys you want. Kitbash's hotkeys and <strong>Ctrl+S</strong>, which saves the open tab,
+        are on the same tab.
+    </p>
+
+    <p>
+        <strong>Speed</strong>, beside <strong>Loop</strong> in the playback bar, plays the animation at half or a quarter of
+        its speed. Effects, tag flashes and the timeline slow down with it, so a short event is easier to time. Sound triggers
+        still play at normal speed.
     </p>
 
     <h2>Timing a tag</h2>
@@ -123,9 +132,11 @@
         <li><strong>New</strong> adds a tag. The <strong>Vanilla WH3 uses</strong> column says how often CA's own files use
             each tag version. Pick a version with uses; versions with none are dimmed, and many of them come from other
             games and don't take effect in WH3.</li>
-        <li>Select a tag to see its fields. Hover a field for what it means.</li>
+        <li>Select a tag to see its fields. Hover a field for what it means. A rotation has one box per axis, in degrees:
+            X turns the tag about the X axis, Y about Y and Z about Z.</li>
         <li><strong>Copy</strong> and <strong>Paste</strong> copy tags from one file to another, and <strong>Up</strong> and
-            <strong>Down</strong> reorder them. Every change can be undone.</li>
+            <strong>Down</strong> reorder them. Every change can be undone. With the tag list focused, Ctrl+C, Ctrl+V and
+            Delete copy, paste and delete the selected tags; in a value box they act on the text instead.</li>
     </ul>
 
     <div class="note">
@@ -178,7 +189,9 @@
         <strong>Save</strong> writes over the meta file you opened. Many animation sets can name the same file, so a change
         there reaches every one of them. <strong>Save meta as... and assign to slot</strong> saves a new file in your
         editable pack instead, points this slot at it and leaves the original alone. <strong>Slot files</strong> lets you
-        point the slot at a different animation, meta or sound file.
+        point the slot at a different animation, meta or sound file. <strong>Preview</strong> plays the animation and meta
+        you typed there without saving anything, so you can try one before committing to it; <strong>Apply</strong> saves
+        them into the set. Picking another slot drops the preview.
     </p>
 
     <p>
