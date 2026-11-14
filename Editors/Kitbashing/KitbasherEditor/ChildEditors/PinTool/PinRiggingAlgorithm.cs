@@ -31,29 +31,29 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
             _selectionManager = selectionManager;
         }
 
-        public bool Execute(List<Rmv2MeshNode> meshesToAffect)
+        /// <summary>The pin, not yet run, or null after telling the user what is missing.</summary>
+        public IAeUndoCommandCommand? CreateCommand(List<Rmv2MeshNode> meshesToAffect)
         {
             if (SelectedMesh == null || SelectedVertex.Count == 0)
             {
                 _standardDialogs.ShowDialogBox("No mesh or vertex selected", "Error");
-                return false;
+                return null;
             }
 
             if (meshesToAffect.Any(x => x == SelectedMesh))
             {
                 _standardDialogs.ShowDialogBox("Source mesh is also in the list of target meshes", "Error");
-                return false;
+                return null;
             }
 
             if (SelectedMesh.Geometry.VertexFormat == UiVertexFormat.Static)
             {
                 _standardDialogs.ShowDialogBox("Source mesh has no bone weights (static format). Use an animated mesh as source.", "Error");
-                return false;
+                return null;
             }
 
             _logger.Here().Information("Pinning {Count} meshes to vertex {VertexId} on '{MeshName}'", meshesToAffect.Count, SelectedVertex.First(), SelectedMesh.Name);
-            _commandFactory.CreateWithBuilder<PinMeshToVertexCommand>().Configure(x => x.Configure(meshesToAffect, SelectedMesh, SelectedVertex.First())).BuildAndExecute();
-            return true;
+            return _commandFactory.CreateWithBuilder<PinMeshToVertexCommand>().Configure(x => x.Configure(meshesToAffect, SelectedMesh, SelectedVertex.First())).Build();
         }
 
         [RelayCommand] void SetSelection()
@@ -76,12 +76,6 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
                 return;
             }
 
-            if (selectionAsMeshNode.PivotPoint != Vector3.Zero)
-            {
-                _standardDialogs.ShowDialogBox(PinToolViewModel.PivotRefusal, "Error");
-                return;
-            }
-            
             SelectedMesh = selectionAsMeshNode;
             SelectedVertex = selectionState.SelectedVertices.ToList();
             Description = $"Mesh: '{SelectedMesh.Name}', Num Verts: {SelectedVertex.Count}";

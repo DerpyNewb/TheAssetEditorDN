@@ -12,24 +12,26 @@ namespace Editors.KitbasherEditor.ChildEditors.SaveDialog
 {
     public class SaveCommandBase
     {
-        // A message box taller than the screen hides its buttons.
-        const int MaxProblemsListed = 20;
-
         private readonly SceneManager _sceneManager;
         private readonly SaveService _saveService;
         private readonly SaveValidatorService _saveValidator;
-        private readonly IStandardDialogs _dialogs;
         private readonly IAbstractFormFactory<SaveDialogWindow> _saveWindowFactory;
+        private readonly IAbstractFormFactory<SaveCheckWindow> _checkWindowFactory;
         private readonly GeometrySaveSettings _settings;
 
-        public SaveCommandBase(GeometrySaveSettings settings, SceneManager sceneManager, SaveService saveService, SaveValidatorService saveValidator, IStandardDialogs dialogs, IAbstractFormFactory<SaveDialogWindow> saveWindowFactory)
+        /// <summary>Shows what the check found, with its fixes, and says whether to save anyway. The window is modal, which a test
+        /// cannot click, so a test puts its own answer here.</summary>
+        public Func<MainEditableNode, ErrorList, bool> AskToSaveAnyway { get; set; }
+
+        public SaveCommandBase(GeometrySaveSettings settings, SceneManager sceneManager, SaveService saveService, SaveValidatorService saveValidator, IAbstractFormFactory<SaveDialogWindow> saveWindowFactory, IAbstractFormFactory<SaveCheckWindow> checkWindowFactory)
         {
             _settings = settings;
             _sceneManager = sceneManager;
             _saveService = saveService;
             _saveValidator = saveValidator;
-            _dialogs = dialogs;
             _saveWindowFactory = saveWindowFactory;
+            _checkWindowFactory = checkWindowFactory;
+            AskToSaveAnyway = ShowCheck;
         }
 
         protected SaveResult? Save(bool forceShowDialog)
@@ -47,7 +49,7 @@ namespace Editors.KitbasherEditor.ChildEditors.SaveDialog
 
             // Checked after the dialog, which decides the LODs and whether hidden meshes are saved.
             var problems = _saveValidator.Validate(mainNode, _settings);
-            if (problems.HasData && _dialogs.ShowYesNoBox(Describe(problems) + "\n\nSave anyway?", "Save") != ShowMessageBoxResult.OK)
+            if (problems.HasData && AskToSaveAnyway(mainNode, problems) == false)
                 return null;
 
             _settings.AttachmentPoints = mainNode.AttachmentPoints; // Bit of a hack, clean up at some point
@@ -55,14 +57,14 @@ namespace Editors.KitbasherEditor.ChildEditors.SaveDialog
             return res;
         }
 
-        public static string Describe(ErrorList problems)
+        bool ShowCheck(MainEditableNode mainNode, ErrorList problems)
         {
-            var lines = problems.Errors
-                .OrderByDescending(x => x.IsError)
-                .Select(x => $"{x.ErrorType} - {x.ItemName}: {x.Description}")
-                .ToList();
-            var text = string.Join("\n", lines.Take(MaxProblemsListed));
-            return lines.Count > MaxProblemsListed ? $"{text}\n...and {lines.Count - MaxProblemsListed} more." : text;
+            var window = _checkWindowFactory.Create();
+            window.ViewModel.Initialize(mainNode, problems, forSave: true);
+            window.ShowDialog();
+            window.ViewModel.Dispose();
+            window.ViewModel.AfterClose?.Invoke();
+            return window.ViewModel.SaveAnyway;
         }
     }
 
@@ -72,8 +74,8 @@ namespace Editors.KitbasherEditor.ChildEditors.SaveDialog
         public ActionEnabledRule EnabledRule => ActionEnabledRule.Always;
         public Hotkey? HotKey { get; } = null;
 
-        public SaveCommand(GeometrySaveSettings settings, SceneManager sceneManager, SaveService saveService, SaveValidatorService saveValidator, IStandardDialogs dialogs, IAbstractFormFactory<SaveDialogWindow> saveWindowFactory)
-            : base(settings, sceneManager, saveService, saveValidator, dialogs, saveWindowFactory)
+        public SaveCommand(GeometrySaveSettings settings, SceneManager sceneManager, SaveService saveService, SaveValidatorService saveValidator, IAbstractFormFactory<SaveDialogWindow> saveWindowFactory, IAbstractFormFactory<SaveCheckWindow> checkWindowFactory)
+            : base(settings, sceneManager, saveService, saveValidator, saveWindowFactory, checkWindowFactory)
         {
         }
 
@@ -87,8 +89,8 @@ namespace Editors.KitbasherEditor.ChildEditors.SaveDialog
         public ActionEnabledRule EnabledRule => ActionEnabledRule.Always;
         public Hotkey? HotKey { get; } = null;
 
-        public SaveAsCommand(GeometrySaveSettings settings, SceneManager sceneManager, SaveService saveService, SaveValidatorService saveValidator, IStandardDialogs dialogs, IAbstractFormFactory<SaveDialogWindow> saveWindowFactory)
-            : base(settings, sceneManager, saveService, saveValidator, dialogs, saveWindowFactory)
+        public SaveAsCommand(GeometrySaveSettings settings, SceneManager sceneManager, SaveService saveService, SaveValidatorService saveValidator, IAbstractFormFactory<SaveDialogWindow> saveWindowFactory, IAbstractFormFactory<SaveCheckWindow> checkWindowFactory)
+            : base(settings, sceneManager, saveService, saveValidator, saveWindowFactory, checkWindowFactory)
         {
         }
 

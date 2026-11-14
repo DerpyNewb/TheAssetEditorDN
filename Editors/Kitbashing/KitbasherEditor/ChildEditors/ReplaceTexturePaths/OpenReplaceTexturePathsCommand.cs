@@ -45,6 +45,14 @@ namespace Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths
             _window.Show();
         }
 
+        /// <summary>Opens the window, or brings it forward, with this path in the Find box, as the save check's fix for a texture in no loaded pack.</summary>
+        public void Open(string find)
+        {
+            Execute();
+            if (_window != null)
+                _window.ViewModel.Find = find;
+        }
+
         private void OnWindowClosed(object? sender, EventArgs e)
         {
             if (_window == null)

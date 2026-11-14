@@ -1,6 +1,7 @@
 using System.Reflection;
 using Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths;
 using Editors.KitbasherEditor.ChildEditors.SnapTool;
+using Editors.KitbasherEditor.Services;
 using Editors.KitbasherEditor.UiCommands;
 using GameWorld.Core.Components;
 using GameWorld.Core.Components.Selection;
@@ -67,24 +68,28 @@ namespace Test.KitbashEditor.MenuBar
             IconLibrary.Load();
 
             foreach (var icon in new[] { IconLibrary.MirrorIcon, IconLibrary.RecalculateNormalsIcon, IconLibrary.FlipFacesIcon, IconLibrary.BakePivotIcon,
-                IconLibrary.ReplaceTexturePathsIcon, IconLibrary.SnapIcon, IconLibrary.CheckModelIcon })
+                IconLibrary.ReplaceTexturePathsIcon, IconLibrary.SnapIcon, IconLibrary.CheckModelIcon, IconLibrary.PickBoneIcon })
                 Assert.That(icon?.PixelWidth, Is.GreaterThan(0));
         }
 
+        // Pick mode sits on the sidebar under the selection modes, in a group of its own so it leaves the selection mode alone. The
+        // grouped buttons are radio buttons, which a click only ever turns on, so this one follows the picker instead.
         [Test]
-        public void CheckModel_SaysNothingIsWrongWithKarl_AndNamesAMeshWithAnUnweightedVertex()
+        public void PickBoneMode_IsASidebarToggle_ThatShowsWhetherItIsOn()
         {
-            var messages = new List<string>();
-            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback((string message, string _) => messages.Add(message));
+            var menu = Service<MenuBarViewModel>();
+            var picker = Service<BonePicker>();
+            var actions = (Dictionary<Type, MenuAction>)typeof(MenuBarViewModel).GetField("_uiCommands", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(menu)!;
+            var buttons = menu.SidebarButtons.ToList();
+            var button = (MenuBarGroupButton)buttons.Single(x => x.Action == actions[typeof(PickBoneModeCommand)]);
+            Assert.That(buttons.IndexOf(button), Is.EqualTo(buttons.FindIndex(x => x.Action == actions[typeof(VertexSelectionModeCommand)]) + 1));
+            Assert.That(button.GroupName, Is.Not.EqualTo(((MenuBarGroupButton)buttons.Single(x => x.Action == actions[typeof(VertexSelectionModeCommand)])).GroupName));
 
-            Service<IUiCommandFactory>().Create<CheckModelCommand>().Execute();
-            var mesh = _karl.GetMeshesInLod(0, true)[0];
-            mesh.Geometry.VertexArray[0].BlendWeights = Vector4.Zero;
-            Service<IUiCommandFactory>().Create<CheckModelCommand>().Execute();
+            button.Action!.Command.Execute(null);
+            Assert.That((picker.IsActive, button.IsChecked.Value), Is.EqualTo((true, true)));
 
-            Assert.That(messages, Has.Count.EqualTo(2));
-            Assert.That(messages[0], Is.EqualTo(CheckModelCommand.NothingFound));
-            Assert.That(messages[1], Does.Contain(mesh.Name).And.Contain("weight"));
+            button.Action.Command.Execute(null);
+            Assert.That((picker.IsActive, button.IsChecked.Value), Is.EqualTo((false, false)));
         }
 
         [Test]

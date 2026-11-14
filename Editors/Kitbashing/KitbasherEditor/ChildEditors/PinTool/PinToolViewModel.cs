@@ -1,7 +1,10 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Editors.KitbasherEditor.Commands;
 using Editors.KitbasherEditor.Core;
+using Editors.KitbasherEditor.Services;
+using Editors.KitbasherEditor.UiCommands;
 using GameWorld.Core.Components.Selection;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
@@ -18,12 +21,13 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
         Bone
     }
 
-    public partial class PinToolViewModel : ObservableObject
+    public partial class PinToolViewModel : ObservableObject, IDisposable
     {
         private readonly ILogger _logger;
         private readonly SelectionManager _selectionManager;
         private readonly IUiCommandFactory _commandFactory;
         private readonly IStandardDialogs _standardDialogs;
+        private readonly BonePicker _bonePicker;
 
         [ObservableProperty] PinRiggingAlgorithm _pinMode;
         [ObservableProperty] SkinWrapAlgorithm _skinWrapMode;
@@ -32,7 +36,7 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
         [ObservableProperty] RiggingMode _selectedRiggingMode = RiggingMode.Pin;
         [ObservableProperty] ObservableCollection<Rmv2MeshNode> _affectedMeshCollection = [];
 
-        public PinToolViewModel(SelectionManager selectionManager, IUiCommandFactory commandFactory, IStandardDialogs standardDialogs, IScopedLogger scopedLogger, KitbasherRootScene rootScene)
+        public PinToolViewModel(SelectionManager selectionManager, IUiCommandFactory commandFactory, IStandardDialogs standardDialogs, IScopedLogger scopedLogger, KitbasherRootScene rootScene, BonePicker bonePicker)
         {
             _logger = scopedLogger.ForContext<PinToolViewModel>();
             _selectionManager = selectionManager;
@@ -42,12 +46,21 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
             _pinMode = new PinRiggingAlgorithm(_commandFactory, _standardDialogs, _selectionManager, scopedLogger);
             _skinWrapMode = new SkinWrapAlgorithm(_commandFactory, _standardDialogs, _selectionManager, scopedLogger);
             _boneMode = new BoneRiggingAlgorithm(_commandFactory, _standardDialogs, rootScene);
+            _bonePicker = bonePicker;
+            _bonePicker.BonePicked += _boneMode.Pick;
+        }
+
+        /// <summary>Bone mode with these meshes listed, as the save check's fix for vertices with no weights opens it.</summary>
+        public void ShowBind(IEnumerable<Rmv2MeshNode> meshes)
+        {
+            SelectedRiggingMode = RiggingMode.Bone;
+            AffectedMeshCollection.Clear();
+            foreach (var mesh in meshes)
+                AffectedMeshCollection.Add(mesh);
         }
 
         [RelayCommand] void ClearAffectedMeshCollection() => AffectedMeshCollection.Clear();
         [RelayCommand] void AddSelectionToAffectMeshCollection() => AddSelectionToList(AffectedMeshCollection);
-
-        public const string PivotRefusal = "A selected mesh has a pivot point, which these tools cannot follow. Bake it into the mesh first, with Bake into mesh beside the pivot in the mesh's panel.";
 
         void AddSelectionToList(ObservableCollection<Rmv2MeshNode> itemList)
         {
@@ -61,12 +74,6 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
             var selectedObjects = selectionState.SelectedObjects()
                 .OfType<Rmv2MeshNode>()
                 .ToList();
-
-            if (selectedObjects.Any(x => x.PivotPoint != Vector3.Zero))
-            {
-                _standardDialogs.ShowDialogBox(PivotRefusal, "error");
-                return;
-            }
 
             foreach (var item in itemList)
                 selectedObjects.Add(item);
@@ -90,19 +97,41 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
 
             _logger.Here().Information("Applying {Mode} to {Count} meshes", SelectedRiggingMode, AffectedMeshCollection.Count);
 
-            switch (SelectedRiggingMode)
+            var targets = AffectedMeshCollection.ToList();
+            var step = SelectedRiggingMode switch
             {
-                case RiggingMode.Pin:
-                    return PinMode.Execute(AffectedMeshCollection.ToList());
-              
-                case RiggingMode.SkinWrap:
-                    return SkinWrapMode.Execute(AffectedMeshCollection.ToList());
+                RiggingMode.Pin => PinMode.CreateCommand(targets),
+                RiggingMode.SkinWrap => SkinWrapMode.CreateCommand(targets),
+                RiggingMode.Bone => BoneMode.CreateCommand(targets),
+                _ => throw new NotImplementedException($"Unable to find an algorithm for selected mode '{SelectedRiggingMode}'")
+            };
+            if (step == null)
+                return false;
 
-                case RiggingMode.Bone:
-                    return BoneMode.Execute(AffectedMeshCollection.ToList());
-                default:
-                    throw new NotImplementedException($"Unable to find an algorithm for selected mode '{SelectedRiggingMode}'");
-            }
+            // Pin zeroes a target's pivot without moving its vertices, which moves the mesh, and Skin Wrap matches vertices by
+            // position without the pivot, so the tool used to refuse a mesh with a pivot. Each pivot now goes into its vertices
+            // first, in the same undo step, so the mesh still draws where it did. Skin Wrap's sources are matched by position too,
+            // while Pin's source vertex only gives its weights. Bone mode bakes as well: the save check warns about a pivot on a
+            // model with a skeleton.
+            var baked = targets
+                .Concat(SelectedRiggingMode == RiggingMode.SkinWrap ? SkinWrapMode.SourceMeshes : [])
+                .Where(x => x.PivotPoint != Vector3.Zero)
+                .Distinct()
+                .ToList();
+            var bake = BakePivotCommand.Create(_commandFactory, baked)?.Build();
+            _commandFactory.CreateWithBuilder<CompoundCommand>()
+                .Configure(x => x.Configure(bake == null ? [step] : [bake, step]))
+                .BuildAndExecute();
+
+            if (baked.Count != 0)
+                _standardDialogs.ShowDialogBox($"The pivot points of these meshes were baked into their vertices first, so they still draw where they did: {string.Join(", ", baked.Select(x => x.Name))}. One Undo takes back both the bake and the {StepName(SelectedRiggingMode)}.", PivotsBakedTitle);
+            return true;
         }
+
+        public const string PivotsBakedTitle = "Pivots baked";
+
+        static string StepName(RiggingMode mode) => mode switch { RiggingMode.Pin => "pin", RiggingMode.SkinWrap => "skin wrap", _ => "bind" };
+
+        public void Dispose() => _bonePicker.BonePicked -= BoneMode.Pick;
     }
 }

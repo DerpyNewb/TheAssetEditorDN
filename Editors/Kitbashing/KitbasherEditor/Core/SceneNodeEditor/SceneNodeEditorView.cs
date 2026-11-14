@@ -33,6 +33,7 @@ namespace Editors.KitbasherEditor.ViewModels.SceneNodeEditor
         {
             if (selectionChangedEvent.SelectedObjects.Count != 1)
             {
+                CurrentEditor?.Dispose();
                 CurrentEditor = null;
                 return;
             }

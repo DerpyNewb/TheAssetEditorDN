@@ -105,33 +105,21 @@ namespace GameWorld.Core.Services
                 return;
 
             for (var i = 0; i < geometry.VertexArray.Length; i++)
+                geometry.VertexArray[i].BlendWeights = NormalizedWeights(geometry.VertexArray[i].BlendWeights, weightCount);
+        }
+
+        /// <summary>One vertex's weights as <see cref="NormalizeBoneWeights"/> leaves them: the first <paramref name="weightCount"/>
+        /// scaled to add up to 1 and the rest cleared, or fully on the first bone when there are none.</summary>
+        public static Vector4 NormalizedWeights(Vector4 w, int weightCount)
+        {
+            if (weightCount == 2)
             {
-                var w = geometry.VertexArray[i].BlendWeights;
-
-                if (weightCount == 2)
-                {
-                    w.Z = 0f;
-                    w.W = 0f;
-                }
-
-                var total = w.X + w.Y + w.Z + w.W;
-                if (total > 0f)
-                {
-                    w.X /= total;
-                    w.Y /= total;
-                    w.Z /= total;
-                    w.W /= total;
-                }
-                else
-                {
-                    w.X = 1f;
-                    w.Y = 0f;
-                    w.Z = 0f;
-                    w.W = 0f;
-                }
-
-                geometry.VertexArray[i].BlendWeights = w;
+                w.Z = 0f;
+                w.W = 0f;
             }
+
+            var total = w.X + w.Y + w.Z + w.W;
+            return total > 0f ? new Vector4(w.X / total, w.Y / total, w.Z / total, w.W / total) : new Vector4(1, 0, 0, 0);
         }
 
         static void AssertVertexWeightsAreNormalized(MeshObject geometry, int lodIndex, int meshId, string meshName)

@@ -20,7 +20,8 @@ using Shared.GameFormats.RigidModel.Transforms;
 
 namespace GameWorld.Core.Test.Services.SceneSaving
 {
-    // The checks Kitbash runs before a save. Each test breaks one thing and looks for the line naming it.
+    // The checks Kitbash runs before a save. Each test breaks one thing and looks for the line naming it, and for the fix Kitbash
+    // offers beside it.
     internal class SaveValidatorServiceTests
     {
         PackFileService _pfs = null!;
@@ -53,6 +54,7 @@ namespace GameWorld.Core.Test.Services.SceneSaving
             Assert.That(problem.IsError, Is.True);
             Assert.That(problem.ItemName, Is.EqualTo("body"));
             Assert.That(problem.Description, Does.StartWith("1 of 3 vertices have no bone weights"));
+            Assert.That(Fix(problem), Is.EqualTo((SaveFix.BindToBone, mesh)));
         }
 
         [Test]
@@ -69,6 +71,7 @@ namespace GameWorld.Core.Test.Services.SceneSaving
             Assert.That(problem.IsWarning, Is.True);
             Assert.That(problem.ItemName, Is.EqualTo("body"));
             Assert.That(problem.Description, Does.StartWith("2 of 3 vertices have bone weights that don't add up to 1"));
+            Assert.That(Fix(problem), Is.EqualTo((SaveFix.NormaliseWeights, mesh)));
         }
 
         [Test]
@@ -96,6 +99,7 @@ namespace GameWorld.Core.Test.Services.SceneSaving
             var problem = problems.Errors.Single(x => x.ItemName == @"tex\missing_base_colour.dds");
             Assert.That(problem.IsWarning, Is.True);
             Assert.That(problem.Description, Does.StartWith("This texture is not in any loaded pack").And.EndWith("Used by body, head."));
+            Assert.That(Fix(problem).Fix, Is.EqualTo(SaveFix.ReplaceTexturePath), "the path to replace is the problem's item name");
         }
 
         [TestCase("DXT1", 0u, "legacy D3DFMT_DXT1")]
@@ -110,6 +114,7 @@ namespace GameWorld.Core.Test.Services.SceneSaving
             var problem = problems.Errors.Single();
             Assert.That(problem.ItemName, Is.EqualTo(@"tex\body_base_colour.dds"));
             Assert.That(problem.Description, Does.StartWith($"This base colour is {formatName}, which has no sRGB flag"));
+            Assert.That(Fix(problem).Fix, Is.EqualTo(SaveFix.None), "explained, not fixed: the texture may be CA's");
         }
 
         [TestCase(72u)]     // BC1_UNORM_SRGB
@@ -173,6 +178,8 @@ namespace GameWorld.Core.Test.Services.SceneSaving
 
             Assert.That(problems.Errors.Select(x => x.Description), Has.One.StartWith("Model contains several different pivot points"));
         }
+
+        static (SaveFix Fix, Rmv2MeshNode? Mesh) Fix(ErrorListDataItem problem) => problem is SaveProblem fixable ? (fixable.Fix, fixable.Mesh) : (SaveFix.None, null);
 
         ErrorList Validate(MainEditableNode model, LodStrategy lods = LodStrategy.MeshOptimizer, bool onlySaveVisible = true)
         {

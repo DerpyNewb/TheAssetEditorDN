@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Editors.KitbasherEditor.Services;
 using GameWorld.Core.Animation;
 using GameWorld.Core.SceneNodes;
 using KitbasherEditor.Views.EditorViews;
@@ -9,7 +10,7 @@ using Shared.Ui.Common.DataTemplates;
 
 namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes
 {
-    public partial class SkeletonSceneNodeViewModel(ValueUndo? undo = null) : ObservableObject, ISceneNodeEditor, IViewProvider<SkeletonView>
+    public partial class SkeletonSceneNodeViewModel(ValueUndo? undo = null, BonePicker? bonePicker = null) : ObservableObject, ISceneNodeEditor, IViewProvider<SkeletonView>
     {
         SkeletonNode _meshNode;
 
@@ -30,7 +31,18 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes
             ShowWeights = _meshNode.ShowWeights;
             CreateBoneOverview(_meshNode.Skeleton);
             if (selectedBoneIndex.HasValue)
-                SelectedBone = GetParent(Bones, selectedBoneIndex.Value);
+                SelectBone(selectedBoneIndex.Value);
+            if (bonePicker != null)
+                bonePicker.BonePicked += SelectBone;
+        }
+
+        // Through the bone's IsSelected, so the tree shows it: the behaviour bound to SelectedBone passes a click in the tree to
+        // SelectedBone and never the other way.
+        void SelectBone(int boneIndex)
+        {
+            SelectedBone = GetParent(Bones, boneIndex);
+            if (SelectedBone != null)
+                SelectedBone.IsSelected = true;
         }
 
         partial void OnShowWeightsChanged(bool value) => _meshNode.ShowWeights = value;
@@ -88,6 +100,10 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes
             return null;
         }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+            if (bonePicker != null)
+                bonePicker.BonePicked -= SelectBone;
+        }
     }
 }

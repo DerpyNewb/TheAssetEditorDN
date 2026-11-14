@@ -3,6 +3,7 @@ using Editors.KitbasherEditor.ChildEditors.PhotoStudio;
 using Editors.KitbasherEditor.ChildEditors.PinTool;
 using Editors.KitbasherEditor.ChildEditors.PinTool.Commands;
 using Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths;
+using Editors.KitbasherEditor.ChildEditors.SaveDialog;
 using Editors.KitbasherEditor.ChildEditors.ReRiggingTool;
 using Editors.KitbasherEditor.ChildEditors.SnapTool;
 using Editors.KitbasherEditor.ChildEditors.VertexDebugger;
@@ -90,6 +91,7 @@ namespace Editors.KitbasherEditor
             serviceCollection.AddTransient<PinMeshToVertexCommand>();
             serviceCollection.AddTransient<SkinWrapRiggingCommand>();
             serviceCollection.AddTransient<BindMeshToBoneCommand>();
+            serviceCollection.AddTransient<CompoundCommand>();
 
             // Replace in texture paths
             serviceCollection.AddTransient<ReplaceTexturePathsViewModel>();
@@ -103,6 +105,8 @@ namespace Editors.KitbasherEditor
             // Save dialog
             serviceCollection.AddTransient<SaveDialogViewModel>();
             RegisterWindow<SaveDialogWindow>(serviceCollection);
+            serviceCollection.AddTransient<SaveCheckViewModel>();
+            RegisterWindow<SaveCheckWindow>(serviceCollection);
 
             // Menubar 
             serviceCollection.AddScoped<TransformToolViewModel>();
@@ -113,6 +117,7 @@ namespace Editors.KitbasherEditor
       
             serviceCollection.AddScoped<KitbashViewDropHandler>();
             serviceCollection.AddScoped<KitbasherRootScene>();
+            serviceCollection.AddScoped<BonePicker>();
 
             // Event handlers
             serviceCollection.AddScoped<SkeletonChangedHandler>();
