@@ -1,9 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.KitbasherEditor.Core;
-using GameWorld.Core.Commands.Object;
 using GameWorld.Core.Components;
-using GameWorld.Core.Rendering.Geometry;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
 using Shared.Core.Events;
@@ -74,16 +72,8 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.Rmv2
         [RelayCommand]
         void BakePivot()
         {
-            if (_meshNode.PivotPoint == Vector3.Zero)
-                return;
-
-            _commandFactory.CreateWithBuilder<EditMeshesCommand>()
-                .Configure(x => x.Configure([_meshNode], "Bake pivot", mesh =>
-                {
-                    MeshEdits.BakePivot(mesh.Geometry, mesh.PivotPoint);
-                    mesh.PivotPoint = Vector3.Zero;
-                }))
-                .BuildAndExecute();
+            // In full: the [RelayCommand] above generates a BakePivotCommand property that hides the class.
+            global::Editors.KitbasherEditor.UiCommands.BakePivotCommand.Bake(_commandFactory, [_meshNode]);
             Pivot.Set(_meshNode.PivotPoint);
         }
     }

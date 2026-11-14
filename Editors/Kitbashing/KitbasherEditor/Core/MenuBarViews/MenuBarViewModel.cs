@@ -99,6 +99,8 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             RegisterUiCommand<MirrorMeshKeepBonesCommand>();
             RegisterUiCommand<RecalculateNormalsCommand>();
             RegisterUiCommand<FlipFacesCommand>();
+            RegisterUiCommand<BakePivotCommand>();
+            RegisterUiCommand<CheckModelCommand>();
             RegisterUiCommand<OpenBmiToolCommand>();
             RegisterUiCommand<OpenMeshFitterToolCommand>();
             RegisterUiCommand<OpenReriggingToolCommand>();
@@ -147,6 +149,9 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateToolBarItem<MirrorMeshKeepBonesCommand>(toolsToolbar, "Mirror left to right, keep bones");
             builder.CreateToolBarItem<RecalculateNormalsCommand>(toolsToolbar, "Recalculate normals");
             builder.CreateToolBarItem<FlipFacesCommand>(toolsToolbar, "Flip faces");
+            builder.CreateToolBarItem<BakePivotCommand>(toolsToolbar, "Bake pivot into mesh");
+            builder.CreateToolBarSeparator(toolsToolbar);
+            builder.CreateToolBarItem<CheckModelCommand>(toolsToolbar, "Check model");
 
             var renderingToolbar = builder.CreateRootToolBar("Rendering");
             builder.CreateToolBarItem<FocusCameraCommand>(renderingToolbar, "Focus camera");
@@ -180,6 +185,13 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateButton<OpenReriggingToolCommand>(IconLibrary.ReRiggingIcon, ButtonVisibilityRule.ObjectMode);
             builder.CreateButton<OpenPinToolCommand>(IconLibrary.PinIcon, ButtonVisibilityRule.ObjectMode);
             builder.CreateButton<AssignMaterialFromOtherMeshUiCommand>(IconLibrary.AssignTextureFromOtherIcon, ButtonVisibilityRule.ObjectMode);
+            builder.CreateButton<MirrorMeshCommand>(IconLibrary.MirrorIcon, ButtonVisibilityRule.ObjectMode);
+            builder.CreateButton<RecalculateNormalsCommand>(IconLibrary.RecalculateNormalsIcon, ButtonVisibilityRule.ObjectMode);
+            builder.CreateButton<FlipFacesCommand>(IconLibrary.FlipFacesIcon, ButtonVisibilityRule.ObjectMode);
+            builder.CreateButton<BakePivotCommand>(IconLibrary.BakePivotIcon, ButtonVisibilityRule.ObjectMode);
+            builder.CreateButton<OpenReplaceTexturePathsCommand>(IconLibrary.ReplaceTexturePathsIcon, ButtonVisibilityRule.Always);
+            builder.CreateButton<OpenSnapToolCommand>(IconLibrary.SnapIcon, ButtonVisibilityRule.Always);
+            builder.CreateButton<CheckModelCommand>(IconLibrary.CheckModelIcon, ButtonVisibilityRule.Always);
             builder.CreateButton<OpenPhotoStudioCommand>(IconLibrary.CameraTool, ButtonVisibilityRule.Always);
 
             // Face buttons

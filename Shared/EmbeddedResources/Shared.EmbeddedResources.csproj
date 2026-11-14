@@ -73,6 +73,10 @@
     <None Remove="Resources\Icons\Kitbasher\Open.png" />
     <None Remove="Resources\Icons\Kitbasher\OpenRef.png" />
     <None Remove="Resources\Icons\Kitbasher\pin.png" />
+    <None Remove="Resources\Icons\Kitbasher\Mirror.png" />
+    <None Remove="Resources\Icons\Kitbasher\RecalculateNormals.png" />
+    <None Remove="Resources\Icons\Kitbasher\FlipFaces.png" />
+    <None Remove="Resources\Icons\Kitbasher\ReplaceTexturePaths.png" />
     <None Remove="Resources\Icons\Kitbasher\SelectionMode_face.png" />
     <None Remove="Resources\Icons\Kitbasher\SelectionMode_object.png" />
     <None Remove="Resources\Icons\Kitbasher\SelectionMode_Vertex.png" />
@@ -316,6 +320,18 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
     <EmbeddedResource Include="Resources\Icons\Kitbasher\pin.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Icons\Kitbasher\Mirror.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Icons\Kitbasher\RecalculateNormals.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Icons\Kitbasher\FlipFaces.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Icons\Kitbasher\ReplaceTexturePaths.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
     <EmbeddedResource Include="Resources\Icons\Kitbasher\SelectionMode_face.png">

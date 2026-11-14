@@ -67,6 +67,14 @@ namespace Shared.EmbeddedResources
         [AllowNull] public static BitmapImage AudioFileIcon { get; private set; }
         [AllowNull] public static BitmapImage AssignTextureFromOtherIcon { get; private set; }
 
+        [AllowNull] public static BitmapImage MirrorIcon { get; private set; }
+        [AllowNull] public static BitmapImage RecalculateNormalsIcon { get; private set; }
+        [AllowNull] public static BitmapImage FlipFacesIcon { get; private set; }
+        [AllowNull] public static BitmapImage BakePivotIcon { get; private set; }
+        [AllowNull] public static BitmapImage ReplaceTexturePathsIcon { get; private set; }
+        [AllowNull] public static BitmapImage SnapIcon { get; private set; }
+        [AllowNull] public static BitmapImage CheckModelIcon { get; private set; }
+
         public static void Load()
         {
             FolderIcon = BitmapToImageSource("icons8-folder-48.png");
@@ -120,6 +128,14 @@ namespace Shared.EmbeddedResources
             FaceToVertexIcon = BitmapToImageSource(@"Kitbasher.FaceToVertex.png");
             MergeVertexIcon = BitmapToImageSource(@"Kitbasher.tool_mergeVertex.png");
             VertexDebuggerIcon = BitmapToImageSource(@"icons8-question-mark-48.png");
+
+            MirrorIcon = BitmapToImageSource(@"Kitbasher.Mirror.png");
+            RecalculateNormalsIcon = BitmapToImageSource(@"Kitbasher.RecalculateNormals.png");
+            FlipFacesIcon = BitmapToImageSource(@"Kitbasher.FlipFaces.png");
+            BakePivotIcon = BitmapToImageSource(@"Kitbasher.tool_freezeTransform.png");
+            ReplaceTexturePathsIcon = BitmapToImageSource(@"Kitbasher.ReplaceTexturePaths.png");
+            SnapIcon = BitmapToImageSource(@"Kitbasher.SnapVertex.png");
+            CheckModelIcon = BitmapToImageSource(@"Kitbasher.Validate.png");
 
             InformationIcon = BitmapToImageSource(SystemIcons.Information);
             IgnoredFileIcon = BitmapToImageSource(SystemIcons.Error);
