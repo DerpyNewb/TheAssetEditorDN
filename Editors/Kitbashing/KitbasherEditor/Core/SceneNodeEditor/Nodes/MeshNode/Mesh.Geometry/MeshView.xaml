@@ -57,6 +57,7 @@
                 <CheckBox  HorizontalAlignment="Center" VerticalAlignment="Center" IsChecked="{Binding Mesh.DrawPivotPoint, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
             
                 <Button Content="{loc:Loc KitbashTool.MeshView.CopyToAllMeshes}" Margin="3" Command="{Binding Mesh.CopyPivotToAllMeshesCommand}" DockPanel.Dock="Right"/>
+                <Button Content="{loc:Loc KitbashTool.MeshView.BakePivot}" ToolTip="{loc:Loc KitbashTool.MeshView.BakePivotToolTip}" Margin="3" Command="{Binding Mesh.BakePivotCommand}" DockPanel.Dock="Right"/>
                 <mathviews:Vector3View VerticalContentAlignment="Center" Vector3="{Binding Mesh.Pivot, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Margin="2,0,2,0"/>
             </DockPanel>
 

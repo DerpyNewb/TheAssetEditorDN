@@ -51,7 +51,7 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
 
             if (selectedMeshes.Any(x => x.PivotPoint != Vector3.Zero))
             {
-                _standardDialogs.ShowDialogBox("Selected mesh has a pivot point, the tool will not work correctly", "error");
+                _standardDialogs.ShowDialogBox(PinToolViewModel.PivotRefusal, "error");
                 return;
             }
 

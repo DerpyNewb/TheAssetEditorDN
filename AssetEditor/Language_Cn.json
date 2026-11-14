@@ -996,6 +996,8 @@
   "KitbashTool.MeshView.RenderBBox": "渲染包围盒",
   "KitbashTool.MeshView.Pivot": "轴心点",
   "KitbashTool.MeshView.CopyToAllMeshes": "复制到所有 Mesh",
+  "KitbashTool.MeshView.BakePivot": "Bake into mesh",
+  "KitbashTool.MeshView.BakePivotToolTip": "Move the pivot into the vertices, so the mesh stays where it is with a pivot of 0, 0, 0",
   "KitbashTool.MeshView.ReduceLods": "缩减 LOD",
   "KitbashTool.TintView.PreviewCapability": "预览能力",
   "KitbashTool.TintView.TintMask": "调色遮罩",

@@ -144,6 +144,7 @@ namespace GameWorld.Core
             serviceCollection.AddTransient<DeleteFaceCommand>();
             serviceCollection.AddTransient<DeleteObjectsCommand>();
             serviceCollection.AddTransient<ReduceMeshCommand>();
+            serviceCollection.AddTransient<EditMeshesCommand>();
             serviceCollection.AddTransient<TransformVertexCommand>();
             serviceCollection.AddTransient<CombineMeshCommand>();
             serviceCollection.AddTransient<CreateAnimatedMeshPoseCommand>();

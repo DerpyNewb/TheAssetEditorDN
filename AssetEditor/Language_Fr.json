@@ -931,6 +931,8 @@
     "KitbashTool.MeshView.RenderBBox":  "Render Bbox",
     "KitbashTool.MeshView.Pivot":  "Pivot",
     "KitbashTool.MeshView.CopyToAllMeshes":  "Copy to all meshes",
+    "KitbashTool.MeshView.BakePivot":  "Bake into mesh",
+    "KitbashTool.MeshView.BakePivotToolTip":  "Move the pivot into the vertices, so the mesh stays where it is with a pivot of 0, 0, 0",
     "KitbashTool.MeshView.ReduceLods":  "Reduce Lods",
     "KitbashTool.TintView.PreviewCapability":  "Preview capability",
     "KitbashTool.TintView.TintMask":  "Tint Mask",
