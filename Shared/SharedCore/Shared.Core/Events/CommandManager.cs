@@ -72,8 +72,7 @@ namespace Shared.Core.Events
                     _undone.Clear();
                 }
 
-                var undoText = GetUndoHint();
-                _eventHub.Publish(new CommandStackUndoEvent(undoText));
+                _eventHub.Publish(new CommandStackUndoEvent(command.HintText));
             }
         }
 
