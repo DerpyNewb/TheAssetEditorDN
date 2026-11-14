@@ -1,5 +1,7 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Windows;
+using System.Windows.Input;
 using AssetEditor.Services;
 using AssetEditor.UiCommands;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -15,12 +17,14 @@ using Shared.Core.ToolCreation;
 using Shared.Ui.BaseDialogs.PackFileTree;
 using Shared.Ui.BaseDialogs.PackFileTree.ContextMenu;
 using Shared.Ui.Common;
+using Shared.Ui.Common.MenuSystem;
 
 namespace AssetEditor.ViewModels
 {
     public partial class MainViewModel : ObservableObject, IDropTarget<IEditorInterface, bool>
     {
         private readonly IUiCommandFactory _uiCommandFactory;
+        private readonly HotkeyService _hotkeys;
 
         public PackFileBrowserViewModel FileTree { get; private set; }
         public MenuBarViewModel MenuBar { get; set; }
@@ -43,8 +47,10 @@ namespace AssetEditor.ViewModels
                 IEditorDatabase toolFactory, 
                 IUiCommandFactory uiCommandFactory, 
                 IEventHub eventHub,
-                ApplicationSettingsService applicationSettingsService)
+                ApplicationSettingsService applicationSettingsService,
+                HotkeyService hotkeys)
         {
+            _hotkeys = hotkeys;
             MenuBar = menuViewModel;
 
             EditorManager = editorManager;
@@ -60,6 +66,24 @@ namespace AssetEditor.ViewModels
             // "DN v1.1" marks this fork's build and its own version apart from the main repo's; the upstream number stays numeric for the updater's comparison.
             ApplicationTitle = $"AssetEditor v{VersionChecker.GetCurrentVersion()} - DN v{ForkRelease.Current}";
             CurrentGame = $"Current Game: {GameInformationDatabase.GetGameById(applicationSettingsService.CurrentSettings.CurrentGame).DisplayName}";
+        }
+
+        /// <summary>Ctrl+S by default; the Hotkeys tab in Settings changes it.</summary>
+        public const string SaveHotkey = "General.Save";
+
+        /// <summary>Saves the open tab when the key is the save hotkey and the tab is an editor that saves, after beforeSave. False
+        /// leaves the key alone.</summary>
+        public bool OnKeyPressed(Key key, ModifierKeys modifiers, Action? beforeSave = null)
+        {
+            if (_hotkeys.Get(SaveHotkey)?.Matches(key, modifiers) != true)
+                return false;
+            var editors = EditorManager.GetAllEditors();
+            var current = EditorManager.GetCurrentEditor();
+            if (current < 0 || current >= editors.Count || editors[current] is not ISaveableEditor editor)
+                return false;
+            beforeSave?.Invoke();
+            editor.Save();
+            return true;
         }
 
         public void OpenFile(PackFile file) => _uiCommandFactory.Create<OpenEditorCommand>().Execute(file);

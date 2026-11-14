@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Editors.KitbasherEditor.ChildEditors.SaveDialog;
 using Editors.KitbasherEditor.EventHandlers;
 using Editors.KitbasherEditor.Services;
 using Editors.KitbasherEditor.ViewModels.SceneExplorer;
@@ -10,6 +11,7 @@ using GameWorld.Core.Components.Selection;
 using GameWorld.Core.Services;
 using GameWorld.Core.WpfWindow;
 using KitbasherEditor.ViewModels.MenuBarViews;
+using Shared.Core.Commands;
 using Shared.Core.ErrorHandling;
 using Shared.Core.Events;
 using Shared.Core.Events.Scoped;
@@ -31,6 +33,7 @@ namespace Editors.KitbasherEditor.ViewModels
         private readonly FocusSelectableObjectService _focusSelectableObjectComponent;
         private readonly SkeletonChangedHandler _skeletonChangedHandler;
         private readonly IEventHub _eventHub;
+        private readonly IUiCommandFactory _commands;
 
         public IWpfGame Scene { get; set; }
         public SceneExplorerViewModel SceneExplorer { get; set; }
@@ -61,8 +64,10 @@ namespace Editors.KitbasherEditor.ViewModels
             SkeletonChangedHandler skeletonChangedHandler, 
             SceneNodeEditorViewModel sceneNodeEditorView,
             SelectionComponent selectionComponent,
-            BonePicker bonePicker)
+            BonePicker bonePicker,
+            IUiCommandFactory commands)
         {
+            _commands = commands;
             _logger = scopedLogger.ForContext<KitbasherViewModel>();
 
             _dropHandler = dropHandler;
@@ -108,7 +113,8 @@ namespace Editors.KitbasherEditor.ViewModels
             }
         }
 
-        public bool Save() => true;
+        /// <summary>The toolbar's Save, with its dialog and check; false when either was cancelled.</summary>
+        public bool Save() => _commands.Create<SaveCommand>().ExecuteWithResult() != null;
 
         public void Close()
         {

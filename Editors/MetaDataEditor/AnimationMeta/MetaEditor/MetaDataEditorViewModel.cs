@@ -107,6 +107,7 @@ namespace Editors.AnimationMeta.Presentation
             SaveActionCommand.NotifyCanExecuteChanged();
             CheckActionCommand.NotifyCanExecuteChanged();
             ExamplesActionCommand.NotifyCanExecuteChanged();
+            PasteActionCommand.NotifyCanExecuteChanged();
         }
 
         /// <summary>Rebuilds the rows from the file, which every caller but LoadFile has just changed: an entry added, deleted, moved
@@ -219,7 +220,7 @@ namespace Editors.AnimationMeta.Presentation
         [RelayCommand] void MoveDownAction() => _uiCommandFactory.Create<MoveEntryCommand>().ExecuteDown(this);
         [RelayCommand] void DeleteAction() => _uiCommandFactory.Create<DeleteEntryCommand>(x => x.Configure(this)).Execute();
         [RelayCommand] void NewAction() => _uiCommandFactory.Create<NewEntryCommand>(x => x.Configure(this)).Execute();
-        [RelayCommand] void PasteAction() => _uiCommandFactory.Create<CopyPastCommand>().ExecutePaste(this);
+        [RelayCommand(CanExecute = nameof(HasFile))] void PasteAction() => _uiCommandFactory.Create<CopyPastCommand>().ExecutePaste(this);
         [RelayCommand] void CopyAction() => _uiCommandFactory.Create<CopyPastCommand>().ExecuteCopy(this);
         bool HasFile() => ParsedFile != null;
         [RelayCommand(CanExecute = nameof(HasFile))] void CheckAction() => _uiCommandFactory.Create<CheckMetaCommand>(x => x.Configure(this)).Execute();

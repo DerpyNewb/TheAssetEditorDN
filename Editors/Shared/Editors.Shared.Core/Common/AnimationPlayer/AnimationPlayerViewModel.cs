@@ -81,8 +81,17 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
             }
         }
 
-        public void SetAnimationNextFrame() => _assetList.ForEach(x => NextFrame(x));
-        public void SetAnimationPrivFrame() => _assetList.ForEach(x => PrivFrame(x));
+        public void SetAnimationNextFrame() => Step(NextFrame);
+        public void SetAnimationPrivFrame() => Step(PrivFrame);
+
+        // A step onto the last frame is not the clip running out, so Loop does not start it again.
+        bool _stepping;
+        void Step(Action<SceneObject> step)
+        {
+            _stepping = true;
+            try { _assetList.ForEach(step); }
+            finally { _stepping = false; }
+        }
         public void SetAnimationFirstFrame() => _assetList.ForEach(x => SetFrame(x, 0));
 
         public void SetAnimationLastFrame()
@@ -100,7 +109,7 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
             SelectedAnimationMaxTime.Value = (float)SelectedMainAnimation.Asset.Player.GetAnimationLengthUs() / 1_000_000;
             SelectedAnimationFps.Value = SelectedMainAnimation.Asset.Player.GetFps();
 
-            if (SelectedAnimationCurrentFrame.Value + 1 == SelectedMainAnimation.Asset.Player.FrameCount())
+            if (_stepping == false && SelectedAnimationCurrentFrame.Value + 1 == SelectedMainAnimation.Asset.Player.FrameCount())
             {
                 if (LoopAnimation.Value)
                 {

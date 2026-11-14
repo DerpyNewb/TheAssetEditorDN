@@ -38,6 +38,8 @@ namespace Editors.Shared.Core
 
             serviceCollection.AddScoped<IEditorHostParameters, EditorHostParameters>();
             serviceCollection.AddSingleton(new HotkeyDefinition(EditorHostBase.PlayPauseHotkey, "Hotkeys.Group.AnimationEditors", "Hotkeys." + EditorHostBase.PlayPauseHotkey, new Hotkey(Key.Space, ModifierKeys.None)));
+            serviceCollection.AddSingleton(new HotkeyDefinition(EditorHostBase.PreviousFrameHotkey, "Hotkeys.Group.AnimationEditors", "Hotkeys." + EditorHostBase.PreviousFrameHotkey, new Hotkey(Key.Left, ModifierKeys.None)));
+            serviceCollection.AddSingleton(new HotkeyDefinition(EditorHostBase.NextFrameHotkey, "Hotkeys.Group.AnimationEditors", "Hotkeys." + EditorHostBase.NextFrameHotkey, new Hotkey(Key.Right, ModifierKeys.None)));
 
         }
 
