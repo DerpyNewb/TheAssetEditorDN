@@ -707,7 +707,7 @@
   "KitbashTool.VertexDebugger.Title": "顶点调试器",
   "KitbashTool.VertexDebugger.NormalDebugScale": "法线调试缩放:",
   "KitbashTool.VertexDebugger.ShowStatistics": "显示统计信息",
-  "KitbashTool.ReplaceTexturePaths.Menu": "Replace in texture paths",
+  "KitbashTool.ReplaceTexturePaths.Menu": "Replace in texture paths...",
   "KitbashTool.ReplaceTexturePaths.Title": "Replace in Texture Paths",
   "KitbashTool.ReplaceTexturePaths.Find": "Find:",
   "KitbashTool.ReplaceTexturePaths.ReplaceWith": "Replace with:",

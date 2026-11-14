@@ -665,7 +665,7 @@
     "KitbashTool.VertexDebugger.Title":  "Vertex Debugger",
     "KitbashTool.VertexDebugger.NormalDebugScale":  "Normal debug scale:",
     "KitbashTool.VertexDebugger.ShowStatistics":  "Show Statistics",
-    "KitbashTool.ReplaceTexturePaths.Menu":  "Replace in texture paths",
+    "KitbashTool.ReplaceTexturePaths.Menu":  "Replace in texture paths...",
     "KitbashTool.ReplaceTexturePaths.Title":  "Replace in Texture Paths",
     "KitbashTool.ReplaceTexturePaths.Find":  "Find:",
     "KitbashTool.ReplaceTexturePaths.ReplaceWith":  "Replace with:",

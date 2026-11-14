@@ -55,11 +55,14 @@
                 <Label Width ="{StaticResource labelWidth}" DockPanel.Dock="Left" Content="{loc:Loc KitbashTool.MeshView.Pivot}"/>
                 <Label>:</Label>
                 <CheckBox  HorizontalAlignment="Center" VerticalAlignment="Center" IsChecked="{Binding Mesh.DrawPivotPoint, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
-            
-                <Button Content="{loc:Loc KitbashTool.MeshView.CopyToAllMeshes}" Margin="3" Command="{Binding Mesh.CopyPivotToAllMeshesCommand}" DockPanel.Dock="Right"/>
-                <Button Content="{loc:Loc KitbashTool.MeshView.BakePivot}" ToolTip="{loc:Loc KitbashTool.MeshView.BakePivotToolTip}" Margin="3" Command="{Binding Mesh.BakePivotCommand}" DockPanel.Dock="Right"/>
                 <mathviews:Vector3View VerticalContentAlignment="Center" Vector3="{Binding Mesh.Pivot, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Margin="2,0,2,0"/>
             </DockPanel>
+
+            <!-- On their own line: beside the pivot boxes in a narrow panel they squeezed the numbers out of sight. -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" HorizontalAlignment="Right">
+                <Button Content="{loc:Loc KitbashTool.MeshView.BakePivot}" ToolTip="{loc:Loc KitbashTool.MeshView.BakePivotToolTip}" Margin="3" Command="{Binding Mesh.BakePivotCommand}"/>
+                <Button Content="{loc:Loc KitbashTool.MeshView.CopyToAllMeshes}" Margin="3" Command="{Binding Mesh.CopyPivotToAllMeshesCommand}"/>
+            </StackPanel>
 
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" >
                 <Label Width ="{StaticResource labelWidth}" DockPanel.Dock="Left" Content="{loc:Loc KitbashTool.MeshView.ReduceLods}"/>
