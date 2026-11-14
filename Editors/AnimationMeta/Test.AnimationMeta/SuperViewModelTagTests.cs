@@ -111,6 +111,36 @@ namespace Test.AnimationMeta
             Assert.That(_scene.ModelNode.IsVisible, Is.True, "shown again once the tag is gone");
         }
 
+        float ScaleAt(List<IMetaDataInstance> instances, float time)
+        {
+            foreach (var instance in instances)
+                instance.Update(time);
+            return Vector3.Transform(Vector3.UnitX, _scene.MainNode.ModelMatrix).X;
+        }
+
+        [Test]
+        public void Rescale_DrawsTheWholeAssetAtItsScale_WhileTheTagIsOn()
+        {
+            var instances = Build(null, Meta(new ReScale { StartTime = 0.5f, EndTime = 1, Scale = 1.75f }));
+
+            Assert.That(ScaleAt(instances, 0.4f), Is.EqualTo(1).Within(1e-5f), "before the tag");
+            Assert.That(ScaleAt(instances, 0.75f), Is.EqualTo(1.75f).Within(1e-5f), "inside the tag");
+            Assert.That(ScaleAt(instances, 1.2f), Is.EqualTo(1).Within(1e-5f), "after the tag");
+        }
+
+        // The scale is the target, not a factor: 909 of vanilla's 970 RESCALE tags say 1, which as a factor would do nothing.
+        [Test]
+        public void Rescale_IsTheScaleItself_NotAFactorOnTheLastFrame()
+        {
+            var instances = Build(null, Meta(new ReScale { StartTime = 0, EndTime = 0, Scale = 0.43f }));
+            ScaleAt(instances, 0.5f);
+            Assert.That(ScaleAt(instances, 0.6f), Is.EqualTo(0.43f).Within(1e-5f));
+
+            foreach (var instance in instances)
+                instance.CleanUp();
+            Assert.That(_scene.MainNode.ModelMatrix, Is.EqualTo(_scene.Offset), "removing the tag puts the asset back");
+        }
+
         static List<Vector3> Lines(SimpleDrawableNode node) =>
             [.. ((List<VertexPositionColor>)typeof(SimpleDrawableNode).GetField("_lineVertexList", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(node)!).Select(x => x.Position)];
 

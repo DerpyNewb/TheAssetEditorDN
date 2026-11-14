@@ -155,6 +155,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 var disable = Both<DisableModel>(usePersistent ? persistent : null, metaData);
                 if (disable.Count != 0)
                     output.Add(new DisableModelInstance(scene, disable));
+                var rescale = Both<ReScale>(usePersistent ? persistent : null, metaData);
+                if (rescale.Count != 0)
+                    output.Add(new RescaleInstance(scene, rescale));
             }
             return output;
         }
