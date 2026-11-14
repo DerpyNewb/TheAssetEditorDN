@@ -507,6 +507,8 @@
   "SuperView.SlotFiles.Meta": "Meta",
   "SuperView.SlotFiles.Sound": "Sound",
   "SuperView.SlotFiles.Apply": "Apply to slot",
+  "SuperView.SlotFiles.Preview": "Preview",
+  "SuperView.SlotFiles.Preview.Tooltip": "Plays this animation and meta in the picked slot without saving anything. Picking another slot plays what its set names again.",
   "SuperView.SlotFiles.BrowseAnimation": "Only animations for this set's skeleton are listed.",
   "SuperView.Timeline": "Tag timeline",
   "SuperView.Timeline.Tooltip": "Each tick is a tag from the persistent or the animation meta, at its Start Time, with a bar running to its End Time when that's later. A dashed tick is outside the clip and sits at the nearer edge. The selected tag's tick is red. Click a tick to move the playhead there and select its tag. Click elsewhere on the strip, or drag along it, to move through the animation.",

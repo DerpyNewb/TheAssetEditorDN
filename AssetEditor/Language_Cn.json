@@ -507,6 +507,8 @@
   "SuperView.SlotFiles.Meta": "元数据",
   "SuperView.SlotFiles.Sound": "声音",
   "SuperView.SlotFiles.Apply": "应用到槽位",
+  "SuperView.SlotFiles.Preview": "预览",
+  "SuperView.SlotFiles.Preview.Tooltip": "在所选槽位播放此动画和元数据，不保存任何内容。选择其他槽位后会重新播放其动画集指定的文件。",
   "SuperView.SlotFiles.BrowseAnimation": "只列出适用于此动画集骨骼的动画。",
   "SuperView.Timeline": "标签时间轴",
   "SuperView.Timeline.Tooltip": "每个刻度是持久元数据或动画元数据中的一个标签，位于其 Start Time；若 End Time 更晚，则有一条横条延伸到 End Time。虚线刻度在片段之外，放在较近的一端。所选标签的刻度为红色。点击刻度可将播放头移到该处并选中其标签。点击时间轴上的其他位置或沿其拖动，即可在动画中移动播放头。",

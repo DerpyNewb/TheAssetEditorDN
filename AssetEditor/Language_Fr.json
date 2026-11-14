@@ -483,6 +483,8 @@
     "SuperView.SlotFiles.Meta":  "Méta",
     "SuperView.SlotFiles.Sound":  "Son",
     "SuperView.SlotFiles.Apply":  "Appliquer au slot",
+    "SuperView.SlotFiles.Preview":  "Aperçu",
+    "SuperView.SlotFiles.Preview.Tooltip":  "Joue cette animation et cette méta dans le slot choisi sans rien enregistrer. Choisir un autre slot rejoue ce que nomme son set.",
     "SuperView.SlotFiles.BrowseAnimation":  "Seules les animations du squelette de ce set sont listées.",
     "SuperView.Timeline":  "Chronologie des balises",
     "SuperView.Timeline.Tooltip":  "Chaque trait est une balise du méta persistant ou du méta d'animation, placée à son Start Time, avec une barre jusqu'à son End Time quand celui-ci est plus tard. Un trait en pointillés est hors du clip et se place au bord le plus proche. Le trait de la balise sélectionnée est rouge. Cliquez sur un trait pour y placer la tête de lecture et sélectionner sa balise. Cliquez ailleurs sur la bande, ou faites glisser le long de celle-ci, pour parcourir l'animation.",

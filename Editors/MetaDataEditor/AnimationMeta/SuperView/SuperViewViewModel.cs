@@ -285,6 +285,34 @@ namespace Editors.AnimationMeta.SuperView
                 _standardDialogs.ShowDialogBox(problem);
         }
 
+        // Plays the typed animation and meta in the picked slot and writes nothing: the set, its animpack and the slot list stay as they are, and
+        // picking a slot plays what the set names again. The Animation tab shows the previewed meta, so Save writes that file.
+        [RelayCommand]
+        void PreviewSlotFiles()
+        {
+            var selection = _asset.FragAndSlotSelection;
+            var set = selection.FragmentList.SelectedItem;
+            var picked = selection.FragmentSlotList.SelectedItem;
+            var (anim, meta, sound) = (Key(SlotAnim.Trim()), Key(SlotMeta.Trim()), Key(SlotSound.Trim()));
+            // Not the sound: SuperView plays no slot's .snd.meta, and CA's slots name ones no loaded pack has.
+            var missing = new[] { anim, meta }.FirstOrDefault(x => x.Length != 0 && _packFileService.FindFile(x) == null);
+            var problem = set == null || picked == null ? "Pick an animation set and a slot first."
+                : missing != null ? $"{missing} is in no loaded pack."
+                : anim.Length != 0 && !_skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(set.SkeletonName).Any(x => Key(x.AnimationFile) == anim) ? $"{anim} is not an animation for {set.SkeletonName}, the set's skeleton."
+                : null;
+            if (problem != null)
+            {
+                _standardDialogs.ShowDialogBox(problem);
+                return;
+            }
+
+            selection.PlaySlot(new AnimationBinEntryGenericFormat
+            {
+                Index = picked!.Index, SlotIndex = picked.SlotIndex, SlotName = picked.SlotName, BlendInTime = picked.BlendInTime, SelectionWeight = picked.SelectionWeight,
+                WeaponBools = picked.WeaponBools, AnimationFile = anim, MetaFile = meta, SoundFile = sound,
+            });
+        }
+
         // An animation offered only if it is for the set's skeleton, as one for another skeleton cannot play on it.
         [RelayCommand]
         void BrowseSlotAnim()
