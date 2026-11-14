@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using GameWorld.Core.Rendering;
 using GameWorld.Core.Rendering.Materials.Serialization;
 using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Services.SceneSaving.Lod;
@@ -10,6 +11,22 @@ using Shared.GameFormats.RigidModel.Types;
 
 namespace GameWorld.Core.Services.SceneSaving
 {
+    /// <summary>What Kitbash's save check offers beside a problem.</summary>
+    public enum SaveFix
+    {
+        None,
+        NormaliseWeights,
+        BindToBone,
+        ReplaceTexturePath,
+    }
+
+    /// <summary>A problem the save check found, with the fix it offers and the mesh that fix works on.</summary>
+    public class SaveProblem : ErrorListDataItem
+    {
+        public SaveFix Fix { get; init; }
+        public Rmv2MeshNode? Mesh { get; init; }
+    }
+
     /// <summary>What is wrong with a model before it is saved. Kitbash asks whether to save anyway when this finds anything.</summary>
     public class SaveValidatorService
     {
@@ -92,26 +109,36 @@ namespace GameWorld.Core.Services.SceneSaving
             if (weightCount == 0)
                 return;
 
-            int unweighted = 0, unbalanced = 0;
-            foreach (var vertex in mesh.Geometry.VertexArray)
-            {
-                var weights = vertex.BlendWeights;
-                var total = vertex.GetBoneWeights().Take(weightCount).Sum();
-                if (total <= 0)
-                    unweighted++;
-                // CA stores 12.3 million of its 20.9 million two-weight vertices with only the first weight set, the second being
-                // what the first leaves, so only a two-weight vertex with both set can be off.
-                else if ((weightCount == 4 || weights.Y > 0) && MathF.Abs(total - 1) > WeightTolerance)
-                    unbalanced++;
-            }
+            var unweighted = mesh.Geometry.VertexArray.Count(x => x.GetBoneWeights().Take(weightCount).Sum() <= 0);
+            var unbalanced = mesh.Geometry.VertexArray.Count(x => IsUnbalanced(x, weightCount));
 
             // MeshBuilderService.NormalizeBoneWeights runs on save: it scales the weights to 1, and puts a vertex with none fully on its first bone.
             var vertexCount = mesh.Geometry.VertexArray.Length;
             if (unweighted != 0)
-                errorList.Error(name, $"{unweighted} of {vertexCount} vertices have no bone weights. The save binds each one fully to its first bone.");
+                Add(errorList, true, name, $"{unweighted} of {vertexCount} vertices have no bone weights. The save binds each one fully to its first bone.", SaveFix.BindToBone, mesh);
             if (unbalanced != 0)
-                errorList.Warning(name, $"{unbalanced} of {vertexCount} vertices have bone weights that don't add up to 1. The save scales them to 1, so they may move differently in game than here.");
+                Add(errorList, false, name, $"{unbalanced} of {vertexCount} vertices have bone weights that don't add up to 1. The save scales them to 1, so they may move differently in game than here.", SaveFix.NormaliseWeights, mesh);
         }
+
+        /// <summary>Weights that miss 1 by more than CA's byte rounding. CA stores 12.3 million of its 20.9 million two-weight vertices
+        /// with only the first weight set, the second being what the first leaves, so only a two-weight vertex with both set can be off.</summary>
+        public static bool IsUnbalanced(VertexPositionNormalTextureCustom vertex, int weightCount)
+        {
+            var total = vertex.GetBoneWeights().Take(weightCount).Sum();
+            return total > 0 && (weightCount == 4 || vertex.BlendWeights.Y > 0) && MathF.Abs(total - 1) > WeightTolerance;
+        }
+
+        static void Add(ErrorList errorList, bool isError, string itemName, string description, SaveFix fix, Rmv2MeshNode? mesh = null) =>
+            errorList.Errors.Add(new SaveProblem
+            {
+                ErrorType = isError ? "Error" : "Warning",
+                IsError = isError,
+                IsWarning = !isError,
+                ItemName = itemName,
+                Description = description,
+                Fix = fix,
+                Mesh = mesh,
+            });
 
         void CheckTextures(List<(Rmv2MeshNode Mesh, string Name)> meshes, ErrorList errorList)
         {
@@ -124,7 +151,8 @@ namespace GameWorld.Core.Services.SceneSaving
                 var users = string.Join(", ", path.Select(x => x.Name).Distinct());
                 var file = _packFileService.FindFile(path.Key);
                 if (file == null)
-                    errorList.Warning(path.Key, $"This texture is not in any loaded pack. Used by {users}.");
+                    Add(errorList, false, path.Key, $"This texture is not in any loaded pack. Used by {users}.", SaveFix.ReplaceTexturePath);
+                // No fix: the file may be CA's, and BC1 and BC3 have no sRGB form without a new DX10 header, so it is re-saved outside Kitbash.
                 else if (path.Any(x => x.TexureType == TextureType.BaseColour) && ImageLoader.ReadImageInformation(file.DataSource.ReadData()) is { IsDdsImage: true, HasSrgbFlag: false } info)
                     errorList.Warning(path.Key, $"This base colour is {info.FormatName}, which has no sRGB flag. The game reads it as linear and draws it lighter. Save it as BC1_UNORM_SRGB, BC3_UNORM_SRGB or BC7_UNORM_SRGB. Used by {users}.");
             }

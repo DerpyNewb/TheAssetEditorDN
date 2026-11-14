@@ -164,7 +164,13 @@ namespace Test.KitbashEditor.ReRigging
             var saveSettings = runner.GetRequiredServiceInCurrentEditorScope<GeometrySaveSettings>();
             saveSettings.IsUserInitialized = true;
             saveSettings.DisplayDialogOnNextSave = false;
-            commands.Create<SaveCommand>().Execute();
+            // The save check's window is modal and needs a UI thread, so what it finds is printed and answered with Save anyway.
+            commands.Create<SaveCommand>(x => x.AskToSaveAnyway = (_, problems) =>
+            {
+                foreach (var problem in problems.Errors)
+                    TestContext.Out.WriteLine($"Save check: {problem.ErrorType} - {problem.ItemName}: {problem.Description}");
+                return true;
+            }).Execute();
 
             var saved = runner.PackFileService.FindFile(Torso, outputPack);
             Assert.That(saved, Is.Not.Null, "nothing was saved into the output pack");

@@ -46,6 +46,15 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
             _boneMode = new BoneRiggingAlgorithm(_commandFactory, _standardDialogs, rootScene);
         }
 
+        /// <summary>Bone mode with these meshes listed, as the save check's fix for vertices with no weights opens it.</summary>
+        public void ShowBind(IEnumerable<Rmv2MeshNode> meshes)
+        {
+            SelectedRiggingMode = RiggingMode.Bone;
+            AffectedMeshCollection.Clear();
+            foreach (var mesh in meshes)
+                AffectedMeshCollection.Add(mesh);
+        }
+
         [RelayCommand] void ClearAffectedMeshCollection() => AffectedMeshCollection.Clear();
         [RelayCommand] void AddSelectionToAffectMeshCollection() => AddSelectionToList(AffectedMeshCollection);
 

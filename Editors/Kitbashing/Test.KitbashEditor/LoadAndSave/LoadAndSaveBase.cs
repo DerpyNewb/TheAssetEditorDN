@@ -76,7 +76,14 @@ namespace Test.KitbashEditor.LoadAndSave
             saveSettings.DisplayDialogOnNextSave = false;
 
             var toolCommandFactory = runner.GetRequiredServiceInCurrentEditorScope<IUiCommandFactory>();
-            var saveResult = toolCommandFactory.Create<SaveCommand>().ExecuteWithResult();
+            // The save check's window is modal and needs a UI thread. What it finds in these models is not what these tests are
+            // about, so it is printed and answered with Save anyway.
+            var saveResult = toolCommandFactory.Create<SaveCommand>(x => x.AskToSaveAnyway = (_, problems) =>
+            {
+                foreach (var problem in problems.Errors)
+                    TestContext.Out.WriteLine($"Save check: {problem.ErrorType} - {problem.ItemName}: {problem.Description}");
+                return true;
+            }).ExecuteWithResult();
 
             Assert.That(saveResult, Is.Not.Null);
             Assert.That(saveResult!.GeneratedMesh, Is.Not.Null);

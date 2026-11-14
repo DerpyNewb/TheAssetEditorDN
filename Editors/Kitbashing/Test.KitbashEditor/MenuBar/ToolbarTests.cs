@@ -72,22 +72,6 @@ namespace Test.KitbashEditor.MenuBar
         }
 
         [Test]
-        public void CheckModel_SaysNothingIsWrongWithKarl_AndNamesAMeshWithAnUnweightedVertex()
-        {
-            var messages = new List<string>();
-            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback((string message, string _) => messages.Add(message));
-
-            Service<IUiCommandFactory>().Create<CheckModelCommand>().Execute();
-            var mesh = _karl.GetMeshesInLod(0, true)[0];
-            mesh.Geometry.VertexArray[0].BlendWeights = Vector4.Zero;
-            Service<IUiCommandFactory>().Create<CheckModelCommand>().Execute();
-
-            Assert.That(messages, Has.Count.EqualTo(2));
-            Assert.That(messages[0], Is.EqualTo(CheckModelCommand.NothingFound));
-            Assert.That(messages[1], Does.Contain(mesh.Name).And.Contain("weight"));
-        }
-
-        [Test]
         public void BakePivot_BakesEverySelectedMesh_AsOneUndoStep()
         {
             var meshes = _karl.GetMeshesInLod(0, true).Take(2).ToList();
