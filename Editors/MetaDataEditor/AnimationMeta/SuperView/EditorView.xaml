@@ -34,7 +34,10 @@
                     <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotSoundCommand}"/>
                     <TextBox Text="{Binding SlotSound, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
                 </DockPanel>
-                <Button Margin="0,4,0,0" Content="{loc:Loc SuperView.SlotFiles.Apply}" Command="{Binding ApplySlotFilesCommand}"/>
+                <UniformGrid Margin="0,4,0,0" Columns="2">
+                    <Button Margin="0,0,2,0" Content="{loc:Loc SuperView.SlotFiles.Preview}" ToolTip="{loc:Loc SuperView.SlotFiles.Preview.Tooltip}" Command="{Binding PreviewSlotFilesCommand}"/>
+                    <Button Margin="2,0,0,0" Content="{loc:Loc SuperView.SlotFiles.Apply}" Command="{Binding ApplySlotFilesCommand}"/>
+                </UniformGrid>
             </StackPanel>
         </GroupBox>
         <local:MetaTimelineView Margin="5,0,5,5" DockPanel.Dock="Top"/>

@@ -43,7 +43,7 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             {
                 SearchFilter = (value, rx) => { return rx.Match(value.FullPath).Success; }
             };
-            FragmentSlotList = new FilterCollection<AnimationBinEntryGenericFormat>(null, OnAnimationSlotSelected)
+            FragmentSlotList = new FilterCollection<AnimationBinEntryGenericFormat>(null, PlaySlot)
             {
                 SearchFilter = (value, rx) => { return rx.Match(value.SlotName).Success; }
             };
@@ -140,7 +140,9 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             animationSlotsCollection.UpdatePossibleValues(value.Entries);
         }
 
-        void OnAnimationSlotSelected(AnimationBinEntryGenericFormat value)
+        /// <summary>Plays a slot's animation and metas on the scene object. Picking a slot calls it; SuperView's Preview calls it with
+        /// a copy of the picked slot naming other files, which plays them without writing the set.</summary>
+        public void PlaySlot(AnimationBinEntryGenericFormat? value)
         {
             AnimationReference? animationReference = null;
             PackFile? meta = null;

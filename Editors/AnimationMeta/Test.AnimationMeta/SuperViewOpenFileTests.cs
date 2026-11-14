@@ -315,6 +315,84 @@ namespace Test.AnimationMeta
             Assert.That((selection.MetaDataName, superView.SlotAnim, superView.SlotMeta, pfs.FindFile(NewMeta) != null), Is.EqualTo((NewMeta, other, NewMeta, true)));
         }
 
+        // Preview plays the slot panel's files in the picked slot, the meta in the Animation tab, and writes nothing: every pack's files
+        // and the set's rows are as they were. Picking a slot plays what the set names again. A file in no loaded pack, or an
+        // animation for another skeleton, is refused and the scene keeps playing what it did.
+        [Test]
+        public void Preview_PlaysTheTypedFilesInTheSlot_AndWritesNothing()
+        {
+            var pfs = _runner.PackFileService;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var data = superView.SceneObjects[0].Data;
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable);
+            var set = selection.FragmentList.SelectedItem;
+            var attack = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+            var donor = set.Entries.First(x => x.AnimationFile != attack.AnimationFile && x.MetaFile != attack.MetaFile && !string.IsNullOrEmpty(x.MetaFile)
+                && pfs.FindFile(x.AnimationFile) != null && pfs.FindFile(x.MetaFile) != null);
+            // ATTACK_5 shows only its first weapon bone (see AnimationSlot_ShowsOnlyTheWeaponBonesItFlags), and so does its preview.
+            var weapons = SceneNodeHelper.GetChildrenOfType<SlotNode>(data.ModelNode).Where(x => x.AttachmentBoneName?.StartsWith("be_prop_") == true && x.Children.Count > 0).ToList();
+            attack.WeaponBools = 1 << int.Parse(weapons[0].AttachmentBoneName["be_prop_".Length..]);
+            selection.FragmentSlotList.SelectedItem = attack;
+            static string Key(string path) => path.Replace('\\', '/').ToLowerInvariant();
+            (string, string) Playing() => (Key(data.AnimationName.Value), Key(pfs.GetFullPath(superView.MetaEditor.CurrentFile)));
+            Assert.That(Playing(), Is.EqualTo((attack.AnimationFile, attack.MetaFile)), "as picked");
+
+            Dictionary<string, byte[]> Files() => pfs.GetAllPackfileContainers()
+                .SelectMany(c => c.GetAllFiles().Select(f => ($"{c.Name}|{f.Key}", f.Value.DataSource.ReadData()))).ToDictionary(x => x.Item1, x => x.Item2);
+            static (string, string, string, string) Row(AnimationBinEntryGenericFormat x) => (x.SlotName, x.AnimationFile, x.MetaFile, x.SoundFile);
+            var (files, rows) = (Files(), set.Entries.Select(Row).ToList());
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+
+            (superView.SlotAnim, superView.SlotMeta) = (donor.AnimationFile.ToUpperInvariant().Replace('/', '\\'), donor.MetaFile);
+            Assert.That(pfs.FindFile(superView.SlotSound), Is.Null, "the slot's own .snd.meta, in no loaded pack as CA's often are, does not stop a preview");
+            superView.PreviewSlotFilesCommand.Execute(null);
+            Assert.That((said, Playing()), Is.EqualTo((new List<string>(), (donor.AnimationFile, donor.MetaFile))));
+            Assert.That(superView.MetaEditor.Tags, Is.Not.Empty, "the Animation tab shows the previewed meta");
+            Assert.That((weapons.Count > 1, weapons.Count(x => x.IsVisible)), Is.EqualTo((true, 1)), "the slot's weapon bones");
+            Assert.That((Files(), set.Entries.Select(Row).ToList(), selection.FragmentSlotList.SelectedItem!.AnimationFile), Is.EqualTo((files, rows, attack.AnimationFile)));
+
+            // Refused: a file in no loaded pack, then an animation in one but for another skeleton. The preview stays.
+            const string Elsewhere = "animations/derpy/not_throt.anim";
+            // Throt's animation with another skeleton named in its header, a same-length name patched in the bytes (version 8 has no writer).
+            var bytes = pfs.FindFile(donor.AnimationFile)!.DataSource.ReadData();
+            var stranger = set.SkeletonName[..^1] + (set.SkeletonName[^1] == 'x' ? 'y' : 'x');
+            var at = bytes.AsSpan().IndexOf(System.Text.Encoding.ASCII.GetBytes(set.SkeletonName));
+            System.Text.Encoding.ASCII.GetBytes(stranger).CopyTo(bytes, at);
+            pfs.AddFilesToPack(pfs.GetEditablePack()!, [new NewPackFileEntry("animations/derpy", PackFile.CreateFromBytes("not_throt.anim", bytes))]);
+            // The lookup re-reads a pack on a background task, so it is asked until the stand-in is listed under its own skeleton.
+            var lookup = _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Services.ISkeletonAnimationLookUpHelper>();
+            Assert.That(() => lookup.GetAnimationsForSkeleton(stranger).Select(x => Key(x.AnimationFile)).ToList(), Does.Contain(Elsewhere).After(10000, 50));
+            foreach (var (typed, refusal) in new[] { ("animations/derpy/nowhere.anim", "is in no loaded pack"), (Elsewhere, "is not an animation for") })
+            {
+                said.Clear();
+                superView.SlotAnim = typed;
+                superView.PreviewSlotFilesCommand.Execute(null);
+                Assert.That(said.Single(), Does.StartWith($"{typed} {refusal}"));
+                Assert.That(Playing(), Is.EqualTo((donor.AnimationFile, donor.MetaFile)), typed);
+            }
+
+            // Another slot plays the set's own files, and ATTACK_5 picked again its own.
+            var other = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName != "ATTACK_5" && x.AnimationFile != donor.AnimationFile && pfs.FindFile(x.AnimationFile) != null);
+            selection.FragmentSlotList.SelectedItem = other;
+            Assert.That((Key(data.AnimationName.Value), superView.SlotAnim), Is.EqualTo((other.AnimationFile, other.AnimationFile)));
+            selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+            Assert.That((Playing(), superView.SlotAnim, superView.SlotMeta), Is.EqualTo(((attack.AnimationFile, attack.MetaFile), attack.AnimationFile, attack.MetaFile)));
+        }
+
+        // Preview with no set picked says so and plays nothing new.
+        [Test]
+        public void Preview_WithNoSlotPicked_IsRefused()
+        {
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(_runner.PackFileService.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+            superView.SlotAnim = "animations/whatever.anim";
+            superView.PreviewSlotFilesCommand.Execute(null);
+            Assert.That((said, superView.SceneObjects[0].Data.AnimationName.Value ?? ""), Is.EqualTo((new List<string> { "Pick an animation set and a slot first." }, "")));
+        }
+
         // The campaign writer lower-cases every string, so a set with capitals is not what it writes back. One edit and then another
         // to a row naming a path with capitals both save, as the set in hand after a save is the one read back from the file.
         [Test]
