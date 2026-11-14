@@ -761,6 +761,11 @@
 
   "KitbashTool.AnimationView.Toggle": "动画",
   "KitbashTool.AnimationView.Frame": "帧 ",
+  "KitbashTool.AnimationView.FirstFrame": "First frame",
+  "KitbashTool.AnimationView.PreviousFrame": "Previous frame",
+  "KitbashTool.AnimationView.PlayPause": "Play or pause",
+  "KitbashTool.AnimationView.NextFrame": "Next frame",
+  "KitbashTool.AnimationView.LastFrame": "Last frame",
   "KitbashTool.AnimationView.Skeleton": "Skeleton",
   "KitbashTool.AnimationView.ExternalSkeleton": "外部 Skeleton",
   "KitbashTool.AnimationView.Animation": "动画",
