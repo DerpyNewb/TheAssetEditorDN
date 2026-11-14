@@ -4,11 +4,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.AnimationFragmentEditor.AnimationPack.Converters.AnimationBinWh3Converter;
 using Editors.Shared.Core.Common;
+using Editors.Shared.Core.Common.BaseControl;
 using GameWorld.Core.Services;
 using Shared.Core.Commands;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
 using Shared.Core.Services;
+using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationPack;
 using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
 
@@ -330,6 +332,34 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             var pick = _dialogs.DisplayBrowseDialog(extensions, filter);
             if (pick.Result && pick.File != null)
                 picked(Key(_pfs.GetFullPath(pick.File)));
+        }
+
+        /// <summary>SuperView with the table's skeleton, this table picked and the selected row's slot playing on it. A table names no
+        /// model, so the skeleton plays alone; a model can be added in SuperView. SuperView reads the animpack as saved.</summary>
+        [RelayCommand]
+        void Preview()
+        {
+            var skeleton = _pfs.FindFile($"animations/skeletons/{Skeleton}.anim");
+            if (skeleton == null)
+            {
+                Status = $"The skeleton {Skeleton} is not in the loaded packs.";
+                return;
+            }
+            if (_commands.Create<OpenEditorCommand>().Execute(EditorEnums.SuperView_Editor) is not EditorHostBase { SceneObjects: [var scene, ..] })
+                return;
+            scene.SetSkeleton(skeleton);
+
+            var sets = scene.FragAndSlotSelection;
+            var set = sets.FragmentList.PossibleValues?.FirstOrDefault(x => Key(x.FullPath) == Key(Table.FileName));
+            if (set == null)
+            {
+                Status = "SuperView lists this table once the animpack is saved.";
+                return;
+            }
+            sets.FragmentList.SelectedItem = set;
+            if (SelectedRows.FirstOrDefault() is { } row)
+                sets.FragmentSlotList.SelectedItem = sets.FragmentSlotList.PossibleValues?.Where(x => x.SlotName == row.Slot).ElementAtOrDefault(Math.Max(row.Variant, 0));
+            Status = Table.IsChanged.Value ? "SuperView shows the table as last saved. Save to see the edits there." : "";
         }
 
         [RelayCommand]

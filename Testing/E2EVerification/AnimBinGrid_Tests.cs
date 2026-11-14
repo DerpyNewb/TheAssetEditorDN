@@ -979,5 +979,78 @@ namespace Test.E2EVerification
             grid.OpenPathCommand.Execute("animations/derpy/missing.anim");
             Assert.That(grid.Status, Is.EqualTo("animations/derpy/missing.anim is not in the loaded packs."));
         }
+
+        // Preview: the grid had no playback. It opens SuperView with the table's skeleton, this table picked and the selected row's
+        // slot (its variant, not the slot's first) playing.
+
+        static Editors.Shared.Core.Common.ReferenceModel.SceneObjectViewModel? PreviewedScene(Opened opened)
+        {
+            var last = opened.Runner.ServiceProvider.GetRequiredService<IEditorManager>().GetAllEditors().Last();
+            return last.GetType().Name == "SuperViewViewModel" ? ((Editors.Shared.Core.Common.BaseControl.EditorHostBase)last).SceneObjects[0] : null;
+        }
+
+        [TestCase("STAND", 0, 0)]
+        [TestCase("WALK_1", 1, 1)]
+        public void Preview_OpensSuperViewOnThisTable_PlayingTheSelectedSlot(string slot, int variant, int entry)
+        {
+            var (opened, table, grid, _) = Grid();
+            grid.SelectedRows = [RowOf(grid, slot, variant)];
+
+            grid.PreviewCommand.Execute(null);
+
+            var scene = PreviewedScene(opened);
+            Assert.That(scene, Is.Not.Null, "SuperView did not open");
+            Assert.That(scene!.Data.SkeletonName.Value, Does.EndWith("humanoid01.anim"));
+            var sets = scene.FragAndSlotSelection;
+            Assert.That(sets.FragmentList.SelectedItem?.FullPath.Replace('\\', '/'), Is.EqualTo(table.FileName.Replace('\\', '/')));
+            Assert.That(sets.FragmentSlotList.SelectedItem, Is.SameAs(sets.FragmentSlotList.PossibleValues.Where(x => x.SlotName == slot).ElementAt(entry)));
+            Assert.That(scene.Data.AnimationClip, Is.Not.Null, "the slot's animation is not playing");
+            Assert.That(grid.Status, Is.Empty);
+        }
+
+        [Test]
+        public void Preview_WithUnsavedEdits_SaysSuperViewShowsTheSavedTable()
+        {
+            var (opened, _, grid, _) = Grid();
+            RowOf(grid, "STAND").Weight = "2";
+
+            grid.PreviewCommand.Execute(null);
+
+            Assert.That(PreviewedScene(opened), Is.Not.Null);
+            Assert.That(grid.Status, Does.Contain("last saved"));
+        }
+
+        [Test]
+        public void Preview_OfATableTheSavedAnimpackLacks_SaysSo()
+        {
+            var (opened, table, grid, _) = Grid();
+            table.FileName = Bin + "derpy_never_saved.bin";
+
+            grid.PreviewCommand.Execute(null);
+
+            Assert.That(PreviewedScene(opened), Is.Not.Null);
+            Assert.That(grid.Status, Is.EqualTo("SuperView lists this table once the animpack is saved."));
+        }
+
+        [Test]
+        public void TheToolbar_HasAPreviewButton()
+        {
+            var view = Path.Combine(SettingsView_Tests.Root(), "Editors", "AnimationFragmentEditor", "Editor.AnimationFragmentEditor", "AnimationPack", "BinGrid", "BinGridView.xaml");
+            var bound = SettingsView_Tests.Bindings(System.Xml.Linq.XDocument.Load(view)).Where(x => x.Path == nameof(BinGridViewModel.PreviewCommand)).ToList();
+
+            Assert.That(bound.Select(x => x.Element.Name.LocalName), Is.EqualTo(new[] { "Button" }));
+        }
+
+        [Test]
+        public void Preview_WithASkeletonNotInThePacks_OpensNothing()
+        {
+            var (opened, _, grid, _) = Grid();
+            grid.Skeleton = "nope";
+
+            grid.PreviewCommand.Execute(null);
+
+            Assert.That(PreviewedScene(opened), Is.Null);
+            Assert.That(grid.Status, Is.EqualTo("The skeleton nope is not in the loaded packs."));
+        }
     }
 }

@@ -245,6 +245,8 @@
                     ToolTip="Ctrl+C. The selected slots as XML, which the XML view also takes"/>
             <Button Content="Paste" Command="{Binding PasteCommand}" Style="{StaticResource ToolButton}"
                     ToolTip="Ctrl+V. Slots copied from here or from the XML view"/>
+            <Button Content="Preview" Command="{Binding PreviewCommand}" Style="{StaticResource ToolButton}" Margin="20,0,0,0"
+                    ToolTip="Opens SuperView with this table's skeleton, the table picked and the selected slot playing, as last saved"/>
             <TextBlock Text="Find" Style="{StaticResource Label}" Margin="20,0,6,0"/>
             <TextBox x:Name="FindBox" Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}" Width="150"
                      ToolTip="Ctrl+H. Matches the animation, meta and sound paths, ignoring case">
