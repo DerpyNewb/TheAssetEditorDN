@@ -62,6 +62,9 @@ namespace Shared.Ui.Editors.BoneMapping
             AnimatedBoneHelper.FilterBoneList(regex, OnlyShowUsedBones.Value, value.PossibleValues);
         }
 
+        public void ClearMeshBonesFilter() => MeshBones.Filter = "";
+        public void ClearParentModelBonesFilter() => ParentModelBones.Filter = "";
+
         public virtual void ClearBindingSelfAndChildren()
         {
             if (MeshBones.SelectedItem == null)
@@ -129,7 +132,14 @@ namespace Shared.Ui.Editors.BoneMapping
 
         private void OnParentBoneSelected(AnimatedBone bone)
         {
-            if (bone == null)
+            if (bone != null)
+                MapSelectedMeshBoneTo(bone);
+        }
+
+        /// <summary>Maps the selected mesh bone onto a target bone; the view calls it for a click on the target already selected.</summary>
+        public void MapSelectedMeshBoneTo(AnimatedBone bone)
+        {
+            if (MeshBones.SelectedItem == null)
                 return;
 
             MeshBones.SelectedItem.MappedBoneIndex.Value = bone.BoneIndex.Value;
@@ -158,11 +168,17 @@ namespace Shared.Ui.Editors.BoneMapping
         protected virtual void MappingUpdated()
         { }
 
+        /// <summary>False where an invalid mapping must not be applied at all, rather than applied after asking.</summary>
+        protected virtual bool CanApplyInvalidMapping => true;
+
         public bool OnOkButton()
         {
             var res = Validate(out var errorText);
             if (res == false)
             {
+                if (CanApplyInvalidMapping == false)
+                    return false;
+
                 var message = string.Format(_localizationManager.Get("KitbasherTool.BoneMapping.ConfirmWithValidationError"), errorText);
                 var title = _localizationManager.Get("KitbasherTool.BoneMapping.ErrorTitle");
                 var messageBoxResult = MessageBox.Show(message, title, MessageBoxButton.OKCancel);

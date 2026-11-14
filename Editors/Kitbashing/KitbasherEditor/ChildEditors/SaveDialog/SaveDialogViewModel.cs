@@ -51,7 +51,7 @@ namespace KitbasherEditor.ViewModels.SaveDialog
             SelectedLodStrategy = LodStrategies.First();
         }
 
-        internal void Initialize(GeometrySaveSettings saveSettings)
+        public void Initialize(GeometrySaveSettings saveSettings)
         {
             _saveSettings = saveSettings;
             _saveSettings.IsUserInitialized = true;
@@ -101,6 +101,7 @@ namespace KitbasherEditor.ViewModels.SaveDialog
             _saveSettings.MaterialOutputType = SelectedWsModelStrategy.Value;
             _saveSettings.LodGenerationMethod = SelectedLodStrategy.Value;
             _saveSettings.NumberOfLodsToGenerate = NumberOfLodsToGenerate;
+            _saveSettings.RememberChoices();
         }
 
         [RelayCommand]

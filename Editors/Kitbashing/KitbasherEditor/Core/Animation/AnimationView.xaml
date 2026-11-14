@@ -35,11 +35,12 @@
             </StackPanel>
 
             <StackPanel Grid.Row="1" Orientation="Horizontal"  HorizontalAlignment="Center" Margin="2,2,2,2">
-                <Button Command="{Binding FirstFrameCommand}" FontSize="20">⏮︎</Button>
-                <Button Command="{Binding PrivFrameCommand}" FontSize="20">⏪</Button>
-                <ToggleButton Command="{Binding PausePlayCommand}" FontSize="20">⏯︎</ToggleButton>
-                <Button Command="{Binding NextFrameCommand}" FontSize="20">⏩</Button>
-                <Button Command="{Binding LastFrameCommand}" FontSize="20">⏭</Button>
+                <!-- Named for UI Automation: the glyph is all a screen reader or an automation client would otherwise get. -->
+                <Button Command="{Binding FirstFrameCommand}" FontSize="20" AutomationProperties.AutomationId="FirstFrame" AutomationProperties.Name="{loc:Loc KitbashTool.AnimationView.FirstFrame}">⏮︎</Button>
+                <Button Command="{Binding PrivFrameCommand}" FontSize="20" AutomationProperties.AutomationId="PreviousFrame" AutomationProperties.Name="{loc:Loc KitbashTool.AnimationView.PreviousFrame}">⏪</Button>
+                <ToggleButton Command="{Binding PausePlayCommand}" FontSize="20" AutomationProperties.AutomationId="PlayPause" AutomationProperties.Name="{loc:Loc KitbashTool.AnimationView.PlayPause}">⏯︎</ToggleButton>
+                <Button Command="{Binding NextFrameCommand}" FontSize="20" AutomationProperties.AutomationId="NextFrame" AutomationProperties.Name="{loc:Loc KitbashTool.AnimationView.NextFrame}">⏩</Button>
+                <Button Command="{Binding LastFrameCommand}" FontSize="20" AutomationProperties.AutomationId="LastFrame" AutomationProperties.Name="{loc:Loc KitbashTool.AnimationView.LastFrame}">⏭</Button>
             </StackPanel>
 
             <GroupBox Grid.Row="2">

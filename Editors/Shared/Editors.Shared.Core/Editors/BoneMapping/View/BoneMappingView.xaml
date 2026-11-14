@@ -135,7 +135,7 @@
 
 
             <TextBox Grid.Row="1" BorderBrush="Black" Text="{Binding MeshBones.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
-            <Button Grid.Row="1" Grid.Column ="1"  Content="{loc:Loc KitbasherTool.BoneMapping.Clear}" IsEnabled="False" />
+            <Button x:Name="ClearMeshBonesFilterButton" Grid.Row="1" Grid.Column ="1"  Content="{loc:Loc KitbasherTool.BoneMapping.Clear}" Click="{s:MethodBinding ClearMeshBonesFilter}" />
 
 
             <CheckBox Grid.Row="2" VerticalContentAlignment="Center"
@@ -239,8 +239,10 @@
             </StackPanel>
 
             <TextBox Grid.Row="1" BorderBrush="Black" Text="{Binding ParentModelBones.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
-            <Button Grid.Row="1" Grid.Column ="1"  Content="{loc:Loc KitbasherTool.BoneMapping.Clear}" IsEnabled="False"/>
-            <TreeView 
+            <Button x:Name="ClearParentModelBonesFilterButton" Grid.Row="1" Grid.Column ="1"  Content="{loc:Loc KitbasherTool.BoneMapping.Clear}" Click="{s:MethodBinding ClearParentModelBonesFilter}"/>
+            <TreeView
+                x:Name="TargetBoneTree"
+                PreviewMouseLeftButtonDown="TargetBoneTree_PreviewMouseLeftButtonDown"
                 Grid.Row="2"
                 Grid.ColumnSpan="2"
                 HorizontalContentAlignment="Stretch" 

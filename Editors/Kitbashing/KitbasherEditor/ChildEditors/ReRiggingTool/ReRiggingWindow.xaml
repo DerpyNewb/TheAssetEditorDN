@@ -19,9 +19,14 @@
         
         <view:BoneMappingView Grid.Row="0"/>
 
-        <DockPanel Grid.Row="1" LastChildFill="False" >
-            <Button DockPanel.Dock="Right" Width="50" Margin="3" Content="{loc:Loc KitbashTool.ReRigging.Ok}" Click="OkButtonClick"/>
+        <DockPanel Grid.Row="1" LastChildFill="True" >
+            <Button DockPanel.Dock="Right" Width="50" Margin="3" Content="{loc:Loc KitbashTool.ReRigging.Ok}" Click="OkButtonClick" IsEnabled="{Binding IsMappingComplete.Value}"/>
             <Button DockPanel.Dock="Right" Width="50" Margin="3" Content="{loc:Loc KitbashTool.ReRigging.Cancel}" Click="CancelButtonClick"/>
+            <TextBlock x:Name="UnmappedBonesText" Margin="3" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Visibility="{Binding IsMappingComplete.Value, Converter={StaticResource InvBoolToHiddenConverter}}">
+                <Run Text="{loc:Loc KitbashTool.ReRigging.UnmappedBones}"/>
+                <Run Text="{Binding UnmappedUsedBonesText.Value, Mode=OneWay}"/>
+            </TextBlock>
         </DockPanel>
     </Grid>
 </common:AssetEditorWindow>

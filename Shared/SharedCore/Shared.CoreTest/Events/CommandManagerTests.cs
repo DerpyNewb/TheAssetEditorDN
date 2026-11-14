@@ -8,9 +8,9 @@ namespace Shared.CoreTest.Events
     // removing its mesh put a second copy of the mesh in the scene.
     public class CommandManagerTests
     {
-        class Step(Action execute, Action? undo = null) : IAeUndoCommandCommand
+        class Step(Action execute, Action? undo = null, string hint = "step") : IAeUndoCommandCommand
         {
-            public string HintText => "step";
+            public string HintText => hint;
             public bool IsMutation => true;
             public void Execute() => execute();
             public void Undo() => (undo ?? (() => { }))();
@@ -54,6 +54,21 @@ namespace Shared.CoreTest.Events
             commands.Undo();
 
             Assert.That((commands.CanUndo(), commands.CanRedo()), Is.EqualTo((false, false)), "redoing over a half-undone step would apply it twice");
+        }
+
+        // The viewport's "Command Undone:" line named the step left on top, so undoing a move read "Object Selected".
+        [Test]
+        public void TheUndoEvent_NamesTheStepUndone()
+        {
+            var hub = new Mock<IEventHub>();
+            var commands = new CommandManager(hub.Object, MockScopedLogger.Create());
+            commands.ExecuteCommand(new Step(() => { }, hint: "Object Selected"));
+            commands.ExecuteCommand(new Step(() => { }, hint: "Transform"));
+
+            commands.Undo();
+
+            hub.Verify(x => x.Publish(new CommandStackUndoEvent("Transform")), Times.Once);
+            hub.Verify(x => x.Publish(It.IsAny<CommandStackUndoEvent>()), Times.Once);
         }
     }
 }

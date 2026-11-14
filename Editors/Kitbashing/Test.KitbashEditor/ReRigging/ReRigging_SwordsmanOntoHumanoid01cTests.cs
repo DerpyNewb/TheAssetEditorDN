@@ -115,6 +115,8 @@ namespace Test.KitbashEditor.ReRigging
             var rerig = runner.GetRequiredServiceInCurrentEditorScope<ReRiggingViewModel>();
             rerig.Initialize(meshes, config);
             rerig.AutoMapSelfAndChildrenByName();
+            TestContext.Out.WriteLine($"left for the person after auto map: {rerig.UnmappedUsedBonesText.Value}");
+            Assert.That(rerig.IsMappingComplete.Value, Is.False, "auto map placed every used bone, so the window's list was never tested here");
 
             // What the user does by hand in the window: every used bone the auto map could not place, and every bone on the
             // list whatever the auto map chose for it, goes to its listed equivalent. A used bone that is neither mapped nor on
