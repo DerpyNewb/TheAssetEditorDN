@@ -1,0 +1,12 @@
+<common:AssetEditorWindow
+    xmlns:common="clr-namespace:WindowHandling;assembly=Shared.Ui"
+    x:Class="Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths.ReplaceTexturePathsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths"
+    xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+    Style="{StaticResource CustomWindowStyle}"
+    WindowStartupLocation="CenterOwner"
+    Title="{loc:Loc KitbashTool.ReplaceTexturePaths.Title}" SizeToContent="Height" Width="520">
+    <local:ReplaceTexturePathsView/>
+</common:AssetEditorWindow>
