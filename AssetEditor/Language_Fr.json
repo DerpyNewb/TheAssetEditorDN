@@ -797,6 +797,8 @@
     "KitbashTool.PinTool.TakeAnimationFromSkinWrapMode":  "Take AnimationFrom (SkinWrapMode):",
     "KitbashTool.PinTool.Mesh":  "Mesh:",
     "KitbashTool.PinTool.SetFromSelection":  "Set from selection",
+    "KitbashTool.PinTool.BindToBoneMode":  "Bind every vertex to one bone:",
+    "KitbashTool.PinTool.Bone":  "Bone:",
     "KitbashTool.PinTool.Apply":  "Apply",
     "TwuiEditor.Component.String":  "String",
     "TwuiEditor.Component.Float":  "Float",

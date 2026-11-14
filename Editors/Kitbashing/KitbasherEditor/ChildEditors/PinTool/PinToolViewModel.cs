@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Editors.KitbasherEditor.Core;
 using GameWorld.Core.Components.Selection;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
@@ -13,7 +14,8 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
     public enum RiggingMode
     { 
         Pin,
-        SkinWrap
+        SkinWrap,
+        Bone
     }
 
     public partial class PinToolViewModel : ObservableObject
@@ -25,11 +27,12 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
 
         [ObservableProperty] PinRiggingAlgorithm _pinMode;
         [ObservableProperty] SkinWrapAlgorithm _skinWrapMode;
+        [ObservableProperty] BoneRiggingAlgorithm _boneMode;
         [ObservableProperty] RiggingMode[] _possibleRiggingModes = Enum.GetValues<RiggingMode>();
         [ObservableProperty] RiggingMode _selectedRiggingMode = RiggingMode.Pin;
         [ObservableProperty] ObservableCollection<Rmv2MeshNode> _affectedMeshCollection = [];
 
-        public PinToolViewModel(SelectionManager selectionManager, IUiCommandFactory commandFactory, IStandardDialogs standardDialogs, IScopedLogger scopedLogger)
+        public PinToolViewModel(SelectionManager selectionManager, IUiCommandFactory commandFactory, IStandardDialogs standardDialogs, IScopedLogger scopedLogger, KitbasherRootScene rootScene)
         {
             _logger = scopedLogger.ForContext<PinToolViewModel>();
             _selectionManager = selectionManager;
@@ -38,6 +41,7 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
 
             _pinMode = new PinRiggingAlgorithm(_commandFactory, _standardDialogs, _selectionManager, scopedLogger);
             _skinWrapMode = new SkinWrapAlgorithm(_commandFactory, _standardDialogs, _selectionManager, scopedLogger);
+            _boneMode = new BoneRiggingAlgorithm(_commandFactory, _standardDialogs, rootScene);
         }
 
         [RelayCommand] void ClearAffectedMeshCollection() => AffectedMeshCollection.Clear();
@@ -91,6 +95,9 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
               
                 case RiggingMode.SkinWrap:
                     return SkinWrapMode.Execute(AffectedMeshCollection.ToList());
+
+                case RiggingMode.Bone:
+                    return BoneMode.Execute(AffectedMeshCollection.ToList());
                 default:
                     throw new NotImplementedException($"Unable to find an algorithm for selected mode '{SelectedRiggingMode}'");
             }

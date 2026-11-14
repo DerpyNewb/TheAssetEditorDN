@@ -853,6 +853,8 @@
   "KitbashTool.PinTool.TakeAnimationFromSkinWrapMode": "从 SkinWrap 模式获取动画:",
   "KitbashTool.PinTool.Mesh": "Mesh:",
   "KitbashTool.PinTool.SetFromSelection": "从选中项设置",
+  "KitbashTool.PinTool.BindToBoneMode": "Bind every vertex to one bone:",
+  "KitbashTool.PinTool.Bone": "Bone:",
   "KitbashTool.PinTool.Apply": "应用",
 
   "TwuiEditor.Component.String": "字符串",
