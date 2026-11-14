@@ -100,6 +100,24 @@ namespace Test.VfxEditor
             }
         }
 
+        // The toolbar's Preview button runs the editor's own Preview command.
+        [Test, Apartment(ApartmentState.STA)]
+        public void The_toolbar_has_a_Preview_button()
+        {
+            var (_, editor) = VmdEditorAppTests.Open(VmdFixtures.Unit);
+            var (window, _) = Host(editor);
+            try
+            {
+                var preview = Descendants(window).OfType<Button>().Where(x => x.Content as string == "Preview").ToList();
+                Assert.That(preview, Has.Count.EqualTo(1));
+                Assert.That(preview[0].Command, Is.SameAs(editor.PreviewCommand));
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
         static (Window Window, DataGrid Grid) Host(VmdEditorViewModel editor)
         {
             _ = System.IO.Packaging.PackUriHelper.UriSchemePack;
