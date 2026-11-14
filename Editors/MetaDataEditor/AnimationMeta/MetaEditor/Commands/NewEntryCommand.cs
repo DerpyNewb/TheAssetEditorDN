@@ -29,15 +29,10 @@ namespace Editors.AnimationMeta.MetaEditor.Commands
         public void Execute()
         {
             var dialog = new NewMetaDataEntryWindow() { Owner = Application.Current.MainWindow };
-            // Keys are "NAME_VERSION"; descriptions are stored per NAME.
-            var items = _metaDataDatabase.GetSupportedTypes()
-                .Select(key => new NewTagItem(key, _metaDataDatabase.GetDescriptionSafe(key[..key.LastIndexOf('_')]), _metaDataDatabase.GetWarhammer3UseCount(key)))
-                .ToList();
-
             VanillaExample? example = null;
             var examples = new VanillaExamplesViewModel(_vanillaExamples) { Used = x => { example = x; dialog.DialogResult = true; } };
             _ = examples.Show(null);
-            var model = new NewTagWindowViewModel(items, examples);
+            var model = new NewTagWindowViewModel(NewTagItem.All(_metaDataDatabase), examples);
             dialog.DataContext = model;
 
             var res = dialog.ShowDialog();

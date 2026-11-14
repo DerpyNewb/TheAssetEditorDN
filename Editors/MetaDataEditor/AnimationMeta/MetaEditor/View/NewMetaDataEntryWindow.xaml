@@ -5,9 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
         xmlns:examples="clr-namespace:Editors.AnimationMeta.MetaEditor.Examples"
+        xmlns:view="clr-namespace:Editors.AnimationMeta.Presentation.View"
         mc:Ignorable="d"
         Style="{StaticResource CustomWindowStyle}"
-        Title="{loc:Loc MetadataEditor.NewEntryWindow.Title}" Height="860" Width="560"
+        Title="{loc:Loc MetadataEditor.NewEntryWindow.Title}" Height="860" Width="600"
         WindowStartupLocation="CenterOwner"
         FocusManager.FocusedElement="{Binding ElementName=FilterBox}">
     <Grid Margin="5">
@@ -43,6 +44,13 @@
                 <GridView>
                     <GridViewColumn Header="{loc:Loc MetadataEditor.NewEntryWindow.TagColumn}" DisplayMemberBinding="{Binding Key}" Width="300"/>
                     <GridViewColumn Header="{loc:Loc MetadataEditor.NewEntryWindow.Warhammer3Column}" DisplayMemberBinding="{Binding Warhammer3Uses}" Width="150"/>
+                    <GridViewColumn Header="{loc:Loc MetadataEditor.NewEntryWindow.SuperViewColumn}" Width="70">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <view:SuperViewMarkView DataContext="{Binding SuperViewMark}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                 </GridView>
             </ListView.View>
         </ListView>

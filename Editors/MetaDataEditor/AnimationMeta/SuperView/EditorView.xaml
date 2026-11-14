@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:s="http://schemas.singulink.com/xaml" 
              xmlns:view="clr-namespace:Editors.AnimationMeta.Presentation.View"
+             xmlns:local="clr-namespace:Editors.AnimationMeta.SuperView"
              xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
@@ -36,6 +37,7 @@
                 <Button Margin="0,4,0,0" Content="{loc:Loc SuperView.SlotFiles.Apply}" Command="{Binding ApplySlotFilesCommand}"/>
             </StackPanel>
         </GroupBox>
+        <local:MetaTimelineView Margin="5,0,5,5" DockPanel.Dock="Top"/>
 
         <TabControl DockPanel.Dock="Top" SelectedIndex="{Binding SelectedTabControllerIndex, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
             <TabItem Header="{loc:Loc MetadataEditor.Tabs.Persistent}">

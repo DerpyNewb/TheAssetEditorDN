@@ -1,0 +1,26 @@
+<UserControl x:Class="Editors.AnimationMeta.Presentation.View.SuperViewMarkView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialIcons="clr-namespace:Material.Icons.WPF;assembly=Material.Icons.WPF">
+    <!-- Whether SuperView draws a tag (ShownInSuperView.Mark): an open eye, an outlined eye where it draws only part of
+         the tag, and a faint crossed eye where it draws nothing. The tooltip says which part. -->
+    <materialIcons:MaterialIcon Width="14" Height="14" VerticalAlignment="Center" Background="Transparent" ToolTip="{Binding Tooltip}"
+                                AutomationProperties.AutomationId="SuperViewMark" AutomationProperties.HelpText="{Binding Tooltip}">
+        <materialIcons:MaterialIcon.Style>
+            <Style TargetType="materialIcons:MaterialIcon">
+                <Setter Property="Kind" Value="EyeOffOutline"/>
+                <Setter Property="Opacity" Value="0.35"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Drawn}" Value="Yes">
+                        <Setter Property="Kind" Value="Eye"/>
+                        <Setter Property="Opacity" Value="1"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Drawn}" Value="Partly">
+                        <Setter Property="Kind" Value="EyeOutline"/>
+                        <Setter Property="Opacity" Value="1"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </materialIcons:MaterialIcon.Style>
+    </materialIcons:MaterialIcon>
+</UserControl>
