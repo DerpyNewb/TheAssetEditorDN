@@ -86,7 +86,7 @@ namespace Editors.AnimationMeta.MetaEditor.Examples
                     var key = $"{tag.Name}_{tag.Version}";
                     if (!found.TryGetValue(key, out var kept))
                         found[key] = kept = new Kept();
-                    kept.Offer(tag, () => Example(path, tag));
+                    kept.Offer(path, tag, () => Example(path, tag));
                 }
             }
 
@@ -122,24 +122,30 @@ namespace Editors.AnimationMeta.MetaEditor.Examples
 
         /// <summary>
         /// Prefers examples whose values differ in more than their times: of SOUND_TRIGGER_11's 261,641 vanilla uses, the first
-        /// five are otherwise the same tag at five moments, which shows one way to use it, not five. When a tag has fewer than
-        /// PerKey such examples, ones that differ only in their times fill the rest.
+        /// five are otherwise the same tag at five moments, which shows one way to use it, not five. Of those, one file's comes
+        /// first: four of FIRE_POS_10's first five were from one file, be1_elemental_cast_fwd_01, which showed one animation, not five. Other values
+        /// from a file already shown come next, and ones that differ only in their times fill the rest.
         /// </summary>
         sealed class Kept
         {
             readonly List<VanillaExample> _distinct = [];
+            readonly List<VanillaExample> _sameFile = [];
             readonly List<VanillaExample> _spare = [];
             readonly HashSet<string> _values = [];
             readonly HashSet<string> _bytes = [];
+            readonly HashSet<string> _files = [];
 
-            public void Offer(ParsedMetadataAttribute tag, Func<VanillaExample> example)
+            public void Offer(string path, ParsedMetadataAttribute tag, Func<VanillaExample> example)
             {
                 if (_distinct.Count == PerKey)
                     return;
                 if (_values.Add(WithoutTimes(tag)))
                 {
                     _bytes.Add(Convert.ToBase64String(tag.Data));
-                    _distinct.Add(example());
+                    if (_files.Add(path))
+                        _distinct.Add(example());
+                    else if (_sameFile.Count < PerKey)
+                        _sameFile.Add(example());
                 }
                 else if (_spare.Count < PerKey && _bytes.Add(Convert.ToBase64String(tag.Data)))
                 {
@@ -147,7 +153,7 @@ namespace Editors.AnimationMeta.MetaEditor.Examples
                 }
             }
 
-            public List<VanillaExample> Examples() => [.. _distinct, .. _spare.Take(PerKey - _distinct.Count)];
+            public List<VanillaExample> Examples() => [.. _distinct.Concat(_sameFile).Concat(_spare).Take(PerKey)];
 
             // Both timed base classes put Start Time and End Time straight after the version, at bytes 4 to 12.
             static string WithoutTimes(ParsedMetadataAttribute tag) =>

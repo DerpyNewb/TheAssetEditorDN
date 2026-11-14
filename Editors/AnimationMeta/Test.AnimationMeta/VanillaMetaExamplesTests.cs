@@ -51,6 +51,21 @@ namespace Test.AnimationMeta
             Assert.That(found[0].Fields, Has.Some.EqualTo(new VanillaExampleField("Start Time", "0.10000000")));
         }
 
+        // Five ways one animation uses a tag show one unit; a second file's comes before the first file's other four.
+        [Test]
+        public void AScan_PrefersAnotherFile_OverMoreValuesFromOneAlreadyShown()
+        {
+            var runner = new AssetEditorTestRunner();
+            Pack(runner, true,
+                ("animations/battle/a.anm.meta", Bytes(Effect("b"), Effect("c"), Effect("d"), Effect("e"), Effect("f"))),
+                ("animations/battle/z.anm.meta", Bytes(Effect("g"))));
+            var examples = new VanillaMetaExamples(runner.PackFileService, Parser);
+
+            var found = Scan(examples, "EFFECT_12");
+
+            Assert.That(found.Select(VfxName), Is.EqualTo(new[] { "b", "g", "c", "d", "e" }));
+        }
+
         [Test]
         public void AScan_FillsUpWithTimeOnlyVariants_ButNotWithCopies()
         {
