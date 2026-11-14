@@ -7,7 +7,7 @@
 
 A fork of [donkeyProgramming's AssetEditor](https://github.com/donkeyProgramming/TheAssetEditor), the modding tool for Total War games with editors for 3D models, animations, audio, textures and more in one desktop app. It is built on upstream v0.78, with upstream's later master merged in, and adds a VFX editor, a Unit Simulator, a particle preview much closer to the game's, better LOD generation and a long list of fixes.
 
-Releases are numbered DN v1, v1.1, v1.2 and so on, and the title bar shows both numbers, as in "AssetEditor v0.78 - DN v1.7".
+Releases are numbered DN v1, v1.1, v1.2 and so on, and the title bar shows both numbers, as in "AssetEditor v0.78 - DN v1.8".
 
 **[Latest Release](https://github.com/DerpyNewb/TheAssetEditorDN/releases/latest)** · **[Documentation](https://donkeyprogramming.github.io/TheAssetEditor/)** · **[Video Tutorial](https://www.youtube.com/watch?v=ZlmG2AVL5-g)** · **[Upstream](https://github.com/donkeyProgramming/TheAssetEditor)**
 
