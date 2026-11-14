@@ -6,6 +6,7 @@ using Editors.KitbasherEditor.ChildEditors.PinTool.UiCommands;
 using Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths;
 using Editors.KitbasherEditor.ChildEditors.ReRiggingTool;
 using Editors.KitbasherEditor.ChildEditors.SaveDialog;
+using Editors.KitbasherEditor.ChildEditors.SnapTool;
 using Editors.KitbasherEditor.ChildEditors.VertexDebugger;
 using Editors.KitbasherEditor.Core.MenuBarViews;
 using Editors.KitbasherEditor.UiCommands;
@@ -102,6 +103,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             RegisterUiCommand<OpenMeshFitterToolCommand>();
             RegisterUiCommand<OpenReriggingToolCommand>();
             RegisterUiCommand<OpenPinToolCommand>();
+            RegisterUiCommand<OpenSnapToolCommand>();
             RegisterUiCommand<AssignMaterialFromOtherMeshUiCommand>();
             RegisterUiCommand<OpenReplaceTexturePathsCommand>();
 
@@ -139,6 +141,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateToolBarItem<ReduceMeshCommand>(toolsToolbar, "\"Reduce mesh by 10%\"");
             builder.CreateToolBarItem<SortMeshesCommand>(toolsToolbar, "Sort models by name");
             builder.CreateToolBarItem<OpenReplaceTexturePathsCommand>(toolsToolbar, _localizationManager.Get("KitbashTool.ReplaceTexturePaths.Menu"));
+            builder.CreateToolBarItem<OpenSnapToolCommand>(toolsToolbar, "Snap to bone or vertex...");
             builder.CreateToolBarSeparator(toolsToolbar);
             builder.CreateToolBarItem<MirrorMeshCommand>(toolsToolbar, "Mirror left to right");
             builder.CreateToolBarItem<MirrorMeshKeepBonesCommand>(toolsToolbar, "Mirror left to right, keep bones");
