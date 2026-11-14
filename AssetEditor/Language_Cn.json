@@ -339,6 +339,8 @@
   "AnimationPlayer.TimeLabel": "时间[",
   "AnimationPlayer.TimeFpsSuffix": " fps]",
   "AnimationPlayer.Loop": "循环",
+  "AnimationPlayer.Speed": "速度",
+  "AnimationPlayer.SpeedTooltip": "放慢动画播放速度，元数据特效和标签闪烁同步放慢，便于仔细查看时间点。",
   "AnimationPlayer.Column.Player": "播放器",
   "AnimationPlayer.Column.Frames": "帧数",
   "AnimationPlayer.Column.Animation": "动画",

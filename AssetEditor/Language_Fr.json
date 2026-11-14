@@ -323,6 +323,8 @@
     "AnimationPlayer.TimeLabel":  "Time[",
     "AnimationPlayer.TimeFpsSuffix":  " fps]",
     "AnimationPlayer.Loop":  "Loop",
+    "AnimationPlayer.Speed":  "Vitesse",
+    "AnimationPlayer.SpeedTooltip":  "Joue l'animation plus lentement, avec ses effets de méta et le clignotement des balises, pour suivre le timing de près.",
     "AnimationPlayer.Column.Player":  "Player",
     "AnimationPlayer.Column.Frames":  "Frames",
     "AnimationPlayer.Column.Animation":  "Animation",
