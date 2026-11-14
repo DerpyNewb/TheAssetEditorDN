@@ -95,6 +95,8 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             RegisterUiCommand<ReduceMeshCommand>();
             RegisterUiCommand<MirrorMeshCommand>();
             RegisterUiCommand<MirrorMeshKeepBonesCommand>();
+            RegisterUiCommand<RecalculateNormalsCommand>();
+            RegisterUiCommand<FlipFacesCommand>();
             RegisterUiCommand<OpenBmiToolCommand>();
             RegisterUiCommand<OpenMeshFitterToolCommand>();
             RegisterUiCommand<OpenReriggingToolCommand>();
@@ -137,6 +139,8 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateToolBarSeparator(toolsToolbar);
             builder.CreateToolBarItem<MirrorMeshCommand>(toolsToolbar, "Mirror left to right");
             builder.CreateToolBarItem<MirrorMeshKeepBonesCommand>(toolsToolbar, "Mirror left to right, keep bones");
+            builder.CreateToolBarItem<RecalculateNormalsCommand>(toolsToolbar, "Recalculate normals");
+            builder.CreateToolBarItem<FlipFacesCommand>(toolsToolbar, "Flip faces");
 
             var renderingToolbar = builder.CreateRootToolBar("Rendering");
             builder.CreateToolBarItem<FocusCameraCommand>(renderingToolbar, "Focus camera");
