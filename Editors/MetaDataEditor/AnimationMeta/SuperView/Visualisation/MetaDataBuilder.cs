@@ -287,6 +287,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             output.AddRange(file.GetItemsOfType<FirePos_v10>().Select(meteDataItem => CreateStaticLocator(meteDataItem, root, meteDataItem.Position, "FirePos", selectedAttribute)));
 
+            output.AddRange(file.GetItemsOfType<CameraShakePos>().Select(x => CreateStaticLocator(x, root, x.Position, "CameraShake", selectedAttribute)));
+
             output.AddRange(file.GetItemsOfType<SplashAttack_v10>().Select(meteDataItem => CreateSplashAttack(meteDataItem, root, $"SplashAttack_{Math.Round(meteDataItem.EndTime, 2)}", 0.1f, selectedAttribute)));
 
             output.AddRange(file.GetItemsOfType<SoundTrigger_v10>().Select(x => CreateBoneLocator(x, "Sound:" + x.SoundEvent, x.BoneIndex, x.Position, root, skeleton, rootPlayer, selectedAttribute)));

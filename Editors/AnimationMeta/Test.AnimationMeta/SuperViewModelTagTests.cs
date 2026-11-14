@@ -192,6 +192,14 @@ namespace Test.AnimationMeta
         }
 
         [Test]
+        public void CameraShakePos_IsALocatorAtItsPosition()
+        {
+            var at = new Vector3(1.5f, 0, 10.7f);
+            Build(null, Meta(new CameraShakePos { StartTime = 0.4f, EndTime = 0.4f, Position = at }));
+            Assert.That(Lines(Drawn("CameraShake")), Has.All.Matches<Vector3>(p => Math.Abs(Vector3.Distance(p, at) - 0.3f) < 1e-4f), "a circle around the position");
+        }
+
+        [Test]
         public void CrewLocation_Version2_FromThePersistentMeta_IsDrawnToo()
         {
             Build(Meta(new CrewLocation_v2 { Filter = "crew1", Position = new Vector3(0, 0, -4) }), Meta());
