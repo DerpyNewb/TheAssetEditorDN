@@ -33,25 +33,25 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
                 Bones.UpdatePossibleValues(skeleton.BoneNames.Select((name, index) => new BoneChoice(index, name)));
         }
 
-        public bool Execute(List<Rmv2MeshNode> meshesToAffect)
+        /// <summary>The bind, not yet run, or null after telling the user what is missing.</summary>
+        public IAeUndoCommandCommand? CreateCommand(List<Rmv2MeshNode> meshesToAffect)
         {
             var skeleton = _rootScene.Skeleton;
             if (skeleton == null)
             {
                 _standardDialogs.ShowDialogBox("The model has no skeleton to bind to", "Error");
-                return false;
+                return null;
             }
 
             if (Bones.SelectedItem == null)
             {
                 _standardDialogs.ShowDialogBox("No bone selected", "Error");
-                return false;
+                return null;
             }
 
-            _commandFactory.CreateWithBuilder<BindMeshToBoneCommand>()
+            return _commandFactory.CreateWithBuilder<BindMeshToBoneCommand>()
                 .Configure(x => x.Configure(meshesToAffect, Bones.SelectedItem.Index, skeleton.SkeletonName))
-                .BuildAndExecute();
-            return true;
+                .Build();
         }
     }
 }

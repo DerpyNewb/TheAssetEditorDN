@@ -90,6 +90,7 @@ namespace Editors.KitbasherEditor
             serviceCollection.AddTransient<PinMeshToVertexCommand>();
             serviceCollection.AddTransient<SkinWrapRiggingCommand>();
             serviceCollection.AddTransient<BindMeshToBoneCommand>();
+            serviceCollection.AddTransient<CompoundCommand>();
 
             // Replace in texture paths
             serviceCollection.AddTransient<ReplaceTexturePathsViewModel>();

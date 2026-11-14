@@ -49,12 +49,6 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
                 return;
             }
 
-            if (selectedMeshes.Any(x => x.PivotPoint != Vector3.Zero))
-            {
-                _standardDialogs.ShowDialogBox(PinToolViewModel.PivotRefusal, "error");
-                return;
-            }
-
             foreach (var mesh in selectedMeshes)
             {
                 if (!SourceMeshes.Contains(mesh))
@@ -65,19 +59,20 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
         [RelayCommand]
         void ClearSourceMeshes() => SourceMeshes.Clear();
 
-        internal bool Execute(List<Rmv2MeshNode> giveAnimationTo)
+        /// <summary>The wrap, not yet run, or null after telling the user what is missing.</summary>
+        internal IAeUndoCommandCommand? CreateCommand(List<Rmv2MeshNode> giveAnimationTo)
         {
             if (SourceMeshes.Count == 0)
             {
                 _standardDialogs.ShowDialogBox("No source meshes selected", "Error");
-                return false;
+                return null;
             }
 
             var overlap = giveAnimationTo.Intersect(SourceMeshes).ToList();
             if (overlap.Count > 0)
             {
                 _standardDialogs.ShowDialogBox("Same mesh found in both source and target lists", "error");
-                return false;
+                return null;
             }
 
             var staticSources = SourceMeshes.Where(m => m.Geometry.VertexFormat == UiVertexFormat.Static).ToList();
@@ -85,12 +80,11 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
             {
                 var names = string.Join(", ", staticSources.Select(m => m.Name));
                 _standardDialogs.ShowDialogBox($"Source mesh(es) have no bone weights (static format): {names}. Use an animated mesh as source.", "Error");
-                return false;
+                return null;
             }
 
             _logger.Here().Information("Skin wrap: transferring rigging from {SourceCount} source meshes to {TargetCount} target meshes", SourceMeshes.Count, giveAnimationTo.Count);
-            _commandFactory.CreateWithBuilder<SkinWrapRiggingCommand>().Configure(x => x.Configure(giveAnimationTo, SourceMeshes.ToList())).BuildAndExecute();
-            return true;
+            return _commandFactory.CreateWithBuilder<SkinWrapRiggingCommand>().Configure(x => x.Configure(giveAnimationTo, SourceMeshes.ToList())).Build();
         }
     }
 }
