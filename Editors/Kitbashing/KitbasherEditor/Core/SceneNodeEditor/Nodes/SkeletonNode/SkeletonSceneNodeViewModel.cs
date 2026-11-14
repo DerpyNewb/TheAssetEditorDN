@@ -17,6 +17,7 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes
         [ObservableProperty] int _boneCount = 0;
         [ObservableProperty] ObservableCollection<SkeletonBoneNode> _bones = [];
         [ObservableProperty] SkeletonBoneNode? _selectedBone;
+        [ObservableProperty] bool _showWeights;
 
         public void Initialize(ISceneNode node)
         {
@@ -24,8 +25,15 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes
             Guard.IsNotNull(skeletonNode);
             _meshNode = skeletonNode;
 
+            // Coming back to the panel keeps the bone and the weight view it left on.
+            var selectedBoneIndex = _meshNode.SelectedBoneIndex;
+            ShowWeights = _meshNode.ShowWeights;
             CreateBoneOverview(_meshNode.Skeleton);
+            if (selectedBoneIndex.HasValue)
+                SelectedBone = GetParent(Bones, selectedBoneIndex.Value);
         }
+
+        partial void OnShowWeightsChanged(bool value) => _meshNode.ShowWeights = value;
 
         partial void OnBoneScaleChanged(float value) => _meshNode.SkeletonScale = value;
         // On the Kitbash undo stack, a whole drag as one step.

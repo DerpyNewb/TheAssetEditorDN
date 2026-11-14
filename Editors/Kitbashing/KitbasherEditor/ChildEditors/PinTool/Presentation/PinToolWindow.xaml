@@ -105,6 +105,27 @@
                                 </Setter.Value>
                             </Setter>
                         </DataTrigger>
+
+                        <!-- Bone -->
+                        <DataTrigger Binding="{Binding SelectedRiggingMode, UpdateSourceTrigger=PropertyChanged}" Value="Bone">
+                            <Setter Property="Content">
+                                <Setter.Value>
+                                    <GroupBox Header="{loc:Loc KitbashTool.PinTool.BindToBoneMode}" Margin="0,5,0,0">
+                                        <DockPanel>
+                                            <Label DockPanel.Dock="Left" Content="{loc:Loc KitbashTool.PinTool.Bone}"/>
+                                            <ComboBox Margin="2"
+                                                      IsEditable="True"
+                                                      IsTextSearchEnabled="false"
+                                                      DisplayMemberPath="Name"
+                                                      AutomationProperties.AutomationId="PinToolBone"
+                                                      Text="{Binding BoneMode.Bones.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                      ItemsSource="{Binding BoneMode.Bones.Values}"
+                                                      SelectedItem="{Binding BoneMode.Bones.SelectedItem, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
+                                        </DockPanel>
+                                    </GroupBox>
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </ContentControl.Style>

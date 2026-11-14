@@ -72,6 +72,9 @@ float4 DefaultPixelShader(in PixelInputType input, bool bIsFrontFace : SV_IsFron
     
     if (UseAlpha == 1)    
         alpha_test(material.diffuse.a);    
+
+    if (Animation_WeightBone >= 0)
+        return float4(WeightColour(input.boneWeight, input.normal, CameraPos - input.worldPosition) * ModelColour.rgb, ModelColour.a);
     
     //float3 normalizedViewDirection = -normalize(input.viewDirection);    
     
@@ -132,6 +135,10 @@ float4 EmissiveLayerPixelShader(in PixelInputType input, bool bIsFrontFace : SV_
 	
     if (UseAlpha == 1)
         alpha_test(material.diffuse.a);
+
+    // The weight view draws no emissive, so nothing glows over it.
+    if (Animation_WeightBone >= 0)
+        emissiveColour = 0;
    
     return float4(emissiveColour * ModelColour.rgb, ModelColour.a);
 }

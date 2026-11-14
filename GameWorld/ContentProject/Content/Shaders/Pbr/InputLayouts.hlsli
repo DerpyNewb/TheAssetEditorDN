@@ -28,6 +28,7 @@ struct PixelInputType
     float3 viewDirection : TEXCOORD1;
     float3 worldPosition : TEXCOORD5;
 
+    float boneWeight : TEXCOORD6;
 };
 
 struct GBufferMaterial

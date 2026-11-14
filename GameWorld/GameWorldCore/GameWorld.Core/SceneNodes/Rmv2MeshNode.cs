@@ -116,6 +116,7 @@ namespace GameWorld.Core.SceneNodes
                 animationCapability.AnimationWeightCount = Geometry.WeightCount;
                 animationCapability.ApplyAnimation = AnimationPlayer != null && AnimationPlayer.IsEnabled
                     && Geometry.VertexFormat != UiVertexFormat.Static && !followsBoneRigidly;
+                animationCapability.WeightViewBone = (GetParentModel() as MainEditableNode)?.SkeletonNode?.WeightViewBone ?? -1;
             }
 
             var modelWithOffset = Matrix.CreateTranslation(PivotPoint) * ModelMatrix * boneMatrix * AttachmentOuterWorld;

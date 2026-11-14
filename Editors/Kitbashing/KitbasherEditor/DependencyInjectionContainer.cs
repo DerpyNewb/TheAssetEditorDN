@@ -83,6 +83,7 @@ namespace Editors.KitbasherEditor
             RegisterWindow<PinToolWindow>(serviceCollection);
             serviceCollection.AddTransient<PinMeshToVertexCommand>();
             serviceCollection.AddTransient<SkinWrapRiggingCommand>();
+            serviceCollection.AddTransient<BindMeshToBoneCommand>();
 
             // PhotoStudio
             serviceCollection.AddTransient<OpenPhotoStudioCommand>();
