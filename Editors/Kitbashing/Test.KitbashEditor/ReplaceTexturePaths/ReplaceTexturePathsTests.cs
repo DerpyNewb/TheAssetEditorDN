@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths;
+using GameWorld.Core.Components.Selection;
 using GameWorld.Core.Rendering.Materials.Capabilities;
 using GameWorld.Core.Rendering.Materials.Serialization;
 using GameWorld.Core.Rendering.Materials.Shaders.MetalRough;
@@ -31,11 +32,14 @@ namespace Test.KitbashEditor.ReplaceTexturePaths
         CommandManager _commands = null!;
         Mock<IPackFileService> _packFileService = null!;
         Mock<IStandardDialogs> _dialogs = null!;
+        Hub _hub = null!;
+        List<ISceneNode> _selection = null!;
 
         [SetUp]
         public void SetUp()
         {
-            _commands = new CommandManager(new Mock<IEventHub>().Object, MockScopedLogger.Create());
+            _hub = new Hub();
+            _commands = new CommandManager(_hub, MockScopedLogger.Create());
             _packFileService = new Mock<IPackFileService>();
             _packFileService.Setup(x => x.FindFile(It.IsAny<string>(), It.IsAny<IPackFileContainer?>())).Returns(PackFile.CreateFromASCII("t.dds", ""));
             _dialogs = new Mock<IStandardDialogs>();
@@ -43,9 +47,20 @@ namespace Test.KitbashEditor.ReplaceTexturePaths
 
         ReplaceTexturePathsViewModel CreateViewModel(Rmv2ModelNode model, params ISceneNode[] selected)
         {
-            var viewModel = new ReplaceTexturePathsViewModel(_commands, _packFileService.Object, _dialogs.Object);
-            viewModel.Initialize(model, selected);
+            _selection = [.. selected];
+            var viewModel = new ReplaceTexturePathsViewModel(_commands, _packFileService.Object, _dialogs.Object, _hub);
+            viewModel.Initialize(model, () => _selection);
             return viewModel;
+        }
+
+        // Delivers what is published to what registered, as the editor's scope hub does.
+        class Hub : IEventHub
+        {
+            readonly List<(object Owner, Type Type, Delegate Action)> _handlers = [];
+            public void Register<T>(object owner, Action<T> action) => _handlers.Add((owner, typeof(T), action));
+            public void UnRegister(object owner) => _handlers.RemoveAll(x => x.Owner == owner);
+            public void Publish<T>(T e) { foreach (var handler in _handlers.Where(x => x.Type == typeof(T)).ToList()) ((Action<T>)handler.Action)(e); }
+            public void PublishGlobalEvent<T>(T e) => Publish(e);
         }
 
         static Rmv2MeshNode CreateMesh(string name)
@@ -127,6 +142,48 @@ namespace Test.KitbashEditor.ReplaceTexturePaths
             Assert.That(BaseOf(lod0), Is.EqualTo(Base));
             Assert.That(BaseOf(grouped), Is.EqualTo(Base));
             Assert.That(BaseOf(outside), Is.EqualTo(Base));
+        }
+
+        // The window is modeless, so the selection can change while it is open.
+        [Test]
+        public void WhileOpen_TheSelectedMeshesFollowTheSelection()
+        {
+            var (model, lod0, grouped, lod1) = CreateModel();
+            var viewModel = CreateViewModel(model, lod1);
+            viewModel.Find = "chd_hobgoblin_base";
+            viewModel.Replace = "chd_ogre_base";
+            viewModel.OnlySelected = true;
+            Assert.That(viewModel.ChangeCount, Is.EqualTo(1));
+
+            _selection = [lod0, grouped];
+            _hub.Publish(new SelectionChangedEvent());
+            Assert.That((viewModel.HasSelection, viewModel.ChangeCount), Is.EqualTo((true, 2)));
+
+            _selection = [];
+            _hub.Publish(new SelectionChangedEvent());
+            Assert.That((viewModel.HasSelection, viewModel.OnlySelected, viewModel.ChangeCount), Is.EqualTo((false, false, 3)), "nothing selected: every mesh, and the box unticked");
+
+            viewModel.Dispose();
+            _selection = [lod1];
+            _hub.Publish(new SelectionChangedEvent());
+            Assert.That(viewModel.HasSelection, Is.False, "a closed window no longer listens");
+        }
+
+        // An undo or redo made in the main window while the window is open changes the paths it counts.
+        [Test]
+        public void WhileOpen_AnUndoOrRedoIsCounted()
+        {
+            var (model, _, _, _) = CreateModel();
+            var viewModel = CreateViewModel(model);
+            viewModel.Find = "chd_hobgoblin_base";
+            viewModel.Replace = "chd_ogre_base";
+            viewModel.Apply();
+            Assert.That(viewModel.ChangeCount, Is.EqualTo(0), "nothing left to replace");
+
+            _commands.Undo();
+            Assert.That(viewModel.ChangeCount, Is.EqualTo(3));
+            _commands.Redo();
+            Assert.That(viewModel.ChangeCount, Is.EqualTo(0));
         }
 
         [Test]

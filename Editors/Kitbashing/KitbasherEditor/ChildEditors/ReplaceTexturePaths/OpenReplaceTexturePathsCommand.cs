@@ -7,7 +7,9 @@ using Shared.Ui.Common.MenuSystem;
 
 namespace Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths
 {
-    public class OpenReplaceTexturePathsCommand : ITransientKitbasherUiCommand
+    // One window per Kitbash tab, modeless like the Snap tool's. Opened modal, it disabled the main window while it was open,
+    // so nothing on the bar answered, not even with a tooltip.
+    public class OpenReplaceTexturePathsCommand : IScopedKitbasherUiCommand, IDisposable
     {
         public string ToolTip { get; set; } = "Find and replace in the texture paths of the model's meshes";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.Always;
@@ -16,6 +18,7 @@ namespace Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths
         private readonly SceneManager _sceneManager;
         private readonly SelectionManager _selectionManager;
         private readonly IAbstractFormFactory<ReplaceTexturePathsWindow> _formFactory;
+        private ReplaceTexturePathsWindow? _window;
 
         public OpenReplaceTexturePathsCommand(SceneManager sceneManager, SelectionManager selectionManager, IAbstractFormFactory<ReplaceTexturePathsWindow> formFactory)
         {
@@ -26,13 +29,31 @@ namespace Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths
 
         public void Execute()
         {
+            if (_window != null)
+            {
+                _window.Activate();
+                return;
+            }
+
             var editableModel = _sceneManager.GetNodeByName<MainEditableNode>(SpecialNodes.EditableModel);
             if (editableModel == null)
                 return;
 
-            var window = _formFactory.Create();
-            window.ViewModel.Initialize(editableModel, _selectionManager.GetState()?.SelectedObjects() ?? []);
-            window.ShowDialog();
+            _window = _formFactory.Create();
+            _window.ViewModel.Initialize(editableModel, () => _selectionManager.GetState()?.SelectedObjects() ?? []);
+            _window.Closed += OnWindowClosed;
+            _window.Show();
         }
+
+        private void OnWindowClosed(object? sender, EventArgs e)
+        {
+            if (_window == null)
+                return;
+            _window.Closed -= OnWindowClosed;
+            _window.ViewModel.Dispose();
+            _window = null;
+        }
+
+        public void Dispose() => _window?.Close();
     }
 }
