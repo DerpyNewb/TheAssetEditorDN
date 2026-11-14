@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 using AssetEditor.Services;
 using AssetEditor.UiCommands;
 using CommunityToolkit.Mvvm.Input;
@@ -147,7 +148,14 @@ namespace AssetEditor.ViewModels
 
         [RelayCommand] private void TouchedFileRecorderStart() => _touchedFilesRecorder.Start();
         [RelayCommand] private void TouchedFileRecorderPrint() => _touchedFilesRecorder.Print();
-        [RelayCommand] private void TouchedFileRecorderExtract() => _touchedFilesRecorder.ExtractFilesToPack(@"c:\temp\extractedPack.pack");
+        [RelayCommand]
+        private void TouchedFileRecorderExtract()
+        {
+            var dialog = _standardDialogs.ShowSystemSaveFileDialog("touched_files.pack", "Pack files (*.pack)|*.pack", "pack");
+            if (!dialog.Result || string.IsNullOrWhiteSpace(dialog.FilePath))
+                return;
+            _touchedFilesRecorder.ExtractFilesToPack(Path.ChangeExtension(dialog.FilePath, ".pack"));
+        }
         [RelayCommand] private void TouchedFileRecorderStop() => _touchedFilesRecorder.Stop();
 
         public bool IsDebuggerAttached => Debugger.IsAttached;
@@ -172,14 +180,13 @@ namespace AssetEditor.ViewModels
         [RelayCommand] private void OpenKostalynTutorial() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure("https://www.youtube.com/watch?v=AXw99yc74CY")).Execute();
         [RelayCommand] private void OpenRecolouringModelsTutorial() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure("https://youtu.be/azDq2IRnr1U?si=GammGsisnCzGKYiA")).Execute();
 
-        [RelayCommand]
-        private void OpenHelp()
-        {
-            var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            var fullPath = Path.Combine(appDirectory, "Doc", "index.html");
-            Console.WriteLine(fullPath);
-            _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure(fullPath)).Execute();
-        }
+        // The build copies the repo's docs folder beside the exe as "docs" (AssetEditor.csproj); "Doc" never existed.
+        public static string HelpPagePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "docs", "index.html");
+
+        [RelayCommand] private void OpenHelp() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure(HelpPagePath)).Execute();
+
+        // Closing the window, not shutting the app down, so the unsaved-changes prompt runs as it does for the X button.
+        [RelayCommand] private static void Exit() => Application.Current?.MainWindow?.Close();
         [RelayCommand] private void OpenModdingWiki() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure("https://tw-modding.com/index.php/Tutorial:AssetEditor")).Execute();
         
         [RelayCommand] private void OpenPatreon() => _uiCommandFactory.Create<OpenWebpageCommand>(x => x.Configure("https://www.patreon.com/TheAssetEditor")).Execute();

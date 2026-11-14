@@ -46,8 +46,13 @@ Send one JSON object followed by a newline.
 - `bringToFront` (optional, default `true`): bring AssetEditor window to front
 - `packPathOnDisk` (optional): disk path to a `.pack` to load first if needed
 - `openInExistingKitbashTab` (optional, default `false`): if `true`, and a Kitbash tab exists, import supported files into that tab instead of opening a new tab
+- `openWith` (optional, `open` only): the editor to open the file in, by its `EditorEnums` name with or without the
+  `_Editor` suffix, case ignored: `"SuperView"`, `"VariantMesh"`, `"XML_VariantMesh_Editor"`, `"Kitbash"`. An editor that
+  cannot open the file is refused with the list of those that can, and an unknown name with every name. With
+  `openWith`, `openInExistingKitbashTab` applies only when it names Kitbash
 
 ## Open Behavior by File Type
+With no `openWith`:
 - `.rigid_model_v2`: normal open flow (or import into existing Kitbash tab if `openInExistingKitbashTab=true`)
 - `.wsmodel`: forced to open in Kitbash Editor
 - `.variantmeshdefinition`: forced to open in Kitbash Editor and imported as a reference on open
@@ -81,11 +86,13 @@ editor's own commands, so its Undo takes it back. Replies carry their result in 
 - `scene`: every node, depth first: `[{id, path, depth, type, visible, editable, selected, vertices, faces}]`; a node
   with no mesh has no `vertices` or `faces`
 - `select`: `nodes` takes ids, paths from `Root`, or names. A name used by more than one node (every LOD repeats its
-  meshes' names) is refused with the ids it matches. `add: true` adds to the selection; no `nodes` clears it. Meshes only
-- `visible`: shows or hides `nodes`. Not an undo step, as the scene tree's check box is not
+  meshes' names) is refused with the ids it matches. `add: true` adds to the selection; no `nodes` clears it. Meshes only.
+  A mesh the viewport will not pick is refused too: every reference mesh, and a part locked in the scene tree
+- `visible`: shows or hides `nodes`, as one undo step that gives each node back what it had. (The scene tree's check box
+  is still not an undo step)
 - `transform`: moves the current selection, as the Kitbash transform box does: scale, then rotate (degrees, X then Y
   then Z), then translate, each its own undo step. `pivot` is `"object"` (default) or `"origin"`. A scale with a 0 in it
-  is refused, since its undo cannot invert it
+  is refused, since its undo cannot invert it, and so is a selection holding a part locked after it was selected
 - `command`: runs a Kitbash toolbar or menu command by its class name (case ignored) as its button runs it: `SaveCommand`,
   `UndoCommand`, `RedoCommand`, `DeleteObjectCommand`, `DuplicateObjectCommand`, `FocusCameraCommand` and the rest. No
   `name` lists them. Kitbash only

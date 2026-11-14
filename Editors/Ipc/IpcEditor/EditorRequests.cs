@@ -128,6 +128,9 @@ namespace Editors.Ipc
             var notSelectable = nodes.Where(x => x is not ISelectable).Select(x => x.Name).ToList();
             if (notSelectable.Count != 0)
                 return IpcResponse.Failure($"Only meshes can be selected, not {string.Join(", ", notSelectable)}");
+            var locked = nodes.Where(IsLocked).ToList();
+            if (locked.Count != 0)
+                return IpcResponse.Failure($"Locked, as in the viewport (a reference mesh or a locked part): {Describe(locked)}");
 
             // No nodes and no add clears the selection, as a click on empty space does.
             var items = nodes.Cast<ISelectable>().ToList();
@@ -145,10 +148,26 @@ namespace Editors.Ipc
                 return IpcResponse.Failure(error);
             if (nodes.Count == 0)
                 return IpcResponse.Failure("visible needs \"nodes\"");
-            foreach (var node in nodes)
-                node.IsVisible = request.Visible.Value;
+            Get<IUiCommandFactory>(editor).CreateWithBuilder<SetVisibilityCommand>()
+                .Configure(x => x.Configure(nodes, request.Visible.Value)).BuildAndExecute();
             return Data(nodes.Select(x => x.Id).ToList());
         }
+
+        // The viewport's own rule: a mesh marked not selectable (every reference mesh, and a part locked in the scene
+        // tree), or one inside a locked group, cannot be clicked, so the pipe does not pick or move it either.
+        static bool IsLocked(ISceneNode node)
+        {
+            if (node is ISelectable { IsSelectable: false })
+                return true;
+            for (var parent = node.Parent; parent != null; parent = parent.Parent)
+            {
+                if (parent is GroupNode { IsLockable: true, IsSelectable: false })
+                    return true;
+            }
+            return false;
+        }
+
+        static string Describe(IEnumerable<ISceneNode> nodes) => string.Join(", ", nodes.Select(x => $"{x.Name} ({x.Id})"));
 
         // As the Kitbash transform box does it, one mode per undo step: scale, then rotate, then translate.
         IpcResponse Transform(IEditorInterface editor, IpcRequest request)
@@ -173,6 +192,10 @@ namespace Editors.Ipc
                 return IpcResponse.Failure("pivot is \"object\" (default) or \"origin\"");
 
             var selection = Get<SelectionManager>(editor);
+            // A part selected before it was locked stays selected; moving it would still be moving a locked part.
+            var lockedSelection = ((selection.GetState() as ObjectSelectionState)?.CurrentSelection() ?? []).Where(IsLocked).ToList();
+            if (lockedSelection.Count != 0)
+                return IpcResponse.Failure($"The selection holds a locked part, which the viewport would not move: {Describe(lockedSelection)}");
             var commandFactory = Get<IUiCommandFactory>(editor);
             var commands = Get<CommandManager>(editor);
             var logger = Get<IScopedLogger>(editor);

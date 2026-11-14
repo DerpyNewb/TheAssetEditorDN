@@ -7,6 +7,7 @@ using Editors.KitbasherEditor.UiCommands;
 using Editors.KitbasherEditor.ViewModels;
 using Shared.Core.Commands;
 using Shared.Core.Events;
+using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
 
@@ -17,55 +18,60 @@ namespace Editors.Ipc
         private readonly IUiCommandFactory _uiCommandFactory;
         private readonly IScopeRepository _scopeRepository;
         private readonly IEditorManager _editorManager;
+        private readonly IEditorDatabase _editorDatabase;
+        private readonly IPackFileService _packFileService;
 
-        public ExternalFileOpenExecutor(IUiCommandFactory uiCommandFactory, IScopeRepository scopeRepository, IEditorManager editorManager)
+        public ExternalFileOpenExecutor(IUiCommandFactory uiCommandFactory, IScopeRepository scopeRepository, IEditorManager editorManager,
+            IEditorDatabase editorDatabase, IPackFileService packFileService)
         {
             _uiCommandFactory = uiCommandFactory;
             _scopeRepository = scopeRepository;
             _editorManager = editorManager;
+            _editorDatabase = editorDatabase;
+            _packFileService = packFileService;
         }
 
-        public async Task OpenAsync(PackFile file, bool bringToFront, bool openInExistingKitbashTab, CancellationToken cancellationToken)
+        public async Task<string?> OpenAsync(PackFile file, bool bringToFront, bool openInExistingKitbashTab, EditorEnums? openWith, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var app = Application.Current;
-            if (app?.Dispatcher == null)
-            {
-                OpenOnUiThread(file, bringToFront, openInExistingKitbashTab);
-                return;
-            }
+            if (app?.Dispatcher == null || app.Dispatcher.CheckAccess())
+                return OpenOnUiThread(file, bringToFront, openInExistingKitbashTab, openWith);
 
-            if (app.Dispatcher.CheckAccess())
-            {
-                OpenOnUiThread(file, bringToFront, openInExistingKitbashTab);
-                return;
-            }
-
-            await app.Dispatcher.InvokeAsync(() => OpenOnUiThread(file, bringToFront, openInExistingKitbashTab));
+            return await app.Dispatcher.InvokeAsync(() => OpenOnUiThread(file, bringToFront, openInExistingKitbashTab, openWith));
         }
 
-        private void OpenOnUiThread(PackFile file, bool bringToFront, bool openInExistingKitbashTab)
+        private string? OpenOnUiThread(PackFile file, bool bringToFront, bool openInExistingKitbashTab, EditorEnums? openWith)
         {
-            if (openInExistingKitbashTab && CanImportIntoKitbash(file) && TryImportIntoExistingKitbash(file))
+            // An editor that cannot open the file is refused here: with one candidate, the editor database ignores the
+            // editor asked for and opens the file in that one.
+            if (openWith != null)
+            {
+                var candidates = _editorDatabase.EditorsFor(_packFileService.GetFullPath(file));
+                if (candidates.Contains(openWith.Value) == false)
+                    return $"{openWith} cannot open {file.Name}; " + (candidates.Count == 0 ? "no editor can" : $"these can: {string.Join(", ", candidates)}");
+            }
+
+            var intoKitbash = openWith == null || openWith == EditorEnums.Kitbash_Editor;
+            if (openInExistingKitbashTab && intoKitbash && CanImportIntoKitbash(file) && TryImportIntoExistingKitbash(file))
             {
                 if (bringToFront)
                     BringMainWindowToFront();
-                return;
+                return null;
             }
 
             var command = _uiCommandFactory.Create<OpenEditorCommand>();
-            var forceKitbash = ShouldForceKitbash(file);
-
-            if (forceKitbash)
+            if (openWith != null)
+                command.Execute(file, openWith);
+            else if (ShouldForceKitbash(file))
                 command.Execute(file, EditorEnums.Kitbash_Editor);
             else
                 command.Execute(file);
 
-            if (bringToFront == false)
-                return;
-
-            BringMainWindowToFront();
+            if (bringToFront)
+                BringMainWindowToFront();
+            return null;
         }
 
         private void BringMainWindowToFront()

@@ -13,6 +13,9 @@ namespace Shared.Core.ToolCreation
         void DestroyEditor(IEditorInterface instance);
         Type GetViewTypeFromViewModel(Type viewModelType);
         List<EditorInfo> GetEditorInfos();
+
+        /// <summary>The editors that can open this file, the one Create picks first when no editor is asked for.</summary>
+        List<EditorEnums> EditorsFor(string fullFileName);
     }
 
     public class EditorDatabase : IEditorDatabase
@@ -157,7 +160,9 @@ namespace Shared.Core.ToolCreation
                 .ToList();
         }
 
-        public List<EditorInfo> GetEditorInfos() => _editors; 
+        public List<EditorInfo> GetEditorInfos() => _editors;
+
+        public List<EditorEnums> EditorsFor(string fullFileName) => GetAllPossibleEditors(fullFileName).Select(x => x.EditorEnum).ToList();
 
         public void DestroyEditor(IEditorInterface instance) => _scopeRepository.RemoveScope(instance);
     }

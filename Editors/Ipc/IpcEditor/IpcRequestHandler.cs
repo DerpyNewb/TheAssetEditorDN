@@ -1,4 +1,6 @@
-﻿namespace Editors.Ipc
+﻿using Shared.Core.ToolCreation;
+
+namespace Editors.Ipc
 {
     public class IpcRequestHandler : IIpcRequestHandler
     {
@@ -63,6 +65,14 @@
             if (string.IsNullOrWhiteSpace(normalizedPath))
                 return IpcResponse.Failure("Path is empty");
 
+            EditorEnums? openWith = null;
+            if (string.IsNullOrWhiteSpace(request.OpenWith) == false)
+            {
+                openWith = ParseEditor(request.OpenWith);
+                if (openWith == null)
+                    return IpcResponse.Failure($"No editor \"{request.OpenWith}\"; one of {string.Join(", ", Enum.GetValues<EditorEnums>().Where(x => x != EditorEnums.None))}");
+            }
+
             var packFile = _packFileLookup.FindByPath(normalizedPath);
             if (packFile == null)
             {
@@ -73,9 +83,23 @@
 
             var bringToFront = request.BringToFront != false;
             var openInExistingKitbashTab = request.OpenInExistingKitbashTab == true;
-            await _fileOpenExecutor.OpenAsync(packFile, bringToFront, openInExistingKitbashTab, cancellationToken);
+            var error = await _fileOpenExecutor.OpenAsync(packFile, bringToFront, openInExistingKitbashTab, openWith, cancellationToken);
 
-            return IpcResponse.Success();
+            return error == null ? IpcResponse.Success() : IpcResponse.Failure(error, normalizedPath);
+        }
+
+        // "SuperView", "superview_editor" and "SuperView_Editor" all name EditorEnums.SuperView_Editor.
+        public static EditorEnums? ParseEditor(string name)
+        {
+            name = name.Trim();
+            foreach (var editor in Enum.GetValues<EditorEnums>().Where(x => x != EditorEnums.None))
+            {
+                var full = editor.ToString();
+                var shortName = full.EndsWith("_Editor", StringComparison.Ordinal) ? full[..^"_Editor".Length] : full;
+                if (string.Equals(name, full, StringComparison.OrdinalIgnoreCase) || string.Equals(name, shortName, StringComparison.OrdinalIgnoreCase))
+                    return editor;
+            }
+            return null;
         }
 
         private IpcResponse Find(IpcRequest request)
