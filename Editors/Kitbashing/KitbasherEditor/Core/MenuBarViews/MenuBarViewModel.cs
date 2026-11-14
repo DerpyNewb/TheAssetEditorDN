@@ -93,6 +93,8 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             RegisterUiCommand<CreateStaticMeshCommand>();
 
             RegisterUiCommand<ReduceMeshCommand>();
+            RegisterUiCommand<MirrorMeshCommand>();
+            RegisterUiCommand<MirrorMeshKeepBonesCommand>();
             RegisterUiCommand<OpenBmiToolCommand>();
             RegisterUiCommand<OpenMeshFitterToolCommand>();
             RegisterUiCommand<OpenReriggingToolCommand>();
@@ -132,6 +134,9 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateToolBarItem<GroupItemsCommand>(toolsToolbar, "(Un)Group selection");
             builder.CreateToolBarItem<ReduceMeshCommand>(toolsToolbar, "\"Reduce mesh by 10%\"");
             builder.CreateToolBarItem<SortMeshesCommand>(toolsToolbar, "Sort models by name");
+            builder.CreateToolBarSeparator(toolsToolbar);
+            builder.CreateToolBarItem<MirrorMeshCommand>(toolsToolbar, "Mirror left to right");
+            builder.CreateToolBarItem<MirrorMeshKeepBonesCommand>(toolsToolbar, "Mirror left to right, keep bones");
 
             var renderingToolbar = builder.CreateRootToolBar("Rendering");
             builder.CreateToolBarItem<FocusCameraCommand>(renderingToolbar, "Focus camera");
