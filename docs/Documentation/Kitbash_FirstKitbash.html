@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Your First Kitbash</title>
+    <link rel="stylesheet" href="DocumentationShared.css">
+    <script src="DocumentationShared.js" defer></script>
+</head>
+<body>
+
+    <h1>Your First Kitbash: Swap a Helmet</h1>
+
+    <p>
+        This page walks through one complete change, from opening a unit's model to seeing it in a battle.
+        The example gives a unit a helmet taken from another model, but the same steps work for a weapon, a shoulder
+        plate or any other part.
+    </p>
+
+    <div class="note">
+        <strong>Before you start:</strong> AssetEditor needs the game's packs loaded and an editable pack to save into.
+        <a href="PackFileHandling.html">PackFile Handling</a> explains both. Everything you save goes into the editable pack,
+        and nothing in the game's own packs is changed.
+    </div>
+
+    <h2>1. Find the unit's model</h2>
+
+    <p>
+        A unit's look is set by a <strong>variant mesh definition</strong>, a file under
+        <code>variantmeshes/variantmeshdefinitions/</code>. The database picks it for the unit in two steps:
+        the unit's row in <code>unit_variants_tables</code> names a variant, and that variant's row in
+        <code>variants_tables</code> gives the file name in <code>variant_filename</code>, without the extension.
+        You can read both tables in RPFM or in the WH3 Mod Manager's DB viewer.
+    </p>
+
+    <p>
+        Open the definition from the pack explorer and pick the grid editor when AssetEditor asks.
+        Each row is a slot, such as the body, the head or the helmet, and the Path column shows the model each slot uses.
+        Note the helmet slot's path. It ends in <code>.wsmodel</code> or <code>.rigid_model_v2</code>.
+    </p>
+
+    <h2>2. Open the helmet in Kitbash</h2>
+
+    <p>
+        Open the helmet's model from the pack explorer. Kitbash opens it as the <strong>Editable Model</strong>,
+        which is the part that gets saved.
+    </p>
+
+    <p>
+        To see the helmet on the unit while you work, click <strong>Import Reference model</strong> on the icon bar and pick the
+        unit's variant mesh definition. Reference models are drawn but never saved, so the body is there for fitting only.
+    </p>
+
+    <h2>3. Bring in the new helmet</h2>
+
+    <ol>
+        <li>Click <strong>Import Reference model</strong> again and pick the model that has the helmet you want.</li>
+        <li>In the scene explorer, right-click that helmet's mesh and choose <strong>Make Editable</strong>.
+            It moves out of the reference models and into the Editable Model.</li>
+        <li>Select the old helmet's mesh and delete it. If you'd rather keep it for comparison, hide it instead and tick
+            <strong>Only save visible nodes</strong> when you save.</li>
+    </ol>
+
+    <h2>4. Fit it</h2>
+
+    <p>
+        Use the move, rotate and scale gizmos on the icon bar to put the helmet on the head.
+        <strong>Snap to bone or vertex</strong> moves the selection onto a bone, such as <code>head</code>, which is a quick way
+        to get it close before fine-tuning. If the helmet's shape doesn't match the head, the
+        <a href="Kitbash_MeshFitter.html">Mesh Fitter</a> can reshape it.
+    </p>
+
+    <h2>5. Make it follow the animation</h2>
+
+    <p>
+        A mesh only moves with the unit if its vertices are weighted to the unit's bones. Which tool you need depends on
+        where the helmet came from:
+    </p>
+
+    <ul>
+        <li><strong>A model on the same skeleton:</strong> its weights already name the right bones, so there's usually
+            nothing to do.</li>
+        <li><strong>A model on another skeleton:</strong> open the re-rigging tool and map each bone the helmet uses to a bone
+            of this unit's skeleton. OK stays disabled until every bone has a target.</li>
+        <li><strong>Any rigid part:</strong> open the <a href="Kitbash_PinTool.html">Pin Tool</a>, choose <strong>Bone</strong>
+            mode and pick <code>head</code>, from the list or by turning on bone picking on the left sidebar and clicking the
+            head. Every vertex then follows the head bone fully, which is right for a helmet.</li>
+    </ul>
+
+    <p>
+        To check the result, turn on <strong>Show the selected bone's weights</strong> in the Skeleton panel and pick the bone.
+        Blue means the bone doesn't move that vertex at all and red means it moves it fully. Then play an animation and
+        watch the helmet stay on the head.
+    </p>
+
+    <h2>6. Check and save</h2>
+
+    <p>
+        Click <strong>Check model</strong>. It lists vertices with no bone weights, weights that don't add up to 1, textures
+        that aren't in any loaded pack, and base colours with no sRGB flag, with a fix button beside the problems it can fix.
+        The <a href="Kitbash_Tools.html">Kitbash Tools</a> page explains each one.
+    </p>
+
+    <p>
+        Then save. In the save dialog:
+    </p>
+
+    <ul>
+        <li>Set <strong>Path</strong> to a new file of your own, under your own folder. Saving over the original's path
+            changes every unit that uses that helmet, which is rarely what you want.</li>
+        <li>Set <strong>WS model Format</strong> to <strong>Warhammer3</strong>, so a <code>.wsmodel</code> is written next to the
+            model. The <code>.wsmodel</code> is what gives the model WH3's materials, such as faction colours.</li>
+        <li>Leave <strong>Mesh Format</strong> and <strong>Lod Strategy</strong> at their defaults unless you have a reason
+            to change them.</li>
+    </ul>
+
+    <h2>7. Point the unit at the new helmet</h2>
+
+    <ol>
+        <li>In the pack explorer, right-click the unit's variant mesh definition, choose <strong>Copy to editable pack</strong>,
+            then <strong>Rename</strong> the copy so it doesn't replace the original.</li>
+        <li>Open the copy in the grid editor and change the helmet slot's Path to your new <code>.wsmodel</code>.
+            Save it with Ctrl+S.</li>
+        <li>In RPFM, add a row to <code>variants_tables</code> for your copy. Copy the unit's original row and change
+            <code>variant_name</code> to a new key and <code>variant_filename</code> to your copy's file name, without the
+            extension.</li>
+        <li>Still in RPFM, copy the unit's row from <code>unit_variants_tables</code> into your pack and change its
+            <code>variant</code> to your new key.</li>
+    </ol>
+
+    <div class="note">
+        <strong>The shortcut:</strong> if you do want every unit that wears this helmet to change, save your model over the
+        original's path in your pack and skip step 7. Your file then replaces CA's for every unit that uses it.
+    </div>
+
+    <h2>8. Test in game</h2>
+
+    <p>
+        Save the pack, enable it in the launcher or the WH3 Mod Manager, and start a custom battle with the unit.
+        Zoom in on a few soldiers and watch them move. If something looks wrong:
+    </p>
+
+    <table>
+        <tr><th>What you see</th><th>Where to look</th></tr>
+        <tr><td>The helmet is missing or invisible.</td><td>The variant mesh definition's path, or textures the
+            Check model step reported as missing.</td></tr>
+        <tr><td>The helmet stretches or tears when the unit moves.</td><td>Its weights: check them with the weight view
+            and redo step 5.</td></tr>
+        <tr><td>The helmet floats in place while the head moves.</td><td>It has no weights at all. Use the Pin Tool's
+            Bone mode.</td></tr>
+        <tr><td>The helmet is too bright or has no faction colours.</td><td>The <code>.wsmodel</code>: save again with
+            WS model Format set to Warhammer3, and check the base colour texture's sRGB warning.</td></tr>
+    </table>
+
+</body>
+</html>

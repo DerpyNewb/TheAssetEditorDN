@@ -9,11 +9,14 @@ const documentationPages = [
         title: 'Kitbashing',
         children: [
             { title: 'Basics', fileName: 'Kitbash_Basics.html' },
+            { title: 'Your First Kitbash', fileName: 'Kitbash_FirstKitbash.html' },
+            { title: 'Kitbash Tools', fileName: 'Kitbash_Tools.html' },
             { title: 'Mesh Fitter', fileName: 'Kitbash_MeshFitter.html' },
             { title: 'Pin Tool', fileName: 'Kitbash_PinTool.html' },
             { title: 'Photo Studio', fileName: 'Kitbash_PhotoStudio.html' }
         ]
     },
+    { title: 'SuperView and Meta Editing', fileName: 'SuperView_MetaEditing.html' },
     { title: 'VFX Editor', fileName: 'VfxEditor.html' }
 ];
 

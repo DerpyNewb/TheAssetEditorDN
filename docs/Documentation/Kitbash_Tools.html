@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Kitbash Tools</title>
+    <link rel="stylesheet" href="DocumentationShared.css">
+    <script src="DocumentationShared.js" defer></script>
+</head>
+<body>
+
+    <h1>Kitbash Tools</h1>
+
+    <p>
+        This page covers the tools that fix and finish a kitbashed model: checking it, rigging it, mirroring, moving and
+        cleaning up meshes, and saving. Every tool is on the <strong>Tools</strong> menu, and most also have a button on
+        the icon bar. The mesh tools show on the bar in object mode, once a mesh is selected.
+    </p>
+
+    <div class="note">
+        Every tool on this page is a single undo step. Press Ctrl+Z once to take back the whole change.
+    </div>
+
+    <h2>Check model and the save check</h2>
+
+    <p>
+        Saving checks the model before anything is written. If it finds problems, a window lists them, with a button
+        beside each problem that has a quick fix. Fix what you want, then choose <strong>Save anyway</strong> or
+        <strong>Cancel</strong>. <strong>Check model</strong> on the icon bar runs the same checks without saving, in a
+        window that can stay open while you work. Its list updates after every edit and undo, so a fixed problem drops off
+        on its own.
+    </p>
+
+    <table>
+        <tr><th>Problem</th><th>What it means</th><th>How to fix it</th></tr>
+        <tr>
+            <td>Vertices with no bone weights</td>
+            <td>Those vertices don't follow any bone, so they stay frozen while the unit moves.</td>
+            <td><strong>Bind to one bone...</strong> opens the Pin Tool in Bone mode with the mesh listed. For a mesh that
+                should bend, use Skin Wrap or the re-rigging tool instead.</td>
+        </tr>
+        <tr>
+            <td>Weights that don't add up to 1</td>
+            <td>The vertex follows its bones by too much or too little, so it drifts when the unit moves.</td>
+            <td><strong>Normalise weights</strong> scales them so they add up to 1, touching only the vertices the check
+                flagged. It's one undo step.</td>
+        </tr>
+        <tr>
+            <td>A texture that isn't in any loaded pack</td>
+            <td>The game can't find the file, so that part draws without it.</td>
+            <td><strong>Replace path...</strong> opens Replace in texture paths with the path already filled in. You can also
+                add the texture to your pack instead.</td>
+        </tr>
+        <tr>
+            <td>A base colour with no sRGB flag</td>
+            <td>The game reads the colours as linear and draws them lighter, often pink or washed out.</td>
+            <td>Open the texture, use <strong>Replace from image</strong> and pick an <code>_SRGB</code> format such as
+                <code>BC7_UNORM_SRGB</code>.</td>
+        </tr>
+    </table>
+
+    <p>
+        During a save, <strong>Bind to one bone...</strong> and <strong>Replace path...</strong> cancel the save, because they
+        open another tool. Save again when you're done.
+    </p>
+
+    <h2>Rigging tools</h2>
+
+    <h3>Pin Tool</h3>
+
+    <p>
+        The Pin Tool makes meshes follow the skeleton. Its <strong>Bone</strong> mode weights every vertex of the listed
+        meshes fully to one bone, which you pick from a list you can filter. Use it for a rigid part such as a helmet,
+        a shield or a weapon. The <a href="Kitbash_PinTool.html">Pin Tool</a> page covers its other modes.
+    </p>
+
+    <p>
+        If a mesh has a pivot, Apply bakes it into the mesh first, so the mesh stays where it is, and tells you which meshes
+        it baked. The bake and the pin are a single undo step.
+    </p>
+
+    <h3>Picking a bone in the 3D view</h3>
+
+    <p>
+        The bone button on the left sidebar, under the Object, Face and Vertex mode buttons, turns on bone picking. While
+        it's on, a click picks the bone nearest the cursor instead of selecting a mesh. The picked bone turns red, and the
+        Pin Tool's Bone mode, the Snap window and the Skeleton panel all select it, so you don't have to find it in a list.
+        A drag still selects meshes. Click the button again to turn picking off. The skeleton has to be visible to pick
+        from it.
+    </p>
+
+    <h3>Weight view</h3>
+
+    <p>
+        In the Skeleton panel, turn on <strong>Show the selected bone's weights</strong> and pick a bone. The model then shows
+        how strongly that bone moves each vertex, from blue (not at all) through green to red (fully). A static mesh that
+        follows a bone without weights shows as blue here, even though it moves.
+    </p>
+
+    <h3>Re-rigging tool</h3>
+
+    <p>
+        A mesh taken from a model with a different skeleton names bones this skeleton doesn't have. The re-rigging tool maps
+        each of them to a bone of the target skeleton. The window lists the bones your meshes use that have no target yet,
+        and <strong>OK</strong> stays disabled until each one is mapped. Clicking a target bone that's already selected maps the
+        next bone to it, so you can send both eyes to <code>head</code> without clicking anything in between.
+        All the selected meshes must use the same skeleton.
+    </p>
+
+    <h2>Shaping tools</h2>
+
+    <h3>Mirror left to right</h3>
+
+    <p>
+        This mirrors the selected meshes across the model's centre. Each weight moves to the matching bone on the other
+        side, so a vertex on <code>hand_left</code> moves to <code>hand_right</code>. Use it to make a right shoulder plate
+        from a left one. <strong>Mirror left to right, keep bones</strong> mirrors the shape but leaves the weights where they are.
+    </p>
+
+    <h3>Snap to bone or vertex</h3>
+
+    <p>
+        This moves the selection onto a bone, or onto the centre of vertices you picked in vertex mode. Bones are read in
+        their rest pose, even while an animation plays. Snap only moves the selection; it doesn't rotate it. The same window
+        turns on the rotate gizmo's snapping, with its step in degrees.
+    </p>
+
+    <h3>Bake pivot</h3>
+
+    <p>
+        Some meshes carry a <strong>pivot</strong>, an offset that's applied on top of their vertices. Bake pivot moves the
+        pivot into the vertices and sets it to 0, 0, 0, so the mesh stays where it is. The Pin Tool and Skin Wrap bake a
+        pivot themselves when you apply them.
+    </p>
+
+    <h3>Recalculate normals and Flip faces</h3>
+
+    <p>
+        <strong>Recalculate normals</strong> rebuilds the shading of the selected meshes from their faces. Use it after
+        reshaping a mesh, when its lighting looks wrong. UV seams don't show in the shading, and edges sharper than
+        60 degrees stay hard.
+    </p>
+
+    <p>
+        <strong>Flip faces</strong> turns a mesh's faces the other way round. Use it on a mesh that shows its inside.
+    </p>
+
+    <h2>Texture paths</h2>
+
+    <p>
+        <strong>Replace in texture paths</strong> finds and replaces text in the texture paths of every mesh, or of the
+        selected meshes only. It shows how many paths will change before you apply, and warns about new paths that aren't
+        in any loaded pack. The window can stay open while you work, and its count follows your selection and your undos.
+        A common use is moving every texture to your own folder after copying the files there.
+    </p>
+
+    <h2>The save dialog</h2>
+
+    <table>
+        <tr><th>Setting</th><th>What it does</th></tr>
+        <tr><td>Path</td><td>Where the model is saved, inside your editable pack. Use your own folder and file name
+            unless you mean to replace CA's file for every unit that uses it.</td></tr>
+        <tr><td>Mesh Format</td><td>The <code>.rigid_model_v2</code> version. Leave it at the default for WH3.</td></tr>
+        <tr><td>WS model Format</td><td>Writes a <code>.wsmodel</code> next to the model. Pick <strong>Warhammer3</strong>; the
+            <code>.wsmodel</code> is what gives the model WH3's materials, including faction colours.</td></tr>
+        <tr><td>Lod Strategy</td><td>How the lower-detail versions are made. The default keeps UV seams, open edges and
+            weights. <strong>No Lod generation</strong> leaves them as they are, which is useful when you only changed
+            textures.</td></tr>
+        <tr><td>Only save visible nodes</td><td>Leaves out hidden meshes, so you can keep an old part hidden in the scene
+            without saving it.</td></tr>
+    </table>
+
+    <p>
+        The dialog remembers your choices for each game. The path and the LOD settings come from each model.
+    </p>
+
+</body>
+</html>
