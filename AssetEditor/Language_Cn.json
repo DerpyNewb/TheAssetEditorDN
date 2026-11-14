@@ -45,6 +45,8 @@
   "Hotkeys.AnimationEditors.PlayPause": "播放或暂停动画",
   "Hotkeys.AnimationEditors.PreviousFrame": "后退一帧",
   "Hotkeys.AnimationEditors.NextFrame": "前进一帧",
+  "Hotkeys.Group.General": "常规",
+  "Hotkeys.General.Save": "保存当前标签页",
   "Hotkeys.Kitbash.UndoCommand": "撤销",
   "Hotkeys.Kitbash.RedoCommand": "重做",
   "Hotkeys.Kitbash.GroupItemsCommand": "编组或取消编组",

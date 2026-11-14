@@ -45,6 +45,8 @@
     "Hotkeys.AnimationEditors.PlayPause":  "Lire ou mettre en pause l'animation",
     "Hotkeys.AnimationEditors.PreviousFrame":  "Reculer d'une image",
     "Hotkeys.AnimationEditors.NextFrame":  "Avancer d'une image",
+    "Hotkeys.Group.General":  "Général",
+    "Hotkeys.General.Save":  "Enregistrer l'onglet ouvert",
     "Hotkeys.Kitbash.UndoCommand":  "Annuler",
     "Hotkeys.Kitbash.RedoCommand":  "Rétablir",
     "Hotkeys.Kitbash.GroupItemsCommand":  "Grouper ou dégrouper",

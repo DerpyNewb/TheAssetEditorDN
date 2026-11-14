@@ -32,6 +32,17 @@ namespace AssetEditor.Views
 
         private void MainWindow_KeyDown(object sender, KeyEventArgs e)
         {
+            // Bubbling, so an editor that binds the same key itself (the VFX and variant mesh editors) has already taken it.
+            if (DataContext is MainViewModel viewModel)
+            {
+                var key = e.Key == Key.System ? e.SystemKey : e.Key;
+                if (viewModel.OnKeyPressed(key, Keyboard.Modifiers, () => CommitTypedText(e.OriginalSource)))
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
             {
                 if (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift))
@@ -46,6 +57,10 @@ namespace AssetEditor.Views
                 }
             }
         }
+
+        /// <summary>A text box's value reaches its source when the box loses focus, which a save by key never makes it do.</summary>
+        public static void CommitTypedText(object? focused) =>
+            (focused as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
 
         private void TabItem_MouseDown(object sender, MouseButtonEventArgs e)
         {

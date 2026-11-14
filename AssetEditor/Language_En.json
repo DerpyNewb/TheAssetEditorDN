@@ -45,6 +45,8 @@
   "Hotkeys.AnimationEditors.PlayPause": "Play or pause the animation",
   "Hotkeys.AnimationEditors.PreviousFrame": "Go back one frame",
   "Hotkeys.AnimationEditors.NextFrame": "Go forward one frame",
+  "Hotkeys.Group.General": "General",
+  "Hotkeys.General.Save": "Save the open tab",
   "Hotkeys.Kitbash.UndoCommand": "Undo",
   "Hotkeys.Kitbash.RedoCommand": "Redo",
   "Hotkeys.Kitbash.GroupItemsCommand": "Group or ungroup",
