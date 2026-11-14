@@ -106,6 +106,20 @@ namespace Test.Ipc
             Assert.That(packLoader.CallCount, Is.Zero);
         }
 
+        // The notice is a modal box. The reply waited until somebody closed it, and the one pipe served no other client meanwhile.
+        [Test]
+        public async Task HandleAsync_RepliesNotFound_WhileTheNoticeIsStillOpen()
+        {
+            var notifier = new FakeNotifier { Shown = new TaskCompletionSource().Task };
+            var sut = new IpcRequestHandler(new FakePackLoader(), new FakeLookup(), new FakeOpenExecutor(), notifier);
+
+            var reply = sut.HandleAsync(new IpcRequest { Action = "open", Path = @"variantmeshes\foo\bar.rigid_model_v2" }, CancellationToken.None);
+
+            Assert.That(await Task.WhenAny(reply, Task.Delay(5000)), Is.SameAs(reply), "the reply waited for the notice to close");
+            Assert.That((await reply).Error, Is.EqualTo("File not found"));
+            Assert.That(notifier.CallCount, Is.EqualTo(1));
+        }
+
         [Test]
         public async Task HandleAsync_OpensFile_AndReturnsOk_WhenLookupSucceeds()
         {
@@ -282,12 +296,13 @@ namespace Test.Ipc
         {
             public int CallCount { get; private set; }
             public string? LastPath { get; private set; }
+            public Task Shown { get; init; } = Task.CompletedTask;
 
             public Task ShowExternalOpenFailedAsync(string normalizedPath, CancellationToken cancellationToken)
             {
                 CallCount++;
                 LastPath = normalizedPath;
-                return Task.CompletedTask;
+                return Shown;
             }
         }
     }

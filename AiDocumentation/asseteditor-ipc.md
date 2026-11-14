@@ -114,6 +114,8 @@ AssetEditor returns one JSON response line and closes the connection.
 ```json
 {"ok":false,"error":"File not found","normalizedPath":"variantmeshes\\..."}
 ```
+AssetEditor also shows an "External open failed" box for a file it cannot find, for whoever is at the screen. The reply
+does not wait for that box to close.
 
 ## Examples
 Open from already-loaded packs:

@@ -77,7 +77,8 @@ namespace Editors.Ipc
             if (packFile == null)
             {
                 _logger.Here().Information($"External open failed. File not found: {normalizedPath}");
-                await _userNotifier.ShowExternalOpenFailedAsync(normalizedPath, cancellationToken);
+                // Not awaited: the notice is a modal box, and the reply, and every other client of the one pipe, waited until it closed.
+                _ = _userNotifier.ShowExternalOpenFailedAsync(normalizedPath, cancellationToken);
                 return IpcResponse.Failure("File not found", normalizedPath);
             }
 
