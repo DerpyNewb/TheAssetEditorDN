@@ -146,8 +146,43 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             output.AddRange(metaDataInstances);
 
             // Hand poses are keys across both files, so they are built from both at once.
+            // Splices first, so a hand or face pose still has the last word on its bones.
+            foreach (var splice in Both<Splice_v11>(usePersistent ? persistent : null, metaData).Where(x => x is not (SpliceOverride_v11 or SpliceOverride_v12)))
+                CreateSplice(splice, skeleton, rootPlayer);
             CreateHandPoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
+            CreateFacePoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
+
+            // The model's own state is one answer from both files' tags at once. Only SuperView's asset has a model to change.
+            if (skeleton is SceneObject scene)
+            {
+                var disable = Both<DisableModel>(usePersistent ? persistent : null, metaData);
+                var alpha = Both<Alpha_v10>(usePersistent ? persistent : null, metaData).OrderBy(x => x.StartTime).ToList();
+                if (disable.Count + alpha.Count != 0)
+                    output.Add(new DisableModelInstance(scene, t => disable.Any(x => IsOn(x, t)) || AlphaIsZero(alpha, t)));
+                var rescale = Both<ReScale>(usePersistent ? persistent : null, metaData);
+                if (rescale.Count != 0)
+                    output.Add(new RescaleInstance(scene, rescale));
+            }
             return output;
+        }
+
+        static List<T> Both<T>(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData) =>
+            [.. persistent?.GetItemsOfType<T>() ?? [], .. metaData?.GetItemsOfType<T>() ?? []];
+
+        // Whether a tag that changes the model is on at a time. Start < End is the window between them; Start = End (or End
+        // before Start) is on from Start to the end of the clip, so 0/0 is the whole clip. That is how vanilla's DISABLE_MODEL
+        // tags read: 0/0 on the engines' "invisible" stands, an instant where a matched-combat victim is swallowed.
+        public static bool IsOn(DecodedMetaEntryBase tag, float time) =>
+            tag.EndTime > tag.StartTime ? time >= tag.StartTime && time <= tag.EndTime : time >= tag.StartTime;
+
+        // ALPHA tags are keys: all 1,400 vanilla ones are instants, at 0 or 1, and a death keys 1 a moment before its 0,
+        // which only means something if the game fades from one key to the next. Read as fades or as snaps, the alpha is 0
+        // from a 0 key until the next key, unless that key is above 0, where a fade would already be under way. The preview
+        // draws meshes opaque, so it hides the model only where both readings agree it is invisible. Keys sorted by time.
+        static bool AlphaIsZero(List<Alpha_v10> keys, float time)
+        {
+            var i = keys.FindLastIndex(x => x.StartTime <= time);
+            return i >= 0 && keys[i].DesiredAlpha <= 0 && (i + 1 == keys.Count || keys[i + 1].DesiredAlpha <= 0);
         }
 
         // The vfx filter ids the two metas' EFFECT tags carry, lowest first, 0 (every entity) left out.
@@ -187,19 +222,98 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
         AnimationFrame? LoadHandPose(int handPoseId, IAnimationBinGenericFormat? fragment, GameSkeleton skeleton)
         {
-            if (handPoseId < 0 || handPoseId >= s_handPoseSlots.Length)
-                return null;
+            var pose = LoadPose(s_handPoseSlots, handPoseId, fragment, skeleton);
+            if (pose == null && handPoseId >= 0 && handPoseId < s_handPoseSlots.Length)
+                _logger.Here().Warning($"Hand pose {s_handPoseSlots[handPoseId]} is not in the animation set, so the fingers keep the animation's pose");
+            return pose;
+        }
 
-            var slot = s_handPoseSlots[handPoseId];
-            var animPath = fragment?.Entries.FirstOrDefault(x => x.SlotName == slot)?.AnimationFile;
-            var file = string.IsNullOrWhiteSpace(animPath) ? null : _packFileService.FindFile(animPath);
-            if (file == null)
+        // SPLICE versions 11 and 12 (10,288 of vanilla's 10,306; SPLICE_OVERRIDE inherits the class and is left out).
+        // Drawn only in the shape the tag's own field help describes: the animation drives Generic Bone Index and every bone
+        // under it at Generic Weight. Which bones the game counts as the neck, torso, arms and legs is not documented, nor
+        // what an additive splice adds to, a reference animation does, a depth other than 0 limits, or what Stretch, Weapon
+        // Pose, Exclude Stripped and Primary Persistent change; a tag that needs any of them is logged once and not drawn.
+        // That draws about 2,300 vanilla tags (capes, engine pumps, a centaur's nose) and leaves CA's shield poses, which
+        // are weighted by arm, to the animation.
+        void CreateSplice(Splice_v11 tag, ISkeletonProvider skeleton, AnimationPlayer rootPlayer)
+        {
+            var reason = tag switch
             {
-                _logger.Here().Warning($"Hand pose {slot} is not in the animation set, so the fingers keep the animation's pose");
+                _ when tag.Additive != "false" => "it is additive",
+                _ when new[] { tag.NeckWeight, tag.TorsoWeight, tag.LeftArmWeight, tag.RightArmWeight, tag.LegsWeight }.Any(x => x != 0) => "it is weighted by body part",
+                _ when tag.GenericBoneIndex < 0 || tag.GenericWeight <= 0 => "it has no generic bone with a weight",
+                _ when tag.GenericBoneDepth != 0 => $"its Generic Bone Depth is {tag.GenericBoneDepth}",
+                _ when tag.ReferenceAnimation.Length != 0 => "it names a reference animation",
+                _ when new[] { tag.WeaponPose, tag.Stretch, tag.ExcludeStripped }.Any(x => x != "false") || tag is Splice_v12 { PrimaryPersistent: not ("" or "false") } => "it sets Weapon Pose, Stretch, Exclude Stripped or Primary Persistent",
+                _ => null,
+            };
+            if (reason != null)
+            {
+                LogOnce($"SPLICE {tag.Animation}: not drawn, because {reason}, which the preview does not know how to apply");
+                return;
+            }
+            if (skeleton.Skeleton is not { } gameSkeleton || tag.GenericBoneIndex >= gameSkeleton.BoneCount)
+                return;
+            if (_packFileService.FindFile(tag.Animation) is not { } file)
+            {
+                LogOnce($"SPLICE {tag.Animation}: not in the loaded packs, so it is not drawn");
+                return;
+            }
+            var animation = AnimationFile.Create(file);
+            if (!string.Equals(animation.Header.SkeletonName, gameSkeleton.SkeletonName, StringComparison.OrdinalIgnoreCase))
+            {
+                LogOnce($"SPLICE {tag.Animation}: animates {animation.Header.SkeletonName}, not {gameSkeleton.SkeletonName}, so it is not drawn");
+                return;
+            }
+            rootPlayer.AnimationRules.Add(new SpliceRule(gameSkeleton, new AnimationClip(animation, gameSkeleton), tag));
+        }
+
+        // The first frame of the set's animation for slots[id]; null for an id outside the list or a slot the set lacks.
+        AnimationFrame? LoadPose(string[] slots, int id, IAnimationBinGenericFormat? fragment, GameSkeleton skeleton)
+        {
+            if (id < 0 || id >= slots.Length)
                 return null;
+            var animPath = fragment?.Entries.FirstOrDefault(x => x.SlotName == slots[id])?.AnimationFile;
+            var file = string.IsNullOrWhiteSpace(animPath) ? null : _packFileService.FindFile(animPath);
+            return file == null ? null : AnimationSampler.Sample(0, 0, skeleton, new AnimationClip(AnimationFile.Create(file), skeleton));
+        }
+
+        // FacePoseId indexes these slots, in the order of the WH3 slot table (the tag's field help lists the same order).
+        static readonly string[] s_facePoseSlots =
+        [
+            "FACE_POSE_RELAX", "FACE_POSE_RELAX_BLINK", "FACE_POSE_ANGRY", "FACE_POSE_ANGRY_BLINK", "FACE_POSE_ANGRY_SCREAM",
+            "FACE_POSE_DEAD", "FACE_POSE_DEAD2", "FACE_POSE_DEATH_SCREAM", "FACE_POSE_WORRIED", "FACE_POSE_WORRIED_BLINK",
+        ];
+
+        // FACE_POSE keys pose the face the way hand-pose keys pose the fingers: from Start Time until the next key, -1
+        // releasing it. Which bones the game counts as the face is not known, and CA's face-pose animations key the whole
+        // skeleton, so the face is taken to be the bones the set's face poses disagree on. Across vanilla's 21 face-pose
+        // folders that is the jaw, eyelids, eyebrows, eyes, lips, tongue and beard; one relax-blink pose also turns a leg and
+        // a skirt bone by under a degree. The weapon bones are left out: a 64-frame blink that sits among the high elves' face
+        // poses, in their folder and their campaign sets, holds them 1.6 m away. A set with fewer than two face poses has nothing to compare.
+        void CreateFacePoses(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData, IAnimationBinGenericFormat? fragment, ISkeletonProvider skeleton, AnimationPlayer rootPlayer)
+        {
+            var tags = (persistent?.GetItemsOfType<FacePose>() ?? []).Select(x => (Time: -1f, Tag: x))
+                .Concat((metaData?.GetItemsOfType<FacePose>() ?? []).Select(x => (Time: x.StartTime, Tag: x)))
+                .ToList();
+            if (tags.Count == 0 || skeleton.Skeleton is not { } gameSkeleton)
+                return;
+
+            var poses = s_facePoseSlots.Select((_, id) => LoadPose(s_facePoseSlots, id, fragment, gameSkeleton)).ToList();
+            var loaded = poses.OfType<AnimationFrame>().ToList();
+            if (loaded.Count < 2)
+            {
+                LogOnce($"FACE_POSE: the animation set has {loaded.Count} of the {s_facePoseSlots.Length} FACE_POSE slots, too few to tell the face from the body, so faces are not posed");
+                return;
             }
 
-            return AnimationSampler.Sample(0, 0, skeleton, new AnimationClip(AnimationFile.Create(file), skeleton));
+            static bool Differ(AnimationFrame.BoneKeyFrame a, AnimationFrame.BoneKeyFrame b) =>
+                Math.Abs(Quaternion.Dot(a.Rotation, b.Rotation)) < 0.99999f || Vector3.Distance(a.Translation, b.Translation) > 1e-4f;
+            var face = Enumerable.Range(0, gameSkeleton.BoneCount)
+                .Where(bone => !gameSkeleton.BoneNames[bone].StartsWith("be_prop", StringComparison.OrdinalIgnoreCase))
+                .Where(bone => loaded.Skip(1).Any(x => Differ(x.BoneTransforms[bone], loaded[0].BoneTransforms[bone])));
+            var keys = tags.Select(x => new HandPoseRule.Key(x.Time, x.Tag.FacePoseId >= 0 && x.Tag.FacePoseId < poses.Count ? poses[x.Tag.FacePoseId] : null, x.Tag.Weight));
+            rootPlayer.AnimationRules.Add(new HandPoseRule(face, keys));
         }
 
         private IEnumerable<IMetaDataInstance> ApplyMetaData(ParsedMetadataFile? file, ParsedMetadataAttribute? selectedAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment, int vfxFilter, bool includeEffects = true, bool persistent = false)
@@ -216,10 +330,21 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             output.AddRange(file.GetItemsOfType<FirePos_v10>().Select(meteDataItem => CreateStaticLocator(meteDataItem, root, meteDataItem.Position, "FirePos", selectedAttribute)));
 
+            output.AddRange(file.GetItemsOfType<CameraShakePos>().Select(x => CreateStaticLocator(x, root, x.Position, "CameraShake", selectedAttribute)));
+
             output.AddRange(file.GetItemsOfType<SplashAttack_v10>().Select(meteDataItem => CreateSplashAttack(meteDataItem, root, $"SplashAttack_{Math.Round(meteDataItem.EndTime, 2)}", 0.1f, selectedAttribute)));
 
+            output.AddRange(file.GetItemsOfType<SoundTrigger_v10>().Select(x => CreateBoneLocator(x, "Sound:" + x.SoundEvent, x.BoneIndex, x.Position, root, skeleton, rootPlayer, selectedAttribute)));
+            output.AddRange(file.GetItemsOfType<SoundTrigger_v4>().Select(x => CreateBoneLocator(x, "Sound:" + x.SoundEvent, x.BoneIndex, x.Position, root, skeleton, rootPlayer, selectedAttribute)));
+
+            output.AddRange(file.GetItemsOfType<CrewLocation_v10>().Select(x => CreateCrewLocation(x, x.Filter, x.Position, x.Orientation, root, selectedAttribute)));
+            output.AddRange(file.GetItemsOfType<CrewLocation_v2>().Select(x => CreateCrewLocation(x, x.Filter, x.Position, x.Orientation, root, selectedAttribute)));
+
             if (includeEffects)
-                output.AddRange(file.GetItemsOfType<IEffectMeta>().Where(x => FilterOf(x) == 0 || FilterOf(x) == vfxFilter).Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, root, skeleton, selectedAttribute, rootPlayer, persistent))));
+            {
+                output.AddRange(file.GetItemsOfType<IEffectMeta>().Where(x => FilterOf(x) == 0 || FilterOf(x) == vfxFilter).Select(x => Keep((ParsedMetadataAttribute)x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(x, (ParsedMetadataAttribute)x, "Effect", root, skeleton, selectedAttribute, rootPlayer, persistent))));
+                output.AddRange(file.GetItemsOfType<Blood_v11>().Select(x => Keep(x, selectedAttribute, root, skeleton, rootPlayer, () => CreateEffect(new BloodEffect(x), x, "Blood", root, skeleton, selectedAttribute, rootPlayer, persistent))));
+            }
 
             // A prop docked to both hands from the same moment goes to the right hand, whichever tag comes first: in all
             // nine vanilla cases where the animation's own keys hold the prop rigid to one hand, it is the right one.
@@ -357,6 +482,46 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return new DrawableMetaInstance(metaData.StartTime, metaData.EndTime, node.Name, node);
         }
 
+        // CREW_LOCATION: where an engine's crew member stands and which way he faces, in the model's space; the tag names no
+        // bone. Its filter names the crew member: crew1 to crew3 and reserve1 to reserve3 on every vanilla tag that has one.
+        // All 740 vanilla tags are 0/0, for the whole animation.
+        private IMetaDataInstance CreateCrewLocation(ParsedMetadataAttribute tag, string filter, Vector3 position, Vector4 orientation, SceneNode root, ParsedMetadataAttribute? selectedAttribute)
+        {
+            var name = "Crew:" + (string.IsNullOrWhiteSpace(filter) ? "(no filter)" : filter);
+            var node = new SimpleDrawableNode(name);
+            AddAxes(node, position, Matrix.CreateFromQuaternion(new Quaternion(orientation)), name, selectedAttribute == tag ? s_selectedColor : s_color);
+            root.AddObject(node);
+            return new DrawableMetaInstance(0, 0, name, node);
+        }
+
+        // A named locator at a position relative to a bone, riding that bone as the animation plays, the way an EFFECT's
+        // locator does. Like the other locators it is drawn for the whole animation, not only at the tag's time.
+        private IMetaDataInstance CreateBoneLocator(ParsedMetadataAttribute tag, string name, int bone, Vector3 position, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, ParsedMetadataAttribute? selectedAttribute)
+        {
+            var color = selectedAttribute == tag ? s_selectedColor : s_color;
+            var node = new SimpleDrawableNode(name);
+            node.AddItem(new WorldTextRenderItem(_resourceLibrary, name, position, color));
+            node.AddItem(LineHelper.AddLocator(position, 0.2f, color));
+            root.AddObject(node);
+            var instance = new VfxEffectInstance(node, BoneAt(bone, skeleton, rootPlayer), 0);
+            instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
+            return instance;
+        }
+
+        // A locator's three axes turned by its rotation, X red, Y green and Z blue, with a label at its position.
+        void AddAxes(SimpleDrawableNode node, Vector3 position, Matrix rotation, string label, Color color)
+        {
+            const float Length = 0.3f;
+            const float TextOffset = Length * 1.5f + 0.01f;
+            node.AddItem(new WorldTextRenderItem(_resourceLibrary, label, position, color));
+            foreach (var (axis, name, axisColor) in new[] { (Vector3.UnitX, "X", Color.Red), (Vector3.UnitY, "Y", Color.Green), (Vector3.UnitZ, "Z", Color.Blue) })
+            {
+                var local = Vector3.Transform(axis, rotation);
+                node.AddItem(LineHelper.AddLine(position, position + local * Length, axisColor));
+                node.AddItem(new WorldTextRenderItem(_resourceLibrary, name, position + local * TextOffset, axisColor));
+            }
+        }
+
         private IMetaDataInstance CreateSplashAttack(SplashAttack_v10 splashAttack, SceneNode root, string displayName, float scale, ParsedMetadataAttribute? selectedAttribute)
         {
             // A half-typed or brand-new tag (all zeros) gets its locators drawn and a log line, not an
@@ -427,36 +592,34 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return instance;
         }
 
-        private IMetaDataInstance CreateEffect(IEffectMeta effect, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute, AnimationPlayer rootPlayer, bool persistent)
+        // BLOOD carries an EFFECT's fields and is drawn as one. Version 12 declares Position, Orientation, NodeIndex and
+        // Scale again with `new`, so they are read through the type the tag really is.
+        sealed class BloodEffect(Blood_v11 tag) : IEffectMeta
+        {
+            public string VfxName { get; set; } = tag.VfxName;
+            public bool Tracking { get; set; } = tag.Tracking;
+            public Vector3 Position { get; set; } = tag is Blood_v12 v ? v.Position : tag.Position;
+            public Vector4 Orientation { get; set; } = tag is Blood_v12 v ? v.Orientation : tag.Orientation;
+            public int NodeIndex { get; set; } = tag is Blood_v12 v ? v.NodeIndex : tag.NodeIndex;
+            public float Scale { get; } = tag is Blood_v12 v ? v.Scale : tag.Scale;
+            public float EffectStartTime { get; set; } = tag.StartTime;
+            public float EffectEndTime { get; set; } = tag.EndTime;
+        }
+
+        private IMetaDataInstance CreateEffect(IEffectMeta effect, ParsedMetadataAttribute tag, string kind, SceneNode root, ISkeletonProvider skeleton, ParsedMetadataAttribute? selectedAttribute, AnimationPlayer rootPlayer, bool persistent)
         {
             var resolved = ShowVfx ? Resolve(effect) : null;
             if (resolved is { Found: false })
-                LogOnce($"EFFECT {effect.VfxName}: {VfxResolver.PathOf(effect.VfxName)} is not in any loaded pack, so only its locator is drawn");
+                LogOnce($"{tag.Name} {effect.VfxName}: {VfxResolver.PathOf(effect.VfxName)} is not in any loaded pack, so only its locator is drawn");
             foreach (var problem in resolved?.Problems ?? [])
-                LogOnce($"EFFECT {effect.VfxName}: {problem}");
+                LogOnce($"{tag.Name} {effect.VfxName}: {problem}");
 
-            var color = selectedAttribute == effect ? s_selectedColor : s_color;
-            var locatorScale = 0.3f;
-            var textOffset = locatorScale * 1.5f + 0.01f;
+            var color = selectedAttribute == tag ? s_selectedColor : s_color;
+            var rotMatrix = Matrix.CreateFromQuaternion(new Quaternion(effect.Orientation));
 
-            var rotationQuat = new Quaternion(effect.Orientation);
-            var rotMatrix = Matrix.CreateFromQuaternion(rotationQuat);
-
-            var localX = Vector3.Transform(Vector3.UnitX, rotMatrix);
-            var localY = Vector3.Transform(Vector3.UnitY, rotMatrix);
-            var localZ = Vector3.Transform(Vector3.UnitZ, rotMatrix);
-
-            var node = new SimpleDrawableNode("Effect:" + effect.VfxName);
-            node.AddItem(LineHelper.AddLine(effect.Position, effect.Position + localX * locatorScale, Color.Red));
-            node.AddItem(LineHelper.AddLine(effect.Position, effect.Position + localY * locatorScale, Color.Green));
-            node.AddItem(LineHelper.AddLine(effect.Position, effect.Position + localZ * locatorScale, Color.Blue));
-
+            var node = new SimpleDrawableNode($"{kind}:{effect.VfxName}");
             var label = resolved is { Found: false } ? effect.VfxName + " (not found)" : effect.VfxName;
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, label, effect.Position, color));
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, "X", effect.Position + localX * textOffset, Color.Red));
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, "Y", effect.Position + localY * textOffset, Color.Green));
-            node.AddItem(new WorldTextRenderItem(_resourceLibrary, "Z", effect.Position + localZ * textOffset, Color.Blue));
-
+            AddAxes(node, effect.Position, rotMatrix, label, color);
             root.AddObject(node);
 
             // An untracked effect stays where its bone was at the tag's Start Time.
@@ -479,7 +642,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             foreach (var emitter in settings)
             {
                 foreach (var gap in emitter.Skipped)
-                    LogOnce($"EFFECT {effect.VfxName}, emitter {emitter.Name}: {gap}");
+                    LogOnce($"{tag.Name} {effect.VfxName}, emitter {emitter.Name}: {gap}");
             }
 
             var offset = Matrix.CreateScale(ScaleOf(effect)) * rotMatrix * Matrix.CreateTranslation(effect.Position);
@@ -489,7 +652,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var loop = persistent ? rootPlayer.AnimationClip?.PlayTimeInSec ?? 0 : 0;
             float MainTime(float effectTime) => loop > 0 ? ((effectTime + startTime) % loop + loop) % loop : effectTime + startTime;
             var simulator = new ParticleSimulator(settings, StableSeed(effect), t => offset * boneAt(MainTime(t)), spawnEnd,
-                message => LogOnce($"EFFECT {effect.VfxName}, {message}"));
+                message => LogOnce($"{tag.Name} {effect.VfxName}, {message}"));
             var particles = root.AddObject(new VfxEffectNode("Vfx:" + effect.VfxName,
                 new ParticleRenderItem(simulator, _vfxTextures, () => _shaders.GetStaticEffect(ShaderTypes.Particle), _vfxMeshes)));
 
@@ -566,6 +729,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             Effect_v7 e => e.Scale,
             Effect_v11 e => e.Scale,
             Effect_v12 e => e.Scale,
+            BloodEffect e => e.Scale,
             _ => 1,
         };
 
