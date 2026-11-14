@@ -67,6 +67,7 @@ namespace GameWorld.Core
             serviceCollection.AddScoped<Rmv2ModelNodeLoader>();
 
             serviceCollection.AddScoped<SaveService>();
+            serviceCollection.AddScoped<SaveValidatorService>();
             serviceCollection.AddScoped<NodeToRmvSaveHelper>();
 
             serviceCollection.AddScoped<GeometryStrategyProvider>();

@@ -55,6 +55,23 @@ namespace GameWorld.Core.Utility
             return image;
         }
 
+        /// <summary>What a DDS or TGA file's header says, without decoding the image; null for a file Pfim cannot read.</summary>
+        public static ImageInformation? ReadImageInformation(byte[] imageContent)
+        {
+            try
+            {
+                using var stream = new MemoryStream(imageContent);
+                using var image = Pfimage.FromStream(stream, new PfimConfig(decompress: false));
+                var info = new ImageInformation();
+                info.SetFromImage(image);
+                return info;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         private static Texture2D ConvertTexture2D(string fileName, IImage image, GraphicsDevice device, IGraphicsResourceCreator graphicsResourceCreator)
         {
             Texture2D? texture = null;
