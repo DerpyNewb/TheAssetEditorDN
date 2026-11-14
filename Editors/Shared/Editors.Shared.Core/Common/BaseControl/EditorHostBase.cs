@@ -56,15 +56,31 @@ namespace Editors.Shared.Core.Common.BaseControl
             inputParams.ComponentInserter.Execute();
         }
 
-        /// <summary>Space by default; the Hotkeys tab in Settings changes it.</summary>
+        /// <summary>Space, Left and Right by default; the Hotkeys tab in Settings changes them.</summary>
         public const string PlayPauseHotkey = "AnimationEditors.PlayPause";
+        public const string PreviousFrameHotkey = "AnimationEditors.PreviousFrame";
+        public const string NextFrameHotkey = "AnimationEditors.NextFrame";
 
-        /// <summary>Plays or pauses the animation when the key is the play/pause hotkey. False leaves the key to whatever has focus.</summary>
-        public bool OnKeyPressed(Key key, ModifierKeys modifiers)
+        /// <summary>Plays, pauses or steps the animation when the key is one of its hotkeys. False leaves the key to whatever has
+        /// focus. A held key steps on but does not toggle play again, and a list, tree or slider with focus keeps the step keys.</summary>
+        public bool OnKeyPressed(Key key, ModifierKeys modifiers, bool isRepeat = false, bool focusUsesKeys = false)
         {
-            if (_inputParams.Hotkeys.Get(PlayPauseHotkey)?.Matches(key, modifiers) != true)
+            bool Is(string id) => _inputParams.Hotkeys.Get(id)?.Matches(key, modifiers) == true;
+            if (Is(PlayPauseHotkey))
+            {
+                if (isRepeat)
+                    return false;
+                Player.ToggleAnimationPausePlay();
+                return true;
+            }
+            if (focusUsesKeys)
                 return false;
-            Player.ToggleAnimationPausePlay();
+            if (Is(PreviousFrameHotkey))
+                Player.SetAnimationPrivFrame();
+            else if (Is(NextFrameHotkey))
+                Player.SetAnimationNextFrame();
+            else
+                return false;
             return true;
         }
 

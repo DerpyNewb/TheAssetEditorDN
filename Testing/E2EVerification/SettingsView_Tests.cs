@@ -120,7 +120,7 @@ namespace Test.E2EVerification
             var keys = new AssetEditorTestRunner().ServiceProvider.GetRequiredService<HotkeyService>().Definitions
                 .SelectMany(x => new[] { x.Group, x.Name }).Append("SettingsWindow.HotkeyClash").Distinct().ToList();
 
-            Assert.That(keys, Has.Count.EqualTo(23), "19 for Kitbash, one for the animation editors, their two groups and the warning");
+            Assert.That(keys, Has.Count.EqualTo(25), "19 for Kitbash, three for the animation editors, their two groups and the warning");
             Assert.That(MissingInALanguage(keys), Is.Empty);
         }
 

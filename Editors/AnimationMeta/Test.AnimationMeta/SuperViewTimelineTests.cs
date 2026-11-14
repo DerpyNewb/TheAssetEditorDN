@@ -438,6 +438,45 @@ namespace Test.AnimationMeta
             Assert.That(MainPlayer.GetTimeUs(), Is.Zero, "from the end it starts again");
         }
 
+        // Left and Right step a frame, a held key steps on, and the strip's playhead follows. Stepping onto the last frame with
+        // Loop on stays there, paused; it used to start the clip again from frame 0.
+        [Test]
+        public void TheArrowKeys_StepAFrame_AndHeldStepOn_ToTheLastFrame_WithoutLoopingBack()
+        {
+            MainPlayer.Pause();
+            Assert.That(_superView.Player.LoopAnimation.Value, Is.True, "Loop is on, as it opens");
+            Assert.That(_superView.OnKeyPressed(Key.Right, ModifierKeys.None), Is.True);
+            Assert.That(MainPlayer.CurrentFrame, Is.EqualTo(1));
+            Assert.That(_superView.PlayheadFraction, Is.GreaterThan(0), "the playhead followed");
+            Assert.That(_superView.OnKeyPressed(Key.Left, ModifierKeys.None), Is.True);
+            Assert.That(MainPlayer.CurrentFrame, Is.Zero);
+
+            var last = MainPlayer.FrameCount() - 1;
+            for (var i = 0; i < last + 5; i++)
+                Assert.That(_superView.OnKeyPressed(Key.Right, ModifierKeys.None, isRepeat: true), Is.True, "a held key steps on");
+            Assert.That(MainPlayer.CurrentFrame, Is.EqualTo(last), "at the end");
+            Assert.That(MainPlayer.IsPlaying, Is.False, "still paused there");
+
+            Assert.That(_superView.OnKeyPressed(Key.Space, ModifierKeys.None, isRepeat: true), Is.False, "a held Space does not toggle again");
+            Assert.That(MainPlayer.IsPlaying, Is.False);
+        }
+
+        // A list, tree or slider with focus keeps the arrows for itself; a rebind moves the steps elsewhere.
+        [Test]
+        public void TheStepKeys_AreLeftToAControlThatMovesWithKeys_AndARebindMovesThem()
+        {
+            MainPlayer.Pause();
+            Assert.That(_superView.OnKeyPressed(Key.Right, ModifierKeys.None, focusUsesKeys: true), Is.False);
+            Assert.That(MainPlayer.CurrentFrame, Is.Zero);
+
+            _runner.ServiceProvider.GetRequiredService<HotkeyService>().Set(new Dictionary<string, Hotkey?> { [EditorHostBase.NextFrameHotkey] = new Hotkey(Key.D, ModifierKeys.None), [EditorHostBase.PreviousFrameHotkey] = null });
+            Assert.That(_superView.OnKeyPressed(Key.Right, ModifierKeys.None), Is.False, "Right is free again");
+            Assert.That(_superView.OnKeyPressed(Key.D, ModifierKeys.None), Is.True);
+            Assert.That(MainPlayer.CurrentFrame, Is.EqualTo(1));
+            Assert.That(_superView.OnKeyPressed(Key.Left, ModifierKeys.None), Is.False, "the cleared step does nothing");
+            Assert.That(MainPlayer.CurrentFrame, Is.EqualTo(1));
+        }
+
         static Button TickButton(DependencyObject view, MetaDataEntry row) => FindAll<Button>(view).Single(x => x.DataContext is TimelineTick tick && tick.Tag == row._input);
         static Rectangle Part(Button button, string part) => (Rectangle)button.Template.FindName(part, button);
 

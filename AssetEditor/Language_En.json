@@ -43,6 +43,8 @@
   "Hotkeys.Group.Kitbash": "Kitbash",
   "Hotkeys.Group.AnimationEditors": "SuperView and the other animation editors",
   "Hotkeys.AnimationEditors.PlayPause": "Play or pause the animation",
+  "Hotkeys.AnimationEditors.PreviousFrame": "Go back one frame",
+  "Hotkeys.AnimationEditors.NextFrame": "Go forward one frame",
   "Hotkeys.Kitbash.UndoCommand": "Undo",
   "Hotkeys.Kitbash.RedoCommand": "Redo",
   "Hotkeys.Kitbash.GroupItemsCommand": "Group or ungroup",

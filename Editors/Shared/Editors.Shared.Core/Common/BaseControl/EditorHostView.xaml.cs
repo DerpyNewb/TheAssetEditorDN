@@ -47,14 +47,17 @@ namespace AnimationEditor.Common.BaseControl
 
         void OnWindowKeyDown(object sender, KeyEventArgs e) => HandleKey(e, Keyboard.Modifiers);
 
-        /// <summary>Text boxes keep their keys; a held key does not repeat.</summary>
+        /// <summary>Text boxes keep their keys, and controls that move with keys keep the frame steps.</summary>
         public void HandleKey(KeyEventArgs e, ModifierKeys modifiers)
         {
-            if (IsVisible == false || e.IsRepeat || e.OriginalSource is TextBoxBase or PasswordBox || DataContext is not EditorHostBase host)
+            if (IsVisible == false || e.OriginalSource is TextBoxBase or PasswordBox || DataContext is not EditorHostBase host)
                 return;
-            if (host.OnKeyPressed(e.Key == Key.System ? e.SystemKey : e.Key, modifiers))
+            if (host.OnKeyPressed(e.Key == Key.System ? e.SystemKey : e.Key, modifiers, e.IsRepeat, MovesWithKeys(e.OriginalSource)))
                 e.Handled = true;
         }
+
+        // A list, combo box, grid, tree, tab strip or slider moves its selection or value with the arrow keys.
+        static bool MovesWithKeys(object source) => source is Selector or ListBoxItem or TreeView or TreeViewItem or DataGridCell or TabItem or RangeBase;
 
         // The app collapses an editor whose tab is not selected, and a floating pane is a window of its own: it goes and comes
         // back with its editor instead of staying over another editor's tab.
