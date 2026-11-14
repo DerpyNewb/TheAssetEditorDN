@@ -539,10 +539,12 @@ namespace Test.AnimationMeta
         }
 
         // Faction colours tint the parts the mask texture marks, as in game, so picking them in the render settings shows on the
-        // model. The material that WH3 models load with had no tint, and the colours reached nothing.
+        // model. The material that WH3 models load with had no tint, and the colours reached nothing. The tint preview is off
+        // unless Settings turns it on (39759bcf), so the test turns it on as a user would.
         [Test]
         public void FactionColoursTintTheMaskedParts()
         {
+            _runner.ServiceProvider.GetRequiredService<Shared.Core.Settings.ApplicationSettingsService>().CurrentSettings.PreviewTintCapability = true;
             var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
             _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
             var store = _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Components.Rendering.SceneRenderParametersStore>();
