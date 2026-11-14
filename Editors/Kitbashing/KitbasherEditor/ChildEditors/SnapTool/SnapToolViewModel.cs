@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Editors.KitbasherEditor.Core;
 using Editors.KitbasherEditor.Events;
+using Editors.KitbasherEditor.Services;
 using GameWorld.Core.Components;
 using GameWorld.Core.Components.Gizmo;
 using GameWorld.Core.Components.Rendering;
@@ -30,6 +31,7 @@ namespace Editors.KitbasherEditor.ChildEditors.SnapTool
         private readonly GizmoComponent _gizmo;
         private readonly IEventHub _eventHub;
         private readonly IScopedLogger _scopedLogger;
+        private readonly BonePicker _bonePicker;
 
         public FilterCollection<string> Bones { get; } = new(null);
 
@@ -44,7 +46,7 @@ namespace Editors.KitbasherEditor.ChildEditors.SnapTool
         public DoubleViewModel RotationSnapStep { get; }
 
         public SnapToolViewModel(KitbasherRootScene rootScene, SelectionManager selectionManager, CommandManager commandManager, IUiCommandFactory commandFactory,
-            RenderEngineComponent renderEngine, GizmoComponent gizmo, IEventHub eventHub, IScopedLogger scopedLogger)
+            RenderEngineComponent renderEngine, GizmoComponent gizmo, IEventHub eventHub, IScopedLogger scopedLogger, BonePicker bonePicker)
         {
             _rootScene = rootScene;
             _selectionManager = selectionManager;
@@ -54,13 +56,22 @@ namespace Editors.KitbasherEditor.ChildEditors.SnapTool
             _gizmo = gizmo;
             _eventHub = eventHub;
             _scopedLogger = scopedLogger;
+            _bonePicker = bonePicker;
 
             RotationSnapStep = new DoubleViewModel(_gizmo.RotationSnapDegrees, v => { if (v > 0) _gizmo.RotationSnapDegrees = (float)v; });
             RefreshBones();
             _eventHub.Register<KitbasherSkeletonChangedEvent>(this, _ => RefreshBones());
+            _bonePicker.BonePicked += OnBonePicked;
         }
 
         void RefreshBones() => Bones.UpdatePossibleValues(_rootScene.Skeleton?.BoneNames);
+
+        // A bone picked in the 3D view. The filter is cleared first, since a list filtered to other names would not show it.
+        void OnBonePicked(int boneIndex)
+        {
+            Bones.Filter = "";
+            Bones.SelectedItem = _rootScene.Skeleton?.BoneNames[boneIndex];
+        }
 
         [RelayCommand]
         public void MoveToBone()
@@ -142,6 +153,10 @@ namespace Editors.KitbasherEditor.ChildEditors.SnapTool
                 _renderEngine.AddRenderLines(LineHelper.AddLocator(skeleton!.GetWorldTransform(boneIndex).Translation, 0.1f, Color.Cyan));
         }
 
-        public void Dispose() => _eventHub.UnRegister(this);
+        public void Dispose()
+        {
+            _eventHub.UnRegister(this);
+            _bonePicker.BonePicked -= OnBonePicked;
+        }
     }
 }

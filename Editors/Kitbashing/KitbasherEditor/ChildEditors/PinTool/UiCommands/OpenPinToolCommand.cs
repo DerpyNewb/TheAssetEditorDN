@@ -45,7 +45,10 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool.UiCommands
         private void OnWindowClosed(object? sender, EventArgs e)
         {
             if (_windowInstance != null)
+            {
                 _windowInstance.Closed -= OnWindowClosed;
+                _windowInstance.ViewModel.Dispose();
+            }
 
             _windowInstance = null;
         }

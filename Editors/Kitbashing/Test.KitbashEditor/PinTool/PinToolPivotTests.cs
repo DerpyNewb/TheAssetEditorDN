@@ -39,6 +39,9 @@ namespace Test.KitbashEditor.PinTool
             _tool = Service<PinToolViewModel>();
         }
 
+        [TearDown]
+        public void Close() => _tool.Dispose();
+
         T Service<T>() where T : notnull => _runner.GetRequiredServiceInCurrentEditorScope<T>();
         SelectionManager Selection => Service<SelectionManager>();
         void Undo() => Service<CommandManager>().Undo();

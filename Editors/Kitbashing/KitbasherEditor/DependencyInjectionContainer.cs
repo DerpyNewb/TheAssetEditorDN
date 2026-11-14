@@ -117,6 +117,7 @@ namespace Editors.KitbasherEditor
       
             serviceCollection.AddScoped<KitbashViewDropHandler>();
             serviceCollection.AddScoped<KitbasherRootScene>();
+            serviceCollection.AddScoped<BonePicker>();
 
             // Event handlers
             serviceCollection.AddScoped<SkeletonChangedHandler>();

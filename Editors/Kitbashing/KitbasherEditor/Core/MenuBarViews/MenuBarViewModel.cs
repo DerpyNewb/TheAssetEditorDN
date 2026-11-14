@@ -9,6 +9,7 @@ using Editors.KitbasherEditor.ChildEditors.SaveDialog;
 using Editors.KitbasherEditor.ChildEditors.SnapTool;
 using Editors.KitbasherEditor.ChildEditors.VertexDebugger;
 using Editors.KitbasherEditor.Core.MenuBarViews;
+using Editors.KitbasherEditor.Services;
 using Editors.KitbasherEditor.UiCommands;
 using GameWorld.Core.Components.Selection;
 using GameWorld.Core.Services;
@@ -34,7 +35,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
         private readonly LocalizationManager _localizationManager;
         private readonly Dictionary<Type, MenuAction> _uiCommands = new();
 
-        public MenuBarViewModel(Shared.Core.Events.CommandManager commandExecutor, IEventHub eventHub, MenuItemVisibilityRuleEngine menuItemVisibilityRuleEngine, TransformToolViewModel transformToolViewModel, IUiCommandFactory uiCommandFactory, LocalizationManager localizationManager)
+        public MenuBarViewModel(Shared.Core.Events.CommandManager commandExecutor, IEventHub eventHub, MenuItemVisibilityRuleEngine menuItemVisibilityRuleEngine, TransformToolViewModel transformToolViewModel, IUiCommandFactory uiCommandFactory, LocalizationManager localizationManager, BonePicker bonePicker)
         {
             _commandExecutor = commandExecutor;
             _menuItemVisibilityRuleEngine = menuItemVisibilityRuleEngine;
@@ -46,6 +47,9 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             RegisterHotkeys();
             CustomButtons = CreateButtons();
             SidebarButtons = CreateVerticalButtons();
+            // The other grouped buttons only ever turn on. This one shows whether pick mode is on, so a second click turns it off.
+            var pickBone = SidebarButtons.OfType<MenuBarGroupButton>().Single(x => x.Action == GetMenuAction<PickBoneModeCommand>());
+            bonePicker.ActiveChanged += on => pickBone.IsChecked.Value = on;
             MenuItems = CreateToolbarMenu();
 
             eventHub.Register<CommandStackChangedEvent>(this, OnUndoStackChanged);
@@ -82,6 +86,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             RegisterUiCommand<ObjectSelectionModeCommand>();
             RegisterUiCommand<FaceSelectionModeCommand>();
             RegisterUiCommand<VertexSelectionModeCommand>();
+            RegisterUiCommand<PickBoneModeCommand>();
 
             RegisterUiCommand<ToggleViewSelectedCommand>();
             RegisterUiCommand<ResetCameraCommand>();
@@ -223,6 +228,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateGroupedButton<ObjectSelectionModeCommand>("SelectionMode", true, IconLibrary.Selection_Object_Icon);
             builder.CreateGroupedButton<FaceSelectionModeCommand>("SelectionMode", false, IconLibrary.Selection_Face_Icon);
             builder.CreateGroupedButton<VertexSelectionModeCommand>("SelectionMode", false, IconLibrary.Selection_Vertex_Icon);
+            builder.CreateGroupedButton<PickBoneModeCommand>("PickBone", false, IconLibrary.PickBoneIcon);
             builder.CreateButton<ToggleViewSelectedCommand>(IconLibrary.ViewSelectedIcon);
  
             return builder.Build();

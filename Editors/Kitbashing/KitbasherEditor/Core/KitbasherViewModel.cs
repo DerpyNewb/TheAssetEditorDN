@@ -60,7 +60,8 @@ namespace Editors.KitbasherEditor.ViewModels
             IComponentInserter componentInserter,
             SkeletonChangedHandler skeletonChangedHandler, 
             SceneNodeEditorViewModel sceneNodeEditorView,
-            SelectionComponent selectionComponent)
+            SelectionComponent selectionComponent,
+            BonePicker bonePicker)
         {
             _logger = scopedLogger.ForContext<KitbasherViewModel>();
 
@@ -80,8 +81,10 @@ namespace Editors.KitbasherEditor.ViewModels
             eventHub.Register<CommandStackChangedEvent>(this, OnCommandStackChanged);
             skeletonChangedHandler.Subscribe(eventHub);
             
-            // Kitbash has no bone tools: its toolbar knows object, face and vertex mode, and a click in bone mode asks for an animation
+            // Kitbash poses no bones: its toolbar knows object, face and vertex mode, and a click in bone mode asks for an animation
             selectionComponent.AllowBoneSelection = false;
+            // While the sidebar's pick mode is on, a click picks a bone of the skeleton instead of selecting.
+            selectionComponent.ClickHandler = bonePicker.OnClick;
 
             // Ensure all game components are added to the editor
             componentInserter.Execute();

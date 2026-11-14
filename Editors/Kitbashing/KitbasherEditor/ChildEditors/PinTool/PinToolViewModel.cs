@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.KitbasherEditor.Commands;
 using Editors.KitbasherEditor.Core;
+using Editors.KitbasherEditor.Services;
 using Editors.KitbasherEditor.UiCommands;
 using GameWorld.Core.Components.Selection;
 using GameWorld.Core.SceneNodes;
@@ -20,12 +21,13 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
         Bone
     }
 
-    public partial class PinToolViewModel : ObservableObject
+    public partial class PinToolViewModel : ObservableObject, IDisposable
     {
         private readonly ILogger _logger;
         private readonly SelectionManager _selectionManager;
         private readonly IUiCommandFactory _commandFactory;
         private readonly IStandardDialogs _standardDialogs;
+        private readonly BonePicker _bonePicker;
 
         [ObservableProperty] PinRiggingAlgorithm _pinMode;
         [ObservableProperty] SkinWrapAlgorithm _skinWrapMode;
@@ -34,7 +36,7 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
         [ObservableProperty] RiggingMode _selectedRiggingMode = RiggingMode.Pin;
         [ObservableProperty] ObservableCollection<Rmv2MeshNode> _affectedMeshCollection = [];
 
-        public PinToolViewModel(SelectionManager selectionManager, IUiCommandFactory commandFactory, IStandardDialogs standardDialogs, IScopedLogger scopedLogger, KitbasherRootScene rootScene)
+        public PinToolViewModel(SelectionManager selectionManager, IUiCommandFactory commandFactory, IStandardDialogs standardDialogs, IScopedLogger scopedLogger, KitbasherRootScene rootScene, BonePicker bonePicker)
         {
             _logger = scopedLogger.ForContext<PinToolViewModel>();
             _selectionManager = selectionManager;
@@ -44,6 +46,8 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
             _pinMode = new PinRiggingAlgorithm(_commandFactory, _standardDialogs, _selectionManager, scopedLogger);
             _skinWrapMode = new SkinWrapAlgorithm(_commandFactory, _standardDialogs, _selectionManager, scopedLogger);
             _boneMode = new BoneRiggingAlgorithm(_commandFactory, _standardDialogs, rootScene);
+            _bonePicker = bonePicker;
+            _bonePicker.BonePicked += _boneMode.Pick;
         }
 
         /// <summary>Bone mode with these meshes listed, as the save check's fix for vertices with no weights opens it.</summary>
@@ -127,5 +131,7 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
         public const string PivotsBakedTitle = "Pivots baked";
 
         static string StepName(RiggingMode mode) => mode switch { RiggingMode.Pin => "pin", RiggingMode.SkinWrap => "skin wrap", _ => "bind" };
+
+        public void Dispose() => _bonePicker.BonePicked -= BoneMode.Pick;
     }
 }

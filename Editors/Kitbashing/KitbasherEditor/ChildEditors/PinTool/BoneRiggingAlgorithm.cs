@@ -33,6 +33,14 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
                 Bones.UpdatePossibleValues(skeleton.BoneNames.Select((name, index) => new BoneChoice(index, name)));
         }
 
+        /// <summary>Selects a bone picked in the 3D view. The filter is cleared first, since a list filtered to other names would
+        /// not show it.</summary>
+        public void Pick(int boneIndex)
+        {
+            Bones.Filter = "";
+            Bones.SelectedItem = Bones.PossibleValues.FirstOrDefault(x => x.Index == boneIndex);
+        }
+
         /// <summary>The bind, not yet run, or null after telling the user what is missing.</summary>
         public IAeUndoCommandCommand? CreateCommand(List<Rmv2MeshNode> meshesToAffect)
         {

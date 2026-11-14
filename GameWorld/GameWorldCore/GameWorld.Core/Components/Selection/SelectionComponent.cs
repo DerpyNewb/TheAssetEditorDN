@@ -180,6 +180,9 @@ namespace GameWorld.Core.Components.Selection
 
         void SelectFromPoint(Vector2 mousePosition, bool isSelectionModification, bool removeSelection)
         {
+            if (ClickHandler?.Invoke(mousePosition) == true)
+                return;
+
             var ray = _camera.CreateCameraRay(mousePosition);
             var currentState = _selectionManager.GetState();
             if (currentState is FaceSelectionState faceState)
@@ -270,6 +273,10 @@ namespace GameWorld.Core.Components.Selection
         // Bone mode is for editors that pose bones (the keyframe editor fills the animation it needs). One that does not can
         // turn it off, so F9 does nothing there.
         public bool AllowBoneSelection { get; set; } = true;
+
+        // Asked first about a click that is not a drag, with where it landed: true when the editor used the click itself, so it
+        // selects nothing. Kitbash picks bones with it while its pick mode is on. A drag still selects with a rectangle.
+        public Func<Vector2, bool>? ClickHandler { get; set; }
 
         public bool SetBoneSelectionMode()
         {

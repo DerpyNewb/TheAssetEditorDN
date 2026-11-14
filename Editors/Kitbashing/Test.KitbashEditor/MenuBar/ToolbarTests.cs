@@ -1,6 +1,7 @@
 using System.Reflection;
 using Editors.KitbasherEditor.ChildEditors.ReplaceTexturePaths;
 using Editors.KitbasherEditor.ChildEditors.SnapTool;
+using Editors.KitbasherEditor.Services;
 using Editors.KitbasherEditor.UiCommands;
 using GameWorld.Core.Components;
 using GameWorld.Core.Components.Selection;
@@ -67,8 +68,28 @@ namespace Test.KitbashEditor.MenuBar
             IconLibrary.Load();
 
             foreach (var icon in new[] { IconLibrary.MirrorIcon, IconLibrary.RecalculateNormalsIcon, IconLibrary.FlipFacesIcon, IconLibrary.BakePivotIcon,
-                IconLibrary.ReplaceTexturePathsIcon, IconLibrary.SnapIcon, IconLibrary.CheckModelIcon })
+                IconLibrary.ReplaceTexturePathsIcon, IconLibrary.SnapIcon, IconLibrary.CheckModelIcon, IconLibrary.PickBoneIcon })
                 Assert.That(icon?.PixelWidth, Is.GreaterThan(0));
+        }
+
+        // Pick mode sits on the sidebar under the selection modes, in a group of its own so it leaves the selection mode alone. The
+        // grouped buttons are radio buttons, which a click only ever turns on, so this one follows the picker instead.
+        [Test]
+        public void PickBoneMode_IsASidebarToggle_ThatShowsWhetherItIsOn()
+        {
+            var menu = Service<MenuBarViewModel>();
+            var picker = Service<BonePicker>();
+            var actions = (Dictionary<Type, MenuAction>)typeof(MenuBarViewModel).GetField("_uiCommands", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(menu)!;
+            var buttons = menu.SidebarButtons.ToList();
+            var button = (MenuBarGroupButton)buttons.Single(x => x.Action == actions[typeof(PickBoneModeCommand)]);
+            Assert.That(buttons.IndexOf(button), Is.EqualTo(buttons.FindIndex(x => x.Action == actions[typeof(VertexSelectionModeCommand)]) + 1));
+            Assert.That(button.GroupName, Is.Not.EqualTo(((MenuBarGroupButton)buttons.Single(x => x.Action == actions[typeof(VertexSelectionModeCommand)])).GroupName));
+
+            button.Action!.Command.Execute(null);
+            Assert.That((picker.IsActive, button.IsChecked.Value), Is.EqualTo((true, true)));
+
+            button.Action.Command.Execute(null);
+            Assert.That((picker.IsActive, button.IsChecked.Value), Is.EqualTo((false, false)));
         }
 
         [Test]

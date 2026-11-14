@@ -76,6 +76,7 @@
     <None Remove="Resources\Icons\Kitbasher\Mirror.png" />
     <None Remove="Resources\Icons\Kitbasher\RecalculateNormals.png" />
     <None Remove="Resources\Icons\Kitbasher\FlipFaces.png" />
+    <None Remove="Resources\Icons\Kitbasher\PickBone.png" />
     <None Remove="Resources\Icons\Kitbasher\ReplaceTexturePaths.png" />
     <None Remove="Resources\Icons\Kitbasher\SelectionMode_face.png" />
     <None Remove="Resources\Icons\Kitbasher\SelectionMode_object.png" />
@@ -329,6 +330,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
     <EmbeddedResource Include="Resources\Icons\Kitbasher\FlipFaces.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Icons\Kitbasher\PickBone.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
     <EmbeddedResource Include="Resources\Icons\Kitbasher\ReplaceTexturePaths.png">

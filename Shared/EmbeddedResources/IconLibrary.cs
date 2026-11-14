@@ -74,6 +74,7 @@ namespace Shared.EmbeddedResources
         [AllowNull] public static BitmapImage ReplaceTexturePathsIcon { get; private set; }
         [AllowNull] public static BitmapImage SnapIcon { get; private set; }
         [AllowNull] public static BitmapImage CheckModelIcon { get; private set; }
+        [AllowNull] public static BitmapImage PickBoneIcon { get; private set; }
 
         public static void Load()
         {
@@ -136,6 +137,7 @@ namespace Shared.EmbeddedResources
             ReplaceTexturePathsIcon = BitmapToImageSource(@"Kitbasher.ReplaceTexturePaths.png");
             SnapIcon = BitmapToImageSource(@"Kitbasher.SnapVertex.png");
             CheckModelIcon = BitmapToImageSource(@"Kitbasher.Validate.png");
+            PickBoneIcon = BitmapToImageSource(@"Kitbasher.PickBone.png");
 
             InformationIcon = BitmapToImageSource(SystemIcons.Information);
             IgnoredFileIcon = BitmapToImageSource(SystemIcons.Error);
