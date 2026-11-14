@@ -1,0 +1,46 @@
+<UserControl x:Class="Editors.AnimationMeta.MetaEditor.Examples.VanillaExamplesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+             mc:Ignorable="d"
+             x:Name="Root"
+             d:DesignHeight="260" d:DesignWidth="500">
+    <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,4" TextWrapping="Wrap" Text="{Binding Status}"
+                   AutomationProperties.AutomationId="VanillaExamplesStatus"/>
+        <Button DockPanel.Dock="Bottom" HorizontalAlignment="Right" Margin="0,5,0,0" Padding="10,2"
+                Content="{Binding UseLabel, ElementName=Root}" ToolTip="{Binding UseToolTip, ElementName=Root}"
+                Command="{Binding UseCommand}" AutomationProperties.AutomationId="VanillaExamplesUse"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <!-- A CA path is too long to read in a column, so the list shows the file name and the tooltip the whole path. -->
+            <ListView Grid.Column="0" ItemsSource="{Binding Items}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="VanillaExamplesList">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+                        <Setter Property="ToolTip" Value="{Binding Path}"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="{loc:Loc MetadataEditor.Examples.FileColumn}" DisplayMemberBinding="{Binding FileName}" Width="220"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+            <ListView Grid.Column="2" ItemsSource="{Binding Selected.Fields}" AutomationProperties.AutomationId="VanillaExamplesFields">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="{loc:Loc MetadataEditor.Examples.FieldColumn}" DisplayMemberBinding="{Binding Name}" Width="110"/>
+                        <GridViewColumn Header="{loc:Loc MetadataEditor.Examples.ValueColumn}" DisplayMemberBinding="{Binding Value}" Width="120"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Grid>
+    </DockPanel>
+</UserControl>
