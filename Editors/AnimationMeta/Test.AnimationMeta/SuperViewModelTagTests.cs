@@ -2,6 +2,7 @@ using System.Reflection;
 using Editors.AnimationMeta.SuperView.Visualisation;
 using Editors.Shared.Core.Common;
 using GameWorld.Core.Animation;
+using GameWorld.Core.Rendering.RenderItems;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -197,6 +198,73 @@ namespace Test.AnimationMeta
             var at = new Vector3(1.5f, 0, 10.7f);
             Build(null, Meta(new CameraShakePos { StartTime = 0.4f, EndTime = 0.4f, Position = at }));
             Assert.That(Lines(Drawn("CameraShake")), Has.All.Matches<Vector3>(p => Math.Abs(Vector3.Distance(p, at) - 0.3f) < 1e-4f), "a circle around the position");
+        }
+
+        static List<string> Labels(SimpleDrawableNode node) =>
+            [.. ((List<WorldTextRenderItem>)typeof(SimpleDrawableNode).GetField("_renderList", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(node)!)
+                .Select(x => (string)typeof(WorldTextRenderItem).GetField("_text", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(x)!)];
+
+        bool FiringAt(List<IMetaDataInstance> instances, string marker, float time)
+        {
+            foreach (var instance in instances)
+                instance.Update(time);
+            return Drawn(marker).Children.Single().IsVisible;
+        }
+
+        // FIRE_POS is an instant, the projectile's spawn: its marker flashes from then for a quarter second.
+        [TestCase(0.45f, false)]
+        [TestCase(0.5f, true)]
+        [TestCase(0.7f, true)]
+        [TestCase(0.8f, false)]
+        public void FirePos_FlashesFromItsStartTime(float time, bool firing)
+        {
+            var instances = Build(null, Meta(new FirePos_v10 { StartTime = 0.5f, EndTime = 0.5f, Position = new Vector3(0, 2, 1) }));
+            Assert.That(FiringAt(instances, "FirePos", time), Is.EqualTo(firing));
+        }
+
+        [Test]
+        public void FirePos_TheFlashIsARingRoundItsPosition_AndTheLabelSaysWhen()
+        {
+            var at = new Vector3(0, 2, 1);
+            Build(null, Meta(new FirePos_v10 { StartTime = 0.5f, EndTime = 0.5f, Position = at }));
+
+            var flash = (SimpleDrawableNode)Drawn("FirePos").Children.Single();
+            Assert.That(Lines(flash), Has.All.Matches<Vector3>(p => Vector3.Distance(p, at) > 0.5f && Vector3.Distance(p, at) < 0.7f), "wider than the marker's 0.3");
+            Assert.That(Labels(Drawn("FirePos")), Is.EqualTo(new[] { "FirePos @0.50s" }));
+        }
+
+        // A tag with a window longer than the flash fires for the whole window.
+        [TestCase(0.9f, true)]
+        [TestCase(1.1f, false)]
+        public void SplashAttack_WithAWindow_FiresForAllOfIt(float time, bool firing)
+        {
+            var tag = new SplashAttack_v10 { StartTime = 0.2f, EndTime = 1, StartPosition = Vector3.Zero, EndPosition = new Vector3(0, 0, 2) };
+            var instances = Build(null, Meta(tag));
+            Assert.That(FiringAt(instances, "SplashAttack_1", time), Is.EqualTo(firing));
+            Assert.That(Labels(Drawn("SplashAttack_1")), Does.Contain("SplashAttack 0.20-1.00s"));
+        }
+
+        [Test]
+        public void ImpactPos_TargetPos_AndCameraShake_FlashToo()
+        {
+            var instances = Build(null, Meta(
+                new ImpactPosition_v10 { StartTime = 1, EndTime = 1 },
+                new TargetPos_10 { StartTime = 1, EndTime = 1 },
+                new CameraShakePos { StartTime = 1, EndTime = 1 }));
+            foreach (var marker in new[] { "ImpactPos", "TargetPos", "CameraShake" })
+            {
+                Assert.That(FiringAt(instances, marker, 0.9f), Is.False, marker);
+                Assert.That(FiringAt(instances, marker, 1.1f), Is.True, marker);
+            }
+        }
+
+        [Test]
+        public void CleanUp_TakesTheFlashWithTheMarker()
+        {
+            var instances = Build(null, Meta(new FirePos_v10 { StartTime = 0.5f, EndTime = 0.5f }));
+            foreach (var instance in instances)
+                instance.CleanUp();
+            Assert.That(_scene.MainNode.Children.Select(x => x.Name), Is.EquivalentTo(new[] { "model" }));
         }
 
         [Test]
