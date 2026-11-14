@@ -96,7 +96,8 @@ namespace Editors.AnimationMeta.SuperView
             IMetaDataBuilder metaDataFactory,
             IStandardDialogs standardDialogs,
             IFileSaveService fileSaveService,
-            ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper)
+            ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper,
+            MetaTagGizmoComponent metaTagGizmo)
             : base(editorHostParameters)
         {
             DisplayName = "Super view";
@@ -111,6 +112,7 @@ namespace Editors.AnimationMeta.SuperView
             _metaDataFileParser = metaDataFileParser;
             _metaDataFactory = metaDataFactory;
             Initialize();
+            metaTagGizmo.Follow(() => MetaEditor.SelectedTag, MetaTagGizmoComponent.FrameOf(metaDataFactory, _asset.Data));
             eventHub.Register<ScopedFileSavedEvent>(this, OnFileSaved);
             eventHub.Register<SceneObjectUpdateEvent>(this, OnSceneObjectUpdated);
             eventHub.Register<MetaDataAttributeChangedEvent>(this, OnMetaDataAttributeChanged);

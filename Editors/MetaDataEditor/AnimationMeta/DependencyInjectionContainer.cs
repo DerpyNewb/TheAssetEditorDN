@@ -23,6 +23,7 @@ namespace Editors.AnimationMeta
             serviceCollection.AddScoped<SuperViewViewModel>();
 
             serviceCollection.AddScoped<IMetaDataBuilder, MetaDataBuilder>(); // Needs heavy refactorying!
+            RegisterGameComponent<MetaTagGizmoComponent>(serviceCollection);
 
             // Commands for metadata editor
             serviceCollection.AddTransient<CopyPastCommand>();

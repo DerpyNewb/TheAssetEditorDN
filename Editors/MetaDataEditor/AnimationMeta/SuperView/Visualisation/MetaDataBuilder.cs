@@ -29,6 +29,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         /// <summary>Lets go of what was loaded from these pack paths, so the next Create reads them again.</summary>
         void Forget(IEnumerable<string> paths);
         List<IMetaDataInstance> Create(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData, ParsedMetadataAttribute? selectedMetaDataAttribute, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, IAnimationBinGenericFormat fragment);
+        /// <summary>A bone's transform at a time on the main clock, as the markers riding it are drawn; -1 is the model's origin.</summary>
+        Func<float, Matrix> BoneAt(int boneIndex, ISkeletonProvider skeleton, AnimationPlayer rootPlayer);
     }
 
     // IDisposable so the editor's scope frees the effects' textures when SuperView closes.
@@ -691,7 +693,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         // for any time. -1, or a bone the skeleton lacks, is the model's origin.
         // ponytail: sampled without the player's rules (hand poses, TRANSFORM); pass rootPlayer.AnimationRules
         // if an effect is ever placed on a bone a rule moves.
-        Func<float, Matrix> BoneAt(int boneIndex, ISkeletonProvider skeleton, AnimationPlayer rootPlayer) => mainTime =>
+        public Func<float, Matrix> BoneAt(int boneIndex, ISkeletonProvider skeleton, AnimationPlayer rootPlayer) => mainTime =>
         {
             var gameSkeleton = skeleton.Skeleton;
             if (gameSkeleton == null || boneIndex < 0 || boneIndex >= gameSkeleton.BoneCount)

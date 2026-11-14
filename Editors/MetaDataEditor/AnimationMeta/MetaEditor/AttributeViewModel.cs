@@ -159,6 +159,18 @@ namespace Editors.AnimationMeta.Presentation
             IsValid = true;
         }
 
+        /// <summary>The tag property the three boxes edit.</summary>
+        public PropertyInfo Property => _property;
+
+        /// <summary>All three numbers at once, as one edit. Set box by box, each box would redraw SuperView, three times a mouse
+        /// move when SuperView's handle drags a tag along a bone's tilted axis.</summary>
+        public void Set(Vector3 value)
+        {
+            Value.DisableCallbacks = true;
+            Value.Set(value);
+            Value.DisableCallbacks = false;
+            OnValueChangedCallback(value);
+        }
 
         private void OnValueChangedCallback(Vector3 vector)
         {
