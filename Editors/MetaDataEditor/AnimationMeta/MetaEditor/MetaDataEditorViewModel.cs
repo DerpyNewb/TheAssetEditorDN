@@ -19,7 +19,7 @@ namespace Editors.AnimationMeta.Presentation
         public ParsedMetadataAttribute? SelectedAttribute { get; private set; }
 
         [ObservableProperty] string _displayName = "Metadata Editor";
-        [ObservableProperty] MetaDataEntry? _selectedTag;
+        [ObservableProperty, NotifyCanExecuteChangedFor(nameof(SetStartToNowCommand), nameof(SetEndToNowCommand))] MetaDataEntry? _selectedTag;
         [ObservableProperty] ObservableCollection<MetaDataEntry> _tags = [];
         [ObservableProperty] int _metaDataFileVersion;
 

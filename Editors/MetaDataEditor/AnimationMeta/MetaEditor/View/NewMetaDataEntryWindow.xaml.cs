@@ -3,7 +3,9 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
 using CommunityToolkit.Diagnostics;
+using Editors.AnimationMeta.SuperView.Visualisation;
 using Shared.Core.Misc;
+using Shared.GameFormats.AnimationMeta.Parsing;
 
 namespace Editors.AnimationMeta.Presentation.View
 {
@@ -46,7 +48,14 @@ namespace Editors.AnimationMeta.Presentation.View
         }
     }
 
-    record NewTagItem(string Key, string Description, int Warhammer3Uses);
+    public record NewTagItem(string Key, string Description, int Warhammer3Uses, ShownInSuperView.Mark SuperViewMark)
+    {
+        // Keys are "NAME_VERSION"; descriptions are stored per NAME. The mark is for the type Add creates, the key's first.
+        public static List<NewTagItem> All(IMetaDataDatabase database) => database.GetSupportedTypes()
+            .Select(key => new NewTagItem(key, database.GetDescriptionSafe(key[..key.LastIndexOf('_')]), database.GetWarhammer3UseCount(key),
+                ShownInSuperView.Of(database.GetDefinition(key).First())))
+            .ToList();
+    }
 
     class NewTagWindowViewModel : NotifyPropertyChangedImpl
     {

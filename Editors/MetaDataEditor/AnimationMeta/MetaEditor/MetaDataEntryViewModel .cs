@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Xna.Framework;
 using Shared.ByteParsing;
 using Shared.ByteParsing.Parsers;
+using Editors.AnimationMeta.SuperView.Visualisation;
 using Shared.Core.Events;
 using Shared.GameFormats.AnimationMeta.Parsing;
 
@@ -19,6 +20,9 @@ namespace Editors.AnimationMeta.Presentation
         [ObservableProperty] bool _isDecodedCorrectly = false;
         [ObservableProperty] int _version;
         [ObservableProperty] bool _isSelected;
+
+        /// <summary>Whether SuperView draws this tag, for the mark beside it in the list.</summary>
+        public ShownInSuperView.Mark SuperViewMark => ShownInSuperView.Of(_input.GetType());
 
         public MetaDataEntry(ParsedMetadataAttribute typedMetaItem, string description, IEventHub eventHub, bool decodedCorrectly)
         {

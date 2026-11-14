@@ -175,6 +175,7 @@ namespace Editors.AnimationMeta.SuperView
             assetViewModel.Data.MetaDataChanged += OnMetaDataChanged;
 
             _asset = assetViewModel;
+            InitTimeline();
             _asset.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += LoadSlotFields;
 
             // The meta's props always play, so the model under them has to as well; off, it stands
@@ -207,6 +208,7 @@ namespace Editors.AnimationMeta.SuperView
             VfxFilterIds = filter == 0 || ids.Contains(filter) ? ids : [.. ids.Append(filter).Order()];
             VfxFilterId = filter;
             _showingVfxFilter = false;
+            RebuildTimeline();
         }
 
         private void OnSceneObjectUpdated(SceneObjectUpdateEvent e)
