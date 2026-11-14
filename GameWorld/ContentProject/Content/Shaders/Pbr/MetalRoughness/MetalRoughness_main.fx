@@ -17,6 +17,9 @@
 // **************************************************************************************************************************************
 // *		PIXEL SHADER CODE
 // **************************************************************************************************************************************
+// Set for a base colour whose file has no sRGB flag: the game reads those colours as linear.
+bool BaseColourIsLinear = false;
+
 GBufferMaterial GetMaterial(in PixelInputType input)
 {
     GBufferMaterial material;
@@ -39,7 +42,7 @@ GBufferMaterial GetMaterial(in PixelInputType input)
     if (UseDiffuse)
     {
         float4 diffuseValue = DiffuseTexture.Sample(SampleType, texCord);
-        material.diffuse.rgb = _linear(diffuseValue.rgb);
+        material.diffuse.rgb = BaseColourIsLinear ? diffuseValue.rgb : _linear(diffuseValue.rgb);
         material.diffuse.a = diffuseValue.a;
     }
     

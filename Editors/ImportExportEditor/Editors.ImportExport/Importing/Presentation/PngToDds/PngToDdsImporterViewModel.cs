@@ -40,7 +40,7 @@ namespace Editors.ImportExport.Importing.Presentation.PngToDds
         }
 
         // From CA's suffixes, and the ones this editor's own exports and Blender's add.
-        static TextureType Guess(string name) => name switch
+        public static TextureType Guess(string name) => name switch
         {
             _ when name.Contains("normal") => TextureType.Normal,
             _ when name.Contains("material") => TextureType.MaterialMap,

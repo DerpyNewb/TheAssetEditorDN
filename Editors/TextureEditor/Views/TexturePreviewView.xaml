@@ -17,16 +17,9 @@
     <DockPanel >
      
         <DockPanel DockPanel.Dock="Right">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
             <GroupBox>
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
-                        <Label Width="{StaticResource labelWidth}" Content="{loc:Loc TextureEditor.Labels.UvChannels}"/>
-                        <Label>:</Label>
-                        <ComboBox  HorizontalAlignment="Center" VerticalAlignment="Center" 
-                                   SelectedValue="{Binding Path=ViewModel.UvChannelSelectedValue.Value, UpdateSourceTrigger=PropertyChanged}" 
-                                   ItemsSource="{Binding Path=ViewModel.UvChannelPossibleValues, UpdateSourceTrigger=PropertyChanged}"/>
-                    </StackPanel>
-
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
                         <Label Width="{StaticResource labelWidth}" Content="{loc:Loc TextureEditor.Labels.Format}"/>
                         <Label>:</Label>
@@ -52,6 +45,22 @@
                     </StackPanel>
 
                     <Button Content="{loc:Loc TextureEditor.Buttons.ImageDetails}" DockPanel.Dock="Top" HorizontalAlignment="Stretch" Click="{s:MethodBinding ShowTextureDetailsInfo}"/>
+
+                    <Expander Header="Replace from image" Margin="0,10,0,0" ToolTip="Writes a picked PNG, JPEG, BMP or TIFF over this texture, at its path in the editable pack.">
+                        <StackPanel Margin="4">
+                            <StackPanel Orientation="Horizontal">
+                                <Label Width="{StaticResource labelWidth}" Content="Texture type"/>
+                                <ComboBox MinWidth="140" ItemsSource="{Binding ReplaceTextureTypes}" SelectedItem="{Binding ReplaceTextureType.Value}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Label Width="{StaticResource labelWidth}" Content="Format"/>
+                                <ComboBox MinWidth="140" ItemsSource="{Binding ReplaceFormats}" SelectedItem="{Binding ReplaceFormat.Value}"/>
+                            </StackPanel>
+                            <CheckBox Content="Generate mipmaps" IsChecked="{Binding ReplaceMipmaps.Value}" Margin="4,4,0,0"/>
+                            <CheckBox Content="Convert normals and Blender material maps to CA's layout" IsChecked="{Binding ReplaceConvert.Value}" Margin="4,4,0,0"/>
+                            <Button Content="Replace from image..." Margin="0,6,0,0" HorizontalAlignment="Stretch" Click="{s:MethodBinding ReplaceFromImage}"/>
+                        </StackPanel>
+                    </Expander>
                
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,10,0,0">
                         <StackPanel>
@@ -88,13 +97,21 @@
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
                         <StackPanel>
                             <Label HorizontalContentAlignment="Center" Width="40" >A</Label>
-                            <RadioButton GroupName="RGBA" IsChecked="{Binding FormatACheckbox, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <RadioButton GroupName="RGBA" IsChecked="{Binding ViewModel.FormatACheckbox, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </StackPanel>
                         <Image Source="{Binding Path=ViewModel.PreviewImage[4], UpdateSourceTrigger=PropertyChanged}" Width="{StaticResource LayerImageSize}" Height="{StaticResource LayerImageSize}" HorizontalAlignment="Right"/>
                     </StackPanel>
                 </StackPanel>
             </GroupBox>
+            </ScrollViewer>
         </DockPanel>
+
+        <Border DockPanel.Dock="Top" BorderBrush="#FFB547" BorderThickness="2" Padding="6" Margin="0,0,0,4"
+                Visibility="{Binding ViewModel.ColourSpaceWarning.Value, Converter={StaticResource NullToVisibilityConverter}, FallbackValue=Collapsed}">
+            <TextBlock TextWrapping="Wrap">
+                <Run Text="Warning: " FontWeight="Bold"/><Run Text="{Binding ViewModel.ColourSpaceWarning.Value, Mode=OneWay}"/>
+            </TextBlock>
+        </Border>
 
         <DockPanel DockPanel.Dock="Bottom" >
             <Label DockPanel.Dock="Left" Content="{loc:Loc TextureEditor.Labels.ImagePath}" FontWeight="Bold"/>

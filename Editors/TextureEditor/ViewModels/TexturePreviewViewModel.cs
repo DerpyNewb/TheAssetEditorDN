@@ -22,6 +22,7 @@ namespace Editors.TextureEditor.ViewModels
         public NotifyAttr<int> Width { get; set; } = new NotifyAttr<int>();
         public NotifyAttr<int> Height { get; set; } = new NotifyAttr<int>();
         public NotifyAttr<uint> NumMipMaps { get; set; } = new NotifyAttr<uint>();
+        public NotifyAttr<string> ColourSpaceWarning { get; set; } = new NotifyAttr<string>();
 
         public bool FormatRgbaCheckbox { get => _formatCheckbox[0]; set => UpdateFormat(0, value); }
         public bool FormatRCheckbox { get => _formatCheckbox[1]; set => UpdateFormat(1, value); }
@@ -53,6 +54,9 @@ namespace Editors.TextureEditor.ViewModels
             Height.Value = _information.Height;
             Format.Value = _information.Format.ToString();
             NumMipMaps.Value = _information.Header_MipMapCount;
+            ColourSpaceWarning.Value = ImagePath.Value?.Contains("base_colour", System.StringComparison.OrdinalIgnoreCase) == true && _information is { IsDdsImage: true, HasSrgbFlag: false }
+                ? $"This base colour is {_information.FormatName}, which has no sRGB flag. The game reads its colours as linear and draws them lighter, often pink or washed out. Save it as BC1_UNORM_SRGB, BC3_UNORM_SRGB or BC7_UNORM_SRGB, which writes a DX10 header."
+                : null;
         }
 
         public void ShowTextureDetailsInfo()

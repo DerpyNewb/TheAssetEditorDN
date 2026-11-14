@@ -26,6 +26,7 @@ namespace Editors.TextureEditor
                 .AddExtention(".dds", EditorPriorites.Default)
                 .AddExtention(".png", EditorPriorites.Default)
                 .AddExtention(".jpeg", EditorPriorites.Default)
+                .AddExtention(".jpg", EditorPriorites.Default)
                 .Build(factory);
         }
     }

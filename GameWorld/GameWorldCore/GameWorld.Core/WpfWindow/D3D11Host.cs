@@ -280,7 +280,8 @@ namespace GameWorld.Core.WpfWindow
 
         private static GraphicsDevice CreateSharedGraphicsDevice(PresentationParameters presentationParameters)
         {
-            // TODO: could allow user to chose which adapter to use
+            // MonoGame 3.8.4.1 only stores this adapter: its D3D11 device is always made on DXGI adapter 0. The D3D9 device that
+            // D3D11Image shares each frame through is on adapter 0 too, so another GPU needs both moved, which MonoGame does not allow.
             return new GraphicsDevice(GraphicsAdapter.DefaultAdapter, GraphicsProfile.HiDef, presentationParameters);
         }
 

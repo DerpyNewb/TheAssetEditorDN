@@ -46,8 +46,8 @@ namespace Editors.TextureEditor.ViewModels
             var imageGenerationSettings = new TextureToTextureRenderer.DrawSettings[5];
             imageGenerationSettings[0] = new TextureToTextureRenderer.DrawSettings();
             imageGenerationSettings[1] = new TextureToTextureRenderer.DrawSettings() { OnlyRed = true };
-            imageGenerationSettings[2] = new TextureToTextureRenderer.DrawSettings() { OnlyBlue = true };
-            imageGenerationSettings[3] = new TextureToTextureRenderer.DrawSettings() { OnlyGreen = true };
+            imageGenerationSettings[2] = new TextureToTextureRenderer.DrawSettings() { OnlyGreen = true };
+            imageGenerationSettings[3] = new TextureToTextureRenderer.DrawSettings() { OnlyBlue = true };
             imageGenerationSettings[4] = new TextureToTextureRenderer.DrawSettings() { OnlyAlpha = true };
 
             for (var i = 0; i < imageGenerationSettings.Count(); i++)

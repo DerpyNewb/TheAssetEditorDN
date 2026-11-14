@@ -436,7 +436,6 @@
     "MountAnimationCreator.BatchProcess.Animations":  "Animations",
     "TextureEditor.Buttons.ImageDetails":  "Image Details",
     "TextureEditor.Labels.ImagePath":  "Image Path:",
-    "TextureEditor.Labels.UvChannels":  "Uv Channels",
     "TextureEditor.Labels.Format":  "Format",
     "TextureEditor.Labels.Width":  "Width",
     "TextureEditor.Labels.Height":  "Height",

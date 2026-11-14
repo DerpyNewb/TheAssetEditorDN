@@ -1,0 +1,214 @@
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Xml.Linq;
+using DirectXTexNet;
+using Editors.TextureEditor.ViewModels;
+using Shared.Core.PackFiles.Models;
+using Shared.Core.PackFiles;
+using Shared.Core.ToolCreation;
+using Shared.GameFormats.RigidModel.Types;
+using Test.TestingUtility.Shared;
+using Shared.Core.Commands;
+
+namespace Test.E2EVerification
+{
+    internal class TextureEditor_Tests
+    {
+        static readonly Regex BindingPath = new(@"\{Binding\s+(?:Path=)?([A-Za-z_][\w.\[\]]*)");
+
+        // A uniform texture with a different value in each channel, so each channel preview has one right answer.
+        internal const byte R = 200, G = 100, B = 40, A = 230;
+
+        internal static byte[] Dds(DXGI_FORMAT format, bool legacyHeader, byte r = R, byte g = G, byte b = B, byte a = A, int size = 8)
+        {
+            using var image = TexHelper.Instance.Initialize2D(DXGI_FORMAT.B8G8R8A8_UNORM, size, size, 1, 1, CP_FLAGS.NONE);
+            var pixels = Enumerable.Range(0, size * size).SelectMany(_ => new[] { b, g, r, a }).ToArray();
+            Marshal.Copy(pixels, 0, image.GetImage(0, 0, 0).Pixels, pixels.Length);
+
+            // The SRGB flags keep the bytes as they are: without them DirectXTex converts the colours into an sRGB format.
+            var srgb = TexHelper.Instance.IsSRGB(format);
+            using var encoded = format == DXGI_FORMAT.B8G8R8A8_UNORM ? null
+                : TexHelper.Instance.IsCompressed(format) ? image.Compress(format, srgb ? TEX_COMPRESS_FLAGS.SRGB : TEX_COMPRESS_FLAGS.DEFAULT, 0.5f)
+                : image.Convert(format, srgb ? TEX_FILTER_FLAGS.SRGB : TEX_FILTER_FLAGS.DEFAULT, 0.5f);
+            using var stream = (encoded ?? image).SaveToDDSMemory(legacyHeader ? DDS_FLAGS.FORCE_DX9_LEGACY : DDS_FLAGS.NONE);
+            var bytes = new byte[stream.Length];
+            stream.ReadExactly(bytes);
+            return bytes;
+        }
+
+        internal static (AssetEditorTestRunner Runner, PackFile File) PackWith(string name, byte[] bytes)
+        {
+            var runner = new AssetEditorTestRunner();
+            var pack = runner.CreateEmptyPackFile("derpy_texture_test", true);
+            runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry(@"variantmeshes\derpy", PackFile.CreateFromBytes(name, bytes))]);
+            return (runner, runner.PackFileService.FindFile(@"variantmeshes\derpy\" + name)!);
+        }
+
+        static Color Pixel(ImageSource image)
+        {
+            var bitmap = new FormatConvertedBitmap((BitmapSource)image, PixelFormats.Bgra32, null, 0);
+            var pixel = new byte[4];
+            bitmap.CopyPixels(new System.Windows.Int32Rect(2, 2, 1, 1), pixel, 4, 0);
+            return Color.FromArgb(pixel[3], pixel[2], pixel[1], pixel[0]);
+        }
+
+        // The A radio button was bound to FormatACheckbox on the editor, where R, G and B bind ViewModel.Format*Checkbox. WPF drops a
+        // binding to a missing property without a word, so A never switched the big image to the alpha channel.
+        [Test]
+        public void EveryBindingInThePreview_NamesAPropertyTheEditorHas()
+        {
+            var view = XDocument.Load(Path.Combine(SettingsView_Tests.Root(), "Editors", "TextureEditor", "Views", "TexturePreviewView.xaml"));
+            var paths = view.Descendants().SelectMany(e => e.Attributes()).Select(a => BindingPath.Match(a.Value))
+                .Where(m => m.Success).Select(m => m.Groups[1].Value).Distinct().ToList();
+
+            var missing = paths.Where(p => Resolve(typeof(TextureEditorViewModel), p) == false).ToList();
+
+            Assert.That(paths, Has.Member("ViewModel.FormatRCheckbox"), "the reader found no channel bindings to check");
+            Assert.That(missing, Is.Empty);
+        }
+
+        static bool Resolve(Type type, string path)
+        {
+            foreach (var part in path.Split('.'))
+            {
+                var name = part.Split('[')[0];
+                var property = type.GetProperty(name);
+                if (property == null)
+                    return false;
+                type = part.Contains('[') ? property.PropertyType.GetElementType() ?? typeof(object) : property.PropertyType;
+            }
+            return true;
+        }
+
+        // Each channel radio button shows the image beside it, and the G and B previews were each other's: G drew the blue channel.
+        // The alpha preview drew 1 - alpha, so an opaque texture showed black.
+        [Test]
+        public void ChannelPreviews_ShowTheirOwnChannel_AndAlphaIsWhiteWhereOpaque()
+        {
+            var (runner, file) = PackWith("derpy_test_mask.dds", Dds(DXGI_FORMAT.B8G8R8A8_UNORM, legacyHeader: true));
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<TextureEditorViewModel>(file, EditorEnums.Texture_Editor);
+            var previews = editor.ViewModel.PreviewImage;
+
+            Assert.That(Pixel(previews[1]), Is.EqualTo(Color.FromRgb(R, 0, 0)), "R");
+            Assert.That(Pixel(previews[2]), Is.EqualTo(Color.FromRgb(0, G, 0)), "G");
+            Assert.That(Pixel(previews[3]), Is.EqualTo(Color.FromRgb(0, 0, B)), "B");
+            Assert.That(Pixel(previews[4]), Is.EqualTo(Color.FromRgb(A, A, A)), "A");
+
+            editor.ViewModel.FormatACheckbox = true;
+            Assert.That(editor.ViewModel.ActiveImage.Value, Is.SameAs(previews[4]));
+        }
+
+        // .jpg was not registered, only .jpeg. And every image that is not a .dds came back with no image information, which the
+        // preview read at once, so a .png or .jpeg failed to open too.
+        [TestCase("derpy_test.png")]
+        [TestCase("derpy_test.jpg")]
+        [TestCase("derpy_test.jpeg")]
+        public void AnImageFile_OpensInTheTextureEditor(string name)
+        {
+            var (runner, file) = PackWith(name, Encode(name));
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<TextureEditorViewModel>(file);
+
+            Assert.That(editor.ViewModel.Width.Value, Is.EqualTo(6));
+            Assert.That(editor.ViewModel.Height.Value, Is.EqualTo(5));
+            var red = Pixel(editor.ViewModel.PreviewImage[1]);
+            Assert.That(red.R, Is.InRange(R - 8, R + 8), "the red channel preview");
+        }
+
+        // The game reads a base colour with no sRGB flag as linear and draws it lighter. Nothing in the viewer showed it: it draws the
+        // bytes as they are, and so the file looked right right up to the game.
+        [TestCase("derpy_test_base_colour.dds", DXGI_FORMAT.BC3_UNORM, true, "legacy")]
+        [TestCase("derpy_test_base_colour.dds", DXGI_FORMAT.BC1_UNORM, false, "BC1_UNORM")]
+        [TestCase("derpy_test_base_colour.dds", DXGI_FORMAT.BC3_UNORM_SRGB, false, null)]
+        [TestCase("derpy_test_mask.dds", DXGI_FORMAT.BC3_UNORM, true, null)]
+        public void ABaseColourWithNoSrgbFlag_IsWarnedAbout(string name, DXGI_FORMAT format, bool legacyHeader, string? named)
+        {
+            var (runner, file) = PackWith(name, Dds(format, legacyHeader));
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<TextureEditorViewModel>(file, EditorEnums.Texture_Editor);
+
+            var warning = editor.ViewModel.ColourSpaceWarning.Value;
+            if (named == null)
+                Assert.That(warning, Is.Null);
+            else
+                Assert.That(warning, Does.Contain(named).And.Contain("BC3_UNORM_SRGB"));
+        }
+
+        // The texture editor was view-only. Replace from image writes a picked image over the open texture, at its path in the editable
+        // pack, in the format and with the mips picked, and then shows it.
+        [TestCase(null, true, "BC3_UNORM")]
+        [TestCase(DXGI_FORMAT.BC7_UNORM_SRGB, false, "BC7_UNORM_SRGB")]
+        public void ReplaceFromImage_WritesTheImageAtTheTexturesPath_InTheEditablePack(DXGI_FORMAT? format, bool mipmaps, string expectedFormat)
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("derpy_ca_like", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry(@"variantmeshes\derpy", PackFile.CreateFromBytes("derpy_test_mask.dds", Dds(DXGI_FORMAT.BC3_UNORM, legacyHeader: false, 0, 0, 0, 255)))]);
+            var editable = runner.CreateEmptyPackFile("derpy_editable", true);
+            var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<TextureEditorViewModel>(runner.PackFileService.FindFile(@"variantmeshes\derpy\derpy_test_mask.dds", source)!, EditorEnums.Texture_Editor);
+
+            Assert.That(editor.ReplaceTextureType.Value, Is.EqualTo(TextureType.Mask), "the type was not guessed from the name");
+            editor.ReplaceFormat.Value = editor.ReplaceFormats.Single(x => x.Format == format);
+            editor.ReplaceMipmaps.Value = mipmaps;
+            Assert.That(editor.CanReplace(), Is.Null);
+            editor.Replace(Encode("derpy.png"));
+
+            var written = runner.PackFileService.FindFile(@"variantmeshes\derpy\derpy_test_mask.dds", editable);
+            Assert.That(written, Is.Not.Null, "nothing was written into the editable pack");
+            Assert.That(editor.CurrentFile, Is.SameAs(written), "the editor does not show the new texture");
+            var (metadata, pixel) = Decode(written!.DataSource.ReadData());
+            Assert.That(metadata.Format.ToString(), Is.EqualTo(expectedFormat));
+            Assert.That((metadata.Width, metadata.Height), Is.EqualTo((8, 8)), "6x5 rounded up to whole 4x4 blocks");
+            Assert.That(metadata.MipLevels, mipmaps ? Is.EqualTo(4) : Is.EqualTo(1));
+            Assert.That(new[] { pixel.R, pixel.G, pixel.B }, Is.EqualTo(new[] { R, G, B }).Within(8));
+            Assert.That(editor.ViewModel.Width.Value, Is.EqualTo(8));
+        }
+
+        [Test]
+        public void ReplaceFromImage_IsRefused_WithNoEditablePack_OrOnAnImageFile()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("derpy_ca_like", false);
+            runner.PackFileService.AddFilesToPack(source, [
+                new NewPackFileEntry(@"variantmeshes\derpy", PackFile.CreateFromBytes("derpy_test_mask.dds", Dds(DXGI_FORMAT.BC3_UNORM, legacyHeader: false))),
+                new NewPackFileEntry(@"variantmeshes\derpy", PackFile.CreateFromBytes("derpy_test.png", Encode("derpy_test.png")))]);
+            var open = runner.CommandFactory.Create<OpenEditorCommand>();
+
+            var dds = open.Execute<TextureEditorViewModel>(runner.PackFileService.FindFile(@"variantmeshes\derpy\derpy_test_mask.dds")!, EditorEnums.Texture_Editor);
+            Assert.That(dds.CanReplace(), Does.Contain("No editable pack"));
+
+            runner.CreateEmptyPackFile("derpy_editable", true);
+            var png = open.Execute<TextureEditorViewModel>(runner.PackFileService.FindFile(@"variantmeshes\derpy\derpy_test.png")!, EditorEnums.Texture_Editor);
+            Assert.That(png.CanReplace(), Does.Contain(".dds"));
+            Assert.That(dds.CanReplace(), Is.Null);
+        }
+
+        static (TexMetadata Metadata, Color Pixel) Decode(byte[] dds)
+        {
+            var handle = GCHandle.Alloc(dds, GCHandleType.Pinned);
+            try
+            {
+                using var image = TexHelper.Instance.LoadFromDDSMemory(handle.AddrOfPinnedObject(), dds.Length, DDS_FLAGS.NONE);
+                var metadata = image.GetMetadata();
+                using var plain = image.Decompress(0, TexHelper.Instance.IsSRGB(metadata.Format) ? DXGI_FORMAT.R8G8B8A8_UNORM_SRGB : DXGI_FORMAT.R8G8B8A8_UNORM);
+                var rgba = new byte[4];
+                Marshal.Copy(plain.GetImage(0, 0, 0).Pixels, rgba, 0, 4);
+                return (metadata, Color.FromArgb(rgba[3], rgba[0], rgba[1], rgba[2]));
+            }
+            finally
+            {
+                handle.Free();
+            }
+        }
+
+        internal static byte[] Encode(string name, int width = 6, int height = 5)
+        {
+            var pixels = Enumerable.Range(0, width * height).SelectMany(_ => new[] { B, G, R, (byte)255 }).ToArray();
+            var source = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+            BitmapEncoder encoder = Path.GetExtension(name) is ".png" ? new PngBitmapEncoder() : new JpegBitmapEncoder { QualityLevel = 100 };
+            encoder.Frames.Add(BitmapFrame.Create(source));
+            using var stream = new MemoryStream();
+            encoder.Save(stream);
+            return stream.ToArray();
+        }
+    }
+}
