@@ -46,6 +46,17 @@ namespace GameWorld.Core.Test.Rendering.Geometry
             Assert.That(mesh.VertexArray.Select(x => x.BlendWeights).Distinct(), Is.EqualTo(new[] { new Vector4(0.75f, 0.25f, 0, 0) }));
         }
 
+        [Test]
+        public void BakePivot_MovesThePivotIntoEveryVertex()
+        {
+            var mesh = CreateWavyGrid(3);
+            var before = (VertexPositionNormalTextureCustom[])mesh.VertexArray.Clone();
+
+            MeshEdits.BakePivot(mesh, new Vector3(0.5f, -2, 3));
+
+            Assert.That(mesh.VertexArray.Select(x => x.Position), Is.EqualTo(before.Select(x => x.Position + new Vector4(0.5f, -2, 3, 0))));
+        }
+
         static readonly Dictionary<int, string> Bones = new()
         {
             [0] = "root",

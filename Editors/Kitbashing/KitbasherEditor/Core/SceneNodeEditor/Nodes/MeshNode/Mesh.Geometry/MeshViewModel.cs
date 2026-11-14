@@ -1,9 +1,12 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.KitbasherEditor.Core;
+using GameWorld.Core.Commands.Object;
 using GameWorld.Core.Components;
+using GameWorld.Core.Rendering.Geometry;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
+using Shared.Core.Events;
 using Shared.GameFormats.RigidModel;
 using Shared.Ui.BaseDialogs.MathViews;
 
@@ -13,6 +16,7 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.Rmv2
     {
         Rmv2MeshNode _meshNode;
         private readonly SceneManager _sceneManager;
+        private readonly IUiCommandFactory _commandFactory;
 
         public Vector3ViewModel Pivot { get; set; }
 
@@ -25,9 +29,10 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.Rmv2
         [ObservableProperty] UiVertexFormat _vertexType;
         [ObservableProperty] IEnumerable<UiVertexFormat> _possibleVertexTypes = [UiVertexFormat.Static, UiVertexFormat.Weighted, UiVertexFormat.Cinematic];
 
-        public MeshViewModel(SceneManager sceneManager)
+        public MeshViewModel(SceneManager sceneManager, IUiCommandFactory commandFactory)
         {
             _sceneManager = sceneManager;
+            _commandFactory = commandFactory;
         }
 
         public void Initialize(Rmv2MeshNode node)
@@ -62,6 +67,24 @@ namespace Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.Rmv2
             var allMeshes = root.GetMeshesInLod(0, false);
             foreach (var mesh in allMeshes)
                 mesh.PivotPoint = newPiv;
+        }
+
+        // Moves the pivot into the vertices as one undo step, so the mesh draws where it did with a pivot of 0, 0, 0, which
+        // the Pin tool and Skin Wrap need.
+        [RelayCommand]
+        void BakePivot()
+        {
+            if (_meshNode.PivotPoint == Vector3.Zero)
+                return;
+
+            _commandFactory.CreateWithBuilder<EditMeshesCommand>()
+                .Configure(x => x.Configure([_meshNode], "Bake pivot", mesh =>
+                {
+                    MeshEdits.BakePivot(mesh.Geometry, mesh.PivotPoint);
+                    mesh.PivotPoint = Vector3.Zero;
+                }))
+                .BuildAndExecute();
+            Pivot.Set(_meshNode.PivotPoint);
         }
     }
 }

@@ -40,6 +40,19 @@ namespace GameWorld.Core.Rendering.Geometry
                 (indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
         }
 
+        // A mesh draws offset by its pivot, which Rmv2MeshNode.Render applies before the node's own transform, so moving the
+        // pivot into every vertex, with the pivot then cleared, draws the mesh in the same place whatever that transform is.
+        public static void BakePivot(MeshObject mesh, Vector3 pivot)
+        {
+            var vertices = mesh.VertexArray;
+            for (var i = 0; i < vertices.Length; i++)
+            {
+                vertices[i].Position.X += pivot.X;
+                vertices[i].Position.Y += pivot.Y;
+                vertices[i].Position.Z += pivot.Z;
+            }
+        }
+
         static float Swap(float index, IReadOnlyDictionary<int, int> boneSwap) => boneSwap.TryGetValue((int)index, out var other) ? other : index;
 
         // Each bone's opposite by name. Vanilla marks a side with a whole word: left/right (20,000 bones), l/r (bigcat02c's

@@ -43,6 +43,8 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
         [RelayCommand] void ClearAffectedMeshCollection() => AffectedMeshCollection.Clear();
         [RelayCommand] void AddSelectionToAffectMeshCollection() => AddSelectionToList(AffectedMeshCollection);
 
+        public const string PivotRefusal = "A selected mesh has a pivot point, which these tools cannot follow. Bake it into the mesh first, with Bake into mesh beside the pivot in the mesh's panel.";
+
         void AddSelectionToList(ObservableCollection<Rmv2MeshNode> itemList)
         {
             var selectionState = _selectionManager.GetState<ObjectSelectionState>();
@@ -58,7 +60,7 @@ namespace Editors.KitbasherEditor.ChildEditors.PinTool
 
             if (selectedObjects.Any(x => x.PivotPoint != Vector3.Zero))
             {
-                _standardDialogs.ShowDialogBox("Mesh(s) has a pivot point, the tool will not work correctly", "error");
+                _standardDialogs.ShowDialogBox(PivotRefusal, "error");
                 return;
             }
 
