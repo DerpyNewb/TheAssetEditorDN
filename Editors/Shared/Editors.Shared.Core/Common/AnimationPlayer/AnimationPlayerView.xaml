@@ -63,7 +63,12 @@
                     <Button Click="{s:MethodBinding SetAnimationLastFrame}" FontSize="20">⏭</Button>
                 </StackPanel>
 
-                <CheckBox IsChecked="{Binding LoopAnimation.Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Grid.Row="4" Content="{loc:Loc AnimationPlayer.Loop}" HorizontalAlignment="Center"/>
+                <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <CheckBox IsChecked="{Binding LoopAnimation.Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Content="{loc:Loc AnimationPlayer.Loop}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc AnimationPlayer.Speed}" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                    <ComboBox ItemsSource="{Binding Speeds}" SelectedItem="{Binding Speed.Value, Mode=TwoWay}" ItemStringFormat="{}{0}x"
+                              ToolTip="{loc:Loc AnimationPlayer.SpeedTooltip}" AutomationProperties.AutomationId="AnimationSpeed" MinWidth="60"/>
+                </StackPanel>
             </Grid>
 
             <ListView  Grid.Column="2" ItemsSource="{Binding PlayerItems, UpdateSourceTrigger=PropertyChanged}">

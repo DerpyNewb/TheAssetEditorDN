@@ -19,6 +19,10 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
         public NotifyAttr<bool> IsEnabled { get; set; } = new();
         public NotifyAttr<bool> LoopAnimation { get; set; } = new(true);
 
+        // Meta tags need no speed of their own: SceneObject.Update gives them the main player's time.
+        public double[] Speeds { get; } = [1, 0.5, 0.25];
+        public NotifyAttr<double> Speed { get; } = new(1);
+
         public NotifyAttr<Visibility> PlayerControlsVisibility { get; private set; } = new(Visibility.Collapsed);
 
         public ObservableCollection<AssetPlayerItem> PlayerItems { get; private set; } = new ObservableCollection<AssetPlayerItem>();
@@ -30,6 +34,7 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
         {
             IsEnabled.Value = false;
             IsEnabled.PropertyChanged += (x, y) => OnAnimationPlayerEnabled(IsEnabled.Value);
+            Speed.PropertyChanged += (x, y) => _assetList.ForEach(asset => asset.Player.Speed = Speed.Value);
         }
 
         private void OnMainAnimationChanged(AssetPlayerItem oldAnimation, AssetPlayerItem mainAnimation)
@@ -48,6 +53,7 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
             PlayerItems.Add(playerItem);
 
             asset.Player.LoopAnimation = false;
+            asset.Player.Speed = Speed.Value;
             if (SelectedMainAnimation == null)
                 SelectedMainAnimation = playerItem;
 

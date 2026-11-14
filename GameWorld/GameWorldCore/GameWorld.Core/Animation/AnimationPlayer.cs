@@ -69,6 +69,8 @@ namespace GameWorld.Core.Animation
         public bool IsEnabled { get; set; } = false;
         public bool LoopAnimation { get; set; } = true;
         public bool MarkedForRemoval { get; set; } = false;
+        /// <summary>Playback rate: 0.5 plays at half speed. Frame steps and SetTime are not scaled.</summary>
+        public double Speed { get; set; } = 1;
 
         public List<IAnimationChangeRule> AnimationRules { get; set; } = new List<IAnimationChangeRule>();
 
@@ -128,7 +130,7 @@ namespace GameWorld.Core.Animation
             var animationLengthUs = GetAnimationLengthUs();
             if (animationLengthUs != 0 && IsPlaying && IsEnabled)
             {
-                _timeSinceStart.TimeSpan += gameTime.ElapsedGameTime;
+                _timeSinceStart.TimeSpan += gameTime.ElapsedGameTime * Speed;
                 if (_timeSinceStart.TotalMicrosecondsAsLong >= animationLengthUs)
                 {
                     if (LoopAnimation)
