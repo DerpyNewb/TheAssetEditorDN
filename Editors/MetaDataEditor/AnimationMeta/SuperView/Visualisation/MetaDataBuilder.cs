@@ -289,6 +289,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
 
             output.AddRange(file.GetItemsOfType<SplashAttack_v10>().Select(meteDataItem => CreateSplashAttack(meteDataItem, root, $"SplashAttack_{Math.Round(meteDataItem.EndTime, 2)}", 0.1f, selectedAttribute)));
 
+            output.AddRange(file.GetItemsOfType<SoundTrigger_v10>().Select(x => CreateBoneLocator(x, "Sound:" + x.SoundEvent, x.BoneIndex, x.Position, root, skeleton, rootPlayer, selectedAttribute)));
+            output.AddRange(file.GetItemsOfType<SoundTrigger_v4>().Select(x => CreateBoneLocator(x, "Sound:" + x.SoundEvent, x.BoneIndex, x.Position, root, skeleton, rootPlayer, selectedAttribute)));
+
             output.AddRange(file.GetItemsOfType<CrewLocation_v10>().Select(x => CreateCrewLocation(x, x.Filter, x.Position, x.Orientation, root, selectedAttribute)));
             output.AddRange(file.GetItemsOfType<CrewLocation_v2>().Select(x => CreateCrewLocation(x, x.Filter, x.Position, x.Orientation, root, selectedAttribute)));
 
@@ -444,6 +447,20 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             AddAxes(node, position, Matrix.CreateFromQuaternion(new Quaternion(orientation)), name, selectedAttribute == tag ? s_selectedColor : s_color);
             root.AddObject(node);
             return new DrawableMetaInstance(0, 0, name, node);
+        }
+
+        // A named locator at a position relative to a bone, riding that bone as the animation plays, the way an EFFECT's
+        // locator does. Like the other locators it is drawn for the whole animation, not only at the tag's time.
+        private IMetaDataInstance CreateBoneLocator(ParsedMetadataAttribute tag, string name, int bone, Vector3 position, SceneNode root, ISkeletonProvider skeleton, AnimationPlayer rootPlayer, ParsedMetadataAttribute? selectedAttribute)
+        {
+            var color = selectedAttribute == tag ? s_selectedColor : s_color;
+            var node = new SimpleDrawableNode(name);
+            node.AddItem(new WorldTextRenderItem(_resourceLibrary, name, position, color));
+            node.AddItem(LineHelper.AddLocator(position, 0.2f, color));
+            root.AddObject(node);
+            var instance = new VfxEffectInstance(node, BoneAt(bone, skeleton, rootPlayer), 0);
+            instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
+            return instance;
         }
 
         // A locator's three axes turned by its rotation, X red, Y green and Z blue, with a label at its position.

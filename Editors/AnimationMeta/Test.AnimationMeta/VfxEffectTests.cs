@@ -153,6 +153,19 @@ namespace Test.AnimationMeta
             Assert.That(_root.Children.Select(x => x.Name), Does.Contain("Blood:test_smoke"));
         }
 
+        // SOUND_TRIGGER plays from Position relative to Bone Index: a locator that rides that bone, named after the event.
+        [Test]
+        public void SoundTrigger_IsALocatorOnItsBone_NamedAfterItsEvent()
+        {
+            var instance = Build(null, Meta(new SoundTrigger_v11 { SoundEvent = "Play_test_swing", BoneIndex = 1, StartTime = 0.5f, EndTime = 0.5f })).Single();
+            var node = _root.Children.Single(x => x.Name == "Sound:Play_test_swing");
+
+            instance.Update(0.5f);
+            Assert.That(Vector3.Distance(node.ModelMatrix.Translation, new Vector3(1, 1, 0)), Is.LessThan(0.01f), "on the fx bone at 0.5 s");
+            instance.Update(1.5f);
+            Assert.That(Vector3.Distance(node.ModelMatrix.Translation, new Vector3(3, 1, 0)), Is.LessThan(0.01f), "still on it at 1.5 s");
+        }
+
         [Test]
         public void MissingEffect_KeepsItsLocator_AndDrawsNoParticles()
         {
