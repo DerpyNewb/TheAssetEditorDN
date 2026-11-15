@@ -3,6 +3,7 @@ using Editors.AnimationMeta.SuperView.Visualisation.Instances;
 using Editors.AnimationMeta.SuperView.Visualisation.Rules;
 using Editors.Shared.Core.Common;
 using GameWorld.Core.Animation;
+using GameWorld.Core.Animation.AnimationChange;
 using GameWorld.Core.Components;
 using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Rendering;
@@ -17,6 +18,7 @@ using Shared.GameFormats.Animation;
 using Shared.GameFormats.AnimationMeta.Definitions;
 using Shared.GameFormats.AnimationMeta.Parsing;
 using Shared.GameFormats.AnimationPack;
+using Shared.GameFormats.DB;
 
 namespace Editors.AnimationMeta.SuperView.Visualisation
 {
@@ -82,6 +84,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             _resourceLibrary = resourceLibrary;
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
             _packFileService = packFileService;
+            SkeletonRow = ReadSkeletonRow;
             _vfxTextures = new VfxTextureCache(ParticleRenderItem.PackTextureLoader(packFileService, LogOnce));
             _vfxMeshes = new VfxMeshCache(LoadRigid, VfxMeshCache.PackAnimationLoader(packFileService, LogOnce), LogOnce);
         }
@@ -149,9 +152,11 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             output.AddRange(metaDataInstances);
 
             // Hand poses are keys across both files, so they are built from both at once.
-            // Splices first, so a hand or face pose still has the last word on its bones.
-            foreach (var splice in Both<Splice_v11>(usePersistent ? persistent : null, metaData).Where(x => x is not (SpliceOverride_v11 or SpliceOverride_v12)))
-                CreateSplice(splice, skeleton, rootPlayer);
+            // Splices run before every other rule: a splice sets its bones afresh, which would undo a TRANSFORM that ran first,
+            // and a hand or face pose still has the last word on its bones.
+            var splices = Both<Splice_v11>(usePersistent ? persistent : null, metaData).Where(x => x is not (SpliceOverride_v11 or SpliceOverride_v12))
+                .Select(x => CreateSplice(x, skeleton)).OfType<IAnimationChangeRule>();
+            rootPlayer.AnimationRules.InsertRange(0, splices);
             CreateHandPoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
             CreateFacePoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
 
@@ -243,44 +248,66 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             return pose;
         }
 
-        // SPLICE versions 11 and 12 (10,288 of vanilla's 10,306; SPLICE_OVERRIDE inherits the class and is left out).
-        // Drawn only in the shape the tag's own field help describes: the animation drives Generic Bone Index and every bone
-        // under it at Generic Weight. Which bones the game counts as the neck, torso, arms and legs is not documented, nor
-        // what an additive splice adds to, a reference animation does, a depth other than 0 limits, or what Stretch, Weapon
-        // Pose, Exclude Stripped and Primary Persistent change; a tag that needs any of them is logged once and not drawn.
-        // That draws about 2,300 vanilla tags (capes, engine pumps, a centaur's nose) and leaves CA's shield poses, which
-        // are weighted by arm, to the animation.
-        void CreateSplice(Splice_v11 tag, ISkeletonProvider skeleton, AnimationPlayer rootPlayer)
+        /// <summary>The battle_skeletons row a SPLICE's body parts are read from, by skeleton name; null when no loaded pack has one.</summary>
+        public Func<string, DbRow?> SkeletonRow { get; set; }
+        List<DbRow>? _skeletonRows;
+
+        DbRow? ReadSkeletonRow(string name)
         {
-            var reason = tag switch
+            if (_skeletonRows == null)
             {
-                _ when tag.Additive != "false" => "it is additive",
-                _ when new[] { tag.NeckWeight, tag.TorsoWeight, tag.LeftArmWeight, tag.RightArmWeight, tag.LegsWeight }.Any(x => x != 0) => "it is weighted by body part",
-                _ when tag.GenericBoneIndex < 0 || tag.GenericWeight <= 0 => "it has no generic bone with a weight",
-                _ when tag.GenericBoneDepth != 0 => $"its Generic Bone Depth is {tag.GenericBoneDepth}",
-                _ when tag.ReferenceAnimation.Length != 0 => "it names a reference animation",
-                _ when new[] { tag.WeaponPose, tag.Stretch, tag.ExcludeStripped }.Any(x => x != "false") || tag is Splice_v12 { PrimaryPersistent: not ("" or "false") } => "it sets Weapon Pose, Stretch, Exclude Stripped or Primary Persistent",
-                _ => null,
-            };
-            if (reason != null)
-            {
-                LogOnce($"SPLICE {tag.Animation}: not drawn, because {reason}, which the preview does not know how to apply");
-                return;
+                var problems = new List<string>();
+                _skeletonRows = DbTables.Read(_packFileService, "battle_skeletons_tables", problems);
+                problems.ForEach(LogOnce);
             }
-            if (skeleton.Skeleton is not { } gameSkeleton || tag.GenericBoneIndex >= gameSkeleton.BoneCount)
-                return;
-            if (_packFileService.FindFile(tag.Animation) is not { } file)
+            return _skeletonRows.LastOrDefault(x => string.Equals(x.Text("name"), name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // SPLICE versions 11 and 12 (10,288 of vanilla's 10,306; SPLICE_OVERRIDE inherits the class and is left out). Which
+        // bones it drives is SpliceRule.BoneWeights. An additive splice adds the difference between its animation and the first
+        // frame of its reference animation, or the bind pose when it names none, as 4,347 of vanilla's 4,528 additive splices
+        // do. Stretch, Exclude Stripped and Primary Persistent are not applied. Null, logged once, when there is nothing to draw.
+        SpliceRule? CreateSplice(Splice_v11 tag, ISkeletonProvider skeleton)
+        {
+            if (skeleton.Skeleton is not { } gameSkeleton || LoadSpliced(tag, tag.Animation, gameSkeleton) is not { } animation)
+                return null;
+            AnimationFrame? reference = null;
+            if (SpliceRule.On(tag.Additive) && tag.ReferenceAnimation.Length != 0)
             {
-                LogOnce($"SPLICE {tag.Animation}: not in the loaded packs, so it is not drawn");
-                return;
+                if (LoadSpliced(tag, tag.ReferenceAnimation, gameSkeleton) is not { } referenceAnimation)
+                    return null;
+                reference = AnimationSampler.Sample(0, 0, gameSkeleton, new AnimationClip(referenceAnimation, gameSkeleton));
+            }
+
+            var row = SkeletonRow(gameSkeleton.SkeletonName);
+            if (row == null && new[] { tag.NeckWeight, tag.TorsoWeight, tag.LeftArmWeight, tag.RightArmWeight, tag.LegsWeight }.Any(x => x > 0))
+                LogOnce($"SPLICE {tag.Animation}: no battle_skeletons row in the loaded packs names {gameSkeleton.SkeletonName}, so its neck, torso, arm and leg weights are not drawn");
+            var weights = SpliceRule.BoneWeights(tag, gameSkeleton, row);
+            if (weights.All(x => x <= 0))
+            {
+                LogOnce($"SPLICE {tag.Animation}: its weights reach no bone of {gameSkeleton.SkeletonName}, so it is not drawn");
+                return null;
+            }
+            return new SpliceRule(gameSkeleton, new AnimationClip(animation, gameSkeleton), tag, weights, reference);
+        }
+
+        // A splice's animation or reference animation; null, logged once, when it is missing or animates another skeleton.
+        AnimationFile? LoadSpliced(Splice_v11 tag, string path, GameSkeleton skeleton)
+        {
+            if (path.Length == 0)
+                return null;
+            if (_packFileService.FindFile(path) is not { } file)
+            {
+                LogOnce($"SPLICE {tag.Animation}: {path} is not in the loaded packs, so it is not drawn");
+                return null;
             }
             var animation = AnimationFile.Create(file);
-            if (!string.Equals(animation.Header.SkeletonName, gameSkeleton.SkeletonName, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(animation.Header.SkeletonName, skeleton.SkeletonName, StringComparison.OrdinalIgnoreCase))
             {
-                LogOnce($"SPLICE {tag.Animation}: animates {animation.Header.SkeletonName}, not {gameSkeleton.SkeletonName}, so it is not drawn");
-                return;
+                LogOnce($"SPLICE {tag.Animation}: {path} animates {animation.Header.SkeletonName}, not {skeleton.SkeletonName}, so it is not drawn");
+                return null;
             }
-            rootPlayer.AnimationRules.Add(new SpliceRule(gameSkeleton, new AnimationClip(animation, gameSkeleton), tag));
+            return animation;
         }
 
         // The first frame of the set's animation for slots[id]; null for an id outside the list or a slot the set lacks.

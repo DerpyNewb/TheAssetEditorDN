@@ -109,7 +109,7 @@ namespace Test.AnimationMeta
         [TestCase(0, 0, 0, 0.3f, 0.5f, 0)]
         [TestCase(0.4f, 0.6f, 0, 0, 0.3f, 0)]
         public void TransformStrength_FollowsTheTagsTimes(float start, float end, float blendIn, float blendOut, float time, float expected) =>
-            Assert.That(TransformBoneRule.Weight(start, end, blendIn, blendOut, time), Is.EqualTo(expected).Within(1e-4));
+            Assert.That(TagWindow.Strength(start, end, blendIn, blendOut, time), Is.EqualTo(expected).Within(1e-4));
 
         [Test]
         public void ATimedTransform_TurnsTheBoneOnlyInsideItsWindow()
