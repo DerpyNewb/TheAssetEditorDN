@@ -7,6 +7,8 @@ namespace Shared.Core.Services
     public interface IStandardDialogs
     {
         SaveDialogResult DisplaySaveDialog(IPackFileService pfs, List<string> extensions);
+        /// <summary>The save dialog with its file name box starting at <paramref name="initialPath"/>, a full pack path.</summary>
+        SaveDialogResult DisplaySaveDialog(IPackFileService pfs, List<string> extensions, string initialPath);
         BrowseDialogResultFile DisplayBrowseDialog(List<string> extensions);
 
         /// <summary>Only shows files whose pack path also passes <paramref name="pathFilter"/>. The
@@ -24,6 +26,9 @@ namespace Shared.Core.Services
         TextInputDialogResult ShowTextInputDialog(string title, string initialText = "");
         void ShowDialogBox(string message, string title = "Error");
         ShowMessageBoxResult ShowYesNoBox(string message, string title);
+        /// <summary>A message with one button per choice: the index of the one picked, or null when the window is closed. The first
+        /// is the default and the last answers Escape.</summary>
+        int? ShowChoiceBox(string message, string title, IReadOnlyList<string> choices);
         IWaitCursor ShowWaitCursor();
     }
 

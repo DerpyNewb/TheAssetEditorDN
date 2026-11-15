@@ -187,11 +187,22 @@
 
     <p>
         <strong>Save</strong> writes over the meta file you opened. Many animation sets can name the same file, so a change
-        there reaches every one of them. <strong>Save meta as... and assign to slot</strong> saves a new file in your
-        editable pack instead, points this slot at it and leaves the original alone. <strong>Slot files</strong> lets you
-        point the slot at a different animation, meta or sound file. <strong>Preview</strong> plays the animation and meta
-        you typed there without saving anything, so you can try one before committing to it; <strong>Apply</strong> saves
-        them into the set. Picking another slot drops the preview.
+        there reaches every one of them. The line above each tab's tag list says where its file comes from: vanilla, your
+        pack, or another mod's pack. If the file isn't in your pack yet, Save asks first. <strong>Save as custom
+        meta</strong> saves your edits to a new file and points this slot at it, and <strong>Override</strong> puts a copy
+        at the same path in your pack, which replaces the original for every set that uses it. In SuperView, Save writes
+        only the tabs you changed.
+    </p>
+
+    <p>
+        <strong>Save meta as... and assign to slot</strong> does what Save as custom meta does, whenever you like. The save
+        window starts with the original's name in the same folder and <code>custom_</code> in front; type your own prefix
+        once and it's offered from then on. When the picked slot has no meta, <strong>New meta for this slot</strong>
+        creates an empty one named after its animation and points the slot at it. <strong>Slot files</strong> lets you
+        point the slot at a different animation, meta or sound file, and the line under Meta says which pack the typed
+        file is in, or that no loaded pack has it. <strong>Preview</strong> plays the animation and meta you typed there
+        without saving anything, so you can try one before committing to it; <strong>Apply</strong> saves them into the
+        set. Picking another slot drops the preview.
     </p>
 
     <p>

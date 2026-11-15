@@ -32,10 +32,13 @@ namespace Shared.Ui.BaseDialogs.StandardDialog
 
         public IWaitCursor ShowWaitCursor() => new AeWaitCursor();
 
-        public SaveDialogResult DisplaySaveDialog(IPackFileService pfs, List<string> extensions)
+        public SaveDialogResult DisplaySaveDialog(IPackFileService pfs, List<string> extensions) => DisplaySaveDialog(pfs, extensions, "");
+
+        public SaveDialogResult DisplaySaveDialog(IPackFileService pfs, List<string> extensions, string initialPath)
         {
             using var browser = new SavePackFileWindow(pfs, _packFileBrowserBuilder);
             browser.ViewModel.Filter.SetExtensions(extensions);
+            browser.CurrentFileName = initialPath.Replace('/', '\\');
 
             if (browser.ShowDialog() == true)
                 return new SaveDialogResult(true, browser.SelectedFile, browser.FilePath);
@@ -190,6 +193,49 @@ namespace Shared.Ui.BaseDialogs.StandardDialog
             if (result == MessageBoxResult.Yes)
                 return ShowMessageBoxResult.OK;
             return ShowMessageBoxResult.Cancel;
+        }
+
+        public int? ShowChoiceBox(string message, string title, IReadOnlyList<string> choices)
+        {
+            int? picked = null;
+            ChoiceWindow(message, title, choices, x => picked = x).ShowDialog();
+            return picked;
+        }
+
+        /// <summary>ShowChoiceBox's window, unshown: a button click reports its index and closes it.</summary>
+        public static Window ChoiceWindow(string message, string title, IReadOnlyList<string> choices, Action<int> picked)
+        {
+            var window = new Window
+            {
+                Title = title,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false,
+                Style = Application.Current?.TryFindResource("CustomWindowStyle") as Style,
+            };
+            if (Application.Current?.MainWindow is { IsVisible: true } owner)
+            {
+                window.Owner = owner;
+                window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            }
+            else
+            {
+                window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            }
+
+            var buttons = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            for (var i = 0; i < choices.Count; i++)
+            {
+                var index = i;
+                var button = new System.Windows.Controls.Button { Content = choices[i], Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0), IsDefault = i == 0, IsCancel = i == choices.Count - 1 };
+                button.Click += (_, _) => { picked(index); window.Close(); };
+                buttons.Children.Add(button);
+            }
+            var content = new System.Windows.Controls.StackPanel { Margin = new Thickness(14) };
+            content.Children.Add(new System.Windows.Controls.TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 480 });
+            content.Children.Add(buttons);
+            window.Content = content;
+            return window;
         }
 
 

@@ -9,6 +9,20 @@
              xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="NoMetaToVisibility"/>
+        <!-- Where a meta comes from; nothing at all while there is no file to describe. -->
+        <Style x:Key="MetaSource" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
     <DockPanel>
         <Button Margin="5" Content="{loc:Loc MetadataEditor.Buttons.Refresh}" Click="{s:MethodBinding RefreshAction}" DockPanel.Dock="Top"/>
         <CheckBox Margin="5" Content="{loc:Loc SuperView.ShowVfx}" IsChecked="{Binding ShowVfx, UpdateSourceTrigger=PropertyChanged}" DockPanel.Dock="Top"/>
@@ -17,6 +31,8 @@
             <ComboBox ItemsSource="{Binding VfxFilterIds}" SelectedItem="{Binding VfxFilterId}"/>
         </DockPanel>
         <Button Margin="5,0,5,5" DockPanel.Dock="Top" Content="{loc:Loc SuperView.SaveMetaAs}" ToolTip="{loc:Loc SuperView.SaveMetaAs.Tooltip}" Command="{Binding SaveMetaAsCommand}"/>
+        <Button Margin="5,0,5,5" DockPanel.Dock="Top" Content="{loc:Loc SuperView.NewMeta}" ToolTip="{loc:Loc SuperView.NewMeta.Tooltip}" Command="{Binding NewMetaCommand}"
+                Visibility="{Binding SlotHasNoMeta, Converter={StaticResource NoMetaToVisibility}}" AutomationProperties.AutomationId="NewMeta"/>
         <GroupBox Margin="5,0,5,5" DockPanel.Dock="Top" Header="{loc:Loc SuperView.SlotFiles}" ToolTip="{loc:Loc SuperView.SlotFiles.Tooltip}">
             <StackPanel>
                 <DockPanel Margin="0,2">
@@ -29,6 +45,7 @@
                     <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotMetaCommand}"/>
                     <TextBox Text="{Binding SlotMeta, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
                 </DockPanel>
+                <TextBlock Margin="70,0,30,2" Text="{Binding SlotMetaSource}" Style="{StaticResource MetaSource}" AutomationProperties.AutomationId="SlotMetaSource"/>
                 <DockPanel Margin="0,2">
                     <TextBlock Text="{loc:Loc SuperView.SlotFiles.Sound}" Width="70" VerticalAlignment="Center"/>
                     <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotSoundCommand}"/>
@@ -45,11 +62,13 @@
         <TabControl DockPanel.Dock="Top" SelectedIndex="{Binding SelectedTabControllerIndex, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
             <TabItem Header="{loc:Loc MetadataEditor.Tabs.Persistent}">
                 <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Margin="2,2,2,4" Text="{Binding PersistentMetaSource}" Style="{StaticResource MetaSource}" AutomationProperties.AutomationId="PersistentMetaSource"/>
                     <view:MainEditorView DataContext="{Binding PersistentMetaEditor}" DockPanel.Dock="Top"/>
                 </DockPanel>
             </TabItem>
             <TabItem Header="{loc:Loc MetadataEditor.Tabs.Animation}">
                 <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Margin="2,2,2,4" Text="{Binding MetaSource}" Style="{StaticResource MetaSource}" AutomationProperties.AutomationId="MetaSource"/>
                     <view:MainEditorView DataContext="{Binding MetaEditor}" DockPanel.Dock="Top"/>
                 </DockPanel>
             </TabItem>

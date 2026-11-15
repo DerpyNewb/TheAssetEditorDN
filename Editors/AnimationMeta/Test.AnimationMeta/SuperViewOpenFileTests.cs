@@ -153,7 +153,7 @@ namespace Test.AnimationMeta
 
             const string Saved = "animations/derpy/throt_assigned.anm.meta";
             var said = new List<string>();
-            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>())).Returns(new SaveDialogResult(true, null, @"Animations\Derpy\Throt_Assigned"));
+            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>())).Returns(new SaveDialogResult(true, null, @"Animations\Derpy\Throt_Assigned"));
             _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
             superView.SaveMetaAsCommand.Execute(null);
             Assert.That(said, Is.Empty);
@@ -186,7 +186,7 @@ namespace Test.AnimationMeta
                 selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
                 superView.SelectedTabControllerIndex = tab;
             }
-            _runner.Dialogs.SetupSequence(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>()))
+            _runner.Dialogs.SetupSequence(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>()))
                 .Returns(new SaveDialogResult(true, null, "animations/derpy/first")).Returns(new SaveDialogResult(true, null, "animations/derpy/second"));
 
             Pick(selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable), 1);
@@ -213,7 +213,7 @@ namespace Test.AnimationMeta
             var caAnimPack = selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable).PackFileReference!.FileName;
             var said = new List<string>();
             _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
-            _runner.Dialogs.SetupSequence(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>()))
+            _runner.Dialogs.SetupSequence(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>()))
                 .Returns(new SaveDialogResult(true, null, "animations/derpy/first")).Returns(new SaveDialogResult(true, null, "animations/derpy/second"));
             foreach (var tab in new[] { 1, 0 })
             {
@@ -237,6 +237,143 @@ namespace Test.AnimationMeta
             var listed = selection.FragmentList.PossibleValues.Where(x => x.FullPath == ThrotTable).ToList();
             Assert.That(listed, Has.Count.EqualTo(1));
             Assert.That(Assigned(listed[0]), Is.SupersetOf(expected));
+        }
+
+        // Throt's set, ATTACK_5 picked, Throt's pack standing in for CA's.
+        (SuperViewViewModel SuperView, Shared.Core.PackFiles.Models.IPackFileContainer Output) OpenVanillaAttack()
+        {
+            var pfs = _runner.PackFileService;
+            pfs.GetAllPackfileContainers().Single(x => x.Name.Contains("Throt")).IsCaPackFile = true;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable);
+            selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+            return (superView, pfs.GetEditablePack()!);
+        }
+
+        static void Edit(Editors.AnimationMeta.Presentation.MetaDataEditorViewModel editor)
+        {
+            var field = editor.Tags.SelectMany(x => x.Variables).First(x => !x.IsReadOnly && x.Scrub == Shared.Ui.Common.Behaviors.ScrubMode.Integer);
+            field.ValueAsString = (int.Parse(field.ValueAsString) + 1).ToString();
+        }
+
+        List<IReadOnlyList<string>> Answer(int choice)
+        {
+            var asked = new List<IReadOnlyList<string>>();
+            _runner.Dialogs.Setup(x => x.ShowChoiceBox(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
+                .Callback<string, string, IReadOnlyList<string>>((_, _, choices) => asked.Add(choices)).Returns(choice);
+            return asked;
+        }
+
+        string PathOf(PackFile file) => _runner.PackFileService.GetFullPath(file).Replace('\\', '/');
+
+        // Ctrl+S in SuperView saved both tabs, so an untouched vanilla persistent meta was written over too. Only the edited one is,
+        // and as it is vanilla, the save asks first; Override puts it in the editable pack at its own path.
+        [Test]
+        public void Save_WritesOnlyTheEditedTab_AndAsksBeforeOverridingAVanillaMeta()
+        {
+            var (superView, output) = OpenVanillaAttack();
+            var (meta, persistent) = (PathOf(superView.MetaEditor.CurrentFile), PathOf(superView.PersistentMetaEditor.CurrentFile));
+            Edit(superView.MetaEditor);
+            var asked = Answer(1);
+
+            Assert.That(superView.Save(), Is.True);
+            var pfs = _runner.PackFileService;
+            Assert.That((asked.Count, pfs.FindFile(meta, output) != null, pfs.FindFile(persistent, output)), Is.EqualTo((1, true, (PackFile?)null)));
+        }
+
+        // Save as custom meta, from the save's question, is Save meta as on the tab being saved: the dialog offers the original's
+        // name with the prefix, the copy gets the edit, the slot is pointed at it, and CA's file is left alone.
+        [Test]
+        public void Save_SaveAsCustom_PointsTheSlotAtTheCopy_LeavingTheVanillaMetaAlone()
+        {
+            var (superView, output) = OpenVanillaAttack();
+            var meta = PathOf(superView.MetaEditor.CurrentFile);
+            Edit(superView.MetaEditor);
+            Answer(0);
+            string? start = null;
+            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>()))
+                .Callback<IPackFileService, List<string>, string>((_, _, path) => start = path)
+                .Returns(new SaveDialogResult(true, null, "animations/derpy/throt_custom"));
+
+            Assert.That(superView.Save(), Is.True);
+            const string Custom = "animations/derpy/throt_custom.anm.meta";
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            var folder = meta[..(meta.LastIndexOf('/') + 1)];
+            Assert.That(start, Is.EqualTo(folder + "custom_" + meta[folder.Length..]));
+            Assert.That((selection.FragmentSlotList.SelectedItem!.MetaFile, PathOf(superView.MetaEditor.CurrentFile), superView.MetaEditor.HasUnsavedChanges),
+                Is.EqualTo((Custom, Custom, false)));
+            Assert.That(_runner.PackFileService.FindFile(meta, output), Is.Null);
+        }
+
+        // Each tab says where its file is from, and the slot panel says where the typed meta is from.
+        [Test]
+        public void MetaSources_SayVanilla_ThenYourPackOnceOverridden_AndATypoIsInNoPack()
+        {
+            var (superView, _) = OpenVanillaAttack();
+            var (meta, persistent) = (PathOf(superView.MetaEditor.CurrentFile), PathOf(superView.PersistentMetaEditor.CurrentFile));
+            var before = (superView.MetaSource, superView.PersistentMetaSource, superView.SlotMetaSource);
+            Edit(superView.MetaEditor);
+            Answer(1);
+            superView.Save();
+            var after = (superView.MetaSource, superView.PersistentMetaSource, superView.SlotMetaSource);
+            superView.SlotMeta = "animations/no/such.anm.meta";
+
+            Assert.That(before, Is.EqualTo(($"From vanilla: {meta}", $"From vanilla: {persistent}", "From vanilla")));
+            Assert.That(after, Is.EqualTo(($"From your pack: {meta}", $"From vanilla: {persistent}", "From your pack")));
+            Assert.That(superView.SlotMetaSource, Is.EqualTo("Not in any loaded pack"));
+        }
+
+        // A slot naming no meta offers New meta: the animation's name, prefixed here because Throt's pack has a meta of that name,
+        // written empty and assigned, so the Animation tab opens it with no tags.
+        [Test]
+        public void NewMeta_OnASlotWithNoMeta_WritesAnEmptyMeta_AndPointsTheSlotAtIt()
+        {
+            var (superView, output) = OpenVanillaAttack();
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            var hadMeta = superView.SlotHasNoMeta;
+            ClearSlotMeta(superView);
+            var attack = selection.FragmentSlotList.SelectedItem!;
+            var hadNoMeta = superView.SlotHasNoMeta;
+            var anim = attack.AnimationFile.Replace('\\', '/').ToLowerInvariant();
+            var plain = anim[..^".anim".Length] + ".anm.meta";
+            string? start = null;
+            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>()))
+                .Callback<IPackFileService, List<string>, string>((_, _, path) => start = path)
+                .Returns<IPackFileService, List<string>, string>((_, _, path) => new SaveDialogResult(true, null, path));
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+            superView.NewMetaCommand.Execute(null);
+            Assert.That(said, Is.Empty);
+
+            var offered = plain[..(plain.LastIndexOf('/') + 1)] + "custom_" + plain[(plain.LastIndexOf('/') + 1)..];
+            Assert.That((hadMeta, hadNoMeta, _runner.PackFileService.FindFile(plain) != null, start), Is.EqualTo((false, true, true, offered)));
+            Assert.That(_runner.PackFileService.FindFile(offered, output)!.DataSource.ReadData(), Is.EqualTo(new byte[] { 2, 0, 0, 0, 0, 0, 0, 0 }));
+            Assert.That((selection.FragmentSlotList.SelectedItem!.MetaFile, superView.MetaEditor.Tags.Count, superView.SlotHasNoMeta), Is.EqualTo((offered, 0, false)));
+        }
+
+        [Test]
+        public void NewMeta_RefusesAPathAPackAlreadyHas()
+        {
+            var (superView, output) = OpenVanillaAttack();
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            var existing = selection.FragmentSlotList.SelectedItem!.MetaFile;
+            ClearSlotMeta(superView);
+            var files = output.GetFileCount();
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>()))
+                .Returns(new SaveDialogResult(true, null, existing));
+            superView.NewMetaCommand.Execute(null);
+
+            Assert.That((said.Single().Contains("is already in a loaded pack"), output.GetFileCount()), Is.EqualTo((true, files)));
+        }
+
+        // A slot with no meta, made the way a modder makes one: the slot panel's Meta field emptied and applied.
+        static void ClearSlotMeta(SuperViewViewModel superView)
+        {
+            superView.SlotMeta = "";
+            superView.ApplySlotFilesCommand.Execute(null);
         }
 
         // A skeleton with no battle animation table (Glottkin's only set is cam_lord_glt01_dlc29_ghurk.bin) still lists its
@@ -302,7 +439,7 @@ namespace Test.AnimationMeta
             _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
             superView.SlotAnim = other.ToUpperInvariant().Replace('/', '\\');
             superView.ApplySlotFilesCommand.Execute(null);
-            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>())).Returns(new SaveDialogResult(true, null, @"Animations\Derpy\Cam_Fatality"));
+            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>())).Returns(new SaveDialogResult(true, null, @"Animations\Derpy\Cam_Fatality"));
             superView.SelectedTabControllerIndex = 1;
             superView.SaveMetaAsCommand.Execute(null);
             Assert.That(said, Is.Empty);

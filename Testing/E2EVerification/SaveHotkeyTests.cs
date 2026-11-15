@@ -25,6 +25,8 @@ namespace Test.E2EVerification
             var runner = new AssetEditorTestRunner();
             runner.CreateCaContainer();
             var output = runner.LoadPackFile(PathHelper.GetDataFile("Throt.pack"), true)!;
+            // The meta is Throt's, not the editable pack's, so the save asks before overriding it; this answers Override.
+            runner.Dialogs.Setup(x => x.ShowChoiceBox(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>())).Returns(1);
             var editor = runner.CommandFactory.Create<OpenEditorCommand>().Execute<MetaDataEditorViewModel>(runner.PackFileService.FindFile(MetaPath)!, EditorEnums.Meta_Editor);
             var main = runner.ServiceProvider.GetRequiredService<MainViewModel>();
             editor.Tags[0].IsSelected = true;

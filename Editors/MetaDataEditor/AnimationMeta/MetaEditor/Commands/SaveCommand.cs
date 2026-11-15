@@ -5,6 +5,7 @@ using Shared.Core.Events.Scoped;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
+using Shared.Core.Settings;
 using Shared.GameFormats.AnimationMeta.Parsing;
 
 namespace Editors.AnimationMeta.MetaEditor.Commands
@@ -17,11 +18,13 @@ namespace Editors.AnimationMeta.MetaEditor.Commands
         private readonly IFileSaveService _packFileSaveService;
         private readonly IStandardDialogs _standardDialogs;
         private readonly MetaDataFileParser _metaDataFileParser;
+        private readonly ApplicationSettingsService _settings;
 
         void IAeCommand.Execute() => throw new NotSupportedException("Use Execute(MetaDataEditorViewModel) instead.");
 
-        public SaveCommand(IPackFileService packFileService, IEventHub eventHub, IFileSaveService packFileSaveService, IStandardDialogs standardDialogs, MetaDataFileParser metaDataFileParser)
+        public SaveCommand(IPackFileService packFileService, IEventHub eventHub, IFileSaveService packFileSaveService, IStandardDialogs standardDialogs, MetaDataFileParser metaDataFileParser, ApplicationSettingsService settings)
         {
+            _settings = settings;
             _packFileService = packFileService;
             _eventHub = eventHub;
             _packFileSaveService = packFileSaveService;
@@ -48,6 +51,36 @@ namespace Editors.AnimationMeta.MetaEditor.Commands
 
             // Save the file
             var path = _packFileService.GetFullPath(controller.CurrentFile);
+
+            // A path the editable pack does not have yet is someone else's file: saved there, the copy overrides it for every bin
+            // that names it. Without an editable pack the save fails below, as it always has, so there is nothing to ask.
+            var editable = _packFileService.GetEditablePack();
+            if (editable != null && _packFileService.FindFile(path, editable) == null)
+            {
+                var source = CustomMeta.Source(_packFileService, path);
+                var (whose, from) = source switch
+                {
+                    "vanilla" => ("vanilla", "a vanilla file"),
+                    "" => ("the", "not in your pack"),
+                    _ => ($"{source}'s", $"from {source}"),
+                };
+                var choice = _standardDialogs.ShowChoiceBox(
+                    $"{CustomMeta.Normalise(path)} is {from}. Saving it puts a copy at the same path in your pack, and that copy replaces it for every unit whose animation bin uses it.\n\nSave your edits as a custom meta of your own instead?",
+                    "Save meta", ["Save as custom meta", $"Override {whose} file", "Cancel"]);
+                if (choice == 0 && controller.SaveAsCustom != null)
+                    return controller.SaveAsCustom();
+                if (choice == 0)
+                {
+                    var custom = CustomMeta.Ask(_standardDialogs, _packFileService, _settings, path, CustomMeta.Offered(path, CustomMeta.Prefix(_settings)));
+                    if (custom == null)
+                        return false;
+                    path = custom;
+                }
+                else if (choice != 1)
+                {
+                    return false;
+                }
+            }
             _logger.Here().Information("Creating metadata file. TagCount=" + controller.Tags.Count + " " + path);
 
             var bytes = _metaDataFileParser.GenerateBytes(controller.MetaDataFileVersion, controller.ParsedFile);

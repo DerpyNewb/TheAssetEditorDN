@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Editors.AnimationMeta.MetaEditor;
 using Editors.AnimationMeta.MetaEditor.Check;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.SuperView.Visualisation;
@@ -16,6 +17,7 @@ using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
+using Shared.Core.Settings;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationMeta.Parsing;
 using Shared.GameFormats.AnimationPack;
@@ -37,6 +39,14 @@ namespace Editors.AnimationMeta.SuperView
         private readonly IStandardDialogs _standardDialogs;
         private readonly IFileSaveService _fileSaveService;
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
+        private readonly ApplicationSettingsService _settings;
+
+        // Where each tab's file and the slot panel's typed meta come from: "From vanilla: <path>", "From your pack: <path>", or
+        // another mod's pack name. A vanilla or other mod's meta saved at its own path overrides it for every bin that names it.
+        [ObservableProperty] string _persistentMetaSource = "";
+        [ObservableProperty] string _metaSource = "";
+        [ObservableProperty] string _slotMetaSource = "";
+        [ObservableProperty] bool _slotHasNoMeta;
 
         [ObservableProperty] string _persistentMetaFilePath = "";
         [ObservableProperty] string _metaFilePath = "";
@@ -98,10 +108,12 @@ namespace Editors.AnimationMeta.SuperView
             IStandardDialogs standardDialogs,
             IFileSaveService fileSaveService,
             ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper,
-            MetaTagGizmoComponent metaTagGizmo)
+            MetaTagGizmoComponent metaTagGizmo,
+            ApplicationSettingsService settings)
             : base(editorHostParameters)
         {
             DisplayName = "Super view";
+            _settings = settings;
             _standardDialogs = standardDialogs;
             _fileSaveService = fileSaveService;
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
@@ -175,7 +187,10 @@ namespace Editors.AnimationMeta.SuperView
             // so its tab gets no clip length to check start times against.
             MetaEditor.CheckScene = () => new MetaCheckScene(_asset.Data.Player.AnimationClip?.PlayTimeInSec, _asset.Data.Skeleton?.BoneNames);
             PersistentMetaEditor.CheckScene = () => new MetaCheckScene(null, _asset.Data.Skeleton?.BoneNames);
-            
+            // A save that would override someone else's meta can make a custom copy instead, which this points the slot at.
+            PersistentMetaEditor.SaveAsCustom = () => SaveCustomCopy(PersistentMetaEditor);
+            MetaEditor.SaveAsCustom = () => SaveCustomCopy(MetaEditor);
+
             var assetViewModel = _sceneObjectViewModelBuilder.CreateAsset("SuperViewRoot", true, "Root", Color.Black,null);
             SceneObjects.Add(assetViewModel);
 
@@ -222,8 +237,27 @@ namespace Editors.AnimationMeta.SuperView
         {
             PersistentMetaEditor.LoadFile(e.Owner.PersistMetaData);
             MetaEditor.LoadFile(e.Owner.MetaData);
+            PersistentMetaSource = Describe(PersistentMetaEditor.CurrentFile);
+            MetaSource = Describe(MetaEditor.CurrentFile);
+            OnSlotMetaChanged(SlotMeta);
 
             RecreateMetaDataInformation();
+        }
+
+        string Describe(PackFile? file)
+        {
+            if (file == null)
+                return "";
+            var path = CustomMeta.Normalise(_packFileService.GetFullPath(file));
+            var source = CustomMeta.Source(_packFileService, path);
+            return source.Length == 0 ? path : $"From {source}: {path}";
+        }
+
+        partial void OnSlotMetaChanged(string value)
+        {
+            var path = Key(value.Trim());
+            var source = path.Length == 0 ? "" : CustomMeta.Source(_packFileService, path);
+            SlotMetaSource = path.Length == 0 ? "" : source.Length == 0 ? "Not in any loaded pack" : $"From {source}";
         }
 
         // Opened on a .variantmeshdefinition from the pack browser: the file is the mesh, and the
@@ -262,10 +296,11 @@ namespace Editors.AnimationMeta.SuperView
             base.Close();
         }
 
+        // Only an edited tab is saved: writing an untouched vanilla meta would override it for nothing.
         public bool Save()
         {
-            var res0 = PersistentMetaEditor.Save();
-            var res1 = MetaEditor.Save();
+            var res0 = !PersistentMetaEditor.HasUnsavedChanges || PersistentMetaEditor.Save();
+            var res1 = !MetaEditor.HasUnsavedChanges || MetaEditor.Save();
             return res0 && res1;
         }
 
@@ -274,7 +309,11 @@ namespace Editors.AnimationMeta.SuperView
         [ObservableProperty] string _slotMeta = "";
         [ObservableProperty] string _slotSound = "";
 
-        void LoadSlotFields(AnimationBinEntryGenericFormat? slot) => (SlotAnim, SlotMeta, SlotSound) = (slot?.AnimationFile ?? "", slot?.MetaFile ?? "", slot?.SoundFile ?? "");
+        void LoadSlotFields(AnimationBinEntryGenericFormat? slot)
+        {
+            (SlotAnim, SlotMeta, SlotSound) = (slot?.AnimationFile ?? "", slot?.MetaFile ?? "", slot?.SoundFile ?? "");
+            SlotHasNoMeta = slot != null && string.IsNullOrEmpty(slot.MetaFile);
+        }
 
         [RelayCommand]
         void ApplySlotFiles()
@@ -337,23 +376,50 @@ namespace Editors.AnimationMeta.SuperView
         // Save writes a meta back over the file it was read from, which every set naming that file shares. This writes the open
         // tab's meta to a new file instead and points the slot that tab shows at it.
         [RelayCommand]
-        void SaveMetaAs()
+        void SaveMetaAs() => SaveCustomCopy(SelectedTabControllerIndex == 0 ? PersistentMetaEditor : MetaEditor);
+
+        // The save dialog offers the original's name with the custom prefix, beside it. True when saved.
+        bool SaveCustomCopy(MetaDataEditorViewModel editor)
         {
-            var persistent = SelectedTabControllerIndex == 0;
-            var editor = persistent ? PersistentMetaEditor : MetaEditor;
             var selection = _asset.FragAndSlotSelection;
-            var slot = persistent
+            var slot = editor == PersistentMetaEditor
                 ? selection.FragmentSlotList.PossibleValues.FirstOrDefault(x => x.SlotName.StartsWith("PERSISTENT_METADATA_") && x.MetaFile == selection.MetaDataPersistName)
                 : selection.FragmentSlotList.SelectedItem;
             var problem = slot == null || editor.ParsedFile == null ? "This tab has no meta file open to save."
                 : editor.Tags.Select(x => x.HasError()).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
             if (problem == null)
             {
-                var pick = _standardDialogs.DisplaySaveDialog(_packFileService, [".anm.meta"]);
-                if (!pick.Result || string.IsNullOrWhiteSpace(pick.SelectedFilePath))
+                var original = editor.CurrentFile != null ? _packFileService.GetFullPath(editor.CurrentFile) : slot!.MetaFile;
+                var path = CustomMeta.Ask(_standardDialogs, _packFileService, _settings, original, CustomMeta.Offered(original, CustomMeta.Prefix(_settings)));
+                if (path == null)
+                    return false;
+                problem = AssignFiles(slot!, slot!.AnimationFile, path, slot.SoundFile, _metaDataFileParser.GenerateBytes(editor.MetaDataFileVersion, editor.ParsedFile!));
+            }
+            if (problem != null)
+                _standardDialogs.ShowDialogBox(problem);
+            return problem == null;
+        }
+
+        // A slot that names no meta gets an empty one, at the animation's path with .anm.meta, or that prefixed when a pack already
+        // has a file there. A path any loaded pack has is refused, so an existing meta is never blanked.
+        [RelayCommand]
+        void NewMeta()
+        {
+            var slot = _asset.FragAndSlotSelection.FragmentSlotList.SelectedItem;
+            var anim = slot == null ? "" : Key(slot.AnimationFile ?? "");
+            var problem = slot == null ? "Pick an animation set and a slot first."
+                : !string.IsNullOrEmpty(slot.MetaFile) ? "This slot already has a meta."
+                : anim.Length == 0 ? "This slot has no animation to name a meta after."
+                : null;
+            if (problem == null)
+            {
+                var plain = (anim.EndsWith(".anim", StringComparison.Ordinal) ? anim[..^".anim".Length] : anim) + CustomMeta.Extension;
+                var offered = _packFileService.FindFile(plain) == null ? plain : CustomMeta.Offered(plain, CustomMeta.Prefix(_settings));
+                var path = CustomMeta.Ask(_standardDialogs, _packFileService, _settings, plain, offered);
+                if (path == null)
                     return;
-                var path = pick.SelectedFilePath.EndsWith(".meta", StringComparison.OrdinalIgnoreCase) ? pick.SelectedFilePath : pick.SelectedFilePath + ".anm.meta";
-                problem = AssignFiles(slot!, slot!.AnimationFile, path, slot.SoundFile, _metaDataFileParser.GenerateBytes(editor.MetaDataFileVersion, editor.ParsedFile));
+                problem = _packFileService.FindFile(path) != null ? $"{path} is already in a loaded pack. To use it, type it into the slot's Meta field and click Apply to slot."
+                    : AssignFiles(slot!, slot!.AnimationFile!, path, slot.SoundFile, _metaDataFileParser.GenerateBytes(2, new ParsedMetadataFile { Version = 2 }));
             }
             if (problem != null)
                 _standardDialogs.ShowDialogBox(problem);

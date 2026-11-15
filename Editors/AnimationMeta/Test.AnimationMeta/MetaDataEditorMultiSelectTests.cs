@@ -15,6 +15,7 @@ namespace Test.AnimationMeta
             // Arrange
             var packFile = PathHelper.GetDataFile("Throt.pack");
             var runner = new AssetEditorTestRunner();
+            runner.AnswersOverride();
             runner.CreateCaContainer();
             var outputPackFile = runner.LoadPackFile(packFile, true);
 
@@ -189,6 +190,7 @@ namespace Test.AnimationMeta
             // Arrange
             var packFile = PathHelper.GetDataFile("Throt.pack");
             var runner = new AssetEditorTestRunner();
+            runner.AnswersOverride();
             runner.CreateCaContainer();
             var outputPackFile = runner.LoadPackFile(packFile, true);
 

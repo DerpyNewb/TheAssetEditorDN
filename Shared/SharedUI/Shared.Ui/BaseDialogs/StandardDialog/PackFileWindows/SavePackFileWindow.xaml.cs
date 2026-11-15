@@ -40,8 +40,9 @@ namespace Shared.Ui.BaseDialogs.StandardDialog.PackFile
             _selectedNode = node;
             SelectedFile = ViewModel.FindPackFile(node);
 
+            // A folder keeps the name typed or offered, which is then saved in that folder.
             if (SelectedFile == null)
-                CurrentFileName = "";
+                CurrentFileName = System.IO.Path.GetFileName(CurrentFileName ?? "");
             else
                 CurrentFileName = SelectedFile.Name;
         }

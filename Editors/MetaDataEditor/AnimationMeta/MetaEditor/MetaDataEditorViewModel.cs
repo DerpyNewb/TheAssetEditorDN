@@ -48,6 +48,10 @@ namespace Editors.AnimationMeta.Presentation
         /// <summary>The clip and skeleton Check meta checks against, which SuperView knows and the standalone editor does not.</summary>
         public Func<MetaCheckScene>? CheckScene { get; set; }
 
+        /// <summary>Save as custom meta, when a save would override someone else's file: SuperView points the slot at the copy. Unset,
+        /// the copy is saved where the save dialog says and opened here, as there is no bin to point at it.</summary>
+        public Func<bool>? SaveAsCustom { get; set; }
+
         public MetaDataEditorViewModel(IUiCommandFactory uiCommandFactory, MetaDataFileParser metaDataFileParser, IEventHub eventHub)
         {
             _uiCommandFactory = uiCommandFactory;
