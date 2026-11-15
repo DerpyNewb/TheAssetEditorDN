@@ -100,9 +100,19 @@ namespace Shared.Core.PackFiles.Utility
             var isExistingFile = _packFileService.FindFile(fullPathWithExtention, editablePack);
             if (isExistingFile != null && prompOnConflict)
             {
+                // Ask first: the save dialog alone opened empty, at the pack's root, and could not simply overwrite.
+                _logger.Here().Information($"Existing file detected for '{fullPathWithExtention}'. Asking whether to overwrite it");
+                var choice = _packFileUiProvider.ShowChoiceBox($"{fullPathWithExtention}\n\nis already in your pack.", "File already exists", ["Overwrite", "Save as...", "Cancel"]);
+                if (choice == 0)
+                    return Write(editablePack, fullPathWithExtention, content, isExistingFile);
+                if (choice != 1)
+                {
+                    _logger.Here().Information($"Save cancelled at the overwrite question for '{fullPathWithExtention}'");
+                    return null;
+                }
+
                 var extention = Path.GetExtension(fullPathWithExtention);
-                _logger.Here().Information($"Existing file detected for '{fullPathWithExtention}'. Prompting user for an alternative save path");
-                var saveDialogResult = _packFileUiProvider.DisplaySaveDialog(_packFileService, [extention]);
+                var saveDialogResult = _packFileUiProvider.DisplaySaveDialog(_packFileService, [extention], fullPathWithExtention);
                 if (saveDialogResult.Result == false)
                 {
                     _logger.Here().Information($"Save cancelled after conflict prompt for '{fullPathWithExtention}'");
@@ -120,6 +130,11 @@ namespace Shared.Core.PackFiles.Utility
                 isExistingFile = _packFileService.FindFile(fullPathWithExtention, editablePack);
             }
 
+            return Write(editablePack, fullPathWithExtention, content, isExistingFile);
+        }
+
+        PackFile Write(IPackFileContainer editablePack, string fullPathWithExtention, byte[] content, PackFile? isExistingFile)
+        {
             if (isExistingFile == null)
             {
                 _logger.Here().Information($"Creating new pack file '{fullPathWithExtention}' in '{DescribePack(editablePack)}' ({content.Length} bytes)");

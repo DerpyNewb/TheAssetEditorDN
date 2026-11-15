@@ -15,7 +15,6 @@ namespace CommonControls.SelectionListDialog
         public bool Result { get; set; } = false;
         public delegate bool OnSeachDelegate(object item, Regex regex);
 
-        readonly SolidColorBrush _noErrorBackground = new(Colors.White);
         readonly SolidColorBrush _errorBackground = new(Colors.Red);
         public SelectionListWindow()
         {
@@ -49,7 +48,7 @@ namespace CommonControls.SelectionListDialog
                         typedDataContext.ItemList.Add(item);
                     }
                     toolTip.IsOpen = false;
-                    SearchTextBox.Background = _noErrorBackground;
+                    SearchTextBox.ClearValue(BackgroundProperty);   // the theme's colour; White was unreadable on the dark theme
                     return;
                 }
 
@@ -66,7 +65,7 @@ namespace CommonControls.SelectionListDialog
 
                     }
                     toolTip.IsOpen = false;
-                    SearchTextBox.Background = _noErrorBackground;
+                    SearchTextBox.ClearValue(BackgroundProperty);
                     DataContext = typedDataContext;
                 }
                 catch (Exception e)
