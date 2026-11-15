@@ -69,6 +69,11 @@ namespace Editors.AnimatioReTarget.Editor
 
             _settings = new AnimationGenerationSettings();
             _boneManager = boneManager;
+            _boneManager.MappingApplied += () =>
+            {
+                if (CanUpdateAnimation(out _))
+                    UpdateAnimation();
+            };
             _rendering = renderingComponent;
           
             _pfs = pfs;
@@ -103,6 +108,7 @@ namespace Editors.AnimatioReTarget.Editor
             BoneManager.SetSceneNodes(source.Data, target.Data, generated.Data);
             Rendering.SetSceneNodes(source.Data, target.Data, generated.Data);
             SaveManager.SetSceneNodes(source.Data, target.Data, generated.Data);
+            SaveManager.Remap = UpdateAnimation;
         }
 
         private void OnSceneObjectUpdated(SceneObjectUpdateEvent e)

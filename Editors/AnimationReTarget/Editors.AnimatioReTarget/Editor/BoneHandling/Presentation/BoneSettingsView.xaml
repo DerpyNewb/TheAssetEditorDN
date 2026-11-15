@@ -50,6 +50,7 @@
                                 <TextBlock Text=" [" Foreground="{Binding HasMapping, UpdateSourceTrigger=PropertyChanged , Converter={StaticResource BoolToColour_white_red}}"/>
                                 <TextBlock Text="{Binding BoneIndex, UpdateSourceTrigger=PropertyChanged}" Foreground="{Binding HasMapping, UpdateSourceTrigger=PropertyChanged , Converter={StaticResource BoolToColour_white_red}}"/>
                                 <TextBlock Text="]" Foreground="{Binding HasMapping, UpdateSourceTrigger=PropertyChanged , Converter={StaticResource BoolToColour_white_red}}"/>
+                                <TextBlock Text="{Binding MappedFrom, StringFormat='  &lt;- {0}'}" Opacity="0.6" Visibility="{Binding HasMapping, Converter={StaticResource BoolToCollapsedConverter}}"/>
                             </StackPanel>
                         </HierarchicalDataTemplate>
                     </TreeView.ItemTemplate>

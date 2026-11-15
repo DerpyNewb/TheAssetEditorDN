@@ -97,7 +97,8 @@ namespace Test.AnimatioReTarget
             var count1 = SkeletonBoneNodeHelper.CountMappedBones(editor.BoneManager.Bones);
 
             Assert.That(count0, Is.EqualTo(0));
-            Assert.That(count1, Is.EqualTo(57));
+            // 57 when the tree was the source's 72 bones; the 7 more are target bones past 71 (cape, skirt) that the automap matched but nothing moved
+            Assert.That(count1, Is.EqualTo(64));
         }
 
         private void Step4_GenerateAnimation(AssetEditorTestRunner runner, AnimationRetargetEditor editor)
@@ -112,7 +113,7 @@ namespace Test.AnimatioReTarget
         {
             Assert.That(outputPackFile.GetFileCount(), Is.EqualTo(0));
 
-            var bone = SkeletonBoneNodeHelper.GetNodeFromName("skirt_back_0", editor.BoneManager.Bones);
+            var bone = SkeletonBoneNodeHelper.GetNodeFromName("skirt_back_left_0", editor.BoneManager.Bones)!;   // the tree is the target's, humanoid01e
             bone.TranslationOffset.X.Value = 10;
 
             editor.UpdateAnimation();

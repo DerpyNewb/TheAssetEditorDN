@@ -7,7 +7,7 @@
         xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
         mc:Ignorable="d"
          Style="{StaticResource CustomWindowStyle}"
-        Title="{loc:Loc AnimationReTarget.Save.Title}" Height="450" Width="800">
+        Title="{loc:Loc AnimationReTarget.Save.Title}" SizeToContent="Height" Width="800">
     
     <Window.Resources>
         <System:Double x:Key="labelWidth">140</System:Double>
@@ -25,6 +25,12 @@
             <TextBox Text="{Binding SavePrefix, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" VerticalAlignment="Center" DockPanel.Dock="Left"/>
         </DockPanel>
 
+        <DockPanel>
+            <Label Content="{loc:Loc AnimationReTarget.Save.SavesTo}" Width ="{StaticResource labelWidth}" DockPanel.Dock="Left"/>
+            <Label Content=":" DockPanel.Dock="Left"/>
+            <TextBox Text="{Binding OutputPath, Mode=OneWay}" IsReadOnly="True" VerticalAlignment="Center" Margin="0,2,2,2" AutomationProperties.AutomationId="RetargetSavePath"/>
+        </DockPanel>
+
         <DockPanel IsEnabled="False">
             <Label Content="{loc:Loc AnimationReTarget.Save.UseGeneratedSkeleton}" Width ="{StaticResource labelWidth}"/>
             <Label Content=":"/>
@@ -36,8 +42,8 @@
         <DockPanel>
             <Button Click="SaveButtonClick" Content="{loc:Loc AnimationReTarget.Save.Save}"/>
         </DockPanel>
-        <DockPanel IsEnabled="False">
-            <Button Content="{loc:Loc AnimationReTarget.Save.BatchExport}"/>
+        <DockPanel>
+            <Button Click="BatchExportClick" Content="{loc:Loc AnimationReTarget.Save.BatchExport}" ToolTip="{loc:Loc AnimationReTarget.Save.BatchExportTooltip}" AutomationProperties.AutomationId="RetargetBatchExport"/>
         </DockPanel>
         <DockPanel>
             <Button Click="CloseButtonClick" Content="{loc:Loc AnimationReTarget.Save.Close}"/>

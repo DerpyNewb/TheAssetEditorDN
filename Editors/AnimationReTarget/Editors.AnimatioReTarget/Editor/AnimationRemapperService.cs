@@ -239,6 +239,9 @@ namespace Editors.AnimatioReTarget.Editor
                     var boneIndexAttachmentPointSource = mappedIndex.Value;
                     var mappedIndexRef = BoneHelper_new.GetMappedIndex(_bones, boneIndexHandSelf);
                     var boneIndexHandSource = mappedIndexRef;
+                    var fromParentBoneIndex = copyToSkeleton.GetParentBoneIndex(i);
+                    if (boneIndexHandSource == null || fromParentBoneIndex == -1)
+                        continue;   // an unmapped reference bone has no source position to measure from
 
 
                     var self = copyFromFrame.GetSkeletonAnimatedWorld(copyFromSkeleton, boneIndexAttachmentPointSource);
@@ -262,8 +265,6 @@ namespace Editors.AnimatioReTarget.Editor
 
                     //   desiredBonePosWorld = copyFromFrame.GetSkeletonAnimatedWorld(copyFromSkeleton, targetBoneIndex) * Matrix.CreateScale(1);
 
-
-                    var fromParentBoneIndex = copyToSkeleton.GetParentBoneIndex(i);
 
                     var parentWorld = currentCopyToFrame.GetSkeletonAnimatedWorld(copyToSkeleton, fromParentBoneIndex);
 

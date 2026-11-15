@@ -18,6 +18,7 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
         [ObservableProperty] int _parnetBoneIndex = -1;
         [ObservableProperty] int _mappedIndex = -1;
         [ObservableProperty] bool _hasMapping = false;
+        [ObservableProperty] string _mappedFrom = "";   // the source bone's name, for the tree
 
         [ObservableProperty] bool _isLocalOffset = false;  // Not implemented, testing
         [ObservableProperty] float _boneLengthMult = 1;
@@ -34,5 +35,21 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
         [ObservableProperty] SkeletonBoneNode_new? _selectedRelativeBone = null;
 
         [ObservableProperty] ObservableCollection<SkeletonBoneNode_new> _children = [];
+
+        /// <summary>Puts every setting back to the defaults above. The mapping is not a setting and stays.</summary>
+        public void ResetSettings()
+        {
+            IsLocalOffset = false;
+            BoneLengthMult = 1;
+            RotationOffset = new(0, 0, 0);
+            TranslationOffset = new(0, 0, 0);
+            ForceSnapToWorld = false;
+            FreezeTranslation = false;
+            FreezeRotation = false;
+            FreezeRotationZ = false;
+            ApplyTranslation = true;
+            ApplyRotation = true;
+            SelectedRelativeBone = null;
+        }
     }
 }

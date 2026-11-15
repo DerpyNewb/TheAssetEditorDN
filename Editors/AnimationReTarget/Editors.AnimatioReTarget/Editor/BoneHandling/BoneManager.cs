@@ -20,7 +20,6 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
 
         private ISkeletonBoneHighlighter? _skeletonBoneHighlighter;
-        private RemappedAnimatedBoneConfiguration? _activeConfig;
         private SkeletonInfo? _sourceSkeleton;
         private SkeletonInfo? _targetSkeleton;
 
@@ -59,7 +58,8 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
 
         public void SetSceneNodes(SceneObject source, SceneObject target, SceneObject generated)
         {
-            _skeletonBoneHighlighter = new SkeletonBoneHighlighter(source, generated);
+            // The tree is the target skeleton, drawn by the generated model; the mapping window calls its bones "source" too.
+            _skeletonBoneHighlighter = new SkeletonBoneHighlighter(generated, source);
         }
 
         public void UpdateTargetSkeleton(string? skeletonName) 
@@ -100,20 +100,29 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
 
         void Invalidate()
         {
-            Bones.Clear();
-            if (_sourceSkeleton != null)
-            {
-                Bones = SkeletonBoneNodeHelper.Build(_sourceSkeleton.Data);
-            }
+            // Every node is a TARGET bone: the remapper and the mapping window both index it that way.
+            Bones = _targetSkeleton != null ? SkeletonBoneNodeHelper.Build(_targetSkeleton.Data) : [];
+            FlatBoneList.Clear();
+            FlatBoneList.Add(null);
+            foreach (var bone in _targetSkeleton?.Data.Bones ?? [])
+                FlatBoneList.Add(SkeletonBoneNodeHelper.GetNodeFromId(bone.Id, Bones));
             SelectedBone = Bones.FirstOrDefault();
-            _activeConfig = null;
         }
+
+        /// <summary>Raised after a mapping is applied to the tree, so the editor can show the result without another click.</summary>
+        public event Action? MappingApplied;
 
         public void ApplyDefaultMapping()
         {
-            CreateMappingConfig();
-            BoneMappingHelper.AutomapDirectBoneLinksBasedOnNames(_activeConfig.MeshBones.First(), _activeConfig.ParentModelBones);
-            SkeletonBoneNodeHelper.ApplyMapping(Bones, _activeConfig);
+            var config = CreateMappingConfig();
+            BoneMappingHelper.AutomapDirectBoneLinksBasedOnNames(config.MeshBones.First(), config.ParentModelBones);
+            Apply(config);
+        }
+
+        void Apply(RemappedAnimatedBoneConfiguration config)
+        {
+            SkeletonBoneNodeHelper.ApplyMapping(Bones, config);
+            MappingApplied?.Invoke();
         }
 
 
@@ -125,41 +134,57 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
                 return;
             }
 
-            CreateMappingConfig();
+            var config = CreateMappingConfig();
 
             // Make this possible to use without being a modal!
             var handle = _boneMappingWindowFactory.Create();
-            handle.ViewModel.Initialize(_activeConfig);
+            handle.ViewModel.Initialize(config);
             var result = handle.ShowDialog();
 
             if ((result.HasValue && result.Value == true) == false)
                 return;
 
-            SkeletonBoneNodeHelper.ApplyMapping(Bones, _activeConfig);
+            Apply(config);
         }
 
-        void CreateMappingConfig()
+        /// <summary>
+        /// A new config each time, holding what the tree has applied. The window edits it in place, so a kept one brought the edits
+        /// made before Cancel back on the next open, and the next OK applied them.
+        /// </summary>
+        RemappedAnimatedBoneConfiguration CreateMappingConfig()
         {
-
-            if (_activeConfig == null)
+            var config = new RemappedAnimatedBoneConfiguration
             {
-                _activeConfig = new RemappedAnimatedBoneConfiguration
-                {
-                    MeshSkeletonName = _targetSkeleton.Name,
-                    MeshBones = AnimatedBoneHelper.CreateFromSkeleton(_targetSkeleton.Data),
+                MeshSkeletonName = _targetSkeleton!.Name,
+                MeshBones = AnimatedBoneHelper.CreateFromSkeleton(_targetSkeleton.Data),
 
-                    ParnetModelSkeletonName = _sourceSkeleton.Name,
-                    ParentModelBones = AnimatedBoneHelper.CreateFromSkeleton(_sourceSkeleton.Data),
+                ParnetModelSkeletonName = _sourceSkeleton!.Name,
+                ParentModelBones = AnimatedBoneHelper.CreateFromSkeleton(_sourceSkeleton.Data),
 
-                    SkeletonBoneHighlighter = _skeletonBoneHighlighter
-                };
+                SkeletonBoneHighlighter = _skeletonBoneHighlighter
+            };
+
+            foreach (var bone in FlatBoneList)
+            {
+                if (bone?.HasMapping != true)
+                    continue;
+                var meshBone = SkeletonBoneNodeHelper.GetNodeFromId(bone.BoneIndex, config.MeshBones);
+                if (meshBone == null)
+                    continue;
+                meshBone.MappedBoneIndex.Value = bone.MappedIndex;
+                meshBone.MappedBoneName.Value = _sourceSkeleton.Data.Bones.FirstOrDefault(x => x.Id == bone.MappedIndex)?.Name;
             }
+            return config;
         }
 
-        [RelayCommand] void ResetSelectedBone()
+        public ObservableCollection<SkeletonBoneNode_new?> FlatBoneList { get; } = [];
+        [RelayCommand] void ClearRelativeBone()
         {
-            _standardDialogs.ShowDialogBox("Button pressed");
+            if (SelectedBone != null)
+                SelectedBone.SelectedRelativeBone = null;
         }
+
+        [RelayCommand] void ResetSelectedBone() => SelectedBone?.ResetSettings();
 
 
     }

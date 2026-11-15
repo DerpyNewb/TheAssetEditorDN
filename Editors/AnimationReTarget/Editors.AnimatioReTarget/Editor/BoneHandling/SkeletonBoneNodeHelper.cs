@@ -37,6 +37,7 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
 
                 boneNode.MappedIndex = mappedValue;
                 boneNode.HasMapping = mappedValue != -1;
+                boneNode.MappedFrom = boneNode.HasMapping ? mapping.MappedBoneName.Value ?? "" : "";
                 ApplyMapping(boneNode.Children, mappingConfiguration);
             }
         }
