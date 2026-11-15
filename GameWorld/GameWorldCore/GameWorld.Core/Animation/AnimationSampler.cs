@@ -13,6 +13,15 @@ namespace GameWorld.Core.Animation
                 if (skeleton == null)
                     return null;
 
+                // Callers round to the nearest frame, so a negative leftover is that far back toward the previous frame. Blending
+                // from frameIndex toward frameIndex + 1 by a negative amount extrapolated along the next gap instead, and the pose
+                // jumped at every half frame: a twitch once playback was slowed.
+                if (frameIterpolation < 0 && frameIndex > 0)
+                {
+                    frameIndex--;
+                    frameIterpolation += 1;
+                }
+
                 // Rules are timed from the meta tags' start and end, so they get the playback time,
                 // not the clip's length.
                 var ruleTime = timeInSec ?? animationClip?.PlayTimeInSec ?? 0;
