@@ -418,7 +418,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var animFile = AnimationFile.Create(pf);
             var clip = new AnimationClip(animFile, skeleton.Skeleton);
 
-            var rule = new DockEquipmentRule(finalBoneIndex, metaData.PropBoneId, clip, skeleton, metaData.StartTime, metaData.EndTime);
+            var rule = new DockEquipmentRule(finalBoneIndex, metaData.PropBoneId, clip, skeleton, metaData.StartTime, metaData.EndTime, rootPlayer.AnimationRules);
             rootPlayer.AnimationRules.Add(rule);
         }
 

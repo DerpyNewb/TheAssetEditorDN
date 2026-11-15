@@ -1,4 +1,5 @@
 using Editors.AnimationMeta.SuperView.Visualisation;
+using Editors.AnimationMeta.SuperView.Visualisation.Rules;
 using GameWorld.Core.Animation;
 using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
@@ -13,7 +14,8 @@ using Test.TestingUtility.Shared;
 
 namespace Test.AnimationMeta
 {
-    // DOCK_EQPT_* tags in SuperView: the prop is posed against the hand by the set's DOCK_EQUIPMENT_* animation.
+    // DOCK_EQPT_* tags in SuperView: the prop is posed against the hand by the set's DOCK_EQUIPMENT_* animation. And TRANSFORM,
+    // which turns a bone over its own times and on top of a dock.
     public class DockEquipmentTests
     {
         record Provider(GameSkeleton Skeleton) : ISkeletonProvider;
@@ -67,11 +69,94 @@ namespace Test.AnimationMeta
             _builder = new MetaDataBuilder(null!, null!, null!, runner.PackFileService, null!);
         }
 
-        Vector3 PropAt(float time, params DockEquipment[] tags)
+        Vector3 PropAt(float time, params ParsedMetadataAttribute[] tags) => PropWorld(time, tags).Translation;
+
+        Matrix PropWorld(float time, params ParsedMetadataAttribute[] tags) => BoneWorld(Prop, time, tags);
+
+        Matrix BoneWorld(int bone, float time, params ParsedMetadataAttribute[] tags)
         {
             _builder.Create(null, new ParsedMetadataFile { Version = 2, Attributes = [.. tags] }, null, new GroupNode("root"), new Provider(_skeleton), _player, _fragment);
             var frame = AnimationSampler.Sample(0, 0, _skeleton, _main, _player.AnimationRules, timeInSec: time);
-            return frame.GetSkeletonAnimatedWorld(_skeleton, Prop).Translation;
+            return frame.GetSkeletonAnimatedWorld(_skeleton, bone);
+        }
+
+        static Transform_v10 Turn(float degreesAboutY, Vector3 move = default, float start = 0, float end = 0, float blendIn = 0, float blendOut = 0, int bone = Prop, float length = 1) =>
+            new() { TargetNode = bone, SourceNode = bone, Orientation = (Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathHelper.ToRadians(degreesAboutY)) * length).ToVector4(), Position = move, StartTime = start, EndTime = end, BlendInTime = blendIn, BlendOutTime = blendOut };
+
+        static float DegreesAboutY(Matrix world)
+        {
+            world.Decompose(out _, out var rotation, out _);
+            var forward = Vector3.Transform(Vector3.UnitX, rotation);
+            return MathHelper.ToDegrees(MathF.Atan2(-forward.Z, forward.X));
+        }
+
+        // Full strength from start to end, fading in before start and out after end. 0 to 0 with no blends is the whole clip,
+        // and a tag that starts and ends at one moment with blends is a pulse, as vanilla's 2,255 and 225 of those need.
+        [TestCase(0, 0, 0, 0, 0.7f, 1)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 0.2f, 0)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 0.35f, 0.25f)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 0.4f, 0.5f)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 0.45f, 0.75f)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 0.65f, 1)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 0.9f, 0.75f)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 1.0f, 0.5f)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 1.1f, 0.25f)]
+        [TestCase(0.5f, 0.8f, 0.2f, 0.4f, 1.3f, 0)]
+        [TestCase(1.3f, 1.3f, 0.3f, 0.3f, 1.15f, 0.5f)]
+        [TestCase(1.3f, 1.3f, 0.3f, 0.3f, 1.3f, 1)]
+        [TestCase(1.3f, 1.3f, 0.3f, 0.3f, 1.45f, 0.5f)]
+        [TestCase(0, 0, 0, 0.3f, 0.15f, 0.5f)]
+        [TestCase(0, 0, 0, 0.3f, 0.5f, 0)]
+        [TestCase(0.4f, 0.6f, 0, 0, 0.3f, 0)]
+        public void TransformStrength_FollowsTheTagsTimes(float start, float end, float blendIn, float blendOut, float time, float expected) =>
+            Assert.That(TransformBoneRule.Weight(start, end, blendIn, blendOut, time), Is.EqualTo(expected).Within(1e-4));
+
+        [Test]
+        public void ATimedTransform_TurnsTheBoneOnlyInsideItsWindow()
+        {
+            Assert.That(DegreesAboutY(PropWorld(0.2f, Turn(90, start: 0.4f, end: 0.6f))), Is.EqualTo(0).Within(0.01));
+            TearDown();
+            Setup();
+            Assert.That(DegreesAboutY(PropWorld(0.5f, Turn(90, start: 0.4f, end: 0.6f))), Is.EqualTo(90).Within(0.01));
+        }
+
+        [Test]
+        public void HalfwayThroughItsBlend_ATransformTurnsTheBoneHalfway()
+        {
+            var world = PropWorld(0.3f, Turn(90, new Vector3(0, 0, 0.2f), start: 0.4f, end: 0.6f, blendIn: 0.2f));
+            Assert.That(DegreesAboutY(world), Is.EqualTo(45).Within(0.01));
+            Assert.That(world.Translation.Z, Is.EqualTo(0.1f).Within(1e-4));
+        }
+
+        // A dock replaces the prop's whole transform, so the turn has to go on top of it. Vanilla turns docked props: the horse
+        // archers' bows from 0.32 s while docked from 0, and the riders' weapons in their deaths.
+        [Test]
+        public void ADockedProp_TurnsAndMovesInTheHand()
+        {
+            var world = PropWorld(0.5f, Right(), Turn(90, new Vector3(0, 0, 0.2f)));
+            Assert.That(DegreesAboutY(world), Is.EqualTo(90).Within(0.01));
+            Assert.That(Vector3.Distance(world.Translation, RightGrip + new Vector3(0, 0, 0.2f)), Is.LessThan(1e-4), $"prop at {world.Translation}");
+        }
+
+        [Test]
+        public void ADockedProp_IgnoresATransformOnAnotherBone()
+        {
+            var world = PropWorld(0.5f, Right(), Turn(90, bone: 1));
+            Assert.That(DegreesAboutY(world), Is.EqualTo(0).Within(0.01));
+            Assert.That(Vector3.Distance(world.Translation, RightGrip), Is.LessThan(1e-4), $"prop at {world.Translation}");
+            TearDown();
+            Setup();
+            Assert.That(DegreesAboutY(BoneWorld(1, 0.5f, Right(), Turn(90, bone: 1))), Is.EqualTo(90).Within(0.01), "the other bone turns once");
+        }
+
+        // 298 vanilla orientations are not unit length; the bone turns, and is not scaled by it.
+        [Test]
+        public void AnOrientationThatIsNotUnitLength_TurnsWithoutScaling()
+        {
+            var world = PropWorld(0.5f, Turn(60, length: 1.2f));
+            world.Decompose(out var scale, out _, out _);
+            Assert.That(DegreesAboutY(world), Is.EqualTo(60).Within(0.01));
+            Assert.That(scale.X, Is.EqualTo(1).Within(1e-4));
         }
 
         static DockEquipment Right(float start = 0, int prop = 1) => new DockEquipmentRHand_v11 { PropBoneId = prop, StartTime = start };

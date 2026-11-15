@@ -17,9 +17,12 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Rules
         float _endTime;
         int _dockTargetkBoneId;
         Matrix _offset;
+        readonly IReadOnlyList<IAnimationChangeRule> _rules;
 
-        public DockEquipmentRule(int dockTargetkBoneId, int equipmentSlotToDock, AnimationClip dockAnimation, ISkeletonProvider skeletonProvider, float startTime, float endTime)
+        /// <summary>rules: the player's rule list, read each frame for TRANSFORM tags on the docked prop.</summary>
+        public DockEquipmentRule(int dockTargetkBoneId, int equipmentSlotToDock, AnimationClip dockAnimation, ISkeletonProvider skeletonProvider, float startTime, float endTime, IReadOnlyList<IAnimationChangeRule>? rules = null)
         {
+            _rules = rules ?? [];
             _dockTargetkBoneId = dockTargetkBoneId;
             _dockAnimation = dockAnimation;
             _skeletonProvider = skeletonProvider;
@@ -61,6 +64,14 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Rules
 
                     var propTransform = _skeletonProvider.Skeleton.GetAnimatedWorldTranform(_dockTargetkBoneId);
                     frame.BoneTransforms[_equipmentSlotToDock].WorldTransform = _offset * propTransform;
+
+                    // The dock replaced the prop's whole transform, TRANSFORM's turn included. Vanilla turns docked props
+                    // (the horse archers' bows, the riders' dropped weapons), so the turn goes on top of the dock.
+                    foreach (var transform in _rules.OfType<TransformBoneRule>())
+                    {
+                        if (transform.TargetNode == _equipmentSlotToDock)
+                            transform.Apply(frame, time);
+                    }
                 }
             }
             catch (Exception e)
