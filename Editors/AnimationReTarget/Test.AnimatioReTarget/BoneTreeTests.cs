@@ -121,6 +121,19 @@ namespace Test.AnimatioReTarget
             Assert.That(Regenerations(hand.ResetSettings), Is.EqualTo(1));
         }
 
+        // Picking another source animation keeps the mapping and the bone settings, and regenerates with them: with no Apply
+        // button there is nothing else to press.
+        [Test]
+        public void Live_AnotherSourceAnimation_RegeneratesWithTheSameSettings()
+        {
+            var hand = Node("hand_right");
+            hand.TranslationOffset.X.Value = 0.2;
+            Pump();
+            Assert.That(Regenerations(() => _scene.SetAnimation(_source, "animations\\battle\\humanoid01\\2handed_hammer\\stand\\hu1_2hh_stand_idle_01.anim")), Is.EqualTo(1));
+            Assert.That(Node("hand_right").TranslationOffset.X.Value, Is.EqualTo(0.2));
+            Assert.That(Node("hand_right").MappedFrom, Is.EqualTo("hand_right"));
+        }
+
         // The handle in the view: a drag writes the selected bone's offsets, and the generated bone follows it exactly, at the
         // frame shown, on top of offsets already typed in, whatever the skeleton scale.
         Matrix Shown(string bone)
