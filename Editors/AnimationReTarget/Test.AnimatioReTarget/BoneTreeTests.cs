@@ -73,6 +73,54 @@ namespace Test.AnimatioReTarget
             }
         }
 
+        // Live editing: a setting regenerates the clip once the change is in, with no Apply. Changes made together are one remap.
+        static void Pump() => System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+        int Regenerations(Action change)
+        {
+            Pump();
+            var count = 0;
+            void Count(AnimationClip _) => count++;
+            _generated.AnimationChanged += Count;
+            change();
+            Pump();
+            _generated.AnimationChanged -= Count;
+            return count;
+        }
+
+        [Test]
+        public void Live_ABoneOffset_RegeneratesTheClip()
+        {
+            Assert.That(Regenerations(() => Node("hand_right").TranslationOffset.X.Value = 0.2), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Live_AGlobalSetting_RegeneratesTheClip()
+        {
+            Assert.That(Regenerations(() => _editor.Settings.SkeletonScale = 2), Is.EqualTo(1));
+        }
+
+        // "Clear selected bone settings" puts new offset vectors in: an edit to the new one must still regenerate.
+        [Test]
+        public void Live_AnOffsetEditedAfterAClear_StillRegenerates()
+        {
+            var hand = Node("hand_right");
+            hand.ResetSettings();
+            Pump();
+            Assert.That(Regenerations(() => hand.RotationOffset.Z.Value = 15), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Live_AClearOfManySettings_IsOneRemap()
+        {
+            var hand = Node("hand_right");
+            hand.BoneLengthMult = 2;
+            hand.FreezeRotation = true;
+            hand.TranslationOffset.Y.Value = 0.1;
+            Pump();
+            Assert.That(Regenerations(hand.ResetSettings), Is.EqualTo(1));
+        }
+
         [Test]
         public void TheTree_IsTheTargetSkeleton_AndTheRelativeListHoldsEveryBone()
         {

@@ -11,7 +11,6 @@
     <DockPanel >
         <settings:SettingsView DockPanel.Dock="Top"/>
 
-        <Button DockPanel.Dock="Bottom" Content="{loc:Loc AnimationReTarget.Editor.ApplySettings}" Command="{Binding UpdateAnimationCommand}" Margin="2" />
         <Button DockPanel.Dock="Bottom" Content="{loc:Loc AnimationReTarget.Editor.Save}" Command="{Binding SaveManager.ShowSaveSettingsCommand}"  Margin="2" />
         <Button DockPanel.Dock="Bottom" Content="{loc:Loc AnimationReTarget.Editor.OpenBoneMappingWindow}" Command="{Binding BoneManager.ShowBoneMappingWindowCommand}" Margin="2" />
 

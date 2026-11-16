@@ -26,6 +26,55 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
         [ObservableProperty] SkeletonBoneNode_new? _selectedBone;
         [ObservableProperty] ObservableCollection<SkeletonBoneNode_new> _bones = [];
 
+        /// <summary>
+        /// Raised when any bone's setting changes, an offset's X, Y or Z included, so the editor can regenerate at once. The
+        /// mapping is not a setting: <see cref="MappingApplied"/> covers it.
+        /// </summary>
+        public event Action? SettingsChanged;
+
+        static readonly HashSet<string> SettingNames =
+        [
+            nameof(SkeletonBoneNode_new.IsLocalOffset), nameof(SkeletonBoneNode_new.BoneLengthMult),
+            nameof(SkeletonBoneNode_new.RotationOffset), nameof(SkeletonBoneNode_new.TranslationOffset),
+            nameof(SkeletonBoneNode_new.ForceSnapToWorld), nameof(SkeletonBoneNode_new.FreezeTranslation),
+            nameof(SkeletonBoneNode_new.FreezeRotation), nameof(SkeletonBoneNode_new.FreezeRotationZ),
+            nameof(SkeletonBoneNode_new.ApplyTranslation), nameof(SkeletonBoneNode_new.ApplyRotation),
+            nameof(SkeletonBoneNode_new.SelectedRelativeBone),
+        ];
+
+        static IEnumerable<SkeletonBoneNode_new> AllOf(IEnumerable<SkeletonBoneNode_new>? nodes) =>
+            nodes?.SelectMany(x => AllOf(x.Children).Prepend(x)) ?? [];
+
+        partial void OnBonesChanged(ObservableCollection<SkeletonBoneNode_new>? oldValue, ObservableCollection<SkeletonBoneNode_new> newValue)
+        {
+            foreach (var node in AllOf(oldValue))
+            {
+                node.PropertyChanged -= OnBonePropertyChanged;
+                node.RotationOffset.OnValueChanged -= OnOffsetChanged;
+                node.TranslationOffset.OnValueChanged -= OnOffsetChanged;
+            }
+            foreach (var node in AllOf(newValue))
+            {
+                node.PropertyChanged += OnBonePropertyChanged;
+                node.RotationOffset.OnValueChanged += OnOffsetChanged;
+                node.TranslationOffset.OnValueChanged += OnOffsetChanged;
+            }
+        }
+
+        void OnBonePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (sender is not SkeletonBoneNode_new node || e.PropertyName is not { } name || !SettingNames.Contains(name))
+                return;
+            // "Clear" puts new offset vectors in; their edits have to be heard too.
+            if (name == nameof(SkeletonBoneNode_new.RotationOffset))
+                node.RotationOffset.OnValueChanged += OnOffsetChanged;
+            if (name == nameof(SkeletonBoneNode_new.TranslationOffset))
+                node.TranslationOffset.OnValueChanged += OnOffsetChanged;
+            SettingsChanged?.Invoke();
+        }
+
+        void OnOffsetChanged(global::Shared.Ui.BaseDialogs.MathViews.Vector3ViewModel _) => SettingsChanged?.Invoke();
+
         public BoneManager(
             IStandardDialogs standardDialogs, 
             IAbstractFormFactory<BoneMappingWindow> boneMappingWindowFactory,

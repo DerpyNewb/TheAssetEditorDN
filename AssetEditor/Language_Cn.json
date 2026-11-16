@@ -668,7 +668,6 @@
   "NewAudioProject.Tooltips.Location": "音频项目在 Pack 中的文件夹位置。",
   "NewAudioProject.Tooltips.Language": "音频项目的游戏语言。",
 
-  "AnimationReTarget.Editor.ApplySettings": "应用设置",
   "AnimationReTarget.Editor.Save": "保存",
   "AnimationReTarget.Editor.OpenBoneMappingWindow": "打开骨骼映射窗口",
   "AnimationReTarget.Save.Title": "保存动画",

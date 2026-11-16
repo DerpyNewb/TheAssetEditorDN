@@ -633,7 +633,6 @@
     "NewAudioProject.Tooltips.Name":  "The name of the Audio Project.",
     "NewAudioProject.Tooltips.Location":  "The folder location in the Pack the Audio Project should go.",
     "NewAudioProject.Tooltips.Language":  "The game language of your Audio Project.",
-    "AnimationReTarget.Editor.ApplySettings":  "Apply Settings",
     "AnimationReTarget.Editor.Save":  "Save",
     "AnimationReTarget.Editor.OpenBoneMappingWindow":  "Open Bone Mapping Window",
     "AnimationReTarget.Save.Title":  "SaveWindow",

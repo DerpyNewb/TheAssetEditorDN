@@ -74,6 +74,10 @@ namespace Editors.AnimatioReTarget.Editor
                 if (CanUpdateAnimation(out _))
                     UpdateAnimation();
             };
+            // Live: every setting regenerates the clip, with no Apply.
+            _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+            _boneManager.SettingsChanged += ScheduleUpdate;
+            _settings.PropertyChanged += (_, _) => ScheduleUpdate();
             _rendering = renderingComponent;
           
             _pfs = pfs;
@@ -131,6 +135,26 @@ namespace Editors.AnimatioReTarget.Editor
 
             _sceneObjectEditor.SetMesh(_source, sourceInput.Mesh);
             _sceneObjectEditor.SetAnimation(_source, _pfs.GetFullPath(sourceInput.Animation));
+        }
+
+        readonly System.Windows.Threading.Dispatcher _dispatcher;
+        bool _updatePending;
+
+        /// <summary>
+        /// One remap once the current change is in: "Clear selected bone settings" changes eleven values, and a typed number
+        /// changes on every key, so changes made together are one regeneration rather than one each.
+        /// </summary>
+        void ScheduleUpdate()
+        {
+            if (_updatePending)
+                return;
+            _updatePending = true;
+            _dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+            {
+                _updatePending = false;
+                if (CanUpdateAnimation(out _))
+                    UpdateAnimation();
+            });
         }
 
         [RelayCommand]public void UpdateAnimation()
