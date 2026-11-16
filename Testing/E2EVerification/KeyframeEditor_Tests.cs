@@ -1,5 +1,10 @@
+using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using Editors.AnimationVisualEditors.AnimationKeyframeEditor;
 using GameWorld.Core.Animation;
+using GameWorld.Core.Animation.Posing;
+using GameWorld.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using GameWorld.Core.Commands.Bone;
 using Editors.Shared.Core.Common;
@@ -239,12 +244,16 @@ namespace Test.E2EVerification
 
         // ---- The posing kit: pins, bend direction, mirror and joint limits, driven through the panel's own methods. ----
 
-        static (AnimationKeyframeEditorViewModel Editor, GameWorld.Core.Components.Selection.BoneSelectionState State) OpenPosing()
+        /// <param name="store">Replaces the editor's joint-limit store; the default one reads the user's own cache.</param>
+        /// <param name="beforeMesh">Runs on the open editor before Karl's mesh loads, which is what loads the limits.</param>
+        static (AnimationKeyframeEditorViewModel Editor, GameWorld.Core.Components.Selection.BoneSelectionState State) OpenPosing(
+            JointLimitStore? store = null, Action<AnimationKeyframeEditorViewModel>? beforeMesh = null)
         {
-            var runner = new AssetEditorTestRunner();
+            var runner = new AssetEditorTestRunner(testServices: store == null ? null : services => services.AddScoped(_ => store));
             runner.CreateCaContainer();
             runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
             var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+            beforeMesh?.Invoke(editor);
             var sceneObjectEditor = runner.GetRequiredServiceInCurrentEditorScope<SceneObjectEditor>();
             sceneObjectEditor.SetMesh(editor.Rider, runner.PackFileService.FindFile(KarlMesh)!);
             sceneObjectEditor.SetAnimation(editor.Rider, IdleAnimation);
@@ -263,6 +272,63 @@ namespace Test.E2EVerification
 
         static Vector3 At(AnimationKeyframeEditorViewModel editor, int frame, int bone) =>
             TransformBoneCommand.WorldTransform(editor.Rider.AnimationClip!.DynamicFrames[frame], editor.Skeleton, bone).Translation;
+
+        /// <summary>A store in a fresh temp folder whose clip list comes from <paramref name="clips"/>, called once per lookup.</summary>
+        static JointLimitStore StoreWith(Func<int, ObservableCollection<AnimationReference>> clips) =>
+            new(new ClipLookup(clips), Path.Combine(Path.GetTempPath(), "jointlimits_e2e_" + Guid.NewGuid().ToString("N")));
+
+        // Not a Moq mock: Moq runs a setup's callback under its own lock, so one lookup held at a gate blocked every other.
+        sealed class ClipLookup(Func<int, ObservableCollection<AnimationReference>> clips) : ISkeletonAnimationLookUpHelper
+        {
+            int _calls;
+            public List<AnimationReference> CopyAnimationsForSkeleton(string skeletonName) => clips(Interlocked.Increment(ref _calls)).ToList();
+            public ObservableCollection<AnimationReference> GetAnimationsForSkeleton(string skeletonName) => [];
+            public AnimationReference? FindAnimationRefFromPackFile(Shared.Core.PackFiles.Models.PackFile animation) => null;
+            public ObservableCollection<string> GetAllSkeletonFileNames() => [];
+            public Shared.GameFormats.Animation.AnimationFile? GetSkeletonFileFromName(string skeletonName) => null;
+            public void Dispose() { }
+        }
+
+        static ObservableCollection<AnimationReference> NoClips => [];
+
+        /// <summary>
+        /// Waits up to 10 s, pumping the test thread's messages: the editor leaves a WinForms context on it, and the limits load
+        /// posts its continuations there, as it does to the UI thread in the app. A plain Wait would never see them run.
+        /// </summary>
+        static bool PumpUntil(Func<bool> done)
+        {
+            var until = DateTime.UtcNow.AddSeconds(10);
+            while (!done())
+            {
+                if (DateTime.UtcNow > until)
+                    return false;
+                System.Windows.Forms.Application.DoEvents();
+                Thread.Sleep(5);
+            }
+            return true;
+        }
+
+        static JointLimits OneLimit(GameSkeleton skeleton, int bone) =>
+            new(skeleton.SkeletonName, new Dictionary<int, BoneLimit> { [bone] = new(0, 0.1f, new Vector2(-0.1f), new Vector2(0.1f)) });
+
+        /// <summary>Holds every continuation posted to it until the test runs them, so a test can act between a task finishing and its continuation.</summary>
+        sealed class HeldContinuations : SynchronizationContext
+        {
+            readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> _posted = new();
+            public override void Post(SendOrPostCallback d, object? state) => _posted.Add((d, state));
+
+            public (SendOrPostCallback Callback, object? State) Next() =>
+                _posted.TryTake(out var item, TimeSpan.FromSeconds(10)) ? item : throw new TimeoutException("nothing was posted");
+
+            public void RunUntil(Func<bool> done)
+            {
+                while (!done())
+                {
+                    var (callback, state) = Next();
+                    callback(state);
+                }
+            }
+        }
 
         [Test]
         public void Warhammer3_PinnedFeet_StayWhenAnIkDragMovesTheBody()
@@ -474,6 +540,218 @@ namespace Test.E2EVerification
             var outOfOrder = Enumerable.Range(0, skeleton.BoneCount).Count(x => skeleton.GetParentBoneIndex(x) > x);
             TestContext.Out.WriteLine($"{skeleton.SkeletonName}: {outOfOrder} of {skeleton.BoneCount} bones come before their parent");
             Assert.Pass();
+        }
+
+        // The bend slider was live whenever IK was on, so with no limb selected its thumb moved and nothing turned.
+        [Test]
+        public void Warhammer3_BendSlider_IsOnlyLiveWithOneLimbSelected()
+        {
+            var (editor, state) = OpenPosing();
+            var skeleton = editor.Skeleton;
+            var (hand, root) = (skeleton.GetBoneIndexByName("hand_left"), skeleton.GetBoneIndexByName("root"));
+            editor.EnableInverseKinematics.Value = true;
+
+            Select(state, hand);
+            Assert.That(editor.CanBend.Value, Is.True, "a hand, with IK on");
+            Select(state, root);
+            Assert.That(editor.CanBend.Value, Is.False, "root has no limb above it");
+            state.ModifySelection([hand], false);
+            Assert.That(editor.CanBend.Value, Is.False, "two bones");
+            Select(state, hand);
+            editor.EnableInverseKinematics.Value = false;
+            Assert.That(editor.CanBend.Value, Is.False, "IK off");
+        }
+
+        // While the clip played, every new frame snapped the slider back to 0 under the user's thumb.
+        [Test]
+        public void Warhammer3_Bend_PausesPlayback()
+        {
+            var (editor, state) = OpenPosing();
+            editor.EnableInverseKinematics.Value = true;
+            Select(state, editor.Skeleton.GetBoneIndexByName("hand_left"));
+            editor.Rider.Player.Play();
+
+            editor.BendDegrees = 20;
+
+            Assert.That(editor.Rider.Player.IsPlaying, Is.False);
+        }
+
+        // A cancelled re-measure said "IK is unlimited" while the earlier limits were still in use.
+        [Test]
+        public void Warhammer3_CancelledRemeasure_SaysTheEarlierLimitsStay()
+        {
+            using var gate = new ManualResetEventSlim();
+            var (editor, _) = OpenPosing(StoreWith(call =>
+            {
+                if (call == 2)
+                    gate.Wait();
+                return NoClips;
+            }));
+            Assert.That(PumpUntil(() => editor.JointLimitsTask.IsCompleted), Is.True);
+            var earlier = OneLimit(editor.Skeleton, editor.Skeleton.GetBoneIndexByName("upperarm_left"));
+            editor.MeasuredJointLimits = earlier;
+
+            editor.RemeasureJointLimits();
+            editor.CancelMeasuring();
+            gate.Set();
+            Assert.That(PumpUntil(() => editor.JointLimitsTask.IsCompleted), Is.True);
+
+            Assert.That(editor.MeasuredJointLimits, Is.SameAs(earlier));
+            Assert.That(editor.JointLimitStatus.Value, Does.Contain("earlier joint limits stay"));
+            Assert.That(editor.IsMeasuringJointLimits.Value, Is.False);
+        }
+
+        // A load that a newer one had replaced still wrote its own error over the newer load's status.
+        [Test]
+        public void Warhammer3_AStaleMeasureThatFails_LeavesTheNewerStatusAlone()
+        {
+            using var gate = new ManualResetEventSlim();
+            using var entered = new ManualResetEventSlim();
+            var (editor, _) = OpenPosing(StoreWith(call =>
+            {
+                if (call == 1)
+                {
+                    entered.Set();
+                    gate.Wait();
+                    throw new IOException("the replaced measure broke");
+                }
+                return NoClips;
+            }));
+            var stale = editor.JointLimitsTask;
+            Assert.That(PumpUntil(() => entered.IsSet), Is.True, "the first load reached the clip list");
+
+            editor.RemeasureJointLimits();
+            Assert.That(PumpUntil(() => editor.JointLimitsTask.IsCompleted), Is.True);
+            var status = editor.JointLimitStatus.Value;
+            Assume.That(status, Does.Contain("No CA clips"));
+            gate.Set();
+            Assert.That(PumpUntil(() => stale.IsCompleted), Is.True);
+
+            Assert.That(editor.JointLimitStatus.Value, Is.EqualTo(status));
+        }
+
+        // A cancel that landed after the measure had finished left the status on "N clips read" and dropped the limits.
+        [Test]
+        public void Warhammer3_CancelAfterTheMeasureFinished_StillReportsIt()
+        {
+            var (editor, _) = OpenPosing(StoreWith(_ => NoClips));
+            Assert.That(PumpUntil(() => editor.JointLimitsTask.IsCompleted), Is.True);
+            var held = new HeldContinuations();
+            var previous = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(held);
+            try
+            {
+                editor.RemeasureJointLimits();
+                var finished = held.Next();   // the measure is done; what follows it waits here
+                editor.CancelMeasuring();
+                finished.Callback(finished.State);
+                held.RunUntil(() => editor.JointLimitsTask.IsCompleted);
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previous);
+            }
+
+            Assert.That(editor.JointLimitStatus.Value, Does.Contain("No CA clips"));
+            Assert.That(editor.IsMeasuringJointLimits.Value, Is.False);
+        }
+
+        // Every CA clip for the skeleton was read the first time the editor opened, even with the Joint limits box unchecked.
+        [Test]
+        public void Warhammer3_LimitsOff_MeasuresNothingUntilTicked()
+        {
+            var lookups = 0;
+            var (editor, _) = OpenPosing(StoreWith(call =>
+            {
+                lookups = call;
+                return NoClips;
+            }), beforeMesh: x => x.UseJointLimits.Value = false);
+            Assert.That(PumpUntil(() => editor.JointLimitsTask.IsCompleted), Is.True);
+            Assert.That(lookups, Is.Zero, "nothing read with the box unchecked");
+
+            editor.UseJointLimits.Value = true;
+            Assert.That(PumpUntil(() => editor.JointLimitsTask.IsCompleted), Is.True);
+
+            Assert.That(lookups, Is.GreaterThan(0));
+            Assert.That(editor.JointLimitStatus.Value, Does.Contain("No CA clips"));
+        }
+
+        // A paste that moved nothing still pushed a "Keep pinned bones" step after it.
+        [Test]
+        public void Warhammer3_PasteThatMovesNothing_AddsNoPinStep()
+        {
+            var (editor, state) = OpenPosing();
+            editor.IncrementFrameAfterCopyOperation.Value = false;
+            Select(state, editor.Skeleton.GetBoneIndexByName("foot_left"));
+            editor.PinSelectedBone();
+            editor.CopyCurrentPose();   // frame 3, pasted back onto frame 3
+            var stepBefore = editor.CommandManager.Peek();
+
+            editor.PasteIntoCurrentFrame();
+            editor.UndoPose();
+
+            Assert.That(editor.CommandManager.Peek(), Is.SameAs(stepBefore), "the paste was one step");
+        }
+
+        // Pasting into a pinned leg's shin was turned straight back by the foot's pin, which had no idea the shin was pasted.
+        [Test]
+        public void Warhammer3_PasteIntoTheSelectedShin_IsNotUndoneByTheFootPin()
+        {
+            var (editor, state) = OpenPosing();
+            var skeleton = editor.Skeleton;
+            var (foot, shin) = (skeleton.GetBoneIndexByName("foot_left"), skeleton.GetBoneIndexByName("lowerleg_left"));
+            editor.IncrementFrameAfterCopyOperation.Value = false;
+            Select(state, foot);
+            editor.PinSelectedBone();
+            editor.Rider.Player.CurrentFrame = 0;
+            editor.CopyCurrentPose();
+            var copied = Quaternion.Normalize(editor.Rider.AnimationClip!.DynamicFrames[0].Rotation[shin]);
+            editor.Rider.Player.CurrentFrame = 10;
+            Assume.That(MathF.Abs(Quaternion.Dot(Quaternion.Normalize(editor.Rider.AnimationClip!.DynamicFrames[10].Rotation[shin]), copied)), Is.LessThan(1 - 1e-6f));
+            Select(state, shin);
+
+            editor.PasteIntoSelectedCurrentNode();
+
+            var pasted = Quaternion.Normalize(editor.Rider.AnimationClip!.DynamicFrames[10].Rotation[shin]);
+            Assert.That(MathF.Abs(Quaternion.Dot(pasted, copied)), Is.GreaterThan(1 - 1e-6f));
+        }
+
+        // The bend slider turned the hand with the arm, so a pin below the hand (a finger, a weapon bone) moved.
+        [Test]
+        public void Warhammer3_Bend_KeepsAPinBelowTheHand()
+        {
+            var (editor, state) = OpenPosing();
+            var skeleton = editor.Skeleton;
+            var hand = skeleton.GetBoneIndexByName("hand_left");
+            var finger = Enumerable.Range(0, skeleton.BoneCount).First(x => skeleton.GetParentBoneIndex(x) == hand && Vector3.Distance(At(editor, 3, x), At(editor, 3, hand)) > 0.02f);
+            Select(state, finger);
+            editor.PinSelectedBone();
+            var held = At(editor, 3, finger);
+            editor.EnableInverseKinematics.Value = true;
+            Select(state, hand);
+
+            editor.BendDegrees = 60;
+
+            Assert.That(Vector3.Distance(At(editor, 3, finger), held), Is.LessThan(1e-3f), skeleton.BoneNames[finger]);
+        }
+
+        // With nothing cached, "Reset selected bone" cleared the override file and left the bone free without a word.
+        [Test]
+        public void Warhammer3_ResetBoneLimit_WithNothingCached_SaysSo()
+        {
+            var (editor, state) = OpenPosing(StoreWith(_ => NoClips));
+            Assert.That(PumpUntil(() => editor.JointLimitsTask.IsCompleted), Is.True);
+            var skeleton = editor.Skeleton;
+            var arm = skeleton.GetBoneIndexByName("upperarm_left");
+            editor.MeasuredJointLimits = OneLimit(skeleton, arm);
+            Select(state, arm);
+            editor.WidenSelectedBoneLimit();
+            var status = editor.JointLimitStatus.Value;
+
+            editor.ResetSelectedBoneLimit();
+
+            Assert.That(editor.JointLimitStatus.Value, Is.Not.EqualTo(status));
+            Assert.That(editor.JointLimitStatus.Value, Does.Contain("Re-measure"));
         }
 
         // Both slot pickers in the mount-link panel had their handlers commented out, so picking a slot loaded nothing.

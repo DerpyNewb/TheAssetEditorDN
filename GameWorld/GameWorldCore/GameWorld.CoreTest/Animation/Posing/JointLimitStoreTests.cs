@@ -58,7 +58,7 @@ namespace GameWorld.Core.Test.Animation.Posing
         JointLimitStore Store()
         {
             var lookup = new Mock<ISkeletonAnimationLookUpHelper>();
-            lookup.Setup(x => x.GetAnimationsForSkeleton("test_arm")).Returns(() => new ObservableCollection<AnimationReference>(_references));
+            lookup.Setup(x => x.CopyAnimationsForSkeleton("test_arm")).Returns(() => _references.ToList());
             return new JointLimitStore(lookup.Object, _folder);
         }
 
@@ -164,6 +164,25 @@ namespace GameWorld.Core.Test.Animation.Posing
 
             Assert.CatchAsync<OperationCanceledException>(() => Store().MeasureAsync(_skeleton, null, cancel.Token));
             Assert.That(Directory.Exists(_folder) && Directory.EnumerateFiles(_folder).Any(), Is.False);
+        }
+
+        // An IO error writing the cache threw away a measure that had just read every CA clip.
+        [Test]
+        public async Task AFailedCacheWrite_StillReturnsTheMeasurement()
+        {
+            AddClip(true, PackPath("data.pack"), -0.4f, 0.6f);
+            File.WriteAllText(_folder, "a file where the cache folder should be");
+            try
+            {
+                var limits = await Store().MeasureAsync(_skeleton, null, CancellationToken.None);
+
+                Assert.That(limits, Is.Not.Null);
+                Assert.That(limits!.TryGet(Lower, out _), Is.True);
+            }
+            finally
+            {
+                File.Delete(_folder);
+            }
         }
 
         [Test]

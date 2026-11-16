@@ -437,17 +437,17 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public void PasteIntoCurrentFrame()
         {
-            KeepPinsThrough(_copyPastePose.PasteIntoCurrentFrame);
+            KeepPinsThrough(_copyPastePose.PasteIntoCurrentFrame, []);
         }
 
         public void PasteIntoSelectedCurrentNode()
         {
-            KeepPinsThrough(_copyPastePose.PasteIntoSelectedCurrentNode);
+            KeepPinsThrough(_copyPastePose.PasteIntoSelectedCurrentNode, GetSelectedBones()?.ToList() ?? []);
         }
 
         public void PastePreviousEditedNodesIntoCurrentPose()
         {
-            KeepPinsThrough(_copyPastePose.PastePreviousEditedNodesIntoCurrentPose);
+            KeepPinsThrough(_copyPastePose.PastePreviousEditedNodesIntoCurrentPose, GetModifiedBones()?.ToList() ?? []);
         }
         private void CopyASingleFrameClipboard()
         {
@@ -753,6 +753,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         public void Dispose()
         {
             CancelMeasuring();
+            _limitsGeneration++;   // a measure finishing after the editor closes changes nothing
             if (_mount != null)
             {
                 _mount.SkeletonChanged -= MountSkeletonChanged;

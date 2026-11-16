@@ -63,6 +63,43 @@ namespace GameWorld.Core.Test.Services
             helper.Dispose();
         }
 
+        // The joint-limit measure reads a skeleton's clip list on a worker. A pack refresh changes that list under the helper's
+        // lock, so a copy taken without it met the refresh halfway: "Collection was modified", and the measure failed.
+        [Test]
+        public void CopyAnimationsForSkeleton_IsSafeWhileARefreshChangesTheList()
+        {
+            var release = new ManualResetEventSlim(true);
+            var helper = new SkeletonAnimationLookUpHelper(CreatePackFileServiceThatBlocksInitialLoad(release).Object, new Mock<IGlobalEventHub>().Object);
+            var container = new Mock<IPackFileContainer>().Object;
+            var list = new ObservableCollection<AnimationReference>(Enumerable.Range(0, 2000).Select(x => new AnimationReference($"clip{x}.anim", container)));
+            SetAnimationLookupEntry(helper, "human_skeleton", list);
+            var threadLock = typeof(SkeletonAnimationLookUpHelper).GetField("_threadLock", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(helper)!;
+
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+            var refresh = Task.Run(() =>
+            {
+                while (!stop.IsCancellationRequested)
+                    lock (threadLock)
+                    {
+                        list.Add(new AnimationReference("added.anim", container));
+                        list.RemoveAt(list.Count - 1);
+                    }
+            });
+
+            var copies = 0;
+            Assert.That(() =>
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    Assert.That(helper.CopyAnimationsForSkeleton("human_skeleton").Count, Is.InRange(2000, 2001));
+                    copies++;
+                }
+            }, Throws.Nothing);
+            refresh.Wait();
+            TestContext.Out.WriteLine($"{copies} copies");
+            helper.Dispose();
+        }
+
         private static Mock<IPackFileService> CreatePackFileServiceThatBlocksInitialLoad(ManualResetEventSlim releaseInitialLoad)
         {
             var packFileService = new Mock<IPackFileService>(MockBehavior.Strict);

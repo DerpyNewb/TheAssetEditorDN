@@ -69,7 +69,7 @@
                 <TextBlock TextWrapping="Wrap" Text="{loc:Loc AnimationKeyframeEditor.Posing.Bend.Hint}"/>
                 <DockPanel Margin="0,4,0,0">
                     <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right" Text="{Binding BendDegrees, StringFormat={}{0:F0}°}"/>
-                    <Slider Minimum="-180" Maximum="180" SmallChange="1" LargeChange="15" Value="{Binding BendDegrees, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding EnableInverseKinematics.Value}"/>
+                    <Slider Minimum="-180" Maximum="180" SmallChange="1" LargeChange="15" Value="{Binding BendDegrees, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanBend.Value}"/>
                 </DockPanel>
             </StackPanel>
         </Expander>

@@ -8,6 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using GameWorld.Core.Services;
 using Microsoft.Xna.Framework;
+using Serilog;
+using Shared.CoreLog;
 using Shared.Core.Misc;
 using Shared.GameFormats.Animation;
 
@@ -22,6 +24,7 @@ namespace GameWorld.Core.Animation.Posing
     {
         public static string DefaultFolder => Path.Combine(DirectoryHelper.ApplicationDirectory, "Animation", "JointLimits");
 
+        static readonly ILogger Logger = Logging.Create<JointLimitStore>();
         static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
         sealed class LimitDto
@@ -55,6 +58,7 @@ namespace GameWorld.Core.Animation.Posing
         public Task<JointLimits?> MeasureAsync(GameSkeleton skeleton, IProgress<int>? progress, CancellationToken cancel) => Task.Run(() =>
         {
             var references = CaReferences(skeleton);
+            cancel.ThrowIfCancellationRequested();
             if (references.Count == 0)
                 return null;
 
@@ -64,7 +68,15 @@ namespace GameWorld.Core.Animation.Posing
             var dto = new FileDto { Stamp = Stamp(references) };
             foreach (var (bone, limit) in measured.Limits)
                 dto.Limits[skeleton.BoneNames[bone]] = ToDto(limit);
-            Write(MeasuredPath(skeleton), dto);
+            try
+            {
+                Write(MeasuredPath(skeleton), dto);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // The measure is still good; only the next session pays for it again.
+                Logger.Warning("Joint limits for {Skeleton} measured but not cached: {Error}", skeleton.SkeletonName, e.Message);
+            }
             return ApplyOverrides(skeleton, measured);
         }, cancel);
 
@@ -84,8 +96,9 @@ namespace GameWorld.Core.Animation.Posing
                 Write(OverridesPath(skeleton), overrides);
         }
 
+        // A copy taken under the lookup's lock: a pack refresh changes the list on another thread.
         List<AnimationReference> CaReferences(GameSkeleton skeleton) =>
-            lookup.GetAnimationsForSkeleton(skeleton.SkeletonName).Where(x => x.Container?.IsCaPackFile == true).ToList();
+            lookup.CopyAnimationsForSkeleton(skeleton.SkeletonName).Where(x => x.Container?.IsCaPackFile == true).ToList();
 
         static IEnumerable<AnimationClip> LoadClips(GameSkeleton skeleton, List<AnimationReference> references, IProgress<int>? progress, CancellationToken cancel)
         {

@@ -21,6 +21,8 @@ namespace GameWorld.Core.Services
         AnimationReference? FindAnimationRefFromPackFile(PackFile animation);
         ObservableCollection<string> GetAllSkeletonFileNames();
         ObservableCollection<AnimationReference> GetAnimationsForSkeleton(string skeletonName);
+        /// <summary>A copy of the skeleton's clip list for a worker thread, which must not read the live list while a pack refresh changes it.</summary>
+        List<AnimationReference> CopyAnimationsForSkeleton(string skeletonName);
         AnimationFile? GetSkeletonFileFromName(string skeletonName);
     }
     public class SkeletonAnimationLookUpHelper : IDisposable, ISkeletonAnimationLookUpHelper
@@ -350,6 +352,21 @@ namespace GameWorld.Core.Services
                 _skeletonNameToAnimationMap[skeletonName] = [];
                 return Bindable(_skeletonNameToAnimationMap[skeletonName]);
             }
+        }
+
+        // Copied under the lock a refresh writes under, and never registered with WPF: a worker thread has no views to bind.
+        public List<AnimationReference> CopyAnimationsForSkeleton(string skeletonName)
+        {
+            lock (_threadLock)
+            {
+                if (_skeletonNameToAnimationMap.TryGetValue(skeletonName, out var existing))
+                    return existing.ToList();
+            }
+
+            WaitForInitialLoad(nameof(CopyAnimationsForSkeleton));
+
+            lock (_threadLock)
+                return _skeletonNameToAnimationMap.TryGetValue(skeletonName, out var loaded) ? loaded.ToList() : [];
         }
 
         public ObservableCollection<string> GetAllSkeletonFileNames()

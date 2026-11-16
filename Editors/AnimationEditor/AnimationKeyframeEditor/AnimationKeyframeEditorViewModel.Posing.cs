@@ -42,6 +42,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         readonly List<Pin> _pins = new();
         JointLimits? _measuredLimits;
         CancellationTokenSource? _measuring;
+        int _limitsGeneration;
         readonly EditCoalescer _bendEdits = new();
         ReplaceFramesCommand? _lastBendCommand;
         float _bendStepStart;
@@ -52,6 +53,9 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         public NotifyAttr<bool> UseJointLimits { get; set; } = new(true);
         public NotifyAttr<string> JointLimitStatus { get; set; } = new("");
         public NotifyAttr<bool> IsMeasuringJointLimits { get; set; } = new(false);
+
+        /// <summary>True when the bend slider has a limb to turn: IK on and one bone selected that has an elbow or knee above it.</summary>
+        public NotifyAttr<bool> CanBend { get; set; } = new(false);
 
         /// <summary>The load or measure of the current skeleton's limits; finished once the status line is final.</summary>
         public Task JointLimitsTask { get; private set; } = Task.CompletedTask;
@@ -88,7 +92,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         void InitializePosing()
         {
-            UseJointLimits.PropertyChanged += (_, _) => PushPosingState();
+            UseJointLimits.PropertyChanged += (_, _) => UseJointLimitsChanged();
         }
 
         /// <summary>Hands the limits and pins to the bone selection, which the gizmo's drag command reads.</summary>
@@ -130,61 +134,81 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         {
             _measuring?.Cancel();
             _measuring = null;
+            // Only the newest load may touch the status line and the limits; an older one that finishes or fails later is ignored.
+            var generation = ++_limitsGeneration;
+            IsMeasuringJointLimits.Value = false;
             if (!remeasure)
-            {
                 MeasuredJointLimits = null;
-            }
+            JointLimitsTask = Task.CompletedTask;
             if (skeleton == null)
             {
                 JointLimitStatus.Value = "";
-                JointLimitsTask = Task.CompletedTask;
+                return;
+            }
+            if (!UseJointLimits.Value)
+            {
+                // Reading every CA clip takes a while; it waits until the box is ticked.
+                JointLimitStatus.Value = "Joint limits are off, so IK is unlimited.";
                 return;
             }
 
             var cancel = new CancellationTokenSource();
             _measuring = cancel;
-            JointLimitsTask = LoadJointLimitsAsync(skeleton, cancel, remeasure);
+            JointLimitsTask = LoadJointLimitsAsync(skeleton, cancel, remeasure, generation);
         }
 
-        async Task LoadJointLimitsAsync(GameSkeleton skeleton, CancellationTokenSource cancel, bool remeasure)
+        async Task LoadJointLimitsAsync(GameSkeleton skeleton, CancellationTokenSource cancel, bool remeasure, int generation)
         {
+            bool Current() => generation == _limitsGeneration;
             try
             {
                 var limits = remeasure ? null : await Task.Run(() => _jointLimitStore.TryLoad(skeleton), cancel.Token);
                 if (limits == null)
                 {
+                    if (!Current())
+                        return;
                     IsMeasuringJointLimits.Value = true;
                     JointLimitStatus.Value = "Measuring joint limits from CA's clips...";
                     var progress = new Progress<int>(read =>
                     {
-                        if (!cancel.IsCancellationRequested)
+                        if (Current() && !cancel.IsCancellationRequested)
                             JointLimitStatus.Value = $"Measuring joint limits: {read} clips read";
                     });
                     limits = await _jointLimitStore.MeasureAsync(skeleton, progress, cancel.Token);
                 }
-                if (cancel.IsCancellationRequested)
+                // A measure that finished just as Cancel was pressed is still a finished measure, and it is cached already.
+                if (!Current())
                     return;
 
-                _measuredLimits = limits;
+                MeasuredJointLimits = limits;
                 JointLimitStatus.Value = limits == null
                     ? $"No CA clips for {skeleton.SkeletonName}, so IK is unlimited."
                     : $"Joint limits for {limits.Limits.Count} bones of {skeleton.SkeletonName}, measured from CA's clips.";
-                PushPosingState();
             }
             catch (OperationCanceledException)
             {
-                if (_measuring == cancel || _measuring == null)
-                    JointLimitStatus.Value = "Measuring was cancelled, so IK is unlimited.";
+                if (Current())
+                    JointLimitStatus.Value = _measuredLimits != null
+                        ? "Measuring was cancelled, so the earlier joint limits stay in use."
+                        : "Measuring was cancelled, so IK is unlimited.";
             }
             catch (Exception e)
             {
-                JointLimitStatus.Value = $"Joint limits could not be measured: {e.Message}";
+                if (Current())
+                    JointLimitStatus.Value = $"Joint limits could not be measured: {e.Message}";
             }
             finally
             {
-                if (_measuring == cancel || _measuring == null)
+                if (Current())
                     IsMeasuringJointLimits.Value = false;
             }
+        }
+
+        void UseJointLimitsChanged()
+        {
+            PushPosingState();
+            if (UseJointLimits.Value && _skeleton != null && _measuredLimits == null && !IsMeasuringJointLimits.Value)
+                LoadJointLimits(_skeleton);
         }
 
         public void RemeasureJointLimits() => LoadJointLimits(_skeleton, remeasure: true);
@@ -218,18 +242,37 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
                 return;
             }
             _jointLimitStore.ClearOverride(_skeleton, bone);
-            MeasuredJointLimits = _jointLimitStore.TryLoad(_skeleton) ?? _measuredLimits;
+            var measured = _jointLimitStore.TryLoad(_skeleton);
+            if (measured == null)
+            {
+                // The measured limits are not cached (a cancelled or failed measure, or a game patch since), so there is no
+                // limit to put back until the next measure.
+                JointLimitStatus.Value = $"{_skeleton.BoneNames[bone]} stays free until the limits are measured again. Press Re-measure.";
+                return;
+            }
+            MeasuredJointLimits = measured;
         }
 
         // ---- Bend direction ----
 
+        /// <summary>The selected hand or foot, when the slider has a limb above it to turn; else -1.</summary>
+        int BendableBone(out int middle, out int top)
+        {
+            middle = top = -1;
+            var bone = SingleSelectedBone();
+            return _rider?.AnimationClip != null && _skeleton != null && bone >= 0 && EnableInverseKinematics.Value
+                && LimbSwivel.TryGetChain(_skeleton, bone, out middle, out top) ? bone : -1;
+        }
+
         void ApplyBend()
         {
             var clip = _rider.AnimationClip;
-            var bone = SingleSelectedBone();
-            if (clip == null || _skeleton == null || bone < 0 || !EnableInverseKinematics.Value || !LimbSwivel.TryGetChain(_skeleton, bone, out _, out _))
+            var bone = BendableBone(out var middle, out var top);
+            if (clip == null || _skeleton == null || bone < 0)
                 return;
 
+            // During playback the next frame would reset the slider under the user's thumb.
+            Pause();
             var frameNr = _rider.Player.CurrentFrame;
             if (_bendEdits.Continues((frameNr, bone)) && _lastBendCommand != null && ReferenceEquals(_commandExecutor.Peek(), _lastBendCommand))
                 _commandExecutor.Undo(keepForRedo: false);
@@ -240,7 +283,15 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             var skeleton = _skeleton;
             var limits = ActiveJointLimits;
             var applied = angle;
-            _lastBendCommand = ExecuteFrameEdit(clip, [frameNr], c => applied = LimbSwivel.Apply(c.DynamicFrames[frameNr], skeleton, bone, angle, limits), BendHint);
+            var pins = _pins.ToList();
+            _lastBendCommand = ExecuteFrameEdit(clip, [frameNr], c =>
+            {
+                var frame = c.DynamicFrames[frameNr];
+                var held = PinSolver.WhereTheyAre(frame, skeleton, pins);
+                applied = LimbSwivel.Apply(frame, skeleton, bone, angle, limits);
+                // The turn carries everything below the elbow or knee round with it; pins there turn back on their own chains.
+                PinSolver.Resolve(frame, skeleton, held, [top, middle], limits);
+            }, BendHint);
             // A limit can stop the turn short; the next step must start from where the limb is, not where the slider is.
             _lastBendValue = _bendStepStart + MathHelper.ToDegrees(applied);
         }
@@ -255,6 +306,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _bendStepStart = 0;
             _lastBendCommand = null;
             _bendEdits.Break();
+            CanBend.Value = BendableBone(out _, out _) >= 0;
         }
 
         // ---- Pins ----
@@ -333,8 +385,11 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             ExecuteFrameEdit(clip, frames, c => pins.ForEach(pin => PinSolver.HoldAcross(c, skeleton, pin, a, b, limits)), "Hold pins across frames");
         }
 
-        /// <summary>Runs a paste, then puts every pinned bone back where it was on that frame before it, as a second undo step.</summary>
-        void KeepPinsThrough(Action paste)
+        /// <summary>
+        /// Runs a paste, then puts every pinned bone back where it was on that frame before it, as a second undo step. The pins
+        /// leave <paramref name="pastedBones"/> alone, as they leave a dragged bone alone, and add no step when nothing moved.
+        /// </summary>
+        void KeepPinsThrough(Action paste, IReadOnlyCollection<int> pastedBones)
         {
             var clip = _rider.AnimationClip;
             if (clip == null || _skeleton == null || _pins.Count == 0)
@@ -344,13 +399,13 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             }
 
             var frameNr = _rider.Player.CurrentFrame;
-            var before = clip.DynamicFrames[frameNr];
             var skeleton = _skeleton;
-            var held = _pins.Where(x => x.Bone < before.Position.Count)
-                .Select(x => x with { Target = TransformBoneCommand.WorldTransform(before, skeleton, x.Bone).Translation }).ToList();
+            var held = PinSolver.WhereTheyAre(clip.DynamicFrames[frameNr], skeleton, _pins);
             paste();
             var limits = ActiveJointLimits;
-            ExecuteFrameEdit(clip, [frameNr], c => PinSolver.Resolve(c.DynamicFrames[frameNr], skeleton, held, [], limits), "Keep pinned bones");
+            if (PinSolver.Resolve(clip.DynamicFrames[frameNr].Clone(), skeleton, held, pastedBones, limits).Count == 0)
+                return;
+            ExecuteFrameEdit(clip, [frameNr], c => PinSolver.Resolve(c.DynamicFrames[frameNr], skeleton, held, pastedBones, limits), "Keep pinned bones");
         }
 
         // ---- Mirror ----

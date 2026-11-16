@@ -90,6 +90,11 @@ namespace GameWorld.Core.Animation.Posing
             frame.Rotation[top] = TransformBoneCommand.TurnInModelSpace(frame, skeleton, top, Matrix.CreateFromAxisAngle(Vector3.Normalize(axis), angle));
         }
 
+        /// <summary>The pins, each aimed at where its bone is on <paramref name="frame"/> now: what an edit to that frame should keep.</summary>
+        public static List<Pin> WhereTheyAre(KeyFrame frame, GameSkeleton skeleton, IEnumerable<Pin> pins) =>
+            pins.Where(x => x.Bone < frame.Position.Count)
+                .Select(x => x with { Target = TransformBoneCommand.WorldTransform(frame, skeleton, x.Bone).Translation }).ToList();
+
         /// <summary>Holds the pinned bone on every frame from A to B (either order) where it is on frame A.</summary>
         public static void HoldAcross(AnimationClip clip, GameSkeleton skeleton, Pin pin, int frameA, int frameB, JointLimits? limits)
         {

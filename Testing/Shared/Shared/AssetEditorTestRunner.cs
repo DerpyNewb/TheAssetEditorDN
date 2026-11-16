@@ -30,8 +30,12 @@ namespace Test.TestingUtility.Shared
         public TestKeyboard Keyboard { get; private set; }
 
 
-        public AssetEditorTestRunner(GameTypeEnum gameEnum = GameTypeEnum.Warhammer3, bool forceValidateServiceScopes = false)
+        readonly Action<IServiceCollection>? _testServices;
+
+        /// <param name="testServices">Registered last, so a test's own service replaces the application's.</param>
+        public AssetEditorTestRunner(GameTypeEnum gameEnum = GameTypeEnum.Warhammer3, bool forceValidateServiceScopes = false, Action<IServiceCollection>? testServices = null)
         {
+            _testServices = testServices;
             _serviceProvider = new DependencyInjectionConfig(false).Build(forceValidateServiceScopes, MockServices);
   
             var settings = ServiceProvider.GetRequiredService<ApplicationSettingsService>();
@@ -121,6 +125,8 @@ namespace Test.TestingUtility.Shared
             var dialogDescriptor = new ServiceDescriptor(typeof(IStandardDialogs), typeof(StandardDialogs), ServiceLifetime.Scoped);
             services.Remove(dialogDescriptor);
             services.AddScoped(x => Dialogs.Object);
+
+            _testServices?.Invoke(services);
         }
     }
 }
