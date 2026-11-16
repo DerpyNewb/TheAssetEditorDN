@@ -16,8 +16,9 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
     /// <summary>The selected rectangle of the strip, both ends included.</summary>
     public sealed record SheetSelection(int FirstRow, int LastRow, int FirstFrame, int LastFrame);
 
-    /// <summary>Where the strip draws each frame and row, and which frame and row a point is over.</summary>
-    public sealed record KeyframeSheetLayout(double FrameWidth)
+    /// <summary>Where the strip draws each frame and row, and which frame and row a point is over. Rows are scrolled so that
+    /// <see cref="FirstRow"/> sits under the ruler.</summary>
+    public sealed record KeyframeSheetLayout(double FrameWidth, int FirstRow = 0)
     {
         public const double HeaderWidth = 140, RulerHeight = 22, RowHeight = 20, MinFrameWidth = 1;
 
@@ -33,13 +34,13 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public double FrameLeft(int frame) => HeaderWidth + frame * FrameWidth;
         public double FrameCentre(int frame) => FrameLeft(frame) + FrameWidth / 2;
-        public double RowTop(int row) => RulerHeight + row * RowHeight;
+        public double RowTop(int row) => RulerHeight + (row - FirstRow) * RowHeight;
 
         /// <summary>The frame under <paramref name="x"/>; past either end of the clip, its first or last frame.</summary>
         public int FrameAt(double x, int frameCount) =>
             x < HeaderWidth ? Header : Math.Clamp((int)Math.Floor((x - HeaderWidth) / FrameWidth), 0, Math.Max(0, frameCount - 1));
 
-        public int RowAt(double y) => y < RulerHeight ? Ruler : (int)Math.Floor((y - RulerHeight) / RowHeight);
+        public int RowAt(double y) => y < RulerHeight ? Ruler : FirstRow + (int)Math.Floor((y - RulerHeight) / RowHeight);
     }
 
     /// <summary>

@@ -278,6 +278,44 @@ namespace Test.E2EVerification
             Assert.That(At(layout.FrameCentre(10), layout.RowTop(1) + 2), Is.EqualTo(System.Windows.Media.Color.FromRgb(0x00, 0x7a, 0xcc)), "the current frame's line");
         }
 
+        // More bones than the pane is tall: the wheel scrolls the rows under the ruler, a row at a time, and stops at the last.
+        [Test, Apartment(ApartmentState.STA)]
+        public void TheWheel_ScrollsTheRows_WhenThereAreMoreThanFit()
+        {
+            var (editor, state, sheet) = Open();
+            var view = new KeyframeSheetView { DataContext = sheet };
+            void Lay()
+            {
+                view.Measure(new System.Windows.Size(900, 170));
+                view.Arrange(new System.Windows.Rect(0, 0, 900, 170));
+            }
+            void Wheel(int notches) => view.RaiseEvent(new System.Windows.Input.MouseWheelEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, -120 * notches)
+                { RoutedEvent = System.Windows.UIElement.MouseWheelEvent });
+            Lay();
+            Wheel(1);
+            Assert.That(view.FirstRow, Is.EqualTo(0), "everything fits: nothing to scroll");
+
+            SelectBones(state, Enumerable.Range(0, 12).ToArray());
+            Lay();
+            Wheel(2);
+
+            Assert.That(view.FirstRow, Is.EqualTo(2));
+            SelectCells(sheet, 1, 10, 20);
+            sheet.Select(4, 20, extend: true);
+            view.UpdateLayout();
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(900, 170, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(view);
+            var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using (var file = File.Create(Path.Combine(TestContext.CurrentContext.WorkDirectory, "keyframe_sheet_scrolled.png")))
+                png.Save(file);
+            var layout = view.Layout();
+            Assert.That(layout.RowAt(KeyframeSheetLayout.RulerHeight + KeyframeSheetLayout.RowHeight / 2), Is.EqualTo(2), "a click on the top row lands on row 2");
+            Wheel(50);
+            Assert.That(view.FirstRow, Is.EqualTo(sheet.Rows.Count - 6), "170 px holds 6 rows between the ruler and the status line");
+            Assert.That(layout.FrameWidth, Is.LessThan((900 - KeyframeSheetLayout.HeaderWidth) / sheet.FrameCount), "the scroll bar takes its width from the frames");
+        }
+
         // The strip's geometry: a click lands on the frame and row it is drawn over.
         [Test]
         public void Layout_ClicksLandOnTheFrameAndRowTheyAreOver()

@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -12,7 +14,8 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 {
     /// <summary>
     /// Draws the Keyframes strip and hands clicks and keys to <see cref="KeyframeSheetViewModel"/>, its DataContext. The ruler
-    /// scrubs; a click or drag over the cells selects them, Shift extends; a row's name selects the whole row.
+    /// scrubs; a click or drag over the cells selects them, Shift extends; a row's name selects the whole row. Rows that do not
+    /// fit scroll under the ruler, with the wheel, the scroll bar, or a drag past the top or bottom.
     /// </summary>
     public class KeyframeSheetView : FrameworkElement
     {
@@ -22,12 +25,16 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         KeyframeSheetViewModel? _sheet;
         Drag _drag;
+        readonly ScrollBar _scroll = new() { Orientation = Orientation.Vertical, Minimum = 0, SmallChange = 1, Visibility = Visibility.Collapsed };
 
         public KeyframeSheetView()
         {
             Focusable = true;
             FocusVisualStyle = null;
             ClipToBounds = true;
+            AddVisualChild(_scroll);
+            AddLogicalChild(_scroll);
+            _scroll.ValueChanged += (_, _) => InvalidateVisual();
             DataContextChanged += (_, e) => Attach(e.NewValue as KeyframeSheetViewModel);
             ContextMenu = new ContextMenu();
             Item("AnimationKeyframeEditor.Sheet.Copy", "Ctrl+C", () => _sheet?.Copy());
@@ -49,13 +56,13 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         {
             if (_sheet != null)
             {
-                _sheet.Changed -= InvalidateVisual;
+                _sheet.Changed -= OnSheetChanged;
                 _sheet.PropertyChanged -= OnSheetPropertyChanged;
             }
             _sheet = sheet;
             if (_sheet != null)
             {
-                _sheet.Changed += InvalidateVisual;
+                _sheet.Changed += OnSheetChanged;
                 _sheet.PropertyChanged += OnSheetPropertyChanged;
             }
             InvalidateVisual();
@@ -63,7 +70,52 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         void OnSheetPropertyChanged(object? sender, PropertyChangedEventArgs e) => InvalidateVisual();
 
-        KeyframeSheetLayout Layout() => KeyframeSheetLayout.Fit(ActualWidth, _sheet?.FrameCount ?? 0);
+        // The rows can change with the bone selection, and with them how far the strip scrolls.
+        void OnSheetChanged()
+        {
+            InvalidateArrange();
+            InvalidateVisual();
+        }
+
+        /// <summary>The row drawn first, under the ruler.</summary>
+        public int FirstRow
+        {
+            get => (int)Math.Round(_scroll.Value);
+            // Clamped here, not left to the scroll bar: its coercion keeps the value asked for and hands it back later, when
+            // more rows raise the maximum, so a wheel turn with nothing to scroll used to scroll the strip once bones were picked.
+            set => _scroll.Value = Math.Clamp(value, 0, (int)_scroll.Maximum);
+        }
+
+        bool Scrolls => _scroll.Visibility == Visibility.Visible;
+
+        internal KeyframeSheetLayout Layout() =>
+            KeyframeSheetLayout.Fit(ActualWidth - (Scrolls ? _scroll.Width : 0), _sheet?.FrameCount ?? 0) with { FirstRow = FirstRow };
+
+        protected override int VisualChildrenCount => 1;
+        protected override Visual GetVisualChild(int index) => _scroll;
+        protected override IEnumerator LogicalChildren => new object[] { _scroll }.GetEnumerator();
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            _scroll.Measure(availableSize);
+            return base.MeasureOverride(availableSize);
+        }
+
+        // The scroll bar runs between the ruler and the status line, and only when the rows do not all fit there.
+        protected override Size ArrangeOverride(Size finalSize)
+        {
+            var area = Math.Max(0, finalSize.Height - KeyframeSheetLayout.RulerHeight - StatusHeight);
+            var fit = Math.Max(1, (int)Math.Floor(area / KeyframeSheetLayout.RowHeight));
+            var hidden = Math.Max(0, (_sheet?.Rows.Count ?? 0) - fit);
+            _scroll.Maximum = hidden;
+            _scroll.ViewportSize = fit;
+            _scroll.LargeChange = fit;
+            _scroll.Visibility = hidden > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (double.IsNaN(_scroll.Width))
+                _scroll.Width = SystemParameters.VerticalScrollBarWidth;
+            _scroll.Arrange(new Rect(finalSize.Width - _scroll.Width, KeyframeSheetLayout.RulerHeight, _scroll.Width, area));
+            return finalSize;
+        }
 
         Brush Brush(string key, Color fallback) => TryFindResource(key) as Brush ?? new SolidColorBrush(fallback);
 
@@ -98,7 +150,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             var right = Math.Min(width, layout.FrameLeft(frames));
 
             // Rows, their names, and the selection under the keys.
-            for (var row = 0; row < rows.Count; row++)
+            for (var row = layout.FirstRow; row < rows.Count; row++)
             {
                 var top = layout.RowTop(row);
                 if (top >= bottom)
@@ -108,11 +160,11 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
                 dc.DrawRectangle(header, null, new Rect(0, top, KeyframeSheetLayout.HeaderWidth, KeyframeSheetLayout.RowHeight));
                 dc.DrawText(Text(rows[row].Name, text, KeyframeSheetLayout.HeaderWidth - 10), new Point(6, top + 3));
             }
-            if (sheet.Selection is { } s)
+            if (sheet.Selection is { } s && Math.Min(bottom, layout.RowTop(s.LastRow + 1)) > Math.Max(KeyframeSheetLayout.RulerHeight, layout.RowTop(s.FirstRow)))
             {
-                var top = layout.RowTop(s.FirstRow);
+                var top = Math.Max(KeyframeSheetLayout.RulerHeight, layout.RowTop(s.FirstRow));
                 var area = new Rect(layout.FrameLeft(s.FirstFrame), top, layout.FrameLeft(s.LastFrame + 1) - layout.FrameLeft(s.FirstFrame),
-                    Math.Max(0, Math.Min(bottom, layout.RowTop(s.LastRow + 1)) - top));
+                    Math.Min(bottom, layout.RowTop(s.LastRow + 1)) - top);
                 var fill = accent.Clone();
                 fill.Opacity = 0.35;
                 dc.DrawRectangle(fill, new Pen(accent, 1), area);
@@ -122,7 +174,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
             // Every frame of a .anim is a key, so every cell has one.
             var half = Math.Min(4.5, layout.FrameWidth * 0.4);
-            for (var row = 0; row < rows.Count && layout.RowTop(row) < bottom; row++)
+            for (var row = layout.FirstRow; row < rows.Count && layout.RowTop(row) < bottom; row++)
             {
                 var y = layout.RowTop(row) + KeyframeSheetLayout.RowHeight / 2;
                 for (var frame = 0; frame < frames; frame++)
@@ -201,7 +253,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             var row = layout.RowAt(p.Y);
             var frame = layout.FrameAt(p.X, _sheet.FrameCount);
             var extend = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-            if (p.Y >= ActualHeight - StatusHeight)
+            if (p.Y >= ActualHeight - StatusHeight || (Scrolls && row >= 0 && p.X >= ActualWidth - _scroll.Width))
                 return;
             if (row == KeyframeSheetLayout.Ruler)
             {
@@ -232,8 +284,14 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             if (_drag == Drag.None || _sheet == null)
                 return;
             var p = e.GetPosition(this);
+            var bottom = ActualHeight - StatusHeight;
+            // A selecting drag past the top or bottom of the rows scrolls them a row a move, and selects the row it brings in.
+            if (_drag != Drag.Scrub && p.Y < KeyframeSheetLayout.RulerHeight)
+                FirstRow -= 1;
+            else if (_drag != Drag.Scrub && p.Y >= bottom)
+                FirstRow += 1;
             var layout = Layout();
-            var row = Math.Max(0, layout.RowAt(p.Y));
+            var row = Math.Clamp(layout.RowAt(Math.Clamp(p.Y, KeyframeSheetLayout.RulerHeight, bottom - 1)), 0, Math.Max(0, _sheet.Rows.Count - 1));
             var frame = Math.Max(0, layout.FrameAt(Math.Max(p.X, KeyframeSheetLayout.HeaderWidth), _sheet.FrameCount));
             switch (_drag)
             {
@@ -248,6 +306,14 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
                     _sheet.SelectRow(row, extend: true);
                     break;
             }
+        }
+
+        protected override void OnMouseWheel(MouseWheelEventArgs e)
+        {
+            // A row a notch; a fast spin arrives as one event with several notches in it.
+            var notches = e.Delta / Mouse.MouseWheelDeltaForOneLine;
+            FirstRow -= notches != 0 ? notches : Math.Sign(e.Delta);
+            e.Handled = true;
         }
 
         protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
