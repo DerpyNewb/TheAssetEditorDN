@@ -226,6 +226,59 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
             return config;
         }
 
+        /// <summary>Every bone of the tree as a preset keeps it: by name, with the source bone that drives it by name.</summary>
+        public List<RetargetPresetBone> PresetBones() => [.. FlatBoneList.OfType<SkeletonBoneNode_new>().Select(b => new RetargetPresetBone(
+            b.BoneName,
+            b.HasMapping ? _sourceSkeleton?.Data.Bones.FirstOrDefault(x => x.Id == b.MappedIndex)?.Name : null,
+            b.BoneLengthMult,
+            [b.RotationOffset.X.Value, b.RotationOffset.Y.Value, b.RotationOffset.Z.Value],
+            [b.TranslationOffset.X.Value, b.TranslationOffset.Y.Value, b.TranslationOffset.Z.Value],
+            b.IsLocalOffset, b.ForceSnapToWorld, b.FreezeTranslation, b.FreezeRotation, b.FreezeRotationZ, b.ApplyTranslation, b.ApplyRotation,
+            b.SelectedRelativeBone?.BoneName))];
+
+        /// <summary>
+        /// Puts a preset's bones on the tree by name, and returns the names it could not place: a target bone, a source bone or a
+        /// relative bone that is not on these skeletons. Those are skipped, and bones the preset does not name are left alone.
+        /// </summary>
+        public List<string> ApplyPresetBones(IEnumerable<RetargetPresetBone> bones)
+        {
+            var missing = new List<string>();
+            foreach (var p in bones)
+            {
+                var node = SkeletonBoneNodeHelper.GetNodeFromName(p.Name, Bones);
+                if (node == null)
+                {
+                    missing.Add(p.Name);
+                    continue;
+                }
+
+                var source = p.MappedFrom == null ? null : _sourceSkeleton?.Data.Bones.FirstOrDefault(x => x.Name == p.MappedFrom);
+                if (p.MappedFrom != null && source == null)
+                    missing.Add($"{p.MappedFrom} (source, for {p.Name})");
+                node.MappedIndex = source?.Id ?? -1;
+                node.HasMapping = source != null;
+                node.MappedFrom = source?.Name ?? "";
+
+                node.BoneLengthMult = p.BoneLengthMult;
+                node.RotationOffset = new(p.RotationOffset[0], p.RotationOffset[1], p.RotationOffset[2]);
+                node.TranslationOffset = new(p.TranslationOffset[0], p.TranslationOffset[1], p.TranslationOffset[2]);
+                node.IsLocalOffset = p.IsLocalOffset;
+                node.ForceSnapToWorld = p.ForceSnapToWorld;
+                node.FreezeTranslation = p.FreezeTranslation;
+                node.FreezeRotation = p.FreezeRotation;
+                node.FreezeRotationZ = p.FreezeRotationZ;
+                node.ApplyTranslation = p.ApplyTranslation;
+                node.ApplyRotation = p.ApplyRotation;
+
+                var relative = p.RelativeTo == null ? null : SkeletonBoneNodeHelper.GetNodeFromName(p.RelativeTo, Bones);
+                if (p.RelativeTo != null && relative == null)
+                    missing.Add($"{p.RelativeTo} (relative bone, for {p.Name})");
+                node.SelectedRelativeBone = relative;
+            }
+            MappingApplied?.Invoke();
+            return missing;
+        }
+
         public ObservableCollection<SkeletonBoneNode_new?> FlatBoneList { get; } = [];
         [RelayCommand] void ClearRelativeBone()
         {

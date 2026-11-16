@@ -670,6 +670,10 @@
 
   "AnimationReTarget.Editor.Save": "Save",
   "AnimationReTarget.Editor.OpenBoneMappingWindow": "Open Bone Mapping Window",
+  "AnimationReTarget.Editor.SavePreset": "Save preset...",
+  "AnimationReTarget.Editor.SavePresetTooltip": "Saves the bone mapping, every bone's settings and the global settings to a .retarget.json file, so you can load them again after changing a model.",
+  "AnimationReTarget.Editor.LoadPreset": "Load preset...",
+  "AnimationReTarget.Editor.LoadPresetTooltip": "Loads a .retarget.json preset onto the current skeletons. Bones are matched by name, so a preset also works on another skeleton that shares the bone names; any name it cannot find is listed and skipped.",
   "AnimationReTarget.Save.Title": "Save animation",
   "AnimationReTarget.Save.SavePrefix": "Save Prefix",
   "AnimationReTarget.Save.SavesTo": "Saves to",

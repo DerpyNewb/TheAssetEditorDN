@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.IO;
 using Editors.AnimatioReTarget.Editor.BoneHandling;
 using Editors.AnimatioReTarget.Editor.Saving;
 using Editors.AnimatioReTarget.Editor.Settings;
@@ -162,6 +163,78 @@ namespace Editors.AnimatioReTarget.Editor
                 if (CanUpdateAnimation(out _))
                     UpdateAnimation();
             });
+        }
+
+        public void SavePreset(string path)
+        {
+            var preset = new RetargetPreset(1, _source.SkeletonName.Value, _target.SkeletonName.Value,
+                new(Settings.SkeletonScale, Settings.AnimationSpeedMult, Settings.ApplyRelativeScale, Settings.ZeroUnmappedBones),
+                BoneManager.PresetBones());
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(preset, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        /// <summary>Loads a preset onto the current skeletons. Returns what it could not place, or null when everything was placed.</summary>
+        public string? LoadPreset(string path)
+        {
+            var preset = System.Text.Json.JsonSerializer.Deserialize<RetargetPreset>(File.ReadAllText(path))
+                ?? throw new InvalidDataException("The file holds no preset.");
+            if (preset.Settings == null || preset.Bones == null
+                || preset.Bones.Any(x => x?.Name == null || x.RotationOffset?.Length != 3 || x.TranslationOffset?.Length != 3))
+                throw new InvalidDataException("The file is not a complete retarget preset.");
+            Settings.SkeletonScale = preset.Settings.SkeletonScale;
+            Settings.AnimationSpeedMult = preset.Settings.AnimationSpeedMult;
+            Settings.ApplyRelativeScale = preset.Settings.ApplyRelativeScale;
+            Settings.ZeroUnmappedBones = preset.Settings.ZeroUnmappedBones;
+            var missing = BoneManager.ApplyPresetBones(preset.Bones);
+            if (missing.Count == 0)
+                return null;
+            const int Shown = 20;
+            return $"{missing.Count} names in the preset are not on these skeletons and were skipped:\n\n"
+                + string.Join("\n", missing.Take(Shown)) + (missing.Count > Shown ? $"\n...and {missing.Count - Shown} more" : "");
+        }
+
+        [RelayCommand] void SavePresetToFile()
+        {
+            if (BoneManager.Bones.Count == 0)
+            {
+                _standardDialogs.ShowDialogBox("Pick a target model first: a preset holds the settings of its bones.");
+                return;
+            }
+            var name = $"{Path.GetFileNameWithoutExtension(_source.SkeletonName.Value)}_to_{Path.GetFileNameWithoutExtension(_target.SkeletonName.Value)}.retarget.json";
+            var result = _standardDialogs.ShowSystemSaveFileDialog(name, "Retarget preset (*.retarget.json)|*.retarget.json", ".json");
+            if (result.Result == false || string.IsNullOrWhiteSpace(result.FilePath))
+                return;
+            try
+            {
+                SavePreset(result.FilePath);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                _standardDialogs.ShowDialogBox($"Could not save {result.FilePath}: {e.Message}");
+            }
+        }
+
+        [RelayCommand] void LoadPresetFromFile()
+        {
+            if (BoneManager.Bones.Count == 0)
+            {
+                _standardDialogs.ShowDialogBox("Pick the source and target models first: a preset is put on their bones by name.");
+                return;
+            }
+            var result = _standardDialogs.ShowSystemOpenFileDialog(false, "Retarget preset (*.retarget.json)|*.retarget.json|All files|*.*");
+            if (result.Result == false || result.FilePaths.Count == 0)
+                return;
+            var path = result.FilePaths[0];
+            try
+            {
+                var report = LoadPreset(path);
+                if (report != null)
+                    _standardDialogs.ShowDialogBox(report, "Preset loaded");
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidDataException)
+            {
+                _standardDialogs.ShowDialogBox($"Could not read {path} as a retarget preset: {e.Message}");
+            }
         }
 
         [RelayCommand]public void UpdateAnimation()

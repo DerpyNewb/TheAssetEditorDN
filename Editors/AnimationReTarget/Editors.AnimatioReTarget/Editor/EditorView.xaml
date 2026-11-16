@@ -13,6 +13,10 @@
 
         <Button DockPanel.Dock="Bottom" Content="{loc:Loc AnimationReTarget.Editor.Save}" Command="{Binding SaveManager.ShowSaveSettingsCommand}"  Margin="2" />
         <Button DockPanel.Dock="Bottom" Content="{loc:Loc AnimationReTarget.Editor.OpenBoneMappingWindow}" Command="{Binding BoneManager.ShowBoneMappingWindowCommand}" Margin="2" />
+        <UniformGrid DockPanel.Dock="Bottom" Rows="1">
+            <Button Content="{loc:Loc AnimationReTarget.Editor.SavePreset}" ToolTip="{loc:Loc AnimationReTarget.Editor.SavePresetTooltip}" Command="{Binding SavePresetToFileCommand}" Margin="2" AutomationProperties.AutomationId="RetargetSavePreset"/>
+            <Button Content="{loc:Loc AnimationReTarget.Editor.LoadPreset}" ToolTip="{loc:Loc AnimationReTarget.Editor.LoadPresetTooltip}" Command="{Binding LoadPresetFromFileCommand}" Margin="2" AutomationProperties.AutomationId="RetargetLoadPreset"/>
+        </UniformGrid>
 
         <presentation:BoneSettingsView DockPanel.Dock="Top"/>
     </DockPanel>

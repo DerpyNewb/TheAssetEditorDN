@@ -134,6 +134,64 @@ namespace Test.AnimatioReTarget
             Assert.That(Node("hand_right").MappedFrom, Is.EqualTo("hand_right"));
         }
 
+        // A preset keeps the mapping and every setting by bone name, so they come back after the tree is rebuilt.
+        static string TempPreset() => Path.Combine(Path.GetTempPath(), $"retarget_{Guid.NewGuid():N}.retarget.json");
+
+        const string KarlModel = @"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.wsmodel";
+        const string CelestialModel = @"variantmeshes\wh_variantmodels\hu1e\cth\cth_celestial_general\cth_celestial_general_body_02.wsmodel";
+
+        [Test]
+        public void APreset_BringsBackTheMappingAndSettings_AfterTheTreeIsRebuilt()
+        {
+            var hand = Node("hand_right");
+            hand.TranslationOffset.X.Value = 0.2;
+            (hand.RotationOffset.X.Value, hand.RotationOffset.Y.Value, hand.RotationOffset.Z.Value) = (5, 10, 15);
+            hand.FreezeRotationZ = true;
+            hand.BoneLengthMult = 1.5f;
+            Node("weapon_1").SelectedRelativeBone = Node("hand_right");
+            MapTo(Node("feathers_0"), SourceHand);
+            _editor.Settings.SkeletonScale = 1.25f;
+            Pump();
+            _generated.Player.CurrentFrame = 10;
+            var expected = Shown("weapon_1").Translation;
+            var path = TempPreset();
+            _editor.SavePreset(path);
+
+            // Another target and back rebuilds the tree, and everything above is gone.
+            _scene.SetMesh(_target, _runner.PackFileService.FindFile(KarlModel)!);
+            _scene.SetMesh(_target, _runner.PackFileService.FindFile(CelestialModel)!);
+            _editor.Settings.SkeletonScale = 1;
+            Pump();
+            Assert.That(Node("hand_right").TranslationOffset.X.Value, Is.EqualTo(0));
+            Assert.That(Node("hand_right").HasMapping, Is.False);
+
+            Assert.That(_editor.LoadPreset(path), Is.Null);
+            Pump();
+            File.Delete(path);
+
+            hand = Node("hand_right");
+            Assert.That(hand.MappedFrom, Is.EqualTo("hand_right"));
+            Assert.That(Node("feathers_0").MappedFrom, Is.EqualTo("hand_right"));
+            Assert.That((hand.RotationOffset.X.Value, hand.RotationOffset.Y.Value, hand.RotationOffset.Z.Value), Is.EqualTo((5.0, 10.0, 15.0)));
+            Assert.That(hand.FreezeRotationZ, Is.True);
+            Assert.That(hand.BoneLengthMult, Is.EqualTo(1.5f));
+            Assert.That(Node("weapon_1").SelectedRelativeBone, Is.SameAs(Node("hand_right")));
+            Assert.That(_editor.Settings.SkeletonScale, Is.EqualTo(1.25f));
+            _generated.Player.CurrentFrame = 10;
+            Assert.That(Vector3.Distance(Shown("weapon_1").Translation, expected), Is.LessThan(1e-4f));
+        }
+
+        [Test]
+        public void APreset_NamesTheBonesItCouldNotPlace()
+        {
+            var path = TempPreset();
+            _editor.SavePreset(path);
+            File.WriteAllText(path, File.ReadAllText(path).Replace("\"feathers_0\"", "\"no_such_bone\""));
+            var report = _editor.LoadPreset(path);
+            File.Delete(path);
+            Assert.That(report, Does.Contain("no_such_bone"));
+        }
+
         // The handle in the view: a drag writes the selected bone's offsets, and the generated bone follows it exactly, at the
         // frame shown, on top of offsets already typed in, whatever the skeleton scale.
         Matrix Shown(string bone)
