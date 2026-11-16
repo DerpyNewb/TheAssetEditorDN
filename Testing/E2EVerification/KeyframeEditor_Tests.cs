@@ -335,6 +335,30 @@ namespace Test.E2EVerification
                 Click(new Vector2(2, 2));
                 Assert.That(Bones(), Is.Not.Null, "a click on nothing left bone mode");
                 Assert.That(Bones()!.SelectedBones, Is.Empty, "a click on nothing clears the bones");
+
+                // A real click moves the mouse a little, and a press and release 10 square pixels apart is a drag box. A box with
+                // no bone in it used to select the meshes under it and end bone mode: what the author saw on the gunner.
+                void Drag(Vector2 from, Vector2 to)
+                {
+                    mouse.Setup(x => x.Position()).Returns(from);
+                    mouse.Setup(x => x.IsMouseButtonPressed(GameWorld.Core.Components.Input.MouseButton.Left)).Returns(true);
+                    Service<GameWorld.Core.Components.Selection.SelectionComponent>().Update(new GameTime());
+                    mouse.Setup(x => x.IsMouseButtonPressed(GameWorld.Core.Components.Input.MouseButton.Left)).Returns(false);
+                    Click(to);
+                }
+                // Beside a joint, so the little box holds none, but a still click where the button came up picks a bone.
+                var from = screen[lone[0]] + new Vector2(6, 6);
+                var to = from + new Vector2(4, 3);
+                Click(to);
+                var still = Bones()!.SelectedBones.ToList();
+                Assert.That(still, Has.Count.EqualTo(1), "a still click beside a bone picks it");
+                Click(new Vector2(2, 2));
+                Drag(from, to);
+                Assert.That(Bones()?.SelectedBones, Is.EqualTo(still), "a click beside a bone that wobbles 4 by 3 pixels");
+
+                Drag(new Vector2(2, 2), new Vector2(40, 40));
+                Assert.That(Bones(), Is.Not.Null, "a box with no bone in it left bone mode");
+                Assert.That(Bones()!.SelectedBones, Is.Empty, "a box with no bone in it clears the bones");
             }
             finally
             {

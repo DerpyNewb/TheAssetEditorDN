@@ -163,6 +163,12 @@ namespace GameWorld.Core.Components.Selection
                     _commandFactory.CreateWithBuilder<BoneSelectionCommand>().Configure(x => x.Configure(bones, isSelectionModification, removeSelection)).BuildAndExecute();
                     return;
                 }
+
+                // A box with no bone in it is read as a click where the button came up. A real click moves the mouse a little, and
+                // 10 square pixels make a box, so a click beside a joint was one; it fell through to the meshes below and ended
+                // bone mode.
+                PickBone(boneState, _currentMousePos, isSelectionModification, removeSelection);
+                return;
             }
 
             var selectedObjects = _sceneManger.SelectObjects(unprojectedSelectionRect);
@@ -211,11 +217,7 @@ namespace GameWorld.Core.Components.Selection
             // ended bone mode, so in the KeyFrame editor a click on a bone selected the whole model.
             if (currentState is BoneSelectionState boneState)
             {
-                var bone = NearestBone(boneState, mousePosition);
-                if (bone >= 0)
-                    _commandFactory.CreateWithBuilder<BoneSelectionCommand>().Configure(x => x.Configure([bone], isSelectionModification, removeSelection)).BuildAndExecute();
-                else if (!isSelectionModification && !removeSelection && boneState.SelectedBones.Count != 0)
-                    _commandFactory.CreateWithBuilder<BoneSelectionCommand>().Configure(x => x.Configure([], false, false)).BuildAndExecute();
+                PickBone(boneState, mousePosition, isSelectionModification, removeSelection);
                 return;
             }
 
@@ -235,6 +237,15 @@ namespace GameWorld.Core.Components.Selection
 
         /// <summary>How far from a drawn bone, in pixels, a click still picks it; Kitbash's bone picker uses the same.</summary>
         public const float BonePickPixels = 15;
+
+        void PickBone(BoneSelectionState state, Vector2 mousePosition, bool isSelectionModification, bool removeSelection)
+        {
+            var bone = NearestBone(state, mousePosition);
+            if (bone >= 0)
+                _commandFactory.CreateWithBuilder<BoneSelectionCommand>().Configure(x => x.Configure([bone], isSelectionModification, removeSelection)).BuildAndExecute();
+            else if (!isSelectionModification && !removeSelection && state.SelectedBones.Count != 0)
+                _commandFactory.CreateWithBuilder<BoneSelectionCommand>().Configure(x => x.Configure([], false, false)).BuildAndExecute();
+        }
 
         /// <summary>The bone drawn nearest a point on screen, or -1: posed as the drag's box reads them, from the model's player.</summary>
         int NearestBone(BoneSelectionState state, Vector2 mousePosition)
