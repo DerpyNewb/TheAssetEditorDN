@@ -90,6 +90,23 @@ namespace GameWorld.Core.Test.Animation.Posing
             Assert.That(Vector3.Distance(At(clip.DynamicFrames[1], skeleton, FootL), footOnFrame1), Is.LessThan(1e-3f));
         }
 
+        // CA's idle legs are nearly straight. CCD crawls near full stretch, and at 64 iterations a reachable foot ended 5 mm
+        // short in humanoid01's idle, so pins solve with more.
+        [Test]
+        public void ANearlyStraightLeg_StillReachesItsPin()
+        {
+            var skeleton = Build(
+                new("root", -1, Vector3.Zero), new("pelvis", 0, Vector3.UnitY),
+                new("thigh", 1, new Vector3(0.2f, 0, 0)), new("shin", 2, new Vector3(0, -0.5f, 0.04f)), new("foot", 3, new Vector3(0, -0.5f, -0.04f)));
+            var frame = BindFrame(skeleton);
+            var pin = Pin.Create(frame, skeleton, 4);
+            frame.Position[1] += new Vector3(0.07f, 0, 0);   // the hip now 1.00245 from the foot, against a leg of 1.0032
+
+            PinSolver.Resolve(frame, skeleton, [pin], [1], null);
+
+            Assert.That(Vector3.Distance(At(frame, skeleton, 4), pin.Target), Is.LessThan(1e-3f));
+        }
+
         [Test]
         public void TwoFootPins_DoNotTouchTheHips()
         {

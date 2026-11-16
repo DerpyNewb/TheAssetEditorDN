@@ -8,6 +8,7 @@ using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.BaseControl;
 using Editors.Shared.Core.Common.ReferenceModel;
 using GameWorld.Core.Animation;
+using GameWorld.Core.Animation.Posing;
 using GameWorld.Core.Commands;
 using GameWorld.Core.Commands.Bone;
 using GameWorld.Core.Components.Gizmo;
@@ -25,7 +26,7 @@ using SkeletonBoneNode = Editors.Shared.Core.Common.ReferenceModel.SkeletonBoneN
 
 namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 {
-    public class AnimationKeyframeEditorViewModel : EditorHostBase, IDisposable
+    public partial class AnimationKeyframeEditorViewModel : EditorHostBase, IDisposable
     {
         public override Type EditorViewModelType => typeof(EditorView);
         public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.AnimationKeyFrame_Editor;
@@ -51,6 +52,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         public CommandManager CommandManager { get => _commandExecutor; private set { _commandExecutor = value; } }
         private CommandManager _commandExecutor;
         private readonly IFileSaveService _packFileSaveService;
+        private readonly JointLimitStore _jointLimitStore;
         private SceneObject _newAnimation;
 
         public SceneObject Mount { get => _mount; private set { _mount = value; } }
@@ -165,11 +167,13 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             SelectionManager selectionManager,
             GizmoComponent gizmoComponent,
             CommandManager commandExecutor,
-            IFileSaveService packFileSaveService)
+            IFileSaveService packFileSaveService,
+            JointLimitStore jointLimitStore)
             : base(editorHostParameters)
         {
             DisplayName = "Keyedframing Editor";
             _pfs = pfs;
+            _jointLimitStore = jointLimitStore;
 
 
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
@@ -220,6 +224,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _copyPastePose = new(this);
             _copyPasteClipboardPose = new(this);
             _interpolateBetweenPose = new(this);
+            InitializePosing();
         }
 
         internal void Create(SceneObject rider, SceneObject mount, SceneObject newAnimation)
@@ -247,6 +252,11 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         private void RiderOnFrameChanged(int currentFrame)
         {
+            if (currentFrame != _bendFrame)
+            {
+                _bendFrame = currentFrame;
+                ResetBend();
+            }
             if (_rider.Player.AnimationClip != null)
             {
                 CurrentFrameNumber.Value = _rider.Player.CurrentFrame.ToString();
@@ -308,6 +318,10 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
             MountLinkController.ReloadFragments(true, false);
             _skeleton = newValue;
+
+            // Pins name bones of the old skeleton, and limits are per skeleton.
+            ClearPins();
+            LoadJointLimits(newValue);
         }
 
         public List<int> GetSelectedBones() => _gizmoToolbox.PreviousSelectedBones;
@@ -385,12 +399,14 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         {
             Pause();
             _commandExecutor.Undo();
+            ResetBend();
         }
 
         public void RedoPose()
         {
             Pause();
             _commandExecutor.Redo();
+            ResetBend();
         }
 
         public void ResetPose()
@@ -421,17 +437,17 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public void PasteIntoCurrentFrame()
         {
-            _copyPastePose.PasteIntoCurrentFrame();
+            KeepPinsThrough(_copyPastePose.PasteIntoCurrentFrame);
         }
 
         public void PasteIntoSelectedCurrentNode()
         {
-            _copyPastePose.PasteIntoSelectedCurrentNode();
+            KeepPinsThrough(_copyPastePose.PasteIntoSelectedCurrentNode);
         }
 
         public void PastePreviousEditedNodesIntoCurrentPose()
         {
-            _copyPastePose.PastePreviousEditedNodesIntoCurrentPose();
+            KeepPinsThrough(_copyPastePose.PastePreviousEditedNodesIntoCurrentPose);
         }
         private void CopyASingleFrameClipboard()
         {
@@ -736,6 +752,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public void Dispose()
         {
+            CancelMeasuring();
             if (_mount != null)
             {
                 _mount.SkeletonChanged -= MountSkeletonChanged;

@@ -82,6 +82,8 @@ namespace AnimationEditor.AnimationKeyframeEditor
 
                 boneSelectionState.EnableInverseKinematics = _parent.EnableInverseKinematics.Value;
                 boneSelectionState.InverseKinematicsEndBoneIndex = _parent.ModelBoneListForIKEndBone.SelectedItem?.BoneIndex ?? -1;
+                _parent.PushPosingState(boneSelectionState);
+                _parent.ResetBend();
 
                 if (boneSelectionState.EnableInverseKinematics)
                 {
@@ -165,6 +167,7 @@ namespace AnimationEditor.AnimationKeyframeEditor
                 selection.Skeleton = _parent.Skeleton;
                 selection.CurrentFrame = _parent.Rider.Player.CurrentFrame;
                 selection.SelectedBones.Clear();
+                _parent.PushPosingState(selection);
             }
 
             if (!_isSelectModeSubscribed)

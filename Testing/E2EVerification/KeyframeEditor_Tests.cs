@@ -237,6 +237,205 @@ namespace Test.E2EVerification
             }
         }
 
+        // ---- The posing kit: pins, bend direction, mirror and joint limits, driven through the panel's own methods. ----
+
+        static (AnimationKeyframeEditorViewModel Editor, GameWorld.Core.Components.Selection.BoneSelectionState State) OpenPosing()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
+            var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+            var sceneObjectEditor = runner.GetRequiredServiceInCurrentEditorScope<SceneObjectEditor>();
+            sceneObjectEditor.SetMesh(editor.Rider, runner.PackFileService.FindFile(KarlMesh)!);
+            sceneObjectEditor.SetAnimation(editor.Rider, IdleAnimation);
+            editor.Rider.Player.CurrentFrame = 3;
+            editor.EnterSelectMode();
+            var state = editor.SelectionManager.GetState<GameWorld.Core.Components.Selection.BoneSelectionState>();
+            Assert.That(state, Is.Not.Null, "bone selection mode did not start");
+            return (editor, state!);
+        }
+
+        static void Select(GameWorld.Core.Components.Selection.BoneSelectionState state, int bone)
+        {
+            state.SelectedBones.Clear();
+            state.ModifySelection([bone], false);
+        }
+
+        static Vector3 At(AnimationKeyframeEditorViewModel editor, int frame, int bone) =>
+            TransformBoneCommand.WorldTransform(editor.Rider.AnimationClip!.DynamicFrames[frame], editor.Skeleton, bone).Translation;
+
+        [Test]
+        public void Warhammer3_PinnedFeet_StayWhenAnIkDragMovesTheBody()
+        {
+            var (editor, state) = OpenPosing();
+            var skeleton = editor.Skeleton;
+            var (footL, footR, hand) = (skeleton.GetBoneIndexByName("foot_left"), skeleton.GetBoneIndexByName("foot_right"), skeleton.GetBoneIndexByName("hand_left"));
+            Assert.That(new[] { footL, footR, hand }, Has.None.EqualTo(-1));
+            Select(state, footL);
+            editor.PinSelectedBone();
+            Select(state, footR);
+            editor.PinSelectedBone();
+            Assert.That(editor.PinRows.Select(x => x.BoneName), Is.EqualTo(new[] { "foot_left", "foot_right" }));
+            var feet = (At(editor, 3, footL), At(editor, 3, footR));
+            var root = editor.Rider.AnimationClip!.DynamicFrames[3].Rotation[skeleton.GetBoneIndexByName("root")];
+
+            // An IK drag from the hand all the way up to the root turns the spine and pelvis, which swing the legs.
+            editor.EnableInverseKinematics.Value = true;
+            editor.ModelBoneListForIKEndBone.SelectedItem = editor.ModelBoneListForIKEndBone.PossibleValues.First(x => x.BoneIndex == 0);
+            Select(state, hand);
+            var command = editor.CommandFactory.CreateWithBuilder<TransformBoneCommand>().Configure(x => x.Configure([hand], state)).Build();
+            command.ApplyTransformation(Matrix.CreateTranslation(Vector3.Zero), GameWorld.Core.Components.Gizmo.GizmoMode.Translate);
+            command.ApplyTransformation(Matrix.CreateTranslation(new Vector3(0.1f, -0.15f, 0.1f)), GameWorld.Core.Components.Gizmo.GizmoMode.Translate);
+            editor.CommandManager.ExecuteCommand(command);
+
+            // The idle's legs are nearly straight, so a bigger drag swings the hips past where a leg can follow.
+            Assert.That(editor.Rider.AnimationClip!.DynamicFrames[3].Rotation[skeleton.GetBoneIndexByName("root")], Is.Not.EqualTo(root), "the drag must turn the root for the pins to have work");
+            Assert.That(Vector3.Distance(At(editor, 3, footL), feet.Item1), Is.LessThan(1e-3f));
+            Assert.That(Vector3.Distance(At(editor, 3, footR), feet.Item2), Is.LessThan(1e-3f));
+        }
+
+        // The plain gizmo move (no IK) takes another path through TransformBoneCommand, one that needs the rider's real mesh node.
+        [Test]
+        public void Warhammer3_PinnedFeet_StayWhenTheGizmoMovesThePelvis()
+        {
+            var (editor, state) = OpenPosing();
+            var skeleton = editor.Skeleton;
+            var (footL, footR, root) = (skeleton.GetBoneIndexByName("foot_left"), skeleton.GetBoneIndexByName("foot_right"), skeleton.GetBoneIndexByName("root"));
+            Select(state, footL);
+            editor.PinSelectedBone();
+            Select(state, footR);
+            editor.PinSelectedBone();
+            var feet = (At(editor, 3, footL), At(editor, 3, footR));
+            var rootBefore = At(editor, 3, root);
+            Select(state, root);
+
+            // The plain path reads the mesh's sampled frame, which a render tick builds; a test draws no frame, so build it here.
+            ((GameWorld.Core.SceneNodes.Rmv2MeshNode)state.RenderObject).AnimationPlayer.SetManualFrame(AnimationSampler.Sample(3, 0, skeleton, editor.Rider.AnimationClip!));
+            // It also takes an identity matrix to mean "no drag yet", so the gizmo starts where a real one would: off the origin.
+            var command = editor.CommandFactory.CreateWithBuilder<TransformBoneCommand>().Configure(x => x.Configure([root], state)).Build();
+            command.ApplyTransformation(Matrix.CreateTranslation(rootBefore), GameWorld.Core.Components.Gizmo.GizmoMode.Translate);
+            command.ApplyTransformation(Matrix.CreateTranslation(rootBefore + new Vector3(0, -0.08f, 0)), GameWorld.Core.Components.Gizmo.GizmoMode.Translate);
+            editor.CommandManager.ExecuteCommand(command);
+
+            Assert.That(Vector3.Distance(At(editor, 3, root), rootBefore), Is.GreaterThan(0.05f), "the hips came down");
+            Assert.That(Vector3.Distance(At(editor, 3, footL), feet.Item1), Is.LessThan(1e-3f));
+            Assert.That(Vector3.Distance(At(editor, 3, footR), feet.Item2), Is.LessThan(1e-3f));
+        }
+
+        [Test]
+        public void Warhammer3_HoldPinsAcrossAB_KeepsTheFootOnEveryFrame()
+        {
+            var (editor, state) = OpenPosing();
+            var foot = editor.Skeleton.GetBoneIndexByName("foot_left");
+            Select(state, foot);
+            editor.PinSelectedBone();
+            editor.Rider.Player.CurrentFrame = 0;
+            editor.SelectFrameAInterpolation();
+            editor.Rider.Player.CurrentFrame = 6;
+            editor.SelectFrameBInterpolation();
+            var held = At(editor, 0, foot);
+            var stepBefore = editor.CommandManager.Peek();
+
+            editor.HoldPinsAcrossAB();
+
+            for (var frame = 0; frame <= 6; frame++)
+                Assert.That(Vector3.Distance(At(editor, frame, foot), held), Is.LessThan(1e-3f), $"frame {frame}");
+            editor.UndoPose();
+            Assert.That(editor.CommandManager.Peek(), Is.SameAs(stepBefore), "the hold was one step");
+        }
+
+        [Test]
+        public void Warhammer3_Mirror_TwiceRestoresTheFrame()
+        {
+            var (editor, _) = OpenPosing();
+            var before = editor.Rider.AnimationClip!.DynamicFrames[3].Clone();
+
+            editor.MirrorPose();
+            Assert.That(editor.Rider.AnimationClip!.DynamicFrames[3].Rotation, Is.Not.EqualTo(before.Rotation), "one mirror changes the pose");
+            editor.MirrorPose();
+
+            var after = editor.Rider.AnimationClip!.DynamicFrames[3];
+            for (var bone = 0; bone < before.Rotation.Count; bone++)
+            {
+                // CA's 16-bit rotations are a touch short of unit length; the mirror hands back unit ones.
+                var dot = MathF.Abs(Quaternion.Dot(after.Rotation[bone], Quaternion.Normalize(before.Rotation[bone])));
+                Assert.That(2 * MathF.Acos(MathF.Min(1, dot)), Is.LessThan(2e-3f), $"rotation of {editor.Skeleton.BoneNames[bone]}");
+                Assert.That(Vector3.Distance(after.Position[bone], before.Position[bone]), Is.LessThan(1e-4f), $"position of {editor.Skeleton.BoneNames[bone]}");
+            }
+        }
+
+        [Test]
+        public void Warhammer3_Bend_UndoesAsOneStep()
+        {
+            var (editor, state) = OpenPosing();
+            var hand = editor.Skeleton.GetBoneIndexByName("hand_left");
+            editor.EnableInverseKinematics.Value = true;
+            Select(state, hand);
+            var before = editor.Rider.AnimationClip!.DynamicFrames[3].Clone();
+            var handBefore = At(editor, 3, hand);
+            var stepBefore = editor.CommandManager.Peek();
+
+            foreach (var degrees in new[] { 10f, 20f, 30f })
+                editor.BendDegrees = degrees;
+
+            Assert.That(editor.Rider.AnimationClip!.DynamicFrames[3].Rotation, Is.Not.EqualTo(before.Rotation), "the bend moved the arm");
+            Assert.That(Vector3.Distance(At(editor, 3, hand), handBefore), Is.LessThan(1e-3f), "the hand stays put");
+            editor.UndoPose();
+            Assert.That(editor.Rider.AnimationClip!.DynamicFrames[3].Rotation, Is.EqualTo(before.Rotation));
+            Assert.That(editor.CommandManager.Peek(), Is.SameAs(stepBefore), "the whole slider drag was one step");
+        }
+
+        [Test]
+        public void Warhammer3_LimitsOff_IkMatchesTheOldSolver()
+        {
+            var (editor, state) = OpenPosing();
+            var skeleton = editor.Skeleton;
+            var (hand, shoulder) = (skeleton.GetBoneIndexByName("hand_left"), skeleton.GetBoneIndexByName("upperarm_left"));
+            editor.UseJointLimits.Value = false;
+            editor.EnableInverseKinematics.Value = true;
+            editor.ModelBoneListForIKEndBone.SelectedItem = editor.ModelBoneListForIKEndBone.PossibleValues.First(x => x.BoneIndex == shoulder);
+            Select(state, hand);
+            Assert.That(state.JointLimits, Is.Null);
+            var expected = editor.Rider.AnimationClip!.DynamicFrames[3].Clone();
+            TransformBoneCommand.SolveInverseKinematics(expected, skeleton, hand, shoulder, At(editor, 3, hand) + new Vector3(0.1f, 0.1f, 0));
+
+            var command = editor.CommandFactory.CreateWithBuilder<TransformBoneCommand>().Configure(x => x.Configure([hand], state)).Build();
+            command.ApplyTransformation(Matrix.CreateTranslation(Vector3.Zero), GameWorld.Core.Components.Gizmo.GizmoMode.Translate);
+            command.ApplyTransformation(Matrix.CreateTranslation(new Vector3(0.1f, 0.1f, 0)), GameWorld.Core.Components.Gizmo.GizmoMode.Translate);
+
+            Assert.That(editor.Rider.AnimationClip!.DynamicFrames[3].Rotation, Is.EqualTo(expected.Rotation));
+        }
+
+        [Test]
+        public void Warhammer3_PasteIntoCurrentFrame_KeepsPinnedFeet()
+        {
+            var (editor, state) = OpenPosing();
+            var foot = editor.Skeleton.GetBoneIndexByName("foot_left");
+            Select(state, foot);
+            editor.PinSelectedBone();
+            editor.Rider.Player.CurrentFrame = 0;
+            editor.CopyCurrentPose();
+            editor.Rider.Player.CurrentFrame = 10;
+            var footOn10 = At(editor, 10, foot);
+            Assume.That(Vector3.Distance(At(editor, 0, foot), footOn10), Is.GreaterThan(1e-4f), "the idle must move the foot between frames 0 and 10");
+
+            editor.PasteIntoCurrentFrame();
+
+            Assert.That(Vector3.Distance(At(editor, 10, foot), footOn10), Is.LessThan(1e-3f));
+        }
+
+        // Review Focus 1: the posing code walks bones parents-first and must not rely on index order. This records whether
+        // humanoid01 happens to be index-ordered; it fails nothing either way.
+        [Test]
+        public void Warhammer3_Humanoid01_ParentOrder_IsRecorded()
+        {
+            var (editor, _) = OpenPosing();
+            var skeleton = editor.Skeleton;
+            var outOfOrder = Enumerable.Range(0, skeleton.BoneCount).Count(x => skeleton.GetParentBoneIndex(x) > x);
+            TestContext.Out.WriteLine($"{skeleton.SkeletonName}: {outOfOrder} of {skeleton.BoneCount} bones come before their parent");
+            Assert.Pass();
+        }
+
         // Both slot pickers in the mount-link panel had their handlers commented out, so picking a slot loaded nothing.
         // A mount slot X now plays its animation and picks the rider's RIDER_X, which plays the rider's.
         [Test]

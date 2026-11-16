@@ -51,6 +51,63 @@
             </DockPanel>
         </Grid>
 
+        <Expander DockPanel.Dock="Top" Margin="5,5,5,0" IsExpanded="False" Header="{loc:Loc AnimationKeyframeEditor.Posing.Limits.Header}">
+            <StackPanel Margin="4">
+                <CheckBox Content="{loc:Loc AnimationKeyframeEditor.Posing.Limits.Use}" ToolTip="{loc:Loc AnimationKeyframeEditor.Posing.Limits.Use.ToolTip}" IsChecked="{Binding UseJointLimits.Value, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Margin="0,4" TextWrapping="Wrap" Text="{Binding JointLimitStatus.Value, Mode=OneWay}"/>
+                <UniformGrid Columns="2">
+                    <Button Margin="0,0,2,2" Content="{loc:Loc AnimationKeyframeEditor.Posing.Limits.Remeasure}" Click="{s:MethodBinding RemeasureJointLimits}"/>
+                    <Button Margin="2,0,0,2" Content="{loc:Loc AnimationKeyframeEditor.Posing.Limits.Cancel}" Click="{s:MethodBinding CancelMeasuring}" IsEnabled="{Binding IsMeasuringJointLimits.Value}"/>
+                    <Button Margin="0,0,2,0" Content="{loc:Loc AnimationKeyframeEditor.Posing.Limits.Widen}" ToolTip="{loc:Loc AnimationKeyframeEditor.Posing.Limits.Widen.ToolTip}" Click="{s:MethodBinding WidenSelectedBoneLimit}"/>
+                    <Button Margin="2,0,0,0" Content="{loc:Loc AnimationKeyframeEditor.Posing.Limits.Reset}" Click="{s:MethodBinding ResetSelectedBoneLimit}"/>
+                </UniformGrid>
+            </StackPanel>
+        </Expander>
+
+        <Expander DockPanel.Dock="Top" Margin="5,5,5,0" IsExpanded="False" Header="{loc:Loc AnimationKeyframeEditor.Posing.Bend.Header}">
+            <StackPanel Margin="4">
+                <TextBlock TextWrapping="Wrap" Text="{loc:Loc AnimationKeyframeEditor.Posing.Bend.Hint}"/>
+                <DockPanel Margin="0,4,0,0">
+                    <TextBlock DockPanel.Dock="Right" Width="40" TextAlignment="Right" Text="{Binding BendDegrees, StringFormat={}{0:F0}°}"/>
+                    <Slider Minimum="-180" Maximum="180" SmallChange="1" LargeChange="15" Value="{Binding BendDegrees, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding EnableInverseKinematics.Value}"/>
+                </DockPanel>
+            </StackPanel>
+        </Expander>
+
+        <Expander DockPanel.Dock="Top" Margin="5,5,5,0" IsExpanded="False" Header="{loc:Loc AnimationKeyframeEditor.Posing.Pins.Header}">
+            <StackPanel Margin="4">
+                <TextBlock TextWrapping="Wrap" Text="{loc:Loc AnimationKeyframeEditor.Posing.Pins.Hint}"/>
+                <ListBox Margin="0,4" MinHeight="40" MaxHeight="120" ItemsSource="{Binding PinRows}" SelectedItem="{Binding SelectedPinRow, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" Width="110" VerticalAlignment="Center" Text="{Binding BoneName}"/>
+                                <TextBlock DockPanel.Dock="Left" Margin="4,0" VerticalAlignment="Center" Text="{loc:Loc AnimationKeyframeEditor.Posing.Pins.EndBone}"/>
+                                <ComboBox MinWidth="110" ItemsSource="{Binding EndBoneOptions}" SelectedItem="{Binding EndBoneName, Mode=TwoWay}"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <UniformGrid Columns="3">
+                    <Button Margin="0,0,2,2" Content="{loc:Loc AnimationKeyframeEditor.Posing.Pins.Pin}" Click="{s:MethodBinding PinSelectedBone}"/>
+                    <Button Margin="2,0,2,2" Content="{loc:Loc AnimationKeyframeEditor.Posing.Pins.Remove}" Click="{s:MethodBinding RemoveSelectedPin}"/>
+                    <Button Margin="2,0,0,2" Content="{loc:Loc AnimationKeyframeEditor.Posing.Pins.Clear}" Click="{s:MethodBinding ClearPins}"/>
+                </UniformGrid>
+                <Button Content="{loc:Loc AnimationKeyframeEditor.Posing.Pins.Hold}" ToolTip="{loc:Loc AnimationKeyframeEditor.Posing.Pins.Hold.ToolTip}" Click="{s:MethodBinding HoldPinsAcrossAB}"/>
+            </StackPanel>
+        </Expander>
+
+        <Expander DockPanel.Dock="Top" Margin="5,5,5,0" IsExpanded="False" Header="{loc:Loc AnimationKeyframeEditor.Posing.Mirror.Header}">
+            <StackPanel Margin="4">
+                <TextBlock TextWrapping="Wrap" Text="{loc:Loc AnimationKeyframeEditor.Posing.Mirror.Hint}"/>
+                <UniformGrid Margin="0,4,0,0" Columns="3">
+                    <Button Margin="0,0,2,0" Content="{loc:Loc AnimationKeyframeEditor.Posing.Mirror.Flip}" Click="{s:MethodBinding MirrorPose}"/>
+                    <Button Margin="2,0,2,0" Content="{loc:Loc AnimationKeyframeEditor.Posing.Mirror.LeftOntoRight}" Click="{s:MethodBinding MirrorLeftOntoRight}"/>
+                    <Button Margin="2,0,0,0" Content="{loc:Loc AnimationKeyframeEditor.Posing.Mirror.RightOntoLeft}" Click="{s:MethodBinding MirrorRightOntoLeft}"/>
+                </UniformGrid>
+            </StackPanel>
+        </Expander>
+
         <Grid DockPanel.Dock="Top" Margin="5,5,5,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
