@@ -48,6 +48,20 @@ namespace Test.E2EVerification
             Assert.That(sheet.Rows.Select(x => x.Bone), Is.EqualTo(new[] { -1, skeleton.GetBoneIndexByName("lowerarm_left"), skeleton.GetBoneIndexByName("hand_left") }));
         }
 
+        // Moving to another frame empties the 3D view's bone selection; the rows keep the bones last picked, or scrubbing to the
+        // frame to paste on would take away the row to paste into.
+        [Test]
+        public void BoneRows_StayWhenTheFrameChanges()
+        {
+            var (editor, state, sheet) = Open();
+            var hand = editor.Skeleton.GetBoneIndexByName("hand_left");
+            SelectBones(state, hand);
+
+            sheet.CurrentFrame = 10;
+
+            Assert.That(sheet.Rows.Select(x => x.Bone), Is.EqualTo(new[] { -1, hand }));
+        }
+
         [Test]
         public void CopyThenPaste_OnTheAllBonesRow_CopiesWholePoses_AsOneUndoStep()
         {
@@ -214,6 +228,37 @@ namespace Test.E2EVerification
             sheet.Paste();
 
             Assert.That(Angle(editor.Rider.AnimationClip!.DynamicFrames[10].Rotation[shin], copied), Is.LessThan(1e-4f));
+        }
+
+        // The strip as drawn: selected keys in the selected colour, the others not, and the current frame's line through the rows.
+        [Test, Apartment(ApartmentState.STA)]
+        public void TheStrip_DrawsTheSelection_AndTheCurrentFrame()
+        {
+            var (editor, state, sheet) = Open();
+            SelectBones(state, editor.Skeleton.GetBoneIndexByName("hand_left"));
+            SelectCells(sheet, 0, 2, 6);
+            sheet.CurrentFrame = 10;
+            var view = new KeyframeSheetView { DataContext = sheet };
+            view.Measure(new System.Windows.Size(900, 170));
+            view.Arrange(new System.Windows.Rect(0, 0, 900, 170));
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(900, 170, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(view);
+            var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using (var file = File.Create(Path.Combine(TestContext.CurrentContext.WorkDirectory, "keyframe_sheet.png")))
+                png.Save(file);
+
+            var layout = KeyframeSheetLayout.Fit(900, sheet.FrameCount);
+            System.Windows.Media.Color At(double x, double y)
+            {
+                var pixel = new byte[4];
+                bitmap.CopyPixels(new System.Windows.Int32Rect((int)x, (int)y, 1, 1), pixel, 4, 0);
+                return System.Windows.Media.Color.FromRgb(pixel[2], pixel[1], pixel[0]);
+            }
+            var middle = layout.RowTop(0) + KeyframeSheetLayout.RowHeight / 2;
+            Assert.That(At(layout.FrameCentre(4), middle), Is.EqualTo(System.Windows.Media.Colors.Orange), "a selected key");
+            Assert.That(At(layout.FrameCentre(14), middle), Is.EqualTo(System.Windows.Media.Colors.Gray), "a key outside the selection");
+            Assert.That(At(layout.FrameCentre(10), layout.RowTop(1) + 2), Is.EqualTo(System.Windows.Media.Color.FromRgb(0x00, 0x7a, 0xcc)), "the current frame's line");
         }
 
         // The strip's geometry: a click lands on the frame and row it is drawn over.

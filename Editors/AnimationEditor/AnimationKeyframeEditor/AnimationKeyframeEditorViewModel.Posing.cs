@@ -379,7 +379,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             }
             if (!HasRange(out var a, out var b))
             {
-                MessageBox.Show("Set frames A and B first, with the Frame A and Frame B buttons.", "Pins", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Select frames A to B in the Keyframes strip first.", "Pins", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -389,29 +389,6 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             var limits = ActiveJointLimits;
             var frames = Enumerable.Range(Math.Min(a, b), Math.Abs(b - a) + 1).ToList();
             ExecuteFrameEdit(clip, frames, c => pins.ForEach(pin => PinSolver.HoldAcross(c, skeleton, pin, a, b, limits)), "Hold pins across frames");
-        }
-
-        /// <summary>
-        /// Runs a paste, then puts every pinned bone back where it was on that frame before it, as a second undo step. The pins
-        /// leave <paramref name="pastedBones"/> alone, as they leave a dragged bone alone, and add no step when nothing moved.
-        /// </summary>
-        void KeepPinsThrough(Action paste, IReadOnlyCollection<int> pastedBones)
-        {
-            var clip = _rider.AnimationClip;
-            if (clip == null || _skeleton == null || _pins.Count == 0)
-            {
-                paste();
-                return;
-            }
-
-            var frameNr = _rider.Player.CurrentFrame;
-            var skeleton = _skeleton;
-            var held = PinSolver.WhereTheyAre(clip.DynamicFrames[frameNr], skeleton, _pins);
-            paste();
-            var limits = ActiveJointLimits;
-            if (PinSolver.Resolve(clip.DynamicFrames[frameNr].Clone(), skeleton, held, pastedBones, limits).Count == 0)
-                return;
-            ExecuteFrameEdit(clip, [frameNr], c => PinSolver.Resolve(c.DynamicFrames[frameNr], skeleton, held, pastedBones, limits), "Keep pinned bones");
         }
 
         // ---- Mirror ----

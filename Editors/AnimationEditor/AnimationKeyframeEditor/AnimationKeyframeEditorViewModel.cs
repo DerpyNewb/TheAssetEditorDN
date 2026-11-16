@@ -30,11 +30,10 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
     {
         public override Type EditorViewModelType => typeof(EditorView);
         public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.AnimationKeyFrame_Editor;
+        public override IReadOnlyList<EditorPane> EditorPanes => [new("Keyframes", "AnimationKeyframeEditor.Sheet.Title", typeof(KeyframeSheetView), Sheet, UnderPlayer: true)];
         private readonly IPackFileService _pfs;
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
         private GizmoToolbox _gizmoToolbox;
-        private CopyPastePose _copyPastePose;
-        private CopyPasteFromClipboardPose _copyPasteClipboardPose;
         private InterpolateBetweenPose _interpolateBetweenPose;
 
         public SelectionComponent SelectionComponent { get => _selectionComponent; private set { _selectionComponent = value; } }
@@ -68,31 +67,6 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public NotifyAttr<bool> AllowToSelectAnimRoot { get; set; } = new NotifyAttr<bool>(false);
         public NotifyAttr<bool> EnableInverseKinematics { get; set; } = new NotifyAttr<bool>(false);
-        public NotifyAttr<bool> IncrementFrameAfterCopyOperation { get; set; } = new NotifyAttr<bool>(false);
-
-        public bool CopyMoreThanSingleFrame
-        {
-            get => _copyMoreThanSingleFrame;
-            set
-            {
-                SetProperty(ref _copyMoreThanSingleFrame, value);
-                EnableFrameNrStartTextboxOnPaste.Value = value && PasteUsingFormBelow;
-            }
-        }
-        bool _copyMoreThanSingleFrame = false;
-
-        public NotifyAttr<bool> DontWarnDifferentSkeletons { get; set; } = new(false);
-        public NotifyAttr<bool> DontWarnIncomingFramesBigger { get; set; } = new(false);
-        public bool PasteUsingFormBelow
-        {
-            get => _pasteUsingFormBelow;
-            set
-            {
-                SetProperty(ref _pasteUsingFormBelow, value);
-                EnableFrameNrStartTextboxOnPaste.Value = !value && CopyMoreThanSingleFrame;
-            }
-        }
-        bool _pasteUsingFormBelow = false;
 
         public NotifyAttr<bool> PastePosition { get; set; } = new(true);
         public NotifyAttr<bool> PasteRotation { get; set; } = new(true);
@@ -100,14 +74,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public NotifyAttr<bool> IsDirty { get; set; } = new(false);
 
-        public NotifyAttr<bool> EnableFrameNrStartTextboxOnPaste { get; set; } = new(false);
         public NotifyAttr<bool> AutoSelectPreviousBonesOnFrameChange { get; set; } = new(false);
-
-        public NotifyAttr<string> CurrentFrameNumber { get; set; } = new("");
-        public NotifyAttr<string> TotalFrameNumber { get; set; } = new("");
-
-        public string FrameNrLength { get => _frameNrLength; set => SetProperty(ref _frameNrLength, value); }
-        private string _frameNrLength = "0";
 
         public string FramesDurationInSeconds
         {
@@ -221,8 +188,6 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _gizmoToolbox = new(this);
             EnableInverseKinematics.PropertyChanged += (_, _) => _gizmoToolbox.InverseKinematicsSettingsChanged();
             ModelBoneListForIKEndBone.SelectedItemChanged += _ => _gizmoToolbox.InverseKinematicsSettingsChanged();
-            _copyPastePose = new(this);
-            _copyPasteClipboardPose = new(this);
             _interpolateBetweenPose = new(this);
             InitializePosing();
         }
@@ -258,11 +223,6 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
                 _bendFrame = currentFrame;
                 ResetBend();
             }
-            if (_rider.Player.AnimationClip != null)
-            {
-                CurrentFrameNumber.Value = _rider.Player.CurrentFrame.ToString();
-                TotalFrameNumber.Value = _rider.Player.AnimationClip.DynamicFrames.Count.ToString();
-            }
         }
 
         private void MountSkeletonChanged(GameSkeleton newValue)
@@ -279,7 +239,6 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             {
                 _originalClip = newValue.Clone();
                 FramesDurationInSeconds = _originalClip.PlayTimeInSec.ToString();
-                SetFrameLengthMax();
             }
 
             IsDirty.Value = false;
@@ -434,112 +393,6 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _commandExecutor.ExecuteCommand(command);
         }
 
-        public void CopyCurrentPose()
-        {
-            _copyPastePose.CopyCurrentPose();
-        }
-
-        public void PasteIntoCurrentFrame()
-        {
-            KeepPinsThrough(_copyPastePose.PasteIntoCurrentFrame, []);
-        }
-
-        public void PasteIntoSelectedCurrentNode()
-        {
-            KeepPinsThrough(_copyPastePose.PasteIntoSelectedCurrentNode, GetSelectedBones()?.ToList() ?? []);
-        }
-
-        public void PastePreviousEditedNodesIntoCurrentPose()
-        {
-            KeepPinsThrough(_copyPastePose.PastePreviousEditedNodesIntoCurrentPose, GetModifiedBones()?.ToList() ?? []);
-        }
-        private void CopyASingleFrameClipboard()
-        {
-            _copyPasteClipboardPose.CopySingle();
-        }
-
-        private void CopyMultipleFramesClipboard()
-        {
-            _copyPasteClipboardPose.CopyCurrentFrameUpToEndFrame();
-        }
-
-        public void CopyPoseInRangeToClipboard()
-        {
-            if (CopyMoreThanSingleFrame)
-            {
-                CopyMultipleFramesClipboard();
-            }
-            else
-            {
-                CopyASingleFrameClipboard();
-            }
-
-        }
-
-        public void PasteASingleFrameClipboard()
-        {
-            _copyPasteClipboardPose.PasteSingle();
-        }
-
-        public void PasteMultipleFramesClipboardInRanges()
-        {
-            int.TryParse(FrameNrLength, out var pastedFramesLength);
-            _copyPasteClipboardPose.PasteMultipleUpToRange(pastedFramesLength);
-        }
-
-        private void PasteMultipleFramesClipboardWhole()
-        {
-            _copyPasteClipboardPose.PasteAll();
-        }
-
-        public void PastePoseInRangeFromClipboard()
-        {
-            if (PasteUsingFormBelow)
-            {
-                PasteMultipleFramesClipboardInRanges();
-            }
-            else if (!PasteUsingFormBelow && CopyMoreThanSingleFrame)
-            {
-                PasteMultipleFramesClipboardWhole();
-            }
-            else
-            {
-                PasteASingleFrameClipboard();
-            }
-
-        }
-
-        public void PasteIntoSelectedCurrentNodeFromClipboardWhole()
-        {
-            _copyPasteClipboardPose.PasteAllIntoSelectedNodes();
-        }
-
-        public void PasteIntoSelectedCurrentNodeFromClipboardInRange()
-        {
-            int.TryParse(FrameNrLength, out var pastedFramesLength);
-            _copyPasteClipboardPose.PasteMultipleUpToRangeIntoSelectedBones(pastedFramesLength);
-        }
-        private void PasteASingleFrameIntoSelectedCurrentNodeFromClipboard()
-        {
-            _copyPasteClipboardPose.PasteSingleIntoSelectedBones();
-        }
-
-        public void PasteIntoInRangeSelectedCurrentNodeFromClipboard()
-        {
-            if (PasteUsingFormBelow)
-            {
-                PasteIntoSelectedCurrentNodeFromClipboardInRange();
-            }
-            else if (!PasteUsingFormBelow && CopyMoreThanSingleFrame)
-            {
-                PasteIntoSelectedCurrentNodeFromClipboardWhole();
-            }
-            else
-            {
-                PasteASingleFrameIntoSelectedCurrentNodeFromClipboard();
-            }
-        }
-
         public void ResetDuration()
         {
             FramesDurationInSeconds = _originalClip.PlayTimeInSec.ToString();
@@ -561,98 +414,20 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             IsDirty.Value = true;
         }
 
-        public void FirstFrame()
+        /// <summary>Pauses on <paramref name="frame"/>, kept inside the clip, with the mount on the same frame.</summary>
+        public void GoToFrame(int frame)
         {
             if (_rider.AnimationClip == null)
-            {
-                MessageBox.Show("animation not loaded!", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
-            }
 
             Pause();
-            _rider.Player.CurrentFrame = 0;
-            if (_mount.AnimationClip != null) _mount.Player.CurrentFrame = 0;
-            if (AutoSelectPreviousBonesOnFrameChange.Value)
-            {
-                SelectPreviousBones();
-            }
-        }
-
-        public void PrevFrame()
-        {
-            if (_rider.AnimationClip == null)
-            {
-                MessageBox.Show("animation not loaded!", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            Pause();
-            _rider.Player.CurrentFrame--;
-            if (_mount.AnimationClip != null) _mount.Player.CurrentFrame--;
-            if (AutoSelectPreviousBonesOnFrameChange.Value)
-            {
-                SelectPreviousBones();
-            }
-            EnableInterpolationSliderWithinRange();
-        }
-        public void NextFrame()
-        {
-            if (_rider.AnimationClip == null)
-            {
-                MessageBox.Show("animation not loaded!", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            Pause();
-            _rider.Player.CurrentFrame++;
-            if (_mount.AnimationClip != null) _mount.Player.CurrentFrame++;
-            if (AutoSelectPreviousBonesOnFrameChange.Value)
-            {
-                SelectPreviousBones();
-            }
-            EnableInterpolationSliderWithinRange();
-        }
-
-        public void LastFrame()
-        {
-            if (_rider.AnimationClip == null)
-            {
-                MessageBox.Show("animation not loaded!", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            _rider.Player.CurrentFrame = _rider.AnimationClip.DynamicFrames.Count - 2;
-            _rider.Player.CurrentFrame++;
+            _rider.Player.CurrentFrame = Math.Clamp(frame, 0, _rider.AnimationClip.DynamicFrames.Count - 1);
             if (_mount.AnimationClip != null)
-            {
-                _mount.Player.CurrentFrame = _mount.AnimationClip.DynamicFrames.Count - 2;
-                _mount.Player.CurrentFrame++;
-            }
-            Pause();
+                _mount.Player.CurrentFrame = Math.Clamp(frame, 0, _mount.AnimationClip.DynamicFrames.Count - 1);
             if (AutoSelectPreviousBonesOnFrameChange.Value)
-            {
                 SelectPreviousBones();
-            }
-            ResetInterpolationSlider();
+            EnableInterpolationSliderWithinRange();
         }
-
-
-        public void SetFrameLengthMax()
-        {
-            if (_rider.AnimationClip == null)
-            {
-                MessageBox.Show("animation not loaded!", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            FrameNrLength = (_rider.AnimationClip.DynamicFrames.Count - 1).ToString();
-        }
-
-        public void SetFrameLengthFromClipboard()
-        {
-            FrameNrLength = _copyPasteClipboardPose.GetClipboardFramesLength().ToString();
-        }
-
         /// <summary>Frames A and B, from the Keyframes strip's selection; nulls for none.</summary>
         internal void SetFrameRange(int? first, int? last)
         {
@@ -665,31 +440,6 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _interpolateBetweenPose.SelectFrameA(a);
             SelectedFrameBInterpolation.Value = b.ToString();
             _interpolateBetweenPose.SelectFrameB(b);
-        }
-
-        public void SelectFrameAInterpolation()
-        {
-            if (_rider.AnimationClip == null)
-            {
-                MessageBox.Show("animation not loaded!", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var frameNr = _rider.Player.CurrentFrame;
-            SelectedFrameAInterpolation.Value = frameNr.ToString();
-            _interpolateBetweenPose.SelectFrameA(frameNr);
-        }
-
-        public void SelectFrameBInterpolation()
-        {
-            if (_rider.AnimationClip == null)
-            {
-                MessageBox.Show("animation not loaded!", "warn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-            var frameNr = _rider.Player.CurrentFrame;
-            SelectedFrameBInterpolation.Value = frameNr.ToString();
-            _interpolateBetweenPose.SelectFrameB(frameNr);
         }
 
         private void EnableInterpolationSliderWithinRange()

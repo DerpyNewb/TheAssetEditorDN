@@ -59,7 +59,6 @@ namespace Test.E2EVerification
             Assert.That(clip, Is.Not.Null, "the idle animation did not load onto the rider");
             var frames = clip!.DynamicFrames.Count;
             Assert.That(editor.FramesDurationInSeconds, Is.EqualTo(clip.PlayTimeInSec.ToString()));
-            Assert.That(editor.FrameNrLength, Is.EqualTo((frames - 1).ToString()));
             Assert.That(editor.IsDirty.Value, Is.False);
 
             editor.DuplicateFrame();
@@ -87,10 +86,7 @@ namespace Test.E2EVerification
             var commands = editor.CommandManager;
             Assert.That(commands.CanUndo(), Is.False, "nothing to undo as loaded");
 
-            editor.Rider.Player.CurrentFrame = 0;
-            editor.SelectFrameAInterpolation();
-            editor.Rider.Player.CurrentFrame = 6;
-            editor.SelectFrameBInterpolation();
+            editor.SetFrameRange(0, 6);
             editor.Rider.Player.CurrentFrame = 3;
             var before = editor.Rider.AnimationClip!.DynamicFrames[3].Clone();
             editor.PreviewInterpolation = true;
@@ -147,10 +143,7 @@ namespace Test.E2EVerification
             string Pose(int frame) => string.Join(" ", clip.DynamicFrames[frame].Position) + " " + string.Join(" ", clip.DynamicFrames[frame].Rotation);
             var loaded = Enumerable.Range(0, 7).Select(Pose).ToList();
 
-            editor.Rider.Player.CurrentFrame = 0;
-            editor.SelectFrameAInterpolation();
-            editor.Rider.Player.CurrentFrame = 6;
-            editor.SelectFrameBInterpolation();
+            editor.SetFrameRange(0, 6);
             editor.ApplyInterpolationAcrossFrames();
 
             var expected = AnimationSampler.SampleBetween2Frames(0, 6, 2 / 6f, editor.Skeleton, original);
@@ -395,10 +388,7 @@ namespace Test.E2EVerification
             var foot = editor.Skeleton.GetBoneIndexByName("foot_left");
             Select(state, foot);
             editor.PinSelectedBone();
-            editor.Rider.Player.CurrentFrame = 0;
-            editor.SelectFrameAInterpolation();
-            editor.Rider.Player.CurrentFrame = 6;
-            editor.SelectFrameBInterpolation();
+            editor.SetFrameRange(0, 6);
             var held = At(editor, 0, foot);
             var stepBefore = editor.CommandManager.Peek();
 
@@ -510,24 +500,6 @@ namespace Test.E2EVerification
             command.ApplyTransformation(Matrix.CreateTranslation(new Vector3(0.1f, 0.1f, 0)), GameWorld.Core.Components.Gizmo.GizmoMode.Translate);
 
             Assert.That(editor.Rider.AnimationClip!.DynamicFrames[3].Rotation, Is.EqualTo(expected.Rotation));
-        }
-
-        [Test]
-        public void Warhammer3_PasteIntoCurrentFrame_KeepsPinnedFeet()
-        {
-            var (editor, state) = OpenPosing();
-            var foot = editor.Skeleton.GetBoneIndexByName("foot_left");
-            Select(state, foot);
-            editor.PinSelectedBone();
-            editor.Rider.Player.CurrentFrame = 0;
-            editor.CopyCurrentPose();
-            editor.Rider.Player.CurrentFrame = 10;
-            var footOn10 = At(editor, 10, foot);
-            Assume.That(Vector3.Distance(At(editor, 0, foot), footOn10), Is.GreaterThan(1e-4f), "the idle must move the foot between frames 0 and 10");
-
-            editor.PasteIntoCurrentFrame();
-
-            Assert.That(Vector3.Distance(At(editor, 10, foot), footOn10), Is.LessThan(1e-3f));
         }
 
         // Review Focus 1: the posing code walks bones parents-first and must not rely on index order. This records whether
@@ -674,46 +646,6 @@ namespace Test.E2EVerification
 
             Assert.That(lookups, Is.GreaterThan(0));
             Assert.That(editor.JointLimitStatus.Value, Does.Contain("No CA clips"));
-        }
-
-        // A paste that moved nothing still pushed a "Keep pinned bones" step after it.
-        [Test]
-        public void Warhammer3_PasteThatMovesNothing_AddsNoPinStep()
-        {
-            var (editor, state) = OpenPosing();
-            editor.IncrementFrameAfterCopyOperation.Value = false;
-            Select(state, editor.Skeleton.GetBoneIndexByName("foot_left"));
-            editor.PinSelectedBone();
-            editor.CopyCurrentPose();   // frame 3, pasted back onto frame 3
-            var stepBefore = editor.CommandManager.Peek();
-
-            editor.PasteIntoCurrentFrame();
-            editor.UndoPose();
-
-            Assert.That(editor.CommandManager.Peek(), Is.SameAs(stepBefore), "the paste was one step");
-        }
-
-        // Pasting into a pinned leg's shin was turned straight back by the foot's pin, which had no idea the shin was pasted.
-        [Test]
-        public void Warhammer3_PasteIntoTheSelectedShin_IsNotUndoneByTheFootPin()
-        {
-            var (editor, state) = OpenPosing();
-            var skeleton = editor.Skeleton;
-            var (foot, shin) = (skeleton.GetBoneIndexByName("foot_left"), skeleton.GetBoneIndexByName("lowerleg_left"));
-            editor.IncrementFrameAfterCopyOperation.Value = false;
-            Select(state, foot);
-            editor.PinSelectedBone();
-            editor.Rider.Player.CurrentFrame = 0;
-            editor.CopyCurrentPose();
-            var copied = Quaternion.Normalize(editor.Rider.AnimationClip!.DynamicFrames[0].Rotation[shin]);
-            editor.Rider.Player.CurrentFrame = 10;
-            Assume.That(MathF.Abs(Quaternion.Dot(Quaternion.Normalize(editor.Rider.AnimationClip!.DynamicFrames[10].Rotation[shin]), copied)), Is.LessThan(1 - 1e-6f));
-            Select(state, shin);
-
-            editor.PasteIntoSelectedCurrentNode();
-
-            var pasted = Quaternion.Normalize(editor.Rider.AnimationClip!.DynamicFrames[10].Rotation[shin]);
-            Assert.That(MathF.Abs(Quaternion.Dot(pasted, copied)), Is.GreaterThan(1 - 1e-6f));
         }
 
         // The bend slider turned the hand with the arm, so a pin below the hand (a finger, a weapon bone) moved.

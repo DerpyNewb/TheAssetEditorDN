@@ -49,7 +49,7 @@ namespace AnimationEditor.AnimationKeyframeEditor
             
             if(noKeyframeSelected)
             {
-                MessageBox.Show("keyframe A and B must be selected to use this tool", "error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                MessageBox.Show("Select frames A to B in the Keyframes strip first.", "error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                 return false;
             }
 

@@ -73,9 +73,14 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             {
                 var rows = new List<SheetRow> { new("All bones", -1) };
                 var skeleton = _editor.Skeleton;
-                if (skeleton != null && _editor.SelectionManager?.GetState() is BoneSelectionState state)
-                    rows.AddRange(state.SelectedBones.Where(x => x >= 0 && x < skeleton.BoneCount).Distinct().Order()
-                        .Select(x => new SheetRow(skeleton.BoneNames[x], x)));
+                if (skeleton == null)
+                    return rows;
+                // A frame change empties the 3D view's selection, so the rows are the bones last picked there.
+                var bones = _editor.SelectionManager?.GetState() is BoneSelectionState { SelectedBones.Count: > 0 } state
+                    ? state.SelectedBones
+                    : _editor.GetSelectedBones() ?? [];
+                rows.AddRange(bones.Where(x => x >= 0 && x < skeleton.BoneCount).Distinct().Order()
+                    .Select(x => new SheetRow(skeleton.BoneNames[x], x)));
                 return rows;
             }
         }
@@ -87,10 +92,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             get => _editor.Rider?.Player.CurrentFrame ?? 0;
             set
             {
-                if (FrameCount == 0)
-                    return;
-                _editor.Pause();
-                _editor.Rider.Player.CurrentFrame = Math.Clamp(value, 0, FrameCount - 1);
+                _editor.GoToFrame(value);
                 Refresh();
             }
         }
