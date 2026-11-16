@@ -77,7 +77,10 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             var text = Brush("ABrush.Foreground.Static", Colors.Gainsboro);
             var dim = Brush("ABrush.Foreground.Deeper", Colors.Gray);
             var accent = Brush("ABrush.AccentTone1.Background.Static", Color.FromRgb(0x00, 0x7a, 0xcc));
-            var selectedKey = Brush("ABrush.Glyph.Selected", Colors.Orange);
+            // As in Blender: selected keys orange, the rest a dimmed grey. The theme's own two glyph colours were too alike.
+            var selectedKey = Brushes.Orange;
+            var key = dim.Clone();
+            key.Opacity = 0.55;
             var line = new Pen(Brush("ABrush.Tone5.Border.Static", Color.FromRgb(0x3f, 0x3f, 0x46)), 1);
 
             dc.DrawRectangle(background, null, new Rect(0, 0, width, height));
@@ -123,7 +126,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             {
                 var y = layout.RowTop(row) + KeyframeSheetLayout.RowHeight / 2;
                 for (var frame = 0; frame < frames; frame++)
-                    Diamond(dc, layout.FrameCentre(frame), y, half, sheet.IsSelected(row, frame) ? selectedKey : dim);
+                    Diamond(dc, layout.FrameCentre(frame), y, half, sheet.IsSelected(row, frame) ? selectedKey : key);
             }
 
             // The ruler: a number every few frames, as many as fit.

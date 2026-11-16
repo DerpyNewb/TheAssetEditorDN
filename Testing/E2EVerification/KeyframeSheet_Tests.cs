@@ -273,7 +273,8 @@ namespace Test.E2EVerification
             }
             var middle = layout.RowTop(0) + KeyframeSheetLayout.RowHeight / 2;
             Assert.That(At(layout.FrameCentre(4), middle), Is.EqualTo(System.Windows.Media.Colors.Orange), "a selected key");
-            Assert.That(At(layout.FrameCentre(14), middle), Is.EqualTo(System.Windows.Media.Colors.Gray), "a key outside the selection");
+            // Live, the theme's two key colours measured 244 and 225: nobody could tell selected keys from the rest.
+            Assert.That(At(layout.FrameCentre(14), middle).R, Is.LessThan(110), "a key outside the selection, dimmed");
             Assert.That(At(layout.FrameCentre(10), layout.RowTop(1) + 2), Is.EqualTo(System.Windows.Media.Color.FromRgb(0x00, 0x7a, 0xcc)), "the current frame's line");
         }
 
