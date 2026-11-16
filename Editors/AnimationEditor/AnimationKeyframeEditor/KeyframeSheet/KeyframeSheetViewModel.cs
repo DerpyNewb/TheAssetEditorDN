@@ -19,7 +19,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
     /// <summary>Where the strip draws each frame and row, and which frame and row a point is over.</summary>
     public sealed record KeyframeSheetLayout(double FrameWidth)
     {
-        public const double HeaderWidth = 140, RulerHeight = 22, RowHeight = 20, MinFrameWidth = 3;
+        public const double HeaderWidth = 140, RulerHeight = 22, RowHeight = 20, MinFrameWidth = 1;
 
         /// <summary><see cref="RowAt"/> for a point on the frame-number ruler.</summary>
         public const int Ruler = -1;

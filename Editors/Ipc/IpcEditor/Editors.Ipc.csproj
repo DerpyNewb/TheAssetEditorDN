@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\Shared\SharedCore\Shared.Core\Shared.Core.csproj" />
     <ProjectReference Include="..\..\Kitbashing\KitbasherEditor\Editors.KitbasherEditor.csproj" />
+    <ProjectReference Include="..\..\AnimationEditor\Editors.AnimationVisualEditors.csproj" />
   </ItemGroup>
 
 

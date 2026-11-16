@@ -26,5 +26,13 @@
         public float? Pitch { get; set; }
         public float? Zoom { get; set; }
         public float[]? LookAt { get; set; }
+
+        // keyframe: Name is the operation. Path and Animation are the mesh and clip "open" loads; Bones are bone names; Frame
+        // is one frame; Rows and Frames are [first, last] of the Keyframes strip, both ends included.
+        public string? Animation { get; set; }
+        public List<string>? Bones { get; set; }
+        public int? Frame { get; set; }
+        public int[]? Rows { get; set; }
+        public int[]? Frames { get; set; }
     }
 }

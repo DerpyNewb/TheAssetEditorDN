@@ -16,9 +16,9 @@ namespace Editors.Ipc
 {
     // The pipe's way into an open editor: its tabs, its 3D scene, its camera and the Kitbash toolbar. Called on the UI
     // thread. Every change goes through the editor's own commands, so the editor's Undo takes it back.
-    public class EditorRequests
+    public partial class EditorRequests
     {
-        public static readonly string[] Actions = ["editors", "scene", "select", "visible", "transform", "command", "camera"];
+        public static readonly string[] Actions = ["editors", "scene", "select", "visible", "transform", "command", "camera", "keyframe"];
 
         readonly IEditorManager _editorManager;
         readonly IScopeRepository _scopes;
@@ -41,6 +41,9 @@ namespace Editors.Ipc
                 return Data(editors.Select((e, i) => new EditorInfo(i, e.DisplayName, e.GetType().Name, i == current)).ToList());
             }
 
+            if (action == "keyframe" && string.Equals(request.Name, "open", StringComparison.OrdinalIgnoreCase))
+                return KeyframeOpen(request);
+
             var index = request.Editor ?? _editorManager.GetCurrentEditor();
             if (index < 0 || index >= editors.Count)
                 return IpcResponse.Failure(editors.Count == 0 ? "No editor is open" : $"No editor {index}; {editors.Count} are open, 0 to {editors.Count - 1}");
@@ -60,6 +63,7 @@ namespace Editors.Ipc
                     "transform" => Transform(editor, request),
                     "command" => Command(editor, request.Name),
                     "camera" => Camera(editor, request),
+                    "keyframe" => Keyframe(editor, request),
                     _ => IpcResponse.Failure("Unsupported action"),
                 };
             }
