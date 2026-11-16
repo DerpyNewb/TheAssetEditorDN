@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.AnimatioReTarget.Editor.BoneHandling;
 using Editors.Shared.Core.Common;
+using Editors.Shared.Core.Common.ReferenceModel;
 using GameWorld.Core.Animation;
 using GameWorld.Core.Services;
 using Shared.Core.Misc;
@@ -11,6 +12,7 @@ using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
 using Shared.GameFormats.Animation;
+using Shared.GameFormats.AnimationPack;
 using Shared.Ui.BaseDialogs.SelectionListDialog;
 using Shared.Ui.Common;
 
@@ -121,6 +123,22 @@ namespace Editors.AnimatioReTarget.Editor.Saving
                 .ToList();
         }
 
+        /// <summary>The source skeleton's animation sets (bins) in the loaded packs, each with the animations it plays.</summary>
+        public List<IAnimationBinGenericFormat> BatchSets() =>
+            _source?.Skeleton == null ? [] : AnimationSets.ForSkeleton(_pfs, _source.Skeleton.SkeletonName).OrderBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase).ToList();
+
+        /// <summary>
+        /// Every animation the sets play, each once, in the backslashed form the rest of the editor uses: a set names an
+        /// animation once per slot that plays it, often in forward slashes, and leaves some slots empty.
+        /// </summary>
+        public static List<string> AnimationsIn(IEnumerable<IAnimationBinGenericFormat> sets) => sets
+            .SelectMany(x => x.Entries)
+            .Select(x => x.AnimationFile)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim().Replace('/', '\\'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         /// <summary>
         /// Retargets each animation with the current mapping and settings and saves it where Save would save it. Asks once when any
         /// of them is already in the editable pack: overwrite them all, skip them all, or stop. Null when stopped. One animation
@@ -187,7 +205,32 @@ namespace Editors.AnimatioReTarget.Editor.Saving
             var picked = items.Where(x => x.IsChecked.Value).Select(x => x.ItemValue).ToList();
             if (window.Result == false || picked.Count == 0)
                 return;
+            RunBatch(picked);
+        }
 
+        /// <summary>Batch export by animation set: every animation the ticked bins play, e.g. all of a unit's.</summary>
+        public void ShowBatchExportFromSets()
+        {
+            var items = BatchSets()
+                .Select(x => (Set: x, Count: AnimationsIn([x]).Count))
+                .Where(x => x.Count != 0)
+                .Select(x => new SelectionListViewModel<IAnimationBinGenericFormat>.Item { DisplayName = $"{x.Set.FullPath} ({x.Count} animations)", ItemValue = x.Set })
+                .ToList();
+            if (items.Count == 0)
+            {
+                _standardDialogs.ShowDialogBox("No animation set (bin) in the loaded packs plays animations for the source skeleton. Pick a source model first, and load the packs that hold its bins.");
+                return;
+            }
+
+            var window = SelectionListWindow.ShowDialog($"Animation sets to retarget onto {_target?.Skeleton?.SkeletonName}: every animation in the ticked bins", items);
+            var picked = AnimationsIn(items.Where(x => x.IsChecked.Value).Select(x => x.ItemValue));
+            if (window.Result == false || picked.Count == 0)
+                return;
+            RunBatch(picked);
+        }
+
+        void RunBatch(List<string> picked)
+        {
             if (picked.Count > 50 && _standardDialogs.ShowChoiceBox($"Retarget {picked.Count} animations? AssetEditor won't respond until it finishes.", "Batch export", ["Retarget them", "Cancel"]) != 0)
                 return;
 

@@ -46,6 +46,9 @@
             <Button Click="BatchExportClick" Content="{loc:Loc AnimationReTarget.Save.BatchExport}" ToolTip="{loc:Loc AnimationReTarget.Save.BatchExportTooltip}" AutomationProperties.AutomationId="RetargetBatchExport"/>
         </DockPanel>
         <DockPanel>
+            <Button Click="BatchExportSetsClick" Content="{loc:Loc AnimationReTarget.Save.BatchExportSets}" ToolTip="{loc:Loc AnimationReTarget.Save.BatchExportSetsTooltip}" AutomationProperties.AutomationId="RetargetBatchExportSets"/>
+        </DockPanel>
+        <DockPanel>
             <Button Click="CloseButtonClick" Content="{loc:Loc AnimationReTarget.Save.Close}"/>
         </DockPanel>
     </StackPanel>

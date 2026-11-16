@@ -305,6 +305,32 @@ namespace Test.AnimatioReTarget
             Assert.That(Saved(sources[1]), Is.Null);
         }
 
+        sealed class Set(params string?[] animations) : Shared.GameFormats.AnimationPack.IAnimationBinGenericFormat
+        {
+            public Shared.GameFormats.AnimationPack.AnimationPackFileDatabase? PackFileReference => null;
+            public string Name => "hu1_test_set";
+            public string FullPath => "animations/database/battle/bin/hu1_test_set.bin";
+            public string SkeletonName => "humanoid01";
+            public string MountBin => "";
+            public List<Shared.GameFormats.AnimationPack.AnimationBinEntryGenericFormat> Entries { get; } =
+                animations.Select(x => new Shared.GameFormats.AnimationPack.AnimationBinEntryGenericFormat { SlotName = "STAND", AnimationFile = x! }).ToList();
+        }
+
+        // A set names an animation once per slot that plays it, in forward slashes, and leaves some slots empty.
+        [Test]
+        public void BatchExport_OfAnAnimationSet_SavesEachAnimationItNamesOnce()
+        {
+            const string Idle = "animations\\battle\\humanoid01\\2handed_hammer\\stand\\hu1_2hh_stand_idle_01.anim";
+            var set = new Set(Idle.Replace('\\', '/'), Idle, "", null);
+
+            var animations = Editors.AnimatioReTarget.Editor.Saving.SaveManager.AnimationsIn([set]);
+            var result = _editor.SaveManager.BatchExport(animations)!;
+
+            Assert.That(animations, Is.EqualTo(new[] { Idle }));
+            Assert.That((result.Saved, result.Failed.Count), Is.EqualTo((1, 0)));
+            Assert.That(Saved(Idle), Is.Not.Null, "saved where Save saves it");
+        }
+
         [Test]
         public void BatchExport_OneBadAnimation_DoesNotStopTheRest()
         {

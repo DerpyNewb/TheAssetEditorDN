@@ -680,6 +680,8 @@
   "AnimationReTarget.Save.Save": "保存",
   "AnimationReTarget.Save.BatchExport": "批量导出",
   "AnimationReTarget.Save.BatchExportTooltip": "使用当前的骨骼映射和设置，重定向你从源骨骼动画中选出的每个动画，并将每个动画保存到“保存”会使用的位置。",
+  "AnimationReTarget.Save.BatchExportSets": "批量导出动画集",
+  "AnimationReTarget.Save.BatchExportSetsTooltip": "选择为源骨骼制作的 bin（动画集），例如某个单位的，使用当前的骨骼映射和设置重定向它们播放的每个动画，每个只处理一次，并保存到“保存”会使用的位置。",
   "AnimationReTarget.Save.Close": "关闭",
   "AnimationReTarget.SelectedBone.SettingsForSelectedBone": "选中骨骼设置: ",
   "AnimationReTarget.SelectedBone.TranslationOffset": "位移偏移",

@@ -32,6 +32,12 @@ namespace Editors.AnimatioReTarget.Editor.Saving
             _saveManager.ShowBatchExport();
         }
 
+        private void BatchExportSetsClick(object sender, RoutedEventArgs e)
+        {
+            Close();
+            _saveManager.ShowBatchExportFromSets();
+        }
+
         private void CloseButtonClick(object sender, RoutedEventArgs e)
         {
             Close();
