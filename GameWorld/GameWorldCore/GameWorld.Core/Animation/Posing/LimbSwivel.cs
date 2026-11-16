@@ -44,7 +44,7 @@ namespace GameWorld.Core.Animation.Posing
                 return TransformBoneCommand.TurnInModelSpace(frame, skeleton, top, Matrix.CreateFromAxisAngle(line, angle));
             }
 
-            bool Inside(Quaternion rotation) => limits == null || IsInside(limits, skeleton, top, rotation);
+            bool Inside(Quaternion rotation) => limits == null || limits.Contains(skeleton, top, rotation);
 
             var applied = angleRadians;
             var full = Turned(angleRadians);
@@ -64,8 +64,5 @@ namespace GameWorld.Core.Animation.Posing
             frame.Rotation[top] = full;
             return applied;
         }
-
-        // Clamp hands back the very rotation it was given when nothing needed clamping, so equality is exact here.
-        static bool IsInside(JointLimits limits, GameSkeleton skeleton, int bone, Quaternion rotation) => limits.Clamp(skeleton, bone, rotation) == rotation;
     }
 }

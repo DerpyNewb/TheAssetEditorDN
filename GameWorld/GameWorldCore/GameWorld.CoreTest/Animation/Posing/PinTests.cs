@@ -107,6 +107,25 @@ namespace GameWorld.Core.Test.Animation.Posing
             Assert.That(Vector3.Distance(At(frame, skeleton, 4), pin.Target), Is.LessThan(1e-3f));
         }
 
+        // The exact two-bone answer lands on the target, so the CCD pass after it saw nothing to correct and never clamped:
+        // a knee the limits forbid to bend bent anyway.
+        [Test]
+        public void APinnedLeg_KeepsItsKneeInsideItsLimit()
+        {
+            var skeleton = ArmAndLegs();
+            var frame = BindFrame(skeleton);
+            var pin = Pin.Create(frame, skeleton, FootL);
+            var stiffKnee = new JointLimits("test", new Dictionary<int, BoneLimit> { [ShinL] = new BoneLimit(0, 0.05f, new Vector2(-0.05f), new Vector2(0.05f)) });
+            frame.Position[Pelvis] += new Vector3(0, -0.2f, 0);   // reaching the foot now needs the knee bent well past 0.05
+
+            PinSolver.Resolve(frame, skeleton, [pin], [Pelvis], stiffKnee);
+
+            SwingTwist.Decompose(Quaternion.Inverse(skeleton.Rotation[ShinL]) * frame.Rotation[ShinL], SwingTwist.BoneAxis(skeleton, ShinL), out var twist, out var swing);
+            Assert.That(MathF.Abs(twist), Is.LessThanOrEqualTo(0.05f + 1e-4f));
+            Assert.That(MathF.Abs(swing.X), Is.LessThanOrEqualTo(0.05f + 1e-4f));
+            Assert.That(MathF.Abs(swing.Y), Is.LessThanOrEqualTo(0.05f + 1e-4f));
+        }
+
         [Test]
         public void TwoFootPins_DoNotTouchTheHips()
         {

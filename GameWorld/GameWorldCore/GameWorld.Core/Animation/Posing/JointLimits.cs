@@ -53,6 +53,21 @@ namespace GameWorld.Core.Animation.Posing
             return Quaternion.Normalize(bind * SwingTwist.Compose(clampedTwist, clampedSwing, axis));
         }
 
+        /// <summary>
+        /// Whether <paramref name="local"/> is inside the bone's range, judged on its twist and swing. Not Clamp(q) == q: Clamp's
+        /// recentring round trip is not exact in floats, so a quarter of poses well inside an off-centre range read as outside.
+        /// </summary>
+        public bool Contains(GameSkeleton skeleton, int bone, Quaternion local, float epsilon = 1e-5f)
+        {
+            if (!TryGet(bone, out var limit))
+                return true;
+            SwingTwist.Decompose(Quaternion.Inverse(skeleton.Rotation[bone]) * local, SwingTwist.BoneAxis(skeleton, bone), out var twist, out var swing);
+            var twistInside = limit.TwistIsFree || MathF.Abs(SwingTwist.WrapAngle(twist - limit.TwistCenter)) <= limit.TwistHalfWidth + epsilon;
+            return twistInside
+                && swing.X >= limit.SwingMin.X - epsilon && swing.X <= limit.SwingMax.X + epsilon
+                && swing.Y >= limit.SwingMin.Y - epsilon && swing.Y <= limit.SwingMax.Y + epsilon;
+        }
+
         /// <summary>A copy with the bone's limit replaced, or removed (the bone made free) when <paramref name="limit"/> is null.</summary>
         public JointLimits WithOverride(int bone, BoneLimit? limit)
         {

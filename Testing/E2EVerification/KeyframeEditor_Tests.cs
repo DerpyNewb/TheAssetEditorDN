@@ -344,6 +344,46 @@ namespace Test.E2EVerification
             Assert.That(editor.CommandManager.Peek(), Is.SameAs(stepBefore), "the hold was one step");
         }
 
+        // With "Allow anim root" on, pinning the root looked up its grandparent's parent at index -1 and threw, after the
+        // pin was already added, so it held nothing and showed no row.
+        [Test]
+        public void Warhammer3_PinningTheRootBone_DoesNotThrow()
+        {
+            var (editor, state) = OpenPosing();
+            editor.AllowToSelectAnimRoot.Value = true;
+            Select(state, 0);
+
+            Assert.That(() => editor.PinSelectedBone(), Throws.Nothing);
+            Assert.That(editor.PinRows.Select(x => x.BoneName), Is.EqualTo(new[] { editor.Skeleton.BoneNames[0] }));
+        }
+
+        // When a limit stopped the bend slider short, it still recorded the full slider value as applied. After a pause, the
+        // next drag back to 0 turned from that value, not from what was applied, and left the arm on the far side.
+        [Test]
+        public void Warhammer3_Bend_StoppedByALimit_ComesBackToWhereItStarted()
+        {
+            var (editor, state) = OpenPosing();
+            var skeleton = editor.Skeleton;
+            var (hand, top) = (skeleton.GetBoneIndexByName("hand_left"), skeleton.GetBoneIndexByName("upperarm_left"));
+            var start = editor.Rider.AnimationClip!.DynamicFrames[3].Rotation[top];
+            GameWorld.Core.Animation.Posing.SwingTwist.Decompose(Quaternion.Inverse(skeleton.Rotation[top]) * start,
+                GameWorld.Core.Animation.Posing.SwingTwist.BoneAxis(skeleton, top), out var twist, out var swing);
+            editor.MeasuredJointLimits = new GameWorld.Core.Animation.Posing.JointLimits(skeleton.SkeletonName, new Dictionary<int, GameWorld.Core.Animation.Posing.BoneLimit>
+            {
+                [top] = new(twist, 0.1f, swing - new Vector2(0.1f), swing + new Vector2(0.1f)),
+            });
+            editor.EnableInverseKinematics.Value = true;
+            Select(state, hand);
+
+            editor.BendDegrees = 90;
+            Assert.That(editor.Rider.AnimationClip!.DynamicFrames[3].Rotation[top], Is.Not.EqualTo(start), "the arm turned as far as its limit");
+            Thread.Sleep(1100);   // a pause ends the slider's undo step
+            editor.BendDegrees = 0;
+
+            var back = editor.Rider.AnimationClip!.DynamicFrames[3].Rotation[top];
+            Assert.That(MathF.Abs(Quaternion.Dot(Quaternion.Normalize(back), Quaternion.Normalize(start))), Is.GreaterThan(1 - 1e-6f));
+        }
+
         [Test]
         public void Warhammer3_Mirror_TwiceRestoresTheFrame()
         {

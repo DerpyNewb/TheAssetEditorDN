@@ -71,6 +71,23 @@ namespace GameWorld.Core.Test.Animation.Posing
             Assert.That(Vector3.Distance(At(frame, skeleton, Hand), hand), Is.LessThan(1e-4f), "a stopped swivel still keeps the hand");
         }
 
+        // A measured limit is rarely centred on 0. "Is it inside?" was asked as Clamp(q) == q, and Clamp's
+        // WrapAngle(center + (twist - center)) round trip is not exact in floats away from 0, so about a quarter of
+        // poses well inside the range read as outside and the slider stalled or ran unlimited.
+        [Test]
+        public void Swivel_InsideAnOffCentreLimit_TurnsTheWholeWay()
+        {
+            var (skeleton, start) = BentArm();
+            var limits = new JointLimits("test_arm", new Dictionary<int, BoneLimit> { [Upper] = new BoneLimit(0.3f, 1.2f, new Vector2(-3), new Vector2(3)) });
+
+            for (var i = 1; i <= 50; i++)
+            {
+                var angle = 0.013f * i;
+                var frame = start.Clone();
+                Assert.That(LimbSwivel.Apply(frame, skeleton, Hand, angle, limits), Is.EqualTo(angle), $"a turn of {angle} stays well inside");
+            }
+        }
+
         [Test]
         public void Swivel_FromAPoseAlreadyOutsideItsLimit_IgnoresTheLimit()
         {

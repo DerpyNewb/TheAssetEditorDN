@@ -75,6 +75,17 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         JointLimits? ActiveJointLimits => UseJointLimits.Value ? _measuredLimits : null;
 
+        /// <summary>The current skeleton's limits, before the checkbox; setting them hands them to the bone selection.</summary>
+        internal JointLimits? MeasuredJointLimits
+        {
+            get => _measuredLimits;
+            set
+            {
+                _measuredLimits = value;
+                PushPosingState();
+            }
+        }
+
         void InitializePosing()
         {
             UseJointLimits.PropertyChanged += (_, _) => PushPosingState();
@@ -121,8 +132,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _measuring = null;
             if (!remeasure)
             {
-                _measuredLimits = null;
-                PushPosingState();
+                MeasuredJointLimits = null;
             }
             if (skeleton == null)
             {
@@ -195,8 +205,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
                 return;
             }
             _jointLimitStore.SaveOverride(_skeleton, bone, null);
-            _measuredLimits = _measuredLimits?.WithOverride(bone, null);
-            PushPosingState();
+            MeasuredJointLimits = _measuredLimits?.WithOverride(bone, null);
         }
 
         /// <summary>Puts the selected bone's measured limit back.</summary>
@@ -209,8 +218,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
                 return;
             }
             _jointLimitStore.ClearOverride(_skeleton, bone);
-            _measuredLimits = _jointLimitStore.TryLoad(_skeleton) ?? _measuredLimits;
-            PushPosingState();
+            MeasuredJointLimits = _jointLimitStore.TryLoad(_skeleton) ?? _measuredLimits;
         }
 
         // ---- Bend direction ----
@@ -231,8 +239,10 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             var angle = MathHelper.ToRadians(_bendDegrees - _bendStepStart);
             var skeleton = _skeleton;
             var limits = ActiveJointLimits;
-            _lastBendCommand = ExecuteFrameEdit(clip, [frameNr], c => LimbSwivel.Apply(c.DynamicFrames[frameNr], skeleton, bone, angle, limits), BendHint);
-            _lastBendValue = _bendDegrees;
+            var applied = angle;
+            _lastBendCommand = ExecuteFrameEdit(clip, [frameNr], c => applied = LimbSwivel.Apply(c.DynamicFrames[frameNr], skeleton, bone, angle, limits), BendHint);
+            // A limit can stop the turn short; the next step must start from where the limb is, not where the slider is.
+            _lastBendValue = _bendStepStart + MathHelper.ToDegrees(applied);
         }
 
         /// <summary>Back to 0 without turning anything: on a new frame, a new selection, or an undo the slider no longer describes.</summary>
@@ -265,7 +275,8 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _pins.Add(pin);
             var skeleton = _skeleton;
             var ancestors = new List<string>();
-            for (var parent = skeleton.GetParentBoneIndex(skeleton.GetParentBoneIndex(bone)); parent != -1 && skeleton.GetParentBoneIndex(parent) != -1; parent = skeleton.GetParentBoneIndex(parent))
+            var firstParent = skeleton.GetParentBoneIndex(bone);
+            for (var parent = firstParent == -1 ? -1 : skeleton.GetParentBoneIndex(firstParent); parent != -1 && skeleton.GetParentBoneIndex(parent) != -1; parent = skeleton.GetParentBoneIndex(parent))
                 ancestors.Add(skeleton.BoneNames[parent]);
             if (ancestors.Count == 0 && pin.EndBone >= 0)
                 ancestors.Add(skeleton.BoneNames[pin.EndBone]);

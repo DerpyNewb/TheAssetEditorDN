@@ -42,12 +42,13 @@ namespace GameWorld.Core.Animation.Posing
                 if (chain.Count == 2 && chain[0] == skeleton.GetParentBoneIndex(pin.Bone) && chain[1] == skeleton.GetParentBoneIndex(chain[0]))
                 {
                     SolveTwoBones(frame, skeleton, pin.Bone, chain[0], chain[1], pin.Target);
-                    // The exact answer may break a joint limit; CCD then gets as close as the limits allow.
+                    turned.AddRange(chain);
                     if (limits == null)
-                    {
-                        turned.AddRange(chain);
                         continue;
-                    }
+                    // The exact answer may break a joint limit, and CCD only clamps a joint it turns, which it will not do when
+                    // the foot is already on the target. Clamp both first, then let CCD get as close as the limits allow.
+                    foreach (var bone in chain)
+                        frame.Rotation[bone] = limits.Clamp(skeleton, bone, frame.Rotation[bone]);
                 }
                 turned.AddRange(TransformBoneCommand.SolveInverseKinematics(frame, skeleton, pin.Bone, pin.EndBone, pin.Target, limits, draggedBones));
             }
