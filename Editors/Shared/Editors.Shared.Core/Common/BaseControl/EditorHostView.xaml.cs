@@ -91,20 +91,12 @@ namespace AnimationEditor.Common.BaseControl
             Dispatcher.ShutdownStarted += SaveLayout;
         }
 
-        // The editor's panes go where the single panel is, as tabs; the dock shows the first once the panel is out. They go in first:
-        // a pane left empty is removed from the layout.
-        void ShowEditorPanes(IReadOnlyList<EditorPane> panes)
+        void ShowEditorPanes(IReadOnlyList<EditorPane> panes) => EditorPaneLayout.Place(Dock.Layout, panes, x =>
         {
-            var single = Dock.Layout.Descendents().OfType<LayoutAnchorable>().Single(x => x.ContentId == "EditorPanel");
-            var pane = (LayoutAnchorablePane)single.Parent;
-            foreach (var editorPane in panes)
-            {
-                var view = (FrameworkElement)Activator.CreateInstance(editorPane.ViewType)!;
-                view.DataContext = editorPane.DataContext;
-                pane.Children.Add(new LayoutAnchorable { ContentId = editorPane.ContentId, Title = (string)new LocExtension(editorPane.Title).ProvideValue(null!), Content = view });
-            }
-            pane.RemoveChild(single);
-        }
+            var view = (FrameworkElement)Activator.CreateInstance(x.ViewType)!;
+            view.DataContext = x.DataContext;
+            return view;
+        }, x => (string)new LocExtension(x).ProvideValue(null!));
 
         // Once: when the editor closes, or when the app exits with it open, which shuts the view's dispatcher down. Two editors of
         // one type open at exit both save, the one opened last after the other, so its layout is the one kept.
