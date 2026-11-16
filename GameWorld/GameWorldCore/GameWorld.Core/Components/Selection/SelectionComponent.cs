@@ -206,6 +206,19 @@ namespace GameWorld.Core.Components.Selection
                 }
             }
 
+            // A click picks the bone drawn nearest it, as a drag picks those inside its box, and Shift and Ctrl add and remove as
+            // they do there. A click on no bone clears the bones and stays in bone mode: picking the mesh under it, as this used to,
+            // ended bone mode, so in the KeyFrame editor a click on a bone selected the whole model.
+            if (currentState is BoneSelectionState boneState)
+            {
+                var bone = NearestBone(boneState, mousePosition);
+                if (bone >= 0)
+                    _commandFactory.CreateWithBuilder<BoneSelectionCommand>().Configure(x => x.Configure([bone], isSelectionModification, removeSelection)).BuildAndExecute();
+                else if (!isSelectionModification && !removeSelection && boneState.SelectedBones.Count != 0)
+                    _commandFactory.CreateWithBuilder<BoneSelectionCommand>().Configure(x => x.Configure([], false, false)).BuildAndExecute();
+                return;
+            }
+
             // Pick object
             var selectedObject = _sceneManger.SelectObject(ray);
             if (selectedObject == null && isSelectionModification == false)
@@ -218,6 +231,26 @@ namespace GameWorld.Core.Components.Selection
             {
                 _commandFactory.CreateWithBuilder<ObjectSelectionCommand>().Configure(x => x.Configure(selectedObject, isSelectionModification, removeSelection)).BuildAndExecute();
             }
+        }
+
+        /// <summary>How far from a drawn bone, in pixels, a click still picks it; Kitbash's bone picker uses the same.</summary>
+        public const float BonePickPixels = 15;
+
+        /// <summary>The bone drawn nearest a point on screen, or -1: posed as the drag's box reads them, from the model's player.</summary>
+        int NearestBone(BoneSelectionState state, Vector2 mousePosition)
+        {
+            if (state.RenderObject is not Rmv2MeshNode mesh || state.Skeleton == null || mesh.AnimationPlayer?.GetCurrentAnimationFrame() is not { } frame)
+                return -1;
+            var count = Math.Min(frame.BoneTransforms.Count, state.Skeleton.BoneCount);
+            var joints = new Vector3[count];
+            var parents = new int[count];
+            for (var i = 0; i < count; i++)
+            {
+                joints[i] = Vector3.Transform(frame.GetSkeletonAnimatedWorld(state.Skeleton, i).Translation, mesh.RenderMatrix);
+                parents[i] = state.Skeleton.GetParentBoneIndex(i);
+            }
+            var viewport = _deviceResolverComponent.Device.Viewport;
+            return IntersectionMath.NearestBone(mousePosition, _camera.ViewMatrix * _camera.ProjectionMatrix, viewport.Width, viewport.Height, joints, parents, BonePickPixels);
         }
 
         public bool SetObjectSelectionMode()

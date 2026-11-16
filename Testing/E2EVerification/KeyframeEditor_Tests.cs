@@ -240,9 +240,12 @@ namespace Test.E2EVerification
         /// <param name="store">Replaces the editor's joint-limit store; the default one reads the user's own cache.</param>
         /// <param name="beforeMesh">Runs on the open editor before Karl's mesh loads, which is what loads the limits.</param>
         internal static (AnimationKeyframeEditorViewModel Editor, GameWorld.Core.Components.Selection.BoneSelectionState State) OpenPosing(
-            JointLimitStore? store = null, Action<AnimationKeyframeEditorViewModel>? beforeMesh = null)
+            JointLimitStore? store = null, Action<AnimationKeyframeEditorViewModel>? beforeMesh = null) => OpenPosing(out _, store, beforeMesh);
+
+        internal static (AnimationKeyframeEditorViewModel Editor, GameWorld.Core.Components.Selection.BoneSelectionState State) OpenPosing(
+            out AssetEditorTestRunner runner, JointLimitStore? store = null, Action<AnimationKeyframeEditorViewModel>? beforeMesh = null)
         {
-            var runner = new AssetEditorTestRunner(testServices: store == null ? null : services => services.AddScoped(_ => store));
+            runner = new AssetEditorTestRunner(testServices: store == null ? null : services => services.AddScoped(_ => store));
             runner.CreateCaContainer();
             runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
             var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
@@ -255,6 +258,88 @@ namespace Test.E2EVerification
             var state = editor.SelectionManager.GetState<GameWorld.Core.Components.Selection.BoneSelectionState>();
             Assert.That(state, Is.Not.Null, "bone selection mode did not start");
             return (editor, state!);
+        }
+
+        // Select must put the view into bone picking for any model the editor can load, not only a lone .rigid_model_v2:
+        // a variantmeshdefinition holds its meshes deeper, behind slots, and a slot can be empty.
+        [TestCase("Karl_and_celestialgeneral.pack", @"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.wsmodel")]
+        [TestCase("Throt.pack", @"variantmeshes\variantmeshdefinitions\skv_throt.variantmeshdefinition")]
+        [TestCase("cinderbreath.pack", @"variantmeshes\variantmeshdefinitions\chd_bale_taurus_cinderbreath.variantmeshdefinition")]
+        public void Select_PicksBones_OnAnyModel(string pack, string mesh)
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile(pack), true);
+            var editor = (AnimationKeyframeEditorViewModel)runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.AnimationKeyFrame_Editor);
+            runner.GetRequiredServiceInCurrentEditorScope<SceneObjectEditor>().SetMesh(editor.Rider, runner.PackFileService.FindFile(mesh)!);
+            Assert.That(editor.Rider.Skeleton, Is.Not.Null, "the model loaded no skeleton");
+
+            editor.EnterSelectMode();
+
+            var state = editor.SelectionManager.GetState<GameWorld.Core.Components.Selection.BoneSelectionState>();
+            Assert.That(state, Is.Not.Null, "Select left the view picking meshes");
+            Assert.That(state!.RenderObject, Is.Not.Null);
+        }
+
+        // A click in bone mode picks the bone drawn nearest it, as a drag picks those inside its box. It used to fall through to
+        // picking the mesh under it, which ended bone mode: in the KeyFrame editor a click on a bone selected the whole model.
+        [Test]
+        public void AClickInBoneMode_PicksTheBoneDrawnThere_AndAMissStaysInBoneMode()
+        {
+            var (editor, state) = OpenPosing(out var runner);
+            T Service<T>() where T : notnull => runner.GetRequiredServiceInCurrentEditorScope<T>();
+
+            var mouse = Moq.Mock.Get(Service<GameWorld.Core.Components.Input.IMouseComponent>());
+            mouse.Setup(x => x.IsMouseOwner(Moq.It.IsAny<Microsoft.Xna.Framework.IGameComponent>())).Returns(true);
+            var device = Service<GameWorld.Core.Utility.IDeviceResolver>().Device;
+            var oldViewport = device.Viewport;
+            try
+            {
+                // The test device's back buffer is 20 pixels square, where every bone is within a click of every other.
+                device.Viewport = new Microsoft.Xna.Framework.Graphics.Viewport(0, 0, 800, 600);
+                editor.Rider.Player.Play();
+                editor.Pause();
+                editor.Rider.Player.Refresh();
+                var mesh = (GameWorld.Core.SceneNodes.Rmv2MeshNode)state.RenderObject;
+                var frame = mesh.AnimationPlayer.GetCurrentAnimationFrame();
+                var joints = Enumerable.Range(0, editor.Skeleton.BoneCount)
+                    .Select(i => Vector3.Transform(frame.GetSkeletonAnimatedWorld(editor.Skeleton, i).Translation, mesh.RenderMatrix)).ToList();
+                var bounds = BoundingBox.CreateFromPoints(joints);
+                var centre = (bounds.Min + bounds.Max) / 2;
+                var camera = Service<GameWorld.Core.Components.Rendering.ArcBallCamera>();
+                camera.ViewMatrixOverride = Matrix.CreateLookAt(centre + new Vector3(0, 0, (bounds.Max - bounds.Min).Length() * 1.5f), centre, Vector3.Up);
+
+                var screen = joints.Select(j => device.Viewport.Project(j, camera.ProjectionMatrix, camera.ViewMatrix, Matrix.Identity)).Select(p => new Vector2(p.X, p.Y)).ToList();
+                // The two bones drawn furthest from every other, so a click on one cannot be nearer another.
+                var lone = Enumerable.Range(0, screen.Count)
+                    .OrderByDescending(i => Enumerable.Range(0, screen.Count).Where(j => j != i).Min(j => Vector2.Distance(screen[i], screen[j])))
+                    .Take(2).ToList();
+
+                void Click(Vector2 at, bool shift = false)
+                {
+                    mouse.Setup(x => x.Position()).Returns(at);
+                    mouse.Setup(x => x.IsMouseButtonReleased(GameWorld.Core.Components.Input.MouseButton.Left)).Returns(true);
+                    var keyboard = Moq.Mock.Get(Service<GameWorld.Core.Components.Input.IKeyboardComponent>());
+                    keyboard.Setup(x => x.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftShift)).Returns(shift);
+                    Service<GameWorld.Core.Components.Selection.SelectionComponent>().Update(new GameTime());
+                    mouse.Setup(x => x.IsMouseButtonReleased(GameWorld.Core.Components.Input.MouseButton.Left)).Returns(false);
+                }
+                GameWorld.Core.Components.Selection.BoneSelectionState? Bones() => editor.SelectionManager.GetState<GameWorld.Core.Components.Selection.BoneSelectionState>();
+
+                Click(screen[lone[0]]);
+                Assert.That(Bones()?.SelectedBones, Is.EqualTo(new[] { lone[0] }), "a click on a bone");
+
+                Click(screen[lone[1]], shift: true);
+                Assert.That(Bones()?.SelectedBones, Is.EquivalentTo(new[] { lone[0], lone[1] }), "a shift-click adds a bone");
+
+                Click(new Vector2(2, 2));
+                Assert.That(Bones(), Is.Not.Null, "a click on nothing left bone mode");
+                Assert.That(Bones()!.SelectedBones, Is.Empty, "a click on nothing clears the bones");
+            }
+            finally
+            {
+                device.Viewport = oldViewport;
+            }
         }
 
         internal static void Select(GameWorld.Core.Components.Selection.BoneSelectionState state, int bone)

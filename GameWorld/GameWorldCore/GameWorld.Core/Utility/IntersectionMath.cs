@@ -342,6 +342,49 @@ namespace GameWorld.Core.Utility
             return bones != null;
         }
 
+        /// <summary>
+        /// The bone drawn nearest a click, or -1 when none is within <paramref name="maxPixels"/>. A bone is drawn as a point with a
+        /// line to its parent, and the half of that line nearer a bone counts as that bone. Distances are measured on screen, so a
+        /// bone is as easy to hit far from the camera as near it.
+        /// </summary>
+        public static int NearestBone(Vector2 click, Matrix viewProjection, float width, float height, IReadOnlyList<Vector3> joints, IReadOnlyList<int> parents, float maxPixels)
+        {
+            var screen = new Vector2?[joints.Count];
+            var depth = new float[joints.Count];
+            for (var i = 0; i < joints.Count; i++)
+            {
+                var clip = Vector4.Transform(new Vector4(joints[i], 1), viewProjection);
+                // Behind the camera the projection turns over, which would put such a bone somewhere on the screen.
+                if (clip.W <= 0)
+                    continue;
+                screen[i] = new Vector2((clip.X / clip.W + 1) * 0.5f * width, (1 - clip.Y / clip.W) * 0.5f * height);
+                depth[i] = clip.W;
+            }
+
+            var hits = new List<(int Bone, float Distance)>();
+            for (var i = 0; i < joints.Count; i++)
+            {
+                if (screen[i] is not { } at)
+                    continue;
+                hits.Add((i, Vector2.Distance(click, at)));
+
+                var parent = parents[i];
+                if (parent < 0 || screen[parent] is not { } parentAt)
+                    continue;
+                var line = parentAt - at;
+                var t = line.LengthSquared() == 0 ? 0 : Math.Clamp(Vector2.Dot(click - at, line) / line.LengthSquared(), 0, 1);
+                hits.Add((t <= 0.5f ? i : parent, Vector2.Distance(click, at + t * line)));
+            }
+
+            hits.RemoveAll(x => x.Distance > maxPixels);
+            if (hits.Count == 0)
+                return -1;
+
+            // Bones that draw over each other, as the left and right legs do seen from the side: the one nearer the camera wins.
+            var nearest = hits.Min(x => x.Distance);
+            return hits.Where(x => x.Distance <= nearest + 1).MinBy(x => depth[x.Bone]).Bone;
+        }
+
         public static BoundingBox TransformBoundingBox(BoundingBox box, Matrix matrix)
         {
             var corners = box.GetCorners();
