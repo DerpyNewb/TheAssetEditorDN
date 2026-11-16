@@ -135,7 +135,8 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             GizmoComponent gizmoComponent,
             CommandManager commandExecutor,
             IFileSaveService packFileSaveService,
-            JointLimitStore jointLimitStore)
+            JointLimitStore jointLimitStore,
+            IEventHub eventHub)
             : base(editorHostParameters)
         {
             DisplayName = "Keyedframing Editor";
@@ -161,7 +162,12 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             ActiveFragmentSlot.SearchFilter = (value, rx) => { return rx.Match(value.SlotName).Success; };
 
             Initialize();
+            _eventHub = eventHub;
+            // Every selection change, on whichever selection state is current: the gizmo toolbox hears only the first one.
+            eventHub.Register<SelectionChangedEvent>(this, x => Sheet.BonesPicked(x.NewState));
         }
+
+        readonly IEventHub _eventHub;
 
         private void OutputAnimationSetSelected(IAnimationBinGenericFormat newValue)
         {
@@ -520,6 +526,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public void Dispose()
         {
+            _eventHub.UnRegister(this);
             CancelMeasuring();
             _limitsGeneration++;   // a measure finishing after the editor closes changes nothing
             if (_mount != null)

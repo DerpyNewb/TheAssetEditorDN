@@ -78,11 +78,21 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
                 // A frame change empties the 3D view's selection, so the rows are the bones last picked there.
                 var bones = _editor.SelectionManager?.GetState() is BoneSelectionState { SelectedBones.Count: > 0 } state
                     ? state.SelectedBones
-                    : _editor.GetSelectedBones() ?? [];
+                    : _lastBones;
                 rows.AddRange(bones.Where(x => x >= 0 && x < skeleton.BoneCount).Distinct().Order()
                     .Select(x => new SheetRow(skeleton.BoneNames[x], x)));
                 return rows;
             }
+        }
+
+        List<int> _lastBones = [];
+
+        /// <summary>The 3D view's selection changed: bones picked there become the rows, and stay when a frame change empties it.</summary>
+        internal void BonesPicked(ISelectionState? state)
+        {
+            if (state is BoneSelectionState { SelectedBones.Count: > 0 } bones)
+                _lastBones = [.. bones.SelectedBones];
+            Refresh();
         }
 
         public int FrameCount => _editor.Rider?.AnimationClip?.DynamicFrames.Count ?? 0;

@@ -527,8 +527,8 @@ namespace Test.E2EVerification
             Assert.That(editor.CanBend.Value, Is.True, "a hand, with IK on");
             Select(state, root);
             Assert.That(editor.CanBend.Value, Is.False, "root has no limb above it");
-            state.ModifySelection([hand], false);
-            Assert.That(editor.CanBend.Value, Is.False, "two bones");
+            // No "two bones" step: with IK on, the editor answers a second bone with a modal warning and drops it, so the
+            // step only ever left a dialog on the desktop that hung the run until someone closed it.
             Select(state, hand);
             editor.EnableInverseKinematics.Value = false;
             Assert.That(editor.CanBend.Value, Is.False, "IK off");

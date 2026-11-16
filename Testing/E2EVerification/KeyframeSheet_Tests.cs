@@ -62,6 +62,22 @@ namespace Test.E2EVerification
             Assert.That(sheet.Rows.Select(x => x.Bone), Is.EqualTo(new[] { -1, hand }));
         }
 
+        // Live, the rows went after a frame change: Select again makes a new selection state, which the gizmo toolbox's
+        // "previous bones" never hears about.
+        [Test]
+        public void BoneRows_StayWhenTheFrameChanges_AfterSelectIsClickedAgain()
+        {
+            var (editor, _, sheet) = Open();
+            var hand = editor.Skeleton.GetBoneIndexByName("hand_left");
+            editor.EnterSelectMode();
+            var state = editor.SelectionManager.GetState<BoneSelectionState>()!;
+            SelectBones(state, hand);
+
+            sheet.CurrentFrame = 10;
+
+            Assert.That(sheet.Rows.Select(x => x.Bone), Is.EqualTo(new[] { -1, hand }));
+        }
+
         [Test]
         public void CopyThenPaste_OnTheAllBonesRow_CopiesWholePoses_AsOneUndoStep()
         {
