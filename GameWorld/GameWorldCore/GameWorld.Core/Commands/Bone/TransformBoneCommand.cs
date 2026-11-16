@@ -173,13 +173,7 @@ namespace GameWorld.Core.Commands.Bone
                     // Not acos of the dot: near 1 a float dot cannot tell apart angles under ~3e-4, which stalled the hand a mm short.
                     var angle = MathF.Atan2(axis.Length(), Vector3.Dot(toEffector, toTarget));
                     axis.Normalize();
-                    var turn = Matrix.CreateFromAxisAngle(axis, angle);
-
-                    // The turn is in model space; the key is in the parent's: local' = local * parent * turn * parent^-1.
-                    WorldTransform(frame, skeleton, skeleton.GetParentBoneIndex(joint)).Decompose(out _, out var parentRotation, out _);
-                    var parentMatrix = Matrix.CreateFromQuaternion(parentRotation);
-                    var rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateFromQuaternion(frame.Rotation[joint]) * parentMatrix * turn * Matrix.Transpose(parentMatrix));
-                    rotation.Normalize();
+                    var rotation = TurnInModelSpace(frame, skeleton, joint, Matrix.CreateFromAxisAngle(axis, angle));
                     frame.Rotation[joint] = limits == null ? rotation : limits.Clamp(skeleton, joint, rotation);
                 }
 
@@ -187,6 +181,19 @@ namespace GameWorld.Core.Commands.Bone
                     break;
             }
             return chain;
+        }
+
+        /// <summary>
+        /// The bone's key rotation after turning it by <paramref name="turn"/>, a rotation in model space about the bone's own origin.
+        /// The key is in the parent's space: local' = local * parent * turn * parent^-1.
+        /// </summary>
+        public static Quaternion TurnInModelSpace(KeyFrame frame, GameSkeleton skeleton, int bone, Matrix turn)
+        {
+            WorldTransform(frame, skeleton, skeleton.GetParentBoneIndex(bone)).Decompose(out _, out var parentRotation, out _);
+            var parentMatrix = Matrix.CreateFromQuaternion(parentRotation);
+            var rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateFromQuaternion(frame.Rotation[bone]) * parentMatrix * turn * Matrix.Transpose(parentMatrix));
+            rotation.Normalize();
+            return rotation;
         }
 
         /// <summary>A bone's model-space transform in a key frame: its local transform times each parent's, up to the root.</summary>
