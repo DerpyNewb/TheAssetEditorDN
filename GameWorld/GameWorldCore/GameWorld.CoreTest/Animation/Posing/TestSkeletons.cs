@@ -36,6 +36,18 @@ namespace GameWorld.Core.Test.Animation.Posing
             new("root", AnimationFile.BoneIndexNoParent, Vector3.Zero), new("pelvis", Root, Vector3.UnitY), new("upper", Pelvis, Vector3.UnitX),
             new("lower", Upper, Vector3.UnitX), new("hand", Lower, Vector3.UnitX), new("other", Pelvis, -Vector3.UnitX));
 
+        public const int ThighL = 6, ShinL = 7, FootL = 8, ThighR = 9, ShinR = 10, FootR = 11;
+
+        /// <summary>
+        /// The arm plus two legs under the pelvis. The knees are bent a little in the bind pose: a dead-straight leg is a singular
+        /// pose for CCD, which cannot tell which way to fold it.
+        /// </summary>
+        public static GameSkeleton ArmAndLegs() => Build(
+            new("root", AnimationFile.BoneIndexNoParent, Vector3.Zero), new("pelvis", Root, Vector3.UnitY), new("upper", Pelvis, Vector3.UnitX),
+            new("lower", Upper, Vector3.UnitX), new("hand", Lower, Vector3.UnitX), new("other", Pelvis, -Vector3.UnitX),
+            new("thigh_l", Pelvis, new Vector3(0.2f, 0, 0)), new("shin_l", ThighL, new Vector3(0, -0.5f, 0.15f)), new("foot_l", ShinL, new Vector3(0, -0.5f, -0.15f)),
+            new("thigh_r", Pelvis, new Vector3(-0.2f, 0, 0)), new("shin_r", ThighR, new Vector3(0, -0.5f, 0.15f)), new("foot_r", ShinR, new Vector3(0, -0.5f, -0.15f)));
+
         /// <summary>The bind pose as a key frame.</summary>
         public static AnimationClip.KeyFrame BindFrame(GameSkeleton skeleton) => new()
         {

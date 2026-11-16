@@ -20,6 +20,8 @@ namespace GameWorld.Core.Components.Selection
         public int InverseKinematicsEndBoneIndex { get; set; }
         /// <summary>The limits an IK drag is clamped to; null leaves IK unlimited.</summary>
         public JointLimits? JointLimits { get; set; }
+        /// <summary>Bones held in place while others are edited; re-solved after every edit to the current frame.</summary>
+        public List<Pin> Pins { get; set; } = new();
         public int CurrentFrame { get; set; }
         public event BoneModifiedEvent BoneModifiedEvent;
         public List<int> ModifiedBones { get; set; } = new List<int>();
@@ -86,6 +88,7 @@ namespace GameWorld.Core.Components.Selection
                 EnableInverseKinematics = EnableInverseKinematics,
                 InverseKinematicsEndBoneIndex = InverseKinematicsEndBoneIndex,
                 JointLimits = JointLimits,
+                Pins = Pins,
             };
         }
 

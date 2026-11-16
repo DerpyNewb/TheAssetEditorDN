@@ -96,7 +96,8 @@ namespace GameWorld.Core.Commands.Bone
                 _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame] = modifiedTransform;
             }
 
-            _boneSelectionState.TriggerModifiedBoneEvent(_selectedBones);
+            var held = ResolvePins(_boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame], _selectedBones);
+            _boneSelectionState.TriggerModifiedBoneEvent([.. _selectedBones, .. held]);
         }
 
         public Matrix GetSkeletonAnimatedBoneFromWorld(AnimationFrame frame, GameSkeleton gameSkeleton, int boneIndex, Matrix objectInWorldTransform)
@@ -119,8 +120,17 @@ namespace GameWorld.Core.Commands.Bone
 
             var chain = SolveInverseKinematics(frame, _boneSelectionState.Skeleton, effector, _boneSelectionState.InverseKinematicsEndBoneIndex,
                 _ikEffectorStart + gizmoPosition - _ikGizmoStart.Value, _boneSelectionState.JointLimits);
+            var held = ResolvePins(frame, [.. chain, effector]);
             _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame] = frame;
-            _boneSelectionState.TriggerModifiedBoneEvent(chain);
+            _boneSelectionState.TriggerModifiedBoneEvent([.. chain, .. held]);
+        }
+
+        /// <summary>Puts every pinned bone back after an edit; the bones the edit moved are never turned. Returns what it turned.</summary>
+        IReadOnlyList<int> ResolvePins(KeyFrame frame, IReadOnlyCollection<int> draggedBones)
+        {
+            if (_boneSelectionState.Pins.Count == 0)
+                return [];
+            return PinSolver.Resolve(frame, _boneSelectionState.Skeleton, _boneSelectionState.Pins, draggedBones, _boneSelectionState.JointLimits);
         }
 
         /// <summary>
