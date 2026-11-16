@@ -43,6 +43,14 @@ namespace GameWorld.Core.Commands.Bone
             _boneSelectionState = state;
             _currentFrame = state.CurrentFrame;
             _oldFrame = _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame].Clone();
+
+            // A drag holds each pinned bone where it is on this frame now, not where it was on the frame it was pinned on.
+            var pins = _boneSelectionState.Pins;
+            for (var i = 0; i < pins.Count; i++)
+            {
+                if (pins[i].Bone < _oldFrame.Position.Count)
+                    pins[i] = pins[i] with { Target = WorldTransform(_oldFrame, _boneSelectionState.Skeleton, pins[i].Bone).Translation };
+            }
         }
 
         public void ApplyTransformation(Matrix newPosition, GizmoMode gizmoMode)

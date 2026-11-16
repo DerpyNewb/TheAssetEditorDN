@@ -71,6 +71,25 @@ namespace GameWorld.Core.Test.Animation.Posing
                 Assert.That(Vector3.Distance(At(frame, skeleton, pin.Bone), pin.Target), Is.LessThan(1e-3f), $"bone {pin.Bone}");
         }
 
+        // A pin made on one frame must not drag the foot back there while another frame is edited: each drag holds the pinned
+        // bones where they are on the frame being edited when the drag starts.
+        [Test]
+        public void APin_HoldsTheBoneWhereItIsWhenTheDragStarts_OnAnyFrame()
+        {
+            var skeleton = ArmAndLegs();
+            var (clip, state) = Scene(skeleton, Root);
+            var second = BindFrame(skeleton);
+            second.Position[Pelvis] += new Vector3(0.05f, -0.15f, 0.05f);
+            clip.DynamicFrames.Add(second);
+            state.Pins.Add(Pin.Create(clip.DynamicFrames[0], skeleton, FootL));
+            state.CurrentFrame = 1;
+            var footOnFrame1 = At(second, skeleton, FootL);
+
+            Drag(state, Hand, new Vector3(-0.5f, -1.2f, 0.4f));
+
+            Assert.That(Vector3.Distance(At(clip.DynamicFrames[1], skeleton, FootL), footOnFrame1), Is.LessThan(1e-3f));
+        }
+
         [Test]
         public void TwoFootPins_DoNotTouchTheHips()
         {
