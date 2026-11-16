@@ -2,6 +2,8 @@
 using AnimationEditor.MountAnimationCreator;
 using Editors.AnimationVisualEditors.AnimationKeyframeEditor;
 using Editors.Shared.Core.Common.BaseControl;
+using GameWorld.Core.Animation.Posing;
+using GameWorld.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.DependencyInjection;
 using Shared.Core.DevConfig;
@@ -17,6 +19,7 @@ namespace Editors.AnimationVisualEditors
             serviceCollection.AddScoped<MountAnimationCreatorViewModel>();
 
             serviceCollection.AddScoped<AnimationKeyframeEditorViewModel>();
+            serviceCollection.AddScoped(x => new JointLimitStore(x.GetRequiredService<ISkeletonAnimationLookUpHelper>(), JointLimitStore.DefaultFolder));
 
             RegisterAllAsInterface<IDeveloperConfiguration>(serviceCollection, ServiceLifetime.Transient);
         }
