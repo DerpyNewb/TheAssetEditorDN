@@ -44,6 +44,15 @@
                 <mathviews:Vector3View  VerticalContentAlignment="Center" Vector3="{Binding BoneManager.SelectedBone.RotationOffset, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
             </DockPanel>
 
+            <DockPanel>
+                <Label Width ="{StaticResource labelWidth}" Content="{loc:Loc AnimationReTarget.SelectedBone.Handle}"/>
+                <Label Content=":"/>
+                <StackPanel Orientation="Horizontal" ToolTip="{loc:Loc AnimationReTarget.SelectedBone.Tooltips.Handle}">
+                    <ToggleButton IsChecked="{Binding OffsetHandle.Moving}" Content="{loc:Loc AnimationReTarget.SelectedBone.HandleMove}" Padding="8,1" Margin="2" AutomationProperties.AutomationId="RetargetHandleMove"/>
+                    <ToggleButton IsChecked="{Binding OffsetHandle.Rotating}" Content="{loc:Loc AnimationReTarget.SelectedBone.HandleRotate}" Padding="8,1" Margin="2" AutomationProperties.AutomationId="RetargetHandleRotate"/>
+                </StackPanel>
+            </DockPanel>
+
             <DockPanel >
                 <Label Content="{loc:Loc AnimationReTarget.SelectedBone.BoneLengthMult}" Width ="{StaticResource labelWidth}"/>
                 <Label Content=":"/>

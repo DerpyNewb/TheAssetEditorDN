@@ -46,6 +46,7 @@ namespace Editors.AnimatioReTarget.Editor
 
         [ObservableProperty] BoneManager _boneManager;
         [ObservableProperty] AnimationReTargetRenderingComponent _rendering;
+        [ObservableProperty] BoneOffsetHandle _offsetHandle;
         [ObservableProperty] AnimationGenerationSettings _settings;
         [ObservableProperty] SaveManager _saveManager;
 
@@ -63,6 +64,7 @@ namespace Editors.AnimatioReTarget.Editor
             SaveManager saveManager,
             BoneManager boneManager,
             AnimationReTargetRenderingComponent renderingComponent,
+            BoneOffsetHandle offsetHandle,
             IPackFileService pfs) : base(editorHostParameters)
         {
             DisplayName = "Animation transfer tool";
@@ -87,6 +89,8 @@ namespace Editors.AnimatioReTarget.Editor
             _saveManager = saveManager;
 
             GameWorld.AddComponent(renderingComponent);
+            _offsetHandle = offsetHandle;
+            GameWorld.AddComponent(offsetHandle);
 
             _eventHub.Register<SceneObjectUpdateEvent>(this, OnSceneObjectUpdated);
 
@@ -113,6 +117,7 @@ namespace Editors.AnimatioReTarget.Editor
             Rendering.SetSceneNodes(source.Data, target.Data, generated.Data);
             SaveManager.SetSceneNodes(source.Data, target.Data, generated.Data);
             SaveManager.Remap = UpdateAnimation;
+            OffsetHandle.Follow(generated.Data, () => Settings.SkeletonScale);
         }
 
         private void OnSceneObjectUpdated(SceneObjectUpdateEvent e)

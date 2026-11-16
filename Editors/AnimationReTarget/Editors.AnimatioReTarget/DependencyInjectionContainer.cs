@@ -20,6 +20,7 @@ namespace Editors.AnimatioReTarget
             serviceCollection.AddScoped<SaveManager>();
             serviceCollection.AddScoped<SaveSettings>();
             serviceCollection.AddScoped<AnimationReTargetRenderingComponent>();
+            serviceCollection.AddScoped<BoneOffsetHandle>();
 
             RegisterWindow<BoneMappingWindow>(serviceCollection);
             RegisterWindow<SaveWindow>(serviceCollection);

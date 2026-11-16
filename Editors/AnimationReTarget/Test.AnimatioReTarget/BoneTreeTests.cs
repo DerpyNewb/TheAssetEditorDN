@@ -121,6 +121,90 @@ namespace Test.AnimatioReTarget
             Assert.That(Regenerations(hand.ResetSettings), Is.EqualTo(1));
         }
 
+        // The handle in the view: a drag writes the selected bone's offsets, and the generated bone follows it exactly, at the
+        // frame shown, on top of offsets already typed in, whatever the skeleton scale.
+        Matrix Shown(string bone)
+        {
+            var frame = AnimationSampler.Sample(_generated.Player.CurrentFrame, 0, _target.Skeleton, _generated.AnimationClip);
+            return frame.GetSkeletonAnimatedWorld(_target.Skeleton, Node(bone).BoneIndex);
+        }
+
+        void Pick(string bone)
+        {
+            _editor.BoneManager.SelectedBone = Node(bone);
+            _generated.Player.CurrentFrame = 10;
+        }
+
+        [Test]
+        public void Handle_StandsOnTheSelectedBone_OfTheGeneratedModel()
+        {
+            Pick("hand_right");
+            var expected = (Shown("hand_right") * _generated.MainNode.ModelMatrix).Translation;
+            Assert.That(_editor.OffsetHandle.Where, Is.Not.Null);
+            Assert.That(Vector3.Distance(_editor.OffsetHandle.Where!.Value, expected), Is.LessThan(1e-4f));
+
+            _editor.OffsetHandle.Mode = OffsetHandleMode.Off;
+            Assert.That(_editor.OffsetHandle.Where, Is.Null);
+        }
+
+        [Test]
+        public void Handle_Move_MovesTheBoneByTheDrag_AtAnyScale()
+        {
+            var hand = Node("hand_right");
+            hand.TranslationOffset.X.Value = 0.05;
+            _editor.Settings.SkeletonScale = 2;
+            Pump();
+            Pick("hand_right");
+            var before = Shown("hand_right").Translation;
+
+            var drag = new Vector3(0.1f, 0.05f, -0.08f);
+            _editor.OffsetHandle.Mode = OffsetHandleMode.Move;
+            _editor.OffsetHandle.Begin();
+            _editor.OffsetHandle.MoveBy(drag * 0.5f);
+            Pump();
+            _editor.OffsetHandle.MoveBy(drag * 0.5f);
+            _editor.OffsetHandle.End();
+            Pump();
+
+            Assert.That(Vector3.Distance(Shown("hand_right").Translation - before, drag), Is.LessThan(1e-3f));
+        }
+
+        [Test]
+        public void Handle_Rotate_TurnsTheBoneInPlace()
+        {
+            var hand = Node("hand_right");
+            (hand.RotationOffset.X.Value, hand.RotationOffset.Y.Value, hand.RotationOffset.Z.Value) = (10, 20, 30);
+            Pump();
+            Pick("hand_right");
+            Shown("hand_right").Decompose(out _, out var turnBefore, out var placeBefore);
+
+            _editor.OffsetHandle.Mode = OffsetHandleMode.Rotate;
+            _editor.OffsetHandle.Begin();
+            _editor.OffsetHandle.TurnBy(Matrix.CreateRotationY(MathHelper.ToRadians(10)));
+            Pump();
+            _editor.OffsetHandle.TurnBy(Matrix.CreateRotationX(MathHelper.ToRadians(25)));
+            _editor.OffsetHandle.End();
+            Pump();
+
+            Shown("hand_right").Decompose(out _, out var turnAfter, out var placeAfter);
+            var expected = Quaternion.CreateFromRotationMatrix(Matrix.CreateFromQuaternion(turnBefore)
+                * Matrix.CreateRotationY(MathHelper.ToRadians(10)) * Matrix.CreateRotationX(MathHelper.ToRadians(25)));
+            Assert.That(Math.Abs(Quaternion.Dot(turnAfter, expected)), Is.GreaterThan(0.9999f));
+            Assert.That(Vector3.Distance(placeAfter, placeBefore), Is.LessThan(1e-3f));
+        }
+
+        [TestCase(0f, 0f, 0f)]
+        [TestCase(10f, 20f, 30f)]
+        [TestCase(-170f, 45f, 95f)]
+        [TestCase(30f, 90f, 10f)]
+        [TestCase(-60f, -90f, 20f)]
+        public void OffsetAngles_ReadBackTheSameTurn(float x, float y, float z)
+        {
+            var turn = Shared.Core.Misc.MathUtil.CreateRotation(new Vector3(x, y, z));
+            var back = Shared.Core.Misc.MathUtil.CreateRotation(BoneOffsetHandle.AnglesOf(turn));
+            Assert.That(Math.Abs(Quaternion.Dot(Quaternion.CreateFromRotationMatrix(turn), Quaternion.CreateFromRotationMatrix(back))), Is.GreaterThan(0.99999f));
+        }
+
         [Test]
         public void TheTree_IsTheTargetSkeleton_AndTheRelativeListHoldsEveryBone()
         {
