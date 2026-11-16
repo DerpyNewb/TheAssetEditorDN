@@ -1,4 +1,5 @@
 using GameWorld.Core.Animation;
+using GameWorld.Core.Animation.Posing;
 using GameWorld.Core.Commands.Bone;
 using GameWorld.Core.Components.Gizmo;
 using GameWorld.Core.Components.Selection;
@@ -85,6 +86,80 @@ namespace GameWorld.Core.Test.Commands.Bone
             Assert.That(TransformBoneCommand.InverseKinematicsChain(skeleton, Hand, Lower), Is.EqualTo(new[] { Lower }));
             Assert.That(TransformBoneCommand.InverseKinematicsChain(skeleton, Hand, Root), Is.EqualTo(new[] { Lower, Upper, Pelvis }));
             Assert.That(TransformBoneCommand.InverseKinematicsChain(skeleton, Hand, Other), Is.EqualTo(new[] { Lower, Upper, Pelvis }), "an end bone off the chain");
+        }
+
+        static JointLimits LowerLimited(float twist, float swing) => new("test_arm", new Dictionary<int, BoneLimit>
+        {
+            [Lower] = new BoneLimit(0, twist, new Vector2(-swing), new Vector2(swing)),
+        });
+
+        [Test]
+        public void WithLimits_EveryChainBoneStaysInsideItsRange()
+        {
+            var skeleton = Skeleton();
+            var frame = Frame(skeleton);
+
+            TransformBoneCommand.SolveInverseKinematics(frame, skeleton, Hand, Upper, new Vector3(2, 2.2f, 0.5f), LowerLimited(0.1f, 0.4f));
+
+            SwingTwist.Decompose(frame.Rotation[Lower], SwingTwist.BoneAxis(skeleton, Lower), out var twist, out var swing);
+            Assert.That(MathF.Abs(twist), Is.LessThanOrEqualTo(0.1f + 1e-4f));
+            Assert.That(MathF.Abs(swing.X), Is.LessThanOrEqualTo(0.4f + 1e-4f));
+            Assert.That(MathF.Abs(swing.Y), Is.LessThanOrEqualTo(0.4f + 1e-4f));
+        }
+
+        [Test]
+        public void WithLimits_TheElbowCannotBendPastItsRange_SoTheHandFallsShort()
+        {
+            var skeleton = Skeleton();
+            var frame = Frame(skeleton);
+            var target = new Vector3(1.2f, 1.5f, 0);   // needs the elbow bent well past 0.4
+
+            TransformBoneCommand.SolveInverseKinematics(frame, skeleton, Hand, Upper, target, LowerLimited(0.1f, 0.4f));
+
+            Assert.That(Vector3.Distance(At(frame, skeleton, Hand), target), Is.GreaterThan(0.05f));
+        }
+
+        [Test]
+        public void WithLimits_AReachableTargetIsStillReached()
+        {
+            var skeleton = Skeleton();
+            var frame = Frame(skeleton);
+            var target = new Vector3(2, 2.2f, 0.5f);
+
+            TransformBoneCommand.SolveInverseKinematics(frame, skeleton, Hand, Upper, target, LowerLimited(MathF.PI, 3f));
+
+            Assert.That(Vector3.Distance(At(frame, skeleton, Hand), target), Is.LessThan(2e-4f));
+        }
+
+        [Test]
+        public void LockedBones_AreNotTurned()
+        {
+            var skeleton = Skeleton();
+            var frame = Frame(skeleton);
+            var before = frame.Rotation[Upper];
+
+            var chain = TransformBoneCommand.SolveInverseKinematics(frame, skeleton, Hand, Upper, new Vector3(2, 2.2f, 0.5f), lockedBones: [Upper]);
+
+            Assert.That(frame.Rotation[Upper], Is.EqualTo(before));
+            Assert.That(chain, Is.EqualTo(new[] { Lower }));
+        }
+
+        [Test]
+        public void TheDrag_UsesTheStatesLimits()
+        {
+            var skeleton = Skeleton();
+            var clip = new AnimationClip();
+            clip.DynamicFrames.Add(Frame(skeleton));
+            var state = new BoneSelectionState(null!) { CurrentAnimation = clip, Skeleton = skeleton, CurrentFrame = 0, EnableInverseKinematics = true, InverseKinematicsEndBoneIndex = Upper, JointLimits = LowerLimited(0.1f, 0.4f) };
+            state.BoneModifiedEvent += _ => { };
+            var command = new TransformBoneCommand(null!);
+            command.Configure([Hand], state);
+
+            command.ApplyTransformation(Matrix.CreateTranslation(Vector3.Zero), GizmoMode.Translate);
+            command.ApplyTransformation(Matrix.CreateTranslation(new Vector3(-1.8f, 0.5f, 0)), GizmoMode.Translate);
+
+            SwingTwist.Decompose(clip.DynamicFrames[0].Rotation[Lower], Vector3.UnitX, out _, out var swing);
+            Assert.That(swing.Length(), Is.LessThanOrEqualTo(0.4f * MathF.Sqrt(2) + 1e-4f));
         }
 
         // The gizmo need not be where the bone is in the key's space (a rider sits on its mount), so the hand moves as far as the

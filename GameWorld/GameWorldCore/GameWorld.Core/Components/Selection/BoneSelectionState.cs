@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using GameWorld.Core.Animation;
+using GameWorld.Core.Animation.Posing;
 using GameWorld.Core.SceneNodes;
 
 namespace GameWorld.Core.Components.Selection
@@ -17,6 +18,8 @@ namespace GameWorld.Core.Components.Selection
         public List<int> SelectedBones { get; set; } = new List<int>();
         public bool EnableInverseKinematics { get; set; }
         public int InverseKinematicsEndBoneIndex { get; set; }
+        /// <summary>The limits an IK drag is clamped to; null leaves IK unlimited.</summary>
+        public JointLimits? JointLimits { get; set; }
         public int CurrentFrame { get; set; }
         public event BoneModifiedEvent BoneModifiedEvent;
         public List<int> ModifiedBones { get; set; } = new List<int>();
@@ -82,6 +85,7 @@ namespace GameWorld.Core.Components.Selection
                 RenderObject = RenderObject,
                 EnableInverseKinematics = EnableInverseKinematics,
                 InverseKinematicsEndBoneIndex = InverseKinematicsEndBoneIndex,
+                JointLimits = JointLimits,
             };
         }
 

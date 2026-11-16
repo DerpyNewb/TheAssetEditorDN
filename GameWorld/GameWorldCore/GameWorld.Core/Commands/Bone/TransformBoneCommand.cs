@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using GameWorld.Core.Animation;
+using GameWorld.Core.Animation.Posing;
 using GameWorld.Core.Commands;
 using GameWorld.Core.Components.Gizmo;
 using GameWorld.Core.Components.Selection;
@@ -117,7 +118,7 @@ namespace GameWorld.Core.Commands.Bone
             }
 
             var chain = SolveInverseKinematics(frame, _boneSelectionState.Skeleton, effector, _boneSelectionState.InverseKinematicsEndBoneIndex,
-                _ikEffectorStart + gizmoPosition - _ikGizmoStart.Value);
+                _ikEffectorStart + gizmoPosition - _ikGizmoStart.Value, _boneSelectionState.JointLimits);
             _boneSelectionState.CurrentAnimation.DynamicFrames[_currentFrame] = frame;
             _boneSelectionState.TriggerModifiedBoneEvent(chain);
         }
@@ -142,14 +143,19 @@ namespace GameWorld.Core.Commands.Bone
         /// <summary>
         /// Cyclic coordinate descent: each bone of the chain, nearest the effector first, turned about its own origin so the
         /// effector points at the target, repeated until it is there. Only rotations change, so every bone keeps its length, and a
-        /// target out of reach leaves the chain stretched toward it. Returns the chain.
+        /// target out of reach leaves the chain stretched toward it. With <paramref name="limits"/>, each turn is clamped into the
+        /// joint's range, so a target the limits forbid is fallen short of. <paramref name="lockedBones"/> are left out of the
+        /// chain. Returns the chain.
         /// </summary>
-        public static List<int> SolveInverseKinematics(KeyFrame frame, GameSkeleton skeleton, int effector, int endBone, Vector3 target, int iterations = 64, float tolerance = 0.0001f)
+        public static List<int> SolveInverseKinematics(KeyFrame frame, GameSkeleton skeleton, int effector, int endBone, Vector3 target,
+            JointLimits? limits = null, IReadOnlyCollection<int>? lockedBones = null, int iterations = 64, float tolerance = 0.0001f)
         {
             if (effector >= frame.Rotation.Count)
                 return [];
 
             var chain = InverseKinematicsChain(skeleton, effector, endBone);
+            if (lockedBones != null)
+                chain.RemoveAll(lockedBones.Contains);
             for (var i = 0; i < iterations; i++)
             {
                 foreach (var joint in chain)
@@ -174,7 +180,7 @@ namespace GameWorld.Core.Commands.Bone
                     var parentMatrix = Matrix.CreateFromQuaternion(parentRotation);
                     var rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateFromQuaternion(frame.Rotation[joint]) * parentMatrix * turn * Matrix.Transpose(parentMatrix));
                     rotation.Normalize();
-                    frame.Rotation[joint] = rotation;
+                    frame.Rotation[joint] = limits == null ? rotation : limits.Clamp(skeleton, joint, rotation);
                 }
 
                 if (Vector3.Distance(WorldTransform(frame, skeleton, effector).Translation, target) < tolerance)
