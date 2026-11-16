@@ -246,7 +246,7 @@ namespace Test.E2EVerification
 
         /// <param name="store">Replaces the editor's joint-limit store; the default one reads the user's own cache.</param>
         /// <param name="beforeMesh">Runs on the open editor before Karl's mesh loads, which is what loads the limits.</param>
-        static (AnimationKeyframeEditorViewModel Editor, GameWorld.Core.Components.Selection.BoneSelectionState State) OpenPosing(
+        internal static (AnimationKeyframeEditorViewModel Editor, GameWorld.Core.Components.Selection.BoneSelectionState State) OpenPosing(
             JointLimitStore? store = null, Action<AnimationKeyframeEditorViewModel>? beforeMesh = null)
         {
             var runner = new AssetEditorTestRunner(testServices: store == null ? null : services => services.AddScoped(_ => store));
@@ -264,13 +264,13 @@ namespace Test.E2EVerification
             return (editor, state!);
         }
 
-        static void Select(GameWorld.Core.Components.Selection.BoneSelectionState state, int bone)
+        internal static void Select(GameWorld.Core.Components.Selection.BoneSelectionState state, int bone)
         {
             state.SelectedBones.Clear();
             state.ModifySelection([bone], false);
         }
 
-        static Vector3 At(AnimationKeyframeEditorViewModel editor, int frame, int bone) =>
+        internal static Vector3 At(AnimationKeyframeEditorViewModel editor, int frame, int bone) =>
             TransformBoneCommand.WorldTransform(editor.Rider.AnimationClip!.DynamicFrames[frame], editor.Skeleton, bone).Translation;
 
         /// <summary>A store in a fresh temp folder whose clip list comes from <paramref name="clips"/>, called once per lookup.</summary>

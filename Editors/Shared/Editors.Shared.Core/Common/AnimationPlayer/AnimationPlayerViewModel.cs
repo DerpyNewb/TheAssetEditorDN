@@ -109,7 +109,8 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
             SelectedAnimationMaxTime.Value = (float)SelectedMainAnimation.Asset.Player.GetAnimationLengthUs() / 1_000_000;
             SelectedAnimationFps.Value = SelectedMainAnimation.Asset.Player.GetFps();
 
-            if (_stepping == false && SelectedAnimationCurrentFrame.Value + 1 == SelectedMainAnimation.Asset.Player.FrameCount())
+            // Playback reaching the end loops; a frame set by hand that happens to be the last one is not playback reaching it.
+            if (_stepping == false && SelectedMainAnimation.Asset.Player.IsPlaying && SelectedAnimationCurrentFrame.Value + 1 == SelectedMainAnimation.Asset.Player.FrameCount())
             {
                 if (LoopAnimation.Value)
                 {

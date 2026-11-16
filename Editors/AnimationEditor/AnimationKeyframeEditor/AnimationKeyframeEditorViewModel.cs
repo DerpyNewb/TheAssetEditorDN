@@ -252,6 +252,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         private void RiderOnFrameChanged(int currentFrame)
         {
+            _sheet?.Refresh();
             if (currentFrame != _bendFrame)
             {
                 _bendFrame = currentFrame;
@@ -283,6 +284,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
             IsDirty.Value = false;
             _interpolateBetweenPose.Reset();
+            _sheet?.ClearSelection();
         }
 
         private void RiderSkeletonChanges(GameSkeleton newValue)
@@ -400,6 +402,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             Pause();
             _commandExecutor.Undo();
             ResetBend();
+            _sheet?.Refresh();
         }
 
         public void RedoPose()
@@ -407,6 +410,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             Pause();
             _commandExecutor.Redo();
             ResetBend();
+            _sheet?.Refresh();
         }
 
         public void ResetPose()
@@ -647,6 +651,20 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         public void SetFrameLengthFromClipboard()
         {
             FrameNrLength = _copyPasteClipboardPose.GetClipboardFramesLength().ToString();
+        }
+
+        /// <summary>Frames A and B, from the Keyframes strip's selection; nulls for none.</summary>
+        internal void SetFrameRange(int? first, int? last)
+        {
+            if (first is not int a || last is not int b || _rider.AnimationClip == null)
+            {
+                _interpolateBetweenPose.Reset();
+                return;
+            }
+            SelectedFrameAInterpolation.Value = a.ToString();
+            _interpolateBetweenPose.SelectFrameA(a);
+            SelectedFrameBInterpolation.Value = b.ToString();
+            _interpolateBetweenPose.SelectFrameB(b);
         }
 
         public void SelectFrameAInterpolation()

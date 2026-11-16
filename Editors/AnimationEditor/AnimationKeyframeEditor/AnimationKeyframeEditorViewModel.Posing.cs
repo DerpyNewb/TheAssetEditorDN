@@ -62,6 +62,10 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
 
         public ObservableCollection<PinRow> PinRows { get; } = new();
 
+        /// <summary>The Keyframes strip under the player.</summary>
+        public KeyframeSheetViewModel Sheet => _sheet ??= new(this);
+        KeyframeSheetViewModel? _sheet;
+
         public PinRow? SelectedPinRow { get => _selectedPinRow; set => SetProperty(ref _selectedPinRow, value); }
         PinRow? _selectedPinRow;
 
@@ -77,7 +81,9 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
         }
         float _bendDegrees;
 
-        JointLimits? ActiveJointLimits => UseJointLimits.Value ? _measuredLimits : null;
+        internal JointLimits? ActiveJointLimits => UseJointLimits.Value ? _measuredLimits : null;
+
+        internal IReadOnlyList<Pin> Pins => _pins;
 
         /// <summary>The current skeleton's limits, before the checkbox; setting them hands them to the bone selection.</summary>
         internal JointLimits? MeasuredJointLimits
@@ -119,7 +125,7 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             return a >= 0 && b >= 0 && a < count && b < count && int.TryParse(SelectedFrameAInterpolation.Value, out _) && int.TryParse(SelectedFrameBInterpolation.Value, out _);
         }
 
-        ReplaceFramesCommand ExecuteFrameEdit(AnimationClip clip, IReadOnlyList<int> frames, Action<AnimationClip> edit, string hint)
+        internal ReplaceFramesCommand ExecuteFrameEdit(AnimationClip clip, IReadOnlyList<int> frames, Action<AnimationClip> edit, string hint)
         {
             var command = new ReplaceFramesCommand();
             command.Configure(clip, frames, edit, hint);
