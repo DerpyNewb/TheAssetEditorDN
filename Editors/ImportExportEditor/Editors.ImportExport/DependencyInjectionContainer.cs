@@ -25,6 +25,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.DependencyInjection;
 using Shared.Core.DevConfig;
 using Editors.ImportImport.Importing.Presentation.RmvToGltf;
+using Shared.Ui.BaseDialogs.PackFileTree;
 using Shared.Ui.BaseDialogs.PackFileTree.ContextMenu;
 
 namespace Editors.ImportExport
@@ -74,6 +75,8 @@ namespace Editors.ImportExport
             // Helpers to ensure we can hook up to the UI
             services.AddTransient<AdvancedExportCommand>();
             services.AddTransient<AdvancedImportCommand>();
+            services.AddTransient<ExportToCommand>();
+            services.AddTransient<IExternalFileDropHandler, ImportDropHandler>();
             services.AddTransient<IExportFileContextMenuHelper, ExportFileContextMenuHelper>();
             services.AddTransient<DisplayExportFileToolCommand>();
 
@@ -100,6 +103,7 @@ namespace Editors.ImportExport
         public void Register(PackFileContextMenuRegistry registry)
         {
             registry.RegisterPackFileContextMenuItem<AdvancedExportCommand>(ContextMenuType.MainApplication, path: "Export", priority: 10, ContextMenuCluster.Export);
+            registry.RegisterPackFileContextMenuItem<ExportToCommand>(ContextMenuType.MainApplication, path: "", priority: 11, ContextMenuCluster.Export);
             registry.RegisterPackFileContextMenuItem<AdvancedImportCommand>(ContextMenuType.MainApplication, path: "Import", priority: 20, ContextMenuCluster.FolderOperation);
         }
     }

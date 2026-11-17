@@ -14,21 +14,24 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
         private readonly IEventHub _eventHub;
         private readonly PackFileContextMenuComposer _contextMenuComposer;
         private readonly IWindowsKeyboard _windowKeyboard;
+        private readonly IReadOnlyList<IExternalFileDropHandler> _dropHandlers;
         //private readonly IStandardDialogs _standardDialogs;
 
-        public PackFileTreeViewFactory(ApplicationSettingsService applicationSettingsService, IPackFileService packFileService, IEventHub eventHub, PackFileContextMenuComposer contextMenuComposer, IWindowsKeyboard windowKeyboard)
+        public PackFileTreeViewFactory(ApplicationSettingsService applicationSettingsService, IPackFileService packFileService, IEventHub eventHub, PackFileContextMenuComposer contextMenuComposer, IWindowsKeyboard windowKeyboard, IEnumerable<IExternalFileDropHandler> dropHandlers)
         {
             _applicationSettingsService = applicationSettingsService;
             _packFileService = packFileService;
             _eventHub = eventHub;
             _contextMenuComposer = contextMenuComposer;
             _windowKeyboard = windowKeyboard;
+            _dropHandlers = dropHandlers.ToList();
           //  _standardDialogs = standardDialogs;
         }
 
         public PackFileBrowserViewModel Create(ContextMenuType contextMenu, bool showCaFiles, bool showFoldersOnly)
         {
             var fileTree = new PackFileBrowserViewModel(_applicationSettingsService, _contextMenuComposer, contextMenu, _packFileService, _eventHub, _windowKeyboard, showCaFiles, showFoldersOnly, null);
+            fileTree.ExternalFileDropHandlers = _dropHandlers;
             return fileTree;
         }
     }

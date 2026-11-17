@@ -24,21 +24,26 @@ namespace Editors.ImportExport.Importing
             _importerViewModels = exporterViewModels;
         }
 
-        public void Configure(IPackFileContainer packFileContainer, string packPath)
+        private string? _diskFile;
+
+        /// <param name="diskFile">A file already chosen (dropped on the tree); null asks with a file dialog.</param>
+        public void Configure(IPackFileContainer packFileContainer, string packPath, string? diskFile = null)
         {
             _packFileContainer = packFileContainer;
             _packPath = packPath;
+            _diskFile = diskFile;
         }
 
         public void Execute()
         {
-            var fileExtentionFilters = GetFileDialogFilters();
-
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog { Filter = fileExtentionFilters };
-            if (openFileDialog.ShowDialog() != true)
-                return;
-
-            var diskFilePath = openFileDialog.FileName;
+            var diskFilePath = _diskFile;
+            if (diskFilePath == null)
+            {
+                var openFileDialog = new Microsoft.Win32.OpenFileDialog { Filter = GetFileDialogFilters() };
+                if (openFileDialog.ShowDialog() != true)
+                    return;
+                diskFilePath = openFileDialog.FileName;
+            }
 
             var window = _importWindowFactory.Create();
             window.Initialize(_packFileContainer, _packPath, diskFilePath);
@@ -51,7 +56,8 @@ namespace Editors.ImportExport.Importing
         /// </summary>        
         private string GetFileDialogFilters()
         {
-            var fileExtentionFilters = "";
+            var all = string.Join(";", _importerViewModels.SelectMany(x => x.InputExtensions).Select(e => "*" + e));
+            var fileExtentionFilters = $"All supported files ({all})|{all}|";
             foreach (var importViewModel in _importerViewModels) // generate file dialog filters, of all support file formats
             {
                 var tempFilter = $"*{String.Join(";*", importViewModel.InputExtensions)}";

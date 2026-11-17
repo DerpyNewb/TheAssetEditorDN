@@ -96,6 +96,23 @@ namespace AssetEditor.ViewModels
         [RelayCommand] private void OpenPack() => _uiCommandFactory.Create<OpenPackCommand>().Execute();
         [RelayCommand] private void CreateNewProject() => _uiCommandFactory.Create<CreateNewProjectCommand>().Execute();
 
+        /// <summary>File > Import 3D model: into the root of the editable pack, offering to create one when there is none.</summary>
+        [RelayCommand]
+        private void ImportModel()
+        {
+            var pack = _packfileService.GetEditablePack();
+            if (pack == null)
+            {
+                if (_standardDialogs.ShowYesNoBox("There is no editable pack to import into. Create a new pack now?", "Import 3D model") != ShowMessageBoxResult.OK)
+                    return;
+                CreateNewPack();
+                pack = _packfileService.GetEditablePack();
+                if (pack == null)
+                    return;
+            }
+            _uiCommandFactory.Create<Editors.ImportExport.Importing.DisplayImportFileToolCommand>(x => x.Configure(pack, "")).Execute();
+        }
+
         [RelayCommand]
         private void CreateNewPack()
         {

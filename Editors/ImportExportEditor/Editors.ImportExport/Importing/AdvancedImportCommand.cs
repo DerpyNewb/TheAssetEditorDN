@@ -9,11 +9,11 @@ namespace Editors.ImportExport.Importing
 {
     public class AdvancedImportCommand(IPackFileService packFileService, IImportFileContextMenuHelper importFileContextMenuHelper) : IContextMenuCommand
     {
-        public string GetDisplayName(TreeNode node) => "Advanced Import";
+        public string GetDisplayName(TreeNode node) => "Import 3D model or image...";
         public bool ShouldAdd(TreeNode node)
         {
             var container = TreeNodeHelper.GetPackFileContainer(node);
-            return node.NodeType == NodeType.Directory && container is { IsCaPackFile: false };
+            return node.NodeType is NodeType.Directory or NodeType.Root && container is { IsCaPackFile: false };
         }
 
         public bool IsEnabled(TreeNode node) => true;

@@ -182,6 +182,7 @@
   "MenuBar.File.RestoreBackup.ToolTip": "Put a pack back to one of its backups (Settings > Saving), without opening it. Lists the packs opened lately that have backups.",
   "MenuBar.File.OpenProjectFolder": "Open Project",
   "MenuBar.File.ImportPackAsProject": "Create project from Packfile",
+  "MenuBar.File.ImportModel": "Import 3D model...",
   "MenuBar.File.ImportReferencePack": "Import reference Packfile",
   "MenuBar.File.OpenPack": "Open Packfile",
   "MenuBar.File.OpenPack.ToolTip": "Open a .pack to edit it directly: Save writes back into the same file. Don't have it open in RPFM at the same time.",

@@ -126,6 +126,18 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
 
         private void treeView_Drop(object sender, DragEventArgs e)
         {
+            // files dragged in from Windows, not a node dragged inside the tree
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                if (DataContext is PackFileBrowserViewModel browser && (sender as TreeViewItem)?.DataContext is TreeNode target
+                    && e.Data.GetData(DataFormats.FileDrop) is string[] paths && browser.DropExternalFiles(paths, target))
+                {
+                    e.Effects = DragDropEffects.Copy;
+                    e.Handled = true;
+                }
+                return;
+            }
+
             if (DataContext is IDropTarget<TreeNode> dropContainer)
             {
                 if (_draggedItem == null)

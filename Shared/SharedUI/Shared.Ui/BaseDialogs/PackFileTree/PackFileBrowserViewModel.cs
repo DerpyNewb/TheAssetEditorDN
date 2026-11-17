@@ -329,6 +329,31 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
 
         public bool Drop(TreeNode node, TreeNode? targeNode) => DropHandler.Drop(node, targeNode, _packFileService);
 
+        public IReadOnlyList<IExternalFileDropHandler> ExternalFileDropHandlers { get; set; } = [];
+
+        /// <summary>
+        /// Files dragged in from Windows: the first one a handler accepts goes to it, with the target's
+        /// container and folder (a file's own folder when dropped on a file). Never into a CA pack.
+        /// </summary>
+        public bool DropExternalFiles(IEnumerable<string> diskPaths, TreeNode target)
+        {
+            var container = TreeNodeHelper.GetPackFileContainer(target);
+            if (container == null || container.IsCaPackFile)
+                return false;
+
+            var folderNode = target.NodeType == NodeType.File ? target.Parent : target;
+            var folder = folderNode == null || folderNode.NodeType == NodeType.Root ? "" : folderNode.GetFullPath();
+            foreach (var path in diskPaths)
+            {
+                var handler = ExternalFileDropHandlers.FirstOrDefault(h => h.CanHandle(path));
+                if (handler == null)
+                    continue;
+                handler.Handle(path, container, folder);
+                return true;
+            }
+            return false;
+        }
+
         private RootTreeNode GetRootNode(IPackFileContainer container)
         {
             foreach (var node in Files)

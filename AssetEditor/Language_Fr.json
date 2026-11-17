@@ -175,6 +175,7 @@
     "MenuBar.File.RestoreBackup.ToolTip":  "Remettre un pack dans l'état d'une de ses sauvegardes (Paramètres > Enregistrement), sans l'ouvrir. Liste les packs ouverts récemment qui ont des sauvegardes.",
     "MenuBar.File.OpenProjectFolder":  "Open Project",
     "MenuBar.File.ImportPackAsProject":  "Create project from Packfile",
+    "MenuBar.File.ImportModel": "Import 3D model...",
     "MenuBar.File.ImportReferencePack":  "Import reference Packfile",
     "MenuBar.File.OpenPack":  "Ouvrir un Packfile",
     "MenuBar.File.OpenPack.ToolTip":  "Ouvrir un .pack pour le modifier directement : Enregistrer écrit dans le même fichier. Ne l'ouvrez pas dans RPFM en même temps.",
