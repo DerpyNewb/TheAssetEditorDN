@@ -1,5 +1,8 @@
-﻿using Editors.ImportExport.Exporting;
+﻿using Editors.ImportExport.Blender;
+using Editors.ImportExport.Exporting;
 using Editors.ImportExport.Exporting.Exporters;
+using Editors.ImportExport.Exporting.Exporters.RmvToBlender;
+using Editors.ImportExport.Exporting.Presentation.RmvToBlender;
 using Editors.ImportExport.Exporting.Exporters.DdsToMaterialPng;
 using Editors.ImportExport.Exporting.Exporters.DdsToNormalPng;
 using Editors.ImportExport.Exporting.Exporters.DdsToPng;
@@ -36,6 +39,11 @@ namespace Editors.ImportExport
             services.AddTransient<IExporterViewModel, DdsToNormalPngViewModel>();
             services.AddTransient<IExporterViewModel, RmvToGltfExporterViewModel>();
             services.AddTransient<IExporterViewModel, RmvToGltfStaticExporterViewModel>();
+            services.AddTransient<IExporterViewModel, RmvToBlenderExporterViewModel>();
+
+            // Blender (.blend / .obj through io_scene_rmv2)
+            services.AddSingleton<BlenderRunner>();
+            services.AddTransient<RmvToBlenderExporter>();
 
             // Exporters
             services.AddTransient<IDdsToMaterialPngExporter, DdsToMaterialPngExporter>();

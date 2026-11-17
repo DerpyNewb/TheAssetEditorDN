@@ -55,6 +55,9 @@ namespace Shared.Core.Settings
         public KitbashSaveChoices? KitbashSaveChoices { get; set; }
         /// <summary>What a custom meta's file name starts with, learned from the meta save dialog.</summary>
         public string CustomMetaPrefix { get; set; } = "";
+
+        // blender.exe for the .blend / .obj import and export; empty means auto-detect
+        public string BlenderPath { get; set; } = "";
         /// <summary>The hotkeys changed in the settings window, by id, as text such as "Ctrl+Z"; empty is no hotkey. One left out keeps
         /// its default.</summary>
         public Dictionary<string, string> Hotkeys { get; set; } = [];

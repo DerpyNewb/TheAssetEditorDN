@@ -17,6 +17,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="Blender\ae_convert.py">
+      <Link>Resources\Blender\ae_convert.py</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="DirectXTexNet" Version="1.0.7" />
     <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
     <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
