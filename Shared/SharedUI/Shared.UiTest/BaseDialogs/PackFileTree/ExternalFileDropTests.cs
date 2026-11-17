@@ -43,6 +43,25 @@ namespace Shared.UiTest.BaseDialogs.PackFileTree
         }
 
         [Test]
+        public void TheHandlerRunsOnlyWhenTheScheduledWorkRuns()
+        {
+            // the view schedules the import after Windows' drop callback returns, so Explorer is not frozen
+            AddPackFiles(false, "mod", "mod.pack", @"variantmeshes\a\thing.rigid_model_v2");
+            var browser = PackFileBrowser();
+            var handler = new RecordingHandler();
+            browser.ExternalFileDropHandlers = [handler];
+            var folder = TreeNodeHelper.FindInTree(browser.Files.First(), @"variantmeshes\a")!;
+            Action? scheduled = null;
+
+            var accepted = browser.DropExternalFiles([@"C:\x\model.blend"], folder, work => scheduled = work);
+
+            Assert.That(accepted, Is.True);
+            Assert.That(handler.Calls, Is.Empty, "the handler ran inside the drop");
+            scheduled!();
+            Assert.That(handler.Calls, Has.Count.EqualTo(1));
+        }
+
+        [Test]
         public void DropOnACaPackIsRefused()
         {
             AddPackFiles(true, "ca", "ca.pack", @"variantmeshes\a\thing.rigid_model_v2");

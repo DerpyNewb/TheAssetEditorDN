@@ -102,4 +102,103 @@ public class BlenderRunnerTests
         Assert.That(result.Ok, Is.False);
         Assert.That(result.Error, Does.Contain("boom"));
     }
+
+    [Test]
+    public void AnExeThatCannotStartIsAFailedResultNotAnException()
+    {
+        var dir = Directory.CreateTempSubdirectory("ae_blender_");
+        var fake = Path.Combine(dir.FullName, "blender.exe");
+        File.WriteAllText(fake, "not a program");
+        var settings = new ApplicationSettingsService(GameTypeEnum.Warhammer3);
+        settings.CurrentSettings.BlenderPath = fake;
+
+        var result = new BlenderRunner(settings).Run(DummyJob, BlenderRunner.NewJobFolder("badexe"));
+
+        Assert.That(result.Ok, Is.False);
+        Assert.That(result.Error, Does.Contain(fake));
+    }
+
+    [Test]
+    [CancelAfter(120_000)]
+    public void ABrokenResultFileIsAFailedResultNotAnException()
+    {
+        var runner = RealRunner();
+        runner.ScriptPath = TempScript("import sys, pathlib\np = pathlib.Path(sys.argv[sys.argv.index('--') + 1]).parent / 'result.json'\np.write_text('{\"ok\": tr')\n");
+
+        var result = runner.Run(DummyJob, BlenderRunner.NewJobFolder("badjson"));
+
+        Assert.That(result.Ok, Is.False);
+        Assert.That(result.Error, Does.Contain("result"));
+    }
+
+    [Test]
+    [CancelAfter(120_000)]
+    public void BlenderWarningsOnStdoutReachTheResult()
+    {
+        var runner = RealRunner();
+        runner.ScriptPath = TempScript(
+            "import sys, json, pathlib\nprint('Warning: 12 vertices had more than 4 weights')\n" +
+            "p = pathlib.Path(sys.argv[sys.argv.index('--') + 1]).parent / 'result.json'\n" +
+            "p.write_text(json.dumps({'ok': True, 'files': [], 'warnings': ['from the script']}))\n");
+
+        var result = runner.Run(DummyJob, BlenderRunner.NewJobFolder("warn"));
+
+        Assert.That(result.Ok, Is.True, result.Error);
+        Assert.That(result.Warnings, Is.EquivalentTo(new[] { "from the script", "12 vertices had more than 4 weights" }));
+    }
+
+    [Test]
+    public void TheReportNamesEachFileWithItsLodCount()
+    {
+        var result = new BlenderResult(true, null, [new BlenderOutput("x", "karl body.rigid_model_v2", 4, null)], ["a warning"]);
+
+        var list = BlenderResultReport.Build("Import from Blender", result);
+
+        Assert.That(list.Errors.Select(e => (e.ErrorType, e.Description)), Is.EqualTo(new[]
+        {
+            ("Ok", "karl body.rigid_model_v2: 4 LODs"),
+            ("Warning", "a warning"),
+        }));
+    }
+
+    static int JobFolders()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "AssetEditor", "BlenderJobs");
+        return Directory.Exists(root) ? Directory.GetDirectories(root).Length : 0;
+    }
+
+    [Test]
+    [CancelAfter(180_000)]
+    public void ASuccessfulExportLeavesNoJobFolderBehind()
+    {
+        var runner = RealRunner();
+        var pfs = RmvToBlenderExportTests.KarlPack();
+        var input = pfs.FindFile(RmvToBlenderExportTests.KarlHammer)!;
+        var before = JobFolders();
+
+        var result = new Editors.ImportExport.Exporting.Exporters.RmvToBlender.RmvToBlenderExporter(pfs, runner)
+            .Export(input, Path.Combine(RmvToBlenderExportTests.OutFolder("clean"), "hammer.blend"));
+
+        Assert.That(result.Ok, Is.True, result.Error);
+        Assert.That(JobFolders(), Is.EqualTo(before));
+    }
+
+    [Test]
+    [CancelAfter(180_000)]
+    public void ASuccessfulImportLeavesNoJobFolderBehind()
+    {
+        var runner = RealRunner();
+        var pfs = RmvToBlenderExportTests.KarlPack();
+        var blend = Path.Combine(RmvToBlenderExportTests.OutFolder("clean_in"), "hammer.blend");
+        Assert.That(new Editors.ImportExport.Exporting.Exporters.RmvToBlender.RmvToBlenderExporter(pfs, runner)
+            .Export(pfs.FindFile(RmvToBlenderExportTests.KarlHammer)!, blend).Ok, Is.True);
+        var dest = new Shared.Core.PackFiles.PackFileService(null);
+        var container = dest.CreateNewPackFileContainer("dest", PackFileVersion.PFH5, Shared.Core.PackFiles.Models.PackFileCAType.MOD);
+        var before = JobFolders();
+
+        var outcome = new Editors.ImportExport.Importing.Importers.BlenderToRmv.BlenderImporter(dest, runner).Import(blend, container, "test", null, 0, false);
+
+        Assert.That(outcome.Result.Ok, Is.True, outcome.Result.Error);
+        Assert.That(JobFolders(), Is.EqualTo(before));
+    }
 }

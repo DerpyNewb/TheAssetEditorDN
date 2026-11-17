@@ -67,7 +67,7 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToBlender
             var job = new BlenderJob(mode, modelPath, Path.GetFullPath(outputPath), skeletonAnim, skeletonName,
                 textureRoot, _packFileService.GetFullPath(rmv2), (int)ModelFactory.Create().LoadOnlyHeaders(bytes).Header.Version);
             var result = _runner.Run(job, jobFolder);
-            return result with { Warnings = [.. warnings, .. result.Warnings] };
+            return BlenderRunner.Finish(result with { Warnings = [.. warnings, .. result.Warnings] }, jobFolder);
         }
 
         void WriteTextures(PackFile rmv2, string textureRoot, List<string> warnings)

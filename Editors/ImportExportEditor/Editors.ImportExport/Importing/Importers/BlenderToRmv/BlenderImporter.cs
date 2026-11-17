@@ -32,7 +32,7 @@ namespace Editors.ImportExport.Importing.Importers.BlenderToRmv
                 SkeletonName: skeletonName, Version: version, AutoLods: autoLods);
             var result = _runner.Run(job, jobFolder);
             if (!result.Ok)
-                return new(result, [], null);
+                return new(BlenderRunner.Finish(result, jobFolder), [], null);
 
             // Parse everything before adding anything, so a bad file never reaches the pack.
             var files = new List<(string Folder, string Name, byte[] Bytes)>();
@@ -45,7 +45,7 @@ namespace Editors.ImportExport.Importing.Importers.BlenderToRmv
                 }
                 catch (Exception e)
                 {
-                    return new(result with { Ok = false, Error = $"{output.Name} is not a valid rigid_model_v2: {e.Message}" }, [], null);
+                    return new(BlenderRunner.Finish(result with { Ok = false, Error = $"{output.Name} is not a valid rigid_model_v2: {e.Message}" }, jobFolder), [], null);
                 }
                 if (!string.IsNullOrEmpty(output.PackPath) && replaceOriginal != null && replaceOriginal(output.PackPath))
                     files.Add((Path.GetDirectoryName(output.PackPath)!.ToLowerInvariant(), Path.GetFileName(output.PackPath).ToLowerInvariant(), bytes));
@@ -53,6 +53,7 @@ namespace Editors.ImportExport.Importing.Importers.BlenderToRmv
                     files.Add((packFolder, output.Name.ToLowerInvariant(), bytes));
             }
 
+            BlenderRunner.Finish(result, jobFolder); // the bytes are read; the outputs are no longer needed
             var entries = files.Select(f => new NewPackFileEntry(f.Folder, PackFile.CreateFromBytes(f.Name, f.Bytes))).ToList();
             _packFileService.AddFilesToPack(container, entries);
             var added = files.Select(f => string.IsNullOrEmpty(f.Folder) ? f.Name : $@"{f.Folder}\{f.Name}").ToList();

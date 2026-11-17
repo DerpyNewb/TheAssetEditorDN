@@ -334,8 +334,10 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
         /// <summary>
         /// Files dragged in from Windows: the first one a handler accepts goes to it, with the target's
         /// container and folder (a file's own folder when dropped on a file). Never into a CA pack.
+        /// The view passes <paramref name="schedule"/> to run the handler after Windows' drop callback has
+        /// returned: a modal import inside it freezes the Explorer window the file was dragged from.
         /// </summary>
-        public bool DropExternalFiles(IEnumerable<string> diskPaths, TreeNode target)
+        public bool DropExternalFiles(IEnumerable<string> diskPaths, TreeNode target, Action<Action>? schedule = null)
         {
             var container = TreeNodeHelper.GetPackFileContainer(target);
             if (container == null || container.IsCaPackFile)
@@ -348,7 +350,8 @@ namespace Shared.Ui.BaseDialogs.PackFileTree
                 var handler = ExternalFileDropHandlers.FirstOrDefault(h => h.CanHandle(path));
                 if (handler == null)
                     continue;
-                handler.Handle(path, container, folder);
+                var file = path;
+                (schedule ?? (work => work()))(() => handler.Handle(file, container, folder));
                 return true;
             }
             return false;

@@ -127,9 +127,39 @@ namespace Editors.ImportExport.Blender
 
             if (FindBlender() == null && !AskForBlender())
                 return BlenderResult.Fail(NotFoundMessage);
+            var result = RunBusy(job, jobFolder);
+
+            // the found Blender may not be the one with the add-on (a portable copy, say): offer to pick another
+            if (result.Error == MissingAddonMessage
+                && System.Windows.MessageBox.Show($"{MissingAddonMessage}\n\nThe Blender used was {FindBlender()}.\nChoose a different blender.exe?",
+                    "AssetEditor", System.Windows.MessageBoxButton.YesNo) == System.Windows.MessageBoxResult.Yes
+                && AskForBlender())
+                result = RunBusy(job, jobFolder);
+            return result;
+        }
+
+        BlenderResult RunBusy(BlenderJob job, string jobFolder)
+        {
             var work = Task.Run(() => RunCore(job, jobFolder));
             BusyWindow.ShowUntil(work, "Converting in Blender. A large model can take a minute.");
             return work.GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Deletes the job folder after a run that worked; after one that failed, keeps it and says where,
+        /// since its job.json and inputs are what reproduces the failure.
+        /// </summary>
+        public static BlenderResult Finish(BlenderResult result, string jobFolder)
+        {
+            if (!result.Ok)
+                return result with { Error = $"{result.Error}{Environment.NewLine}The job's files are kept in {jobFolder}" };
+            try
+            {
+                Directory.Delete(jobFolder, recursive: true);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            return result;
         }
 
         const string NotFoundMessage = "Blender was not found. Install Blender 4.2 or later with ChaosRobie's io_scene_rmv2 extension.";
@@ -141,15 +171,36 @@ namespace Editors.ImportExport.Blender
                 return false;
             _settings.CurrentSettings.BlenderPath = dialog.FileName;
             _settings.Save();
+            _found = null;
             return true;
         }
 
+        /// <summary>Never throws: a Blender that cannot start or a result that cannot be read is a failed result.</summary>
         BlenderResult RunCore(BlenderJob job, string jobFolder)
         {
             var blender = FindBlender();
             if (blender == null)
                 return BlenderResult.Fail(NotFoundMessage);
+            try
+            {
+                return RunProcess(blender, job, jobFolder);
+            }
+            catch (System.ComponentModel.Win32Exception e)
+            {
+                return BlenderResult.Fail($"Could not start Blender ({blender}): {e.Message}");
+            }
+            catch (JsonException e)
+            {
+                return BlenderResult.Fail($"Blender wrote a result file AssetEditor cannot read: {e.Message}");
+            }
+            catch (IOException e)
+            {
+                return BlenderResult.Fail($"The Blender job folder could not be used ({jobFolder}): {e.Message}");
+            }
+        }
 
+        BlenderResult RunProcess(string blender, BlenderJob job, string jobFolder)
+        {
             var jobFile = Path.Combine(jobFolder, "job.json");
             var resultFile = Path.Combine(jobFolder, "result.json");
             File.WriteAllText(jobFile, JsonSerializer.Serialize(job, JsonOptions));
@@ -168,8 +219,17 @@ namespace Editors.ImportExport.Blender
                 psi.Environment[key] = value;
 
             var stderr = new Queue<string>();
+            var reported = new List<string>(); // in background mode Blender prints operator WARNING reports as "Warning: ..."
             using var process = new Process { StartInfo = psi };
-            process.OutputDataReceived += (_, e) => { if (e.Data != null) _logger.Here().Information($"[blender] {e.Data}"); };
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data == null)
+                    return;
+                _logger.Here().Information($"[blender] {e.Data}");
+                if (e.Data.StartsWith("Warning: ", StringComparison.Ordinal))
+                    lock (reported)
+                        reported.Add(e.Data["Warning: ".Length..]);
+            };
             process.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data == null)
@@ -204,7 +264,10 @@ namespace Editors.ImportExport.Blender
             }
 
             var result = JsonSerializer.Deserialize<BlenderResult>(File.ReadAllText(resultFile), JsonOptions);
-            return result ?? BlenderResult.Fail("Blender wrote an empty result.");
+            if (result == null)
+                return BlenderResult.Fail("Blender wrote an empty result.");
+            lock (reported)
+                return result with { Warnings = [.. result.Warnings ?? [], .. reported] };
         }
     }
 }
