@@ -16,8 +16,10 @@ namespace Editors.ImportExport.Importing.Presentation.BlenderToRmv
         public string OutputExtension => ".rigid_model_v2";
         public string[] InputExtensions => [".blend", ".obj"];
 
+        public record VersionChoice(int Value, string Label);
+
         /// <summary>0 keeps each model's own version.</summary>
-        public int[] Versions => [0, 6, 7, 8];
+        public VersionChoice[] Versions { get; } = [new(0, "Keep the model's own"), new(6, "6"), new(7, "7"), new(8, "8")];
 
         [ObservableProperty] string _skeletonName = "";
         [ObservableProperty] int _version = 0;

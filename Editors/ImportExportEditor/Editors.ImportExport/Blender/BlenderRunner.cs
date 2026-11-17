@@ -115,11 +115,40 @@ namespace Editors.ImportExport.Blender
                 yield return m.Groups[1].Value.Replace(@"\\", @"\");
         }
 
+        /// <summary>
+        /// Runs the job. Called on the UI thread (the app), it asks for blender.exe once when none is found and
+        /// waits behind a small busy window so the UI keeps drawing; anywhere else (tests) it simply waits.
+        /// </summary>
         public virtual BlenderResult Run(BlenderJob job, string jobFolder)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || !dispatcher.CheckAccess())
+                return RunCore(job, jobFolder);
+
+            if (FindBlender() == null && !AskForBlender())
+                return BlenderResult.Fail(NotFoundMessage);
+            var work = Task.Run(() => RunCore(job, jobFolder));
+            BusyWindow.ShowUntil(work, "Converting in Blender. A large model can take a minute.");
+            return work.GetAwaiter().GetResult();
+        }
+
+        const string NotFoundMessage = "Blender was not found. Install Blender 4.2 or later with ChaosRobie's io_scene_rmv2 extension.";
+
+        bool AskForBlender()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Where is blender.exe?", Filter = "Blender (blender.exe)|blender.exe" };
+            if (dialog.ShowDialog() != true)
+                return false;
+            _settings.CurrentSettings.BlenderPath = dialog.FileName;
+            _settings.Save();
+            return true;
+        }
+
+        BlenderResult RunCore(BlenderJob job, string jobFolder)
         {
             var blender = FindBlender();
             if (blender == null)
-                return BlenderResult.Fail("Blender was not found. Set its path in Settings (Blender path).");
+                return BlenderResult.Fail(NotFoundMessage);
 
             var jobFile = Path.Combine(jobFolder, "job.json");
             var resultFile = Path.Combine(jobFolder, "result.json");

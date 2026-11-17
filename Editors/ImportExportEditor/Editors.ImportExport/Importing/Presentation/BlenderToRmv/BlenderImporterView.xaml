@@ -18,8 +18,8 @@
                  ToolTip="Leave empty to keep the skeleton stored in the .blend (none for an .obj)"/>
 
         <TextBlock Grid.Row="1" Grid.Column="0" Text="RMV2 version" VerticalAlignment="Center" Margin="0,2,8,2"/>
-        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Versions}" SelectedItem="{Binding Version}" Margin="0,2"
-                  ToolTip="0 keeps each model's own version"/>
+        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Versions}" DisplayMemberPath="Label"
+                  SelectedValuePath="Value" SelectedValue="{Binding Version}" Margin="0,2"/>
 
         <CheckBox Grid.Row="2" Grid.Column="1" Content="Generate LODs" IsChecked="{Binding GenerateLods}" Margin="0,4"
                   ToolTip="Rebuild LOD1 and lower from the best LOD with Decimate, instead of using the LOD collections"/>
