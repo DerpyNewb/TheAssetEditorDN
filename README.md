@@ -35,6 +35,9 @@ A WH3 battle animation table in an animpack, and a `.variantmeshdefinition`, eac
 ### Dockable panels
 In SuperView, the Unit Simulator and the Skeleton, Campaign Animation Creator, Animation Retarget and KeyFrame editors, the panels around the 3D view dock, tab, float, auto-hide and close. General > Panels reopens a closed one, General > Reset layout puts the default back, and each editor keeps its own layout between sessions.
 
+### Blender and OBJ import and export
+Right-click a `.rigid_model_v2` and pick Export to > Blender (.blend), glTF (.glb) or OBJ (.obj). The `.blend` keeps every LOD, the skeleton and the textures. To bring a model back, use File > Import 3D model, right-click a folder and pick Import 3D model or image, or drag a `.blend`, `.obj`, `.gltf` or `.glb` onto a folder in the Pack Explorer. Every RMV2 collection in a `.blend` comes back with all of its LODs, and a `.blend` exported from AssetEditor offers to go back to the path it came from. The `.blend` and `.obj` routes run Blender in the background, so they need Blender 4.2 or later with ChaosRobie's [io_scene_rmv2](https://github.com/robert-d-schultz/rmv2_anim_blender_import_export) extension installed. AssetEditor only calls that add-on and ships none of its code. An OBJ carries LOD0 only, with no skeleton, weights or pivot. [AiDocumentation/blender-import-export.md](AiDocumentation/blender-import-export.md) covers the details.
+
 ### LOD generation
 LODs and "Reduce mesh by 10%" use [meshoptimizer](https://github.com/zeux/meshoptimizer). It lands close to the triangle count you ask for and keeps UV seams, open edges, skin weights and mirrored tangent frames. The old Fast Quadric decimator is still in the save dialog as "Fast Quadric (old)", with three of its bugs fixed.
 
