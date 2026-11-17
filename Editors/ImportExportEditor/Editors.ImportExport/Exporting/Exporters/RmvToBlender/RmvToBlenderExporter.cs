@@ -29,6 +29,14 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToBlender
             return Run("rmv2_to_blend", rmv2, outputBlendPath, textureRoot);
         }
 
+        /// <summary>LOD0 only: an OBJ has no LODs, skeleton or weights.</summary>
+        public BlenderResult ExportObj(PackFile rmv2, string outputObjPath)
+        {
+            var outputFolder = Path.GetDirectoryName(Path.GetFullPath(outputObjPath))!;
+            var textureRoot = Path.Combine(outputFolder, Path.GetFileNameWithoutExtension(outputObjPath) + "_textures");
+            return Run("rmv2_to_obj", rmv2, outputObjPath, textureRoot);
+        }
+
         BlenderResult Run(string mode, PackFile rmv2, string outputPath, string textureRoot)
         {
             var warnings = new List<string>();

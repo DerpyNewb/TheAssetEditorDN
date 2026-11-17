@@ -80,6 +80,26 @@ def rmv2_to_blend(job):
                             "lods": lod_count(root), "packPath": job.get("packPath"), "bones": bound_bones()})
 
 
+def rmv2_to_obj(job):
+    """LOD0 only, triangulated, with materials: an OBJ has no LODs, skeleton or weights."""
+    root = import_rmv2(job, with_skeleton=False)
+    lods = [c for c in root.children if any(o.type == "MESH" for o in c.objects)]
+    lods.sort(key=lambda c: c.rmv2.lod_level if c.rmv2.is_lod else lods.index(c))
+    keep = set(o.name for o in lods[0].objects) if lods else set(o.name for o in root.all_objects)
+    for o in [o for o in bpy.data.objects if o.type == "MESH" and o.name not in keep]:
+        bpy.data.objects.remove(o, do_unlink=True)
+    # The add-on puts each object's origin at the mesh pivot and keeps the file's vertex positions as
+    # local coordinates. An OBJ is world space, so move the objects to the origin: the OBJ then holds
+    # the file's own vertex positions (the pivot itself cannot travel in an OBJ).
+    for o in bpy.data.objects:
+        if o.type == "MESH":
+            o.location = (0.0, 0.0, 0.0)
+    bpy.ops.wm.obj_export(filepath=job["output"], export_triangulated_mesh=True, export_materials=True,
+                          export_selected_objects=False)
+    result["files"].append({"path": job["output"], "name": Path(job["output"]).name, "lods": 1,
+                            "packPath": job.get("packPath")})
+
+
 def _layer_collection(lc, col):
     if lc.collection == col:
         return lc
@@ -126,7 +146,7 @@ def to_rmv2(job):
         result["warnings"].append("%s has no RMV2 root collection; exported the visible meshes as one LOD." % src.name)
 
 
-MODES = {"rmv2_to_blend": rmv2_to_blend, "to_rmv2": to_rmv2}
+MODES = {"rmv2_to_blend": rmv2_to_blend, "rmv2_to_obj": rmv2_to_obj, "to_rmv2": to_rmv2}
 
 try:
     job = json.loads(job_path.read_text(encoding="utf-8"))

@@ -42,6 +42,7 @@ namespace Editors.ImportExport
             services.AddTransient<IExporterViewModel, RmvToGltfExporterViewModel>();
             services.AddTransient<IExporterViewModel, RmvToGltfStaticExporterViewModel>();
             services.AddTransient<IExporterViewModel, RmvToBlenderExporterViewModel>();
+            services.AddTransient<IExporterViewModel, RmvToObjExporterViewModel>();
 
             // Blender (.blend / .obj through io_scene_rmv2)
             services.AddSingleton<BlenderRunner>();
