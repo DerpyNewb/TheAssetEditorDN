@@ -57,6 +57,12 @@ Karl Franz's body (4 LODs, `humanoid01`) through rmv2 -> `.blend` -> rmv2:
 - A missing add-on gives "Install ChaosRobie's io_scene_rmv2 extension in Blender" with the link.
 - A conversion that runs past 5 minutes is stopped, and Blender is killed with its child processes.
 - While Blender runs, a small window says so and the rest of AssetEditor keeps drawing.
+- When the Blender it found has no add-on, AssetEditor offers to pick a different `blender.exe` and tries once more.
+- A `blender.exe` that cannot start, or a `result.json` that cannot be read, is reported as a failure, never a crash.
+- When it finishes, a window lists each file written with its LOD count, then any warnings. Blender's own
+  `Warning:` lines (an operator report, such as too many bone weights) are included.
+- Each run works in `%TEMP%\AssetEditor\BlenderJobs\<name>-<id>`. A run that worked deletes that folder. A run
+  that failed keeps it and names it in the error, because its `job.json` and inputs reproduce the failure.
 
 ## Code
 
