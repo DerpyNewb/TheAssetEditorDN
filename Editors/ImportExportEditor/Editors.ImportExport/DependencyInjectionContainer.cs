@@ -3,6 +3,8 @@ using Editors.ImportExport.Exporting;
 using Editors.ImportExport.Exporting.Exporters;
 using Editors.ImportExport.Exporting.Exporters.RmvToBlender;
 using Editors.ImportExport.Exporting.Presentation.RmvToBlender;
+using Editors.ImportExport.Importing.Importers.BlenderToRmv;
+using Editors.ImportExport.Importing.Presentation.BlenderToRmv;
 using Editors.ImportExport.Exporting.Exporters.DdsToMaterialPng;
 using Editors.ImportExport.Exporting.Exporters.DdsToNormalPng;
 using Editors.ImportExport.Exporting.Exporters.DdsToPng;
@@ -44,6 +46,8 @@ namespace Editors.ImportExport
             // Blender (.blend / .obj through io_scene_rmv2)
             services.AddSingleton<BlenderRunner>();
             services.AddTransient<RmvToBlenderExporter>();
+            services.AddTransient<BlenderImporter>();
+            services.AddTransient<IImporterViewModel, BlenderImporterViewModel>();
 
             // Exporters
             services.AddTransient<IDdsToMaterialPngExporter, DdsToMaterialPngExporter>();

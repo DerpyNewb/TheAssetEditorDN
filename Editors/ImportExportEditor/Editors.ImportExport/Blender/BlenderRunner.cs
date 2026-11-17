@@ -115,7 +115,7 @@ namespace Editors.ImportExport.Blender
                 yield return m.Groups[1].Value.Replace(@"\\", @"\");
         }
 
-        public BlenderResult Run(BlenderJob job, string jobFolder)
+        public virtual BlenderResult Run(BlenderJob job, string jobFolder)
         {
             var blender = FindBlender();
             if (blender == null)

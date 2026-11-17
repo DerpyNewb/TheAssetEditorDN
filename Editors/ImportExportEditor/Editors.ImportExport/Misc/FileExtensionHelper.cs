@@ -28,6 +28,11 @@ namespace Editors.ImportExport.Misc
             return isRmv;
         }
 
+        /// <summary>.blend and .obj, which go through Blender.</summary>
+        public static bool IsBlenderImportFile(string fileName) =>
+            fileName.EndsWith(".blend", StringComparison.InvariantCultureIgnoreCase) ||
+            fileName.EndsWith(".obj", StringComparison.InvariantCultureIgnoreCase);
+
         public static bool IsWsModelFile(string fileName)
         {
             var isRmv = fileName.EndsWith(".wsmodel", StringComparison.InvariantCultureIgnoreCase);

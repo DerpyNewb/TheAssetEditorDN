@@ -1,0 +1,30 @@
+<UserControl x:Class="Editors.ImportExport.Importing.Presentation.BlenderToRmv.BlenderImporterView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="4">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Skeleton" VerticalAlignment="Center" Margin="0,2,8,2"/>
+        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SkeletonName, UpdateSourceTrigger=PropertyChanged}" Margin="0,2"
+                 ToolTip="Leave empty to keep the skeleton stored in the .blend (none for an .obj)"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="RMV2 version" VerticalAlignment="Center" Margin="0,2,8,2"/>
+        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Versions}" SelectedItem="{Binding Version}" Margin="0,2"
+                  ToolTip="0 keeps each model's own version"/>
+
+        <CheckBox Grid.Row="2" Grid.Column="1" Content="Generate LODs" IsChecked="{Binding GenerateLods}" Margin="0,4"
+                  ToolTip="Rebuild LOD1 and lower from the best LOD with Decimate, instead of using the LOD collections"/>
+
+        <TextBlock Grid.Row="3" Grid.ColumnSpan="2" TextWrapping="Wrap" Margin="0,6,0,0"
+                   Text="Converted by Blender with ChaosRobie's io_scene_rmv2 add-on. Each RMV2 collection in a .blend becomes its own file with all of its LODs. An .obj becomes one static model with one LOD."/>
+    </Grid>
+</UserControl>
