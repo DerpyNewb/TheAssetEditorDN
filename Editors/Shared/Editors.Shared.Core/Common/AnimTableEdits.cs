@@ -198,6 +198,30 @@ namespace Editors.Shared.Core.Common
             InEditable(pfs, table) is not { } own ? table
                 : AnimationPackSerializer.Load(own.File, pfs).GetGenericAnimationSets().OfType<AnimationBinWh3>().FirstOrDefault(x => x.FileName == table.FileName) ?? table;
 
+        /// <summary>Writes a table no animpack holds yet (a baked rider's) into the editable pack's own animpack, OwnAnimPackPath, in
+        /// place of a table of its name already there. Null when saved, else why not.</summary>
+        public static string? SaveNew(IPackFileService pfs, IFileSaveService saver, AnimationBinWh3 table)
+        {
+            var editable = pfs.GetEditablePack();
+            if (editable == null)
+                return "No editable pack is selected.";
+            try
+            {
+                var path = OwnAnimPackPath(editable);
+                var existing = pfs.FindFile(path, editable)?.DataSource.ReadData();
+                var original = existing != null && ReadEntries(existing).Any(x => x.Name == table.FileName) ? existing : WithEmptyEntry(existing, table.FileName);
+                var data = table.ToByteArray();
+                var spliced = Splice(original, table.FileName, data);
+                Verify(original, spliced, table.FileName, data);
+                saver.Save(path, spliced, false);
+                return null;
+            }
+            catch (Exception e)
+            {
+                return $"{table.Name} was not saved: {e.Message}";
+            }
+        }
+
         /// <summary>Writes the table into the editable pack. Null when saved, else why not. The animpack spliced is the editable pack's
         /// copy when it has one (InEditable), so a second table saved keeps the first; a pack loaded later holding the animpack would
         /// otherwise be read instead. A table from another mod's animpack goes back at that animpack's path, and one from a CA pack

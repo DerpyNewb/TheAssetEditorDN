@@ -30,14 +30,7 @@ namespace Editors.UnitSimulator.Pairing
     /// <summary>How the game pairs a rider with its mount: while the mount plays slot X, the rider plays RIDER_X.</summary>
     public static class RiderPairing
     {
-        // The Mount Animation Creator's list (MountAnimationGeneratorService.IsCopyOnlyAnimation): slots a rider keeps as they are
-        // instead of having them fitted to the mount.
-        static readonly string[] s_copyOnlyPrefixes = ["HAND_POSE_", "DOCK_", "PERSISTENT_METADATA_", "PORTHOLE_", "RIDER_CAST_SPELL_", "RIDER_MOVING_ATTACK_", "RIDER_CELEBRATE_", "RIDER_FIRE_"];
-        static readonly HashSet<string> s_copyOnlyNames = ["STAND", "MISSING_ANIM", "RIDER_SHOOT_READY", "RIDER_COMBAT_READY", "RIDER_RELOAD",
-            "RIDER_STAND_TO_RIDER_COMBAT_READY", "RIDER_COMBAT_READY_TO_RIDER_STAND", "RIDER_SHOOT_READY_TO_RIDER_STAND",
-            "RIDER_STAND_TO_RIDER_SHOOT_READY", "RIDER_SHOOT_READY_TO_RIDER_RELOAD", "RIDER_RELOAD_TO_RIDER_SHOOT_READY"];
-
-        public static bool IsCopyOnly(string slot) => s_copyOnlyNames.Contains(slot) || s_copyOnlyPrefixes.Any(slot.StartsWith);
+        public static bool IsCopyOnly(string slot) => Editors.Shared.Core.Services.RiderBake.RiderBaker.IsCopyOnly(slot);
 
         public static string RiderSlotFor(string mountSlot) => "RIDER_" + mountSlot;
 
