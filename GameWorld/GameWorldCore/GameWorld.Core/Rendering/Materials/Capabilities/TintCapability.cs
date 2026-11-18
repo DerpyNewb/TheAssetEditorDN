@@ -23,6 +23,15 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
         public float Faction2_TintVariation { get; set; } = 0;
         public float Faction3_TintVariation { get; set; } = 0;
         public Vector3[] FactionColours { get; set; } = [new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1)];
+        /// <summary>False while the mesh shows the scene's faction colours (Render Settings); true once one is picked on the mesh.</summary>
+        public bool HasOwnFactionColours { get; set; }
+
+        /// <summary>A faction colour picked on this mesh. From here on the mesh keeps its own colours, whatever Render Settings says.</summary>
+        public void SetFactionColour(int index, Vector3 colour)
+        {
+            FactionColours[index] = colour;
+            HasOwnFactionColours = true;
+        }
         public Vector3[] TintColours { get; set; } = [new Vector3(0.7f, 0.7f, 0.6f), new Vector3(0.6f, 0.6f, 0.7f), new Vector3(0.7f, 0.6f, 0.6f)];
 
         public void Apply(Effect effect, IScopedResourceLibrary resourceLibrary)

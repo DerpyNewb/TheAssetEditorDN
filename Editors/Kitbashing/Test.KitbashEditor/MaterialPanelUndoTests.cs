@@ -40,5 +40,20 @@ namespace Test.KitbashEditor
             commands.Redo();
             Assert.That(panel.TintColour.SelectedColour, Is.EqualTo(new Vector3(1, 0, 0)));
         }
+
+        // A faction colour picked in the panel marks the mesh as having its own colours, so the scene's Render Settings colours
+        // stop being put over them every frame (DN v1.9.1).
+        [Test]
+        public void APickedFactionColour_IsTheMeshsOwn()
+        {
+            var tint = new TintCapability();
+            var panel = new TintViewModel(tint, null);
+            Assert.That(tint.HasOwnFactionColours, Is.False, "a mesh starts on the scene's colours");
+
+            panel.FactionColour1.PickedColor = System.Windows.Media.Color.FromRgb(255, 0, 255);
+            panel.FactionColour1.HandleColourChangedCommand.Execute(null);
+
+            Assert.That((tint.FactionColours[1], tint.HasOwnFactionColours), Is.EqualTo((new Vector3(1, 0, 1), true)));
+        }
     }
 }
