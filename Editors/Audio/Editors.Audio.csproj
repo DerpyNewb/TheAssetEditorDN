@@ -15,6 +15,7 @@
 	  <Compile Remove="AudioCacheTests.cs" />
 	  <Compile Remove="AudioExplorerTests.cs" />
 	  <Compile Remove="AudioProjectUndoTests.cs" />
+	  <Compile Remove="WemVorbisEncoderTests.cs" />
 	  <Compile Remove="MusicAudioProjectServiceTests.cs" />
 	  <Compile Remove="AmsFragmentMergeTests.cs" />
 	  <Compile Remove="AmsPulseTrackMergeTests.cs" />
