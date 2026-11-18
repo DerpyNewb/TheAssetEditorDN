@@ -12,6 +12,7 @@ namespace Shared.Core.Misc
     public sealed class SnapshotUndo<T>(Func<T> take, Func<T, T, bool> same, Action<T, T> restore) where T : class
     {
         T? _current;
+        bool _restoring;
         readonly Stack<T> _undo = new();
         readonly Stack<T> _redo = new();
 
@@ -32,6 +33,10 @@ namespace Shared.Core.Misc
         /// <summary>Records the document as one step if it changed since the last snapshot. True when it did.</summary>
         public bool Checkpoint()
         {
+            // A restore can set off the editor's own change events, and a checkpoint there would push the half-restored document
+            // as a step and drop the redo steps.
+            if (_restoring)
+                return false;
             var now = take();
             var changed = _current != null && !same(now, _current);
             if (changed)
@@ -56,7 +61,15 @@ namespace Shared.Core.Misc
             var leaving = _current!;
             to.Push(leaving);
             var arriving = from.Pop();
-            restore(arriving, isUndo ? leaving : arriving);
+            _restoring = true;
+            try
+            {
+                restore(arriving, isUndo ? leaving : arriving);
+            }
+            finally
+            {
+                _restoring = false;
+            }
             _current = take();
             return true;
         }

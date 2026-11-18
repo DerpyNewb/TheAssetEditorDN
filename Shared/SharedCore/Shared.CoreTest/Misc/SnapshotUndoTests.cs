@@ -33,5 +33,20 @@ namespace Shared.CoreTest.Misc
             Assert.That(history.Checkpoint(), Is.False, "a rebase is not a step");
             Assert.That((history.Undo(), doc), Is.EqualTo((true, "b")));
         }
+
+        // A restore that sets off a checkpoint of its own, through a change event the editor checkpoints on, records nothing.
+        [Test]
+        public void ACheckpointDuringARestore_RecordsNothing()
+        {
+            var doc = "a";
+            SnapshotUndo<string> history = null!;
+            history = new(() => doc, (x, y) => x == y, (load, _) => { doc = load; history.Checkpoint(); });
+            history.Reset();
+            doc = "b";
+            history.Checkpoint();
+
+            Assert.That((history.Undo(), doc, history.CanRedo), Is.EqualTo((true, "a", true)));
+            Assert.That((history.Redo(), doc, history.CanUndo), Is.EqualTo((true, "b", true)));
+        }
     }
 }
