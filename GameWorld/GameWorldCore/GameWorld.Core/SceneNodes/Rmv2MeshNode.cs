@@ -119,16 +119,17 @@ namespace GameWorld.Core.SceneNodes
                 animationCapability.WeightViewBone = (GetParentModel() as MainEditableNode)?.SkeletonNode?.WeightViewBone ?? -1;
             }
 
-            var modelWithOffset = Matrix.CreateTranslation(PivotPoint) * ModelMatrix * boneMatrix * AttachmentOuterWorld;
-            RenderMatrix = modelWithOffset;
+            // Where the mesh is drawn, its parents included: selection boxes, picks and edits with it. Without the parents a mesh
+            // placed by its parent node, as every BMD component is, was boxed and picked where it would stand unplaced.
+            RenderMatrix = Matrix.CreateTranslation(PivotPoint) * ModelMatrix * boneMatrix * AttachmentOuterWorld * parentWorld;
 
-            renderEngine.AddRenderItem(RenderBuckedId.Normal, new GeometryRenderItem(Geometry, Material, modelWithOffset * parentWorld));
+            renderEngine.AddRenderItem(RenderBuckedId.Normal, new GeometryRenderItem(Geometry, Material, RenderMatrix));
 
             if (DisplayPivotPoint)
                 renderEngine.AddRenderLines(LineHelper.AddLocator(PivotPoint, 1, Color.Red));
 
             if (DisplayBoundingBox)
-                renderEngine.AddRenderLines(LineHelper.AddBoundingBox(Geometry.BoundingBox, Color.Red, PivotPoint));
+                renderEngine.AddRenderLines(LineHelper.AddBoundingBox(Geometry.BoundingBox, Color.Red, RenderMatrix));
         }
 
         public Rmv2ModelNode? GetParentModel()

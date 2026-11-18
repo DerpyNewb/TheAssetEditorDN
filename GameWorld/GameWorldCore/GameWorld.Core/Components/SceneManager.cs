@@ -105,17 +105,17 @@ namespace GameWorld.Core.Components
             return allNodes[index];
         }
 
+        // A mesh is picked where it was last drawn, parents included. This used to be its own matrix times the pivot, which left
+        // the parents out and put the pivot on the wrong side of the mesh's own transform.
+        static Matrix WorldOf(ISelectable node) => node is Rmv2MeshNode mesh ? mesh.RenderMatrix : node.ModelMatrix;
+
         void SelectObjectsHirarchy(ISceneNode root, BoundingFrustum frustrum, List<ISelectable> output_selectedNodes)
         {
             if (root.IsVisible)
             {
                 if (root is ISelectable selectableNode && selectableNode.IsSelectable)
                 {
-                    var pivotPoint = Vector3.Zero;
-                    if (selectableNode is Rmv2MeshNode meshNode)
-                        pivotPoint = meshNode.PivotPoint;
-
-                    if (IntersectionMath.IntersectObject(frustrum, selectableNode.Geometry, selectableNode.ModelMatrix * Matrix.CreateTranslation(pivotPoint)))
+                    if (IntersectionMath.IntersectObject(frustrum, selectableNode.Geometry, WorldOf(selectableNode)))
                         output_selectedNodes.Add(selectableNode);
                 }
 
@@ -134,11 +134,7 @@ namespace GameWorld.Core.Components
             {
                 if (root is ISelectable selectableNode && selectableNode.IsSelectable)
                 {
-                    var pivotPoint = Vector3.Zero;
-                    if (selectableNode is Rmv2MeshNode meshNode)
-                        pivotPoint = meshNode.PivotPoint;
-
-                    var distance = IntersectionMath.IntersectObject(ray, selectableNode.Geometry, selectableNode.ModelMatrix * Matrix.CreateTranslation(pivotPoint));
+                    var distance = IntersectionMath.IntersectObject(ray, selectableNode.Geometry, WorldOf(selectableNode));
                     if (distance != null)
                     {
                         if (distance < bestDistance)

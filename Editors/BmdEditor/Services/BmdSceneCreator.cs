@@ -32,7 +32,6 @@ namespace Editors.BmdEditor.Services
 
         // Store direct references between view models and scene nodes
         public readonly Dictionary<BmdElementViewModel, GameWorld.Core.SceneNodes.SceneNode> ComponentNodes = new();
-        private GameWorld.Core.SceneNodes.SceneNode? _currentHighlightedNode;
 
         public BmdSceneCreator(
             IPackFileService packFileService,
@@ -115,7 +114,6 @@ namespace Editors.BmdEditor.Services
             
             // Clear node references
             ComponentNodes.Clear();
-            _currentHighlightedNode = null;
         }
 
         private void LoadProps(BmdFile bmdFile, GroupNode propsGroup, List<PropInfoViewModel> propViewModels)
@@ -576,35 +574,6 @@ namespace Editors.BmdEditor.Services
 
         private static T? FindChild<T>(SceneNode node) where T : class, ISceneNode =>
             node.Children.OfType<T>().FirstOrDefault();
-
-        public void HighlightComponent(BmdElementViewModel component)
-        {
-            // Clear previous highlight
-            ClearHighlight();
-            
-            if (ComponentNodes.TryGetValue(component, out var node))
-            {
-                // TODO: Implement actual highlighting logic
-                // This might involve changing the material, adding an outline, or changing the node's properties
-                _currentHighlightedNode = node;
-                _logger.Debug($"Highlighted component: {component.ElementType} - {component.DisplayName}");
-            }
-            else
-            {
-                _logger.Warning($"Component node not found: {component.ElementType} - {component.DisplayName}");
-            }
-        }
-
-        
-        public void ClearHighlight()
-        {
-            if (_currentHighlightedNode != null)
-            {
-                // TODO: Implement actual highlight clearing logic
-                _logger.Debug($"Cleared highlight from: {_currentHighlightedNode.Name}");
-                _currentHighlightedNode = null;
-            }
-        }
 
         private SceneNode CreateBmdInfoNode(BmdInfo bmdInfo, GroupNode bmdGroup, int index)
         {

@@ -799,11 +799,8 @@ namespace Editors.BmdEditor.ViewModels
             return details.ToString();
         }
 
-        public void Close() 
+        public void Close()
         {
-            // Clear any active highlights
-            _bmdSceneCreator.ClearHighlight();
-            
             // Cleanup resources
             AllElements.Clear();
             BattlefieldBuildings.Clear();
@@ -884,9 +881,6 @@ namespace Editors.BmdEditor.ViewModels
 
         public void Dispose()
         {
-            // Clear any active highlights
-            _bmdSceneCreator.ClearHighlight();
-            
             // Unregister from events
             _eventHub?.UnRegister(this);
             GC.SuppressFinalize(this);
