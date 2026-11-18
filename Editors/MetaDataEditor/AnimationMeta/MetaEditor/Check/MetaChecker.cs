@@ -55,8 +55,9 @@ namespace Editors.AnimationMeta.MetaEditor.Check
                 if (UnusedVersion(tag, database) is { } versionMessage)
                     Add(false, versionMessage);
 
-                if (scene?.BoneNames is { } bones && PropBoneId(tag) is int id && !HasBone(bones, id) && !HasBone(bones, id - 1))
-                    Add(false, $"Its prop bone id is {id}, but this skeleton has neither be_prop_{id} nor be_prop_{id - 1}. Whether the game counts these ids from 0 or from 1 isn't settled, so it's flagged only because neither reading names a bone the skeleton has.");
+                // The game counts prop ids from 1 (measured in game 2026-11-18). What an id of 0 does is unknown, so it isn't flagged.
+                if (scene?.BoneNames is { } bones && PropBoneId(tag) is int id and > 0 && !HasBone(bones, id - 1))
+                    Add(false, $"Its prop bone id is {id}, so it docks be_prop_{id - 1}, but this skeleton has no be_prop_{id - 1}. The game counts these ids from 1: id 1 is be_prop_0.");
 
                 if (gamePacksLoaded && VfxName(tag) is { } vfx)
                 {
