@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using AnimationEditor.AnimationKeyframeEditor;
 using System.Windows.Forms;
-using AnimationEditor.MountAnimationCreator.Services;
 using AnimationEditor.MountAnimationCreator.ViewModels;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
@@ -23,7 +22,6 @@ using Editors.Shared.Core.Common.BaseControl;
 using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.AnimationPlayer;
 using Editors.Shared.Core.Common.ReferenceModel;
-using Editors.AnimationVisualEditors.MountAnimationCreator.Services;
 using GameWorld.Core.Services;
 using Shared.Core.Commands;
 using Shared.Core.PackFiles.Utility;
@@ -242,11 +240,6 @@ namespace AnimationEditor.MountAnimationCreator
            //UpdateCanSaveAndPreviewStates();
         }
 
-        MountAnimationGeneratorService CreateAnimationGenerator()
-        {
-            return new MountAnimationGeneratorService(AnimationSettings, _mountVertexOwner, _mountVertexes.First(), SelectedRiderBone.SelectedItem.BoneIndex, _rider, _mount);
-        }
-
         public void AddAnimationToFragment()
         {
             // Find stuff in active slot.
@@ -310,16 +303,8 @@ namespace AnimationEditor.MountAnimationCreator
             var mountFrag = MountLinkController.AnimationSetForMount.SelectedItem;
             var riderFrag = MountLinkController.AnimationSetForRider.SelectedItem;
 
-            var newFileName = SavePrefixText.Value + Path.GetFileNameWithoutExtension(riderFrag.FullPath);
-            var batchSettings = BatchProcessOptionsWindow.ShowDialog(newFileName, SavePrefixText.Value);
-            if (batchSettings != null)
-            {
-                var service = new BatchProcessorService(_pfs, _skeletonAnimationLookUpHelper, CreateAnimationGenerator(), batchSettings, _fileSaveService, SelectedAnimationOutputFormat.Value);
-                service.Process(mountFrag, riderFrag);
-                MountLinkController.ReloadFragments(true, false);
-
-                ActiveOutputFragment.UpdatePossibleValues(MountLinkController.LoadAnimationSetForSkeleton(_rider.Skeleton.SkeletonName, true));
-            }
+            // The baker moved to the Unit Simulator's Bake tab, which bakes every paired slot of the two tables.
+            MessageBox.Show("Batch baking moved to Tools > Unit Simulator, Bake tab.", "Mount Animation Creator", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         public void CopyAnimation()
