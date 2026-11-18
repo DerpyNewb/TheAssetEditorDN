@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Editors.CscEditor.ViewModels;
+using Shared.Ui.Common;
 
 namespace Editors.CscEditor.Views
 {
@@ -17,6 +18,11 @@ namespace Editors.CscEditor.Views
         {
             InitializeComponent();
             CurveEditor.CurvesModified += () => ViewModel?.OnCurvesModified();
+            // One undo step per gesture: when a mouse button is let go, handled or not, so a checkbox, a slider or a curve drag
+            // has already changed the scene; and when a typed field is left.
+            AddHandler(MouseUpEvent, new MouseButtonEventHandler((_, _) => ViewModel?.Checkpoint()), handledEventsToo: true);
+            LostKeyboardFocus += (_, _) => ViewModel?.Checkpoint();
+            UndoRedoKeys.Attach(this, () => ViewModel?.Undo(), () => ViewModel?.Redo());
             DataContextChanged += (_, _) =>
             {
                 if (ViewModel != null)
