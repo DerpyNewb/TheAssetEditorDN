@@ -36,9 +36,9 @@ namespace Editors.KitbasherEditor.ViewModels.SceneNodeEditor.Nodes.MeshNode.Mesh
             _tintVariation = _tintCapability.DiffuseTintVariation;
 
             _useFactionColours = _tintCapability.UseFactionColours;
-            _factionColour0 = new ColourPickerViewModel(_tintCapability.FactionColours[0], Colour("faction colour 1", () => _tintCapability.FactionColours[0], c => _tintCapability.FactionColours[0] = c, () => FactionColour0));
-            _factionColour1 = new ColourPickerViewModel(_tintCapability.FactionColours[1], Colour("faction colour 2", () => _tintCapability.FactionColours[1], c => _tintCapability.FactionColours[1] = c, () => FactionColour1));
-            _factionColour2 = new ColourPickerViewModel(_tintCapability.FactionColours[2], Colour("faction colour 3", () => _tintCapability.FactionColours[2], c => _tintCapability.FactionColours[2] = c, () => FactionColour2));
+            _factionColour0 = new ColourPickerViewModel(_tintCapability.FactionColours[0], Colour("faction colour 1", () => _tintCapability.FactionColours[0], c => _tintCapability.SetFactionColour(0, c), () => FactionColour0));
+            _factionColour1 = new ColourPickerViewModel(_tintCapability.FactionColours[1], Colour("faction colour 2", () => _tintCapability.FactionColours[1], c => _tintCapability.SetFactionColour(1, c), () => FactionColour1));
+            _factionColour2 = new ColourPickerViewModel(_tintCapability.FactionColours[2], Colour("faction colour 3", () => _tintCapability.FactionColours[2], c => _tintCapability.SetFactionColour(2, c), () => FactionColour2));
             _factionColour3Mask = new Vector4ViewModel(_tintCapability.Faction3Mask, (c) => _tintCapability.Faction3Mask = c);
         }
 

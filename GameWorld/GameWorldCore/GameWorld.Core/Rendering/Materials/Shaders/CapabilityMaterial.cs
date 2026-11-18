@@ -81,8 +81,10 @@ namespace GameWorld.Core.Rendering.Materials.Shaders
 
             var tintCapability = TryGetCapability<TintCapability>();
 
-            if (tintCapability != null)
-                tintCapability.FactionColours = commonShaderParameters.FactionColours;
+            // A mesh shows the scene's faction colours until one is picked on the mesh itself. They used to be put over the mesh's
+            // every frame, so a colour picked in the mesh's Tint and Faction panel was gone by the next frame.
+            if (tintCapability is { HasOwnFactionColours: false })
+                tintCapability.FactionColours = [.. commonShaderParameters.FactionColours];
 
             var effect = GetEffect();
             OnApply(effect);

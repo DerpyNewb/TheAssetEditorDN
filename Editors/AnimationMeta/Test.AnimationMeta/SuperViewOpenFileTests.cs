@@ -792,6 +792,21 @@ namespace Test.AnimationMeta
             }
             Assert.That(tinted.Keys, Is.EquivalentTo(new[] { GameWorld.Core.Rendering.Materials.Shaders.CapabilityMaterialsEnum.MetalRoughPbr_Default, GameWorld.Core.Rendering.Materials.Shaders.CapabilityMaterialsEnum.MetalRoughPbr_Emissive }));
             Assert.That(tinted.Values, Is.All.GreaterThan(100), string.Join(", ", tinted));
+
+            // A colour picked on the mesh, in its Tint and Faction panel, wins over Render Settings. The scene's colours used to be
+            // put over the mesh's every frame, so the picked ones never showed (DN v1.9.1).
+            foreach (var mesh in meshes)
+                mesh.IsVisible = true;
+            (store.FactionColour0, store.FactionColour1, store.FactionColour2) = (Vector3.UnitY, Vector3.UnitY, Vector3.UnitY);
+            var sceneGreen = RenderFrame();
+            foreach (var tint in meshes.Select(x => x.Material.GetCapability<GameWorld.Core.Rendering.Materials.Capabilities.TintCapability>()))
+                for (var i = 0; i < 3; i++)
+                    tint.SetFactionColour(i, Vector3.UnitZ);
+            var ownBlue = RenderFrame();
+            Assert.That(sceneGreen.Zip(ownBlue).Count(x => Math.Abs(x.First.G - x.Second.G) + Math.Abs(x.First.B - x.Second.B) > 16), Is.GreaterThan(100), "the mesh's own colours show");
+            (store.FactionColour0, store.FactionColour1, store.FactionColour2) = (Vector3.UnitX, Vector3.UnitX, Vector3.UnitX);
+            // Two frames of one scene differ by a handful of pixels; a scene colour reaching the masked parts changes thousands.
+            Assert.That(RenderFrame().Zip(ownBlue).Count(x => Math.Abs(x.First.R - x.Second.R) + Math.Abs(x.First.G - x.Second.G) + Math.Abs(x.First.B - x.Second.B) > 16), Is.LessThan(10), "Render Settings no longer reaches a mesh with its own colours");
         }
 
         // One frame of the editor's scene, the model framed from the front, as the app draws it.
