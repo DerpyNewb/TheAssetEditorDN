@@ -92,6 +92,25 @@ namespace Test.E2EVerification
             window.Close();
         }
 
+        // The skeleton editor's panel with a bone selected. SCRATCH_NAME names the file, so a before and an after can sit side by side.
+        [Test, Apartment(ApartmentState.STA), Explicit]
+        public void RenderSkeletonPanel()
+        {
+            var runner = new AssetEditorTestRunner();
+            var outDir = Setup(runner);
+            runner.CreateCaContainer();
+            runner.LoadPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"), true);
+            runner.CommandFactory.Create<OpenEditorCommand>().Execute(runner.PackFileService.FindFile(@"animations\skeletons\humanoid01.anim")!, EditorEnums.VisualSkeletonEditor);
+            var editor = runner.GetRequiredServiceInCurrentEditorScope<Editor.VisualSkeletonEditor.SkeletonEditor.SkeletonEditorViewModel>();
+            static Editors.Shared.Core.Common.ReferenceModel.SkeletonBoneNode? Find(IEnumerable<Editors.Shared.Core.Common.ReferenceModel.SkeletonBoneNode> bones, string name) =>
+                bones.Select(x => x.BoneName == name ? x : Find(x.Children, name)).FirstOrDefault(x => x != null);
+            editor.SelectedBone = Find(editor.Bones, "upperarm_left");
+            var window = Offscreen(new Editor.VisualSkeletonEditor.SkeletonEditor.EditorView { DataContext = editor }, 420, 900);
+            window.Show();
+            Save(window, Path.Combine(outDir, $"skeleton_panel_{Environment.GetEnvironmentVariable("SCRATCH_NAME") ?? "now"}.png"));
+            window.Close();
+        }
+
         [Test, Apartment(ApartmentState.STA), Explicit]
         public void Render()
         {

@@ -214,7 +214,7 @@ namespace Test.AnimatioReTarget
             Assert.That(_editor.OffsetHandle.Where, Is.Not.Null);
             Assert.That(Vector3.Distance(_editor.OffsetHandle.Where!.Value, expected), Is.LessThan(1e-4f));
 
-            _editor.OffsetHandle.Mode = OffsetHandleMode.Off;
+            _editor.OffsetHandle.Mode = BoneHandleMode.Off;
             Assert.That(_editor.OffsetHandle.Where, Is.Null);
         }
 
@@ -229,7 +229,7 @@ namespace Test.AnimatioReTarget
             var before = Shown("hand_right").Translation;
 
             var drag = new Vector3(0.1f, 0.05f, -0.08f);
-            _editor.OffsetHandle.Mode = OffsetHandleMode.Move;
+            _editor.OffsetHandle.Mode = BoneHandleMode.Move;
             _editor.OffsetHandle.Begin();
             _editor.OffsetHandle.MoveBy(drag * 0.5f);
             Pump();
@@ -249,7 +249,7 @@ namespace Test.AnimatioReTarget
             Pick("hand_right");
             Shown("hand_right").Decompose(out _, out var turnBefore, out var placeBefore);
 
-            _editor.OffsetHandle.Mode = OffsetHandleMode.Rotate;
+            _editor.OffsetHandle.Mode = BoneHandleMode.Rotate;
             _editor.OffsetHandle.Begin();
             _editor.OffsetHandle.TurnBy(Matrix.CreateRotationY(MathHelper.ToRadians(10)));
             Pump();

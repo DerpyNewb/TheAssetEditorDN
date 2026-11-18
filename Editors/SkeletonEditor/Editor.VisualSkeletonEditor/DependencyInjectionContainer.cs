@@ -12,6 +12,7 @@ namespace Editor.VisualSkeletonEditor
         public override void Register(IServiceCollection serviceCollection)
         {
             serviceCollection.AddScoped<SkeletonEditorViewModel>();
+            serviceCollection.AddScoped<SkeletonBoneHandle>();
 
             RegisterAllAsInterface<IDeveloperConfiguration>(serviceCollection, ServiceLifetime.Transient);
         }

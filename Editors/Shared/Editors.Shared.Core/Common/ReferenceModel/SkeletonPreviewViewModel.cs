@@ -70,6 +70,15 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             set { SetAndNotify(ref _parentBoneIndex, value); }
         }
 
+        // Bound to a tree's item, which is how a bone selected from code shows as selected there: the tree's selection behaviour
+        // passes clicks to the view model and never the other way.
+        bool _isSelected;
+        public bool IsSelected
+        {
+            get { return _isSelected; }
+            set { SetAndNotify(ref _isSelected, value); }
+        }
+
         public override string ToString()
         {
             return BoneName + "[" + BoneIndex + "]";

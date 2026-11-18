@@ -46,8 +46,10 @@
             </b:Interaction.Behaviors>
 
             <TreeView.ItemContainerStyle>
-                <Style TargetType="{x:Type TreeViewItem}">
+                <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
                     <Setter Property="IsExpanded" Value="True" />
+                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                    <EventSetter Event="Selected" Handler="OnBoneSelected" />
                 </Style>
             </TreeView.ItemContainerStyle>
             <TreeView.ItemTemplate >
@@ -132,6 +134,8 @@
                     <RowDefinition Height="auto"/>
                     <RowDefinition Height="auto"/>
                     <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
                 </Grid.RowDefinitions>
 
                 <Label Grid.Row="0"   Grid.Column="0" Content="{loc:Loc SkeletonEditor.SelectedBone.Name}"/>
@@ -146,15 +150,21 @@
                 <Label      Grid.Row="2" Grid.Column="1" Content=":"/>
                 <mathviews:Vector3View Grid.Row="2" Grid.Column="3" VerticalContentAlignment="Center" Vector3="{Binding SelectedBoneRotationOffset, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
 
-
-                <Label      Grid.Row="3" Grid.Column="0" Content="{loc:Loc SkeletonEditor.SelectedBone.Parent}"/>
+                <Label      Grid.Row="3" Grid.Column="0" Content="{loc:Loc SkeletonEditor.SelectedBone.Handle}"/>
                 <Label      Grid.Row="3" Grid.Column="1" Content=":"/>
-                <ComboBox   Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" ItemsSource="{Binding ParentChoices}" SelectedItem="{Binding SelectedBoneParent, Mode=TwoWay}" Margin="2"
+                <StackPanel Grid.Row="3" Grid.Column="2" Orientation="Horizontal" ToolTip="{loc:Loc SkeletonEditor.SelectedBone.HandleTooltip}">
+                    <ToggleButton IsChecked="{Binding Handle.Moving}" Content="{loc:Loc SkeletonEditor.SelectedBone.HandleMove}" Padding="8,1" Margin="2" AutomationProperties.AutomationId="SkeletonHandleMove"/>
+                    <ToggleButton IsChecked="{Binding Handle.Rotating}" Content="{loc:Loc SkeletonEditor.SelectedBone.HandleRotate}" Padding="8,1" Margin="2" AutomationProperties.AutomationId="SkeletonHandleRotate"/>
+                </StackPanel>
+
+                <Label      Grid.Row="4" Grid.Column="0" Content="{loc:Loc SkeletonEditor.SelectedBone.Parent}"/>
+                <Label      Grid.Row="4" Grid.Column="1" Content=":"/>
+                <ComboBox   Grid.Row="4" Grid.Column="2" Grid.ColumnSpan="2" ItemsSource="{Binding ParentChoices}" SelectedItem="{Binding SelectedBoneParent, Mode=TwoWay}" Margin="2"
                             ToolTip="{loc:Loc SkeletonEditor.SelectedBone.ParentTooltip}"/>
 
-                <Label      Grid.Row="4" Grid.Column="0" Content="{loc:Loc SkeletonEditor.SelectedBone.LengthScale}"/>
-                <Label      Grid.Row="4" Grid.Column="1" Content=":"/>
-                <DockPanel Grid.Row="4" Grid.Column="2">
+                <Label      Grid.Row="5" Grid.Column="0" Content="{loc:Loc SkeletonEditor.SelectedBone.LengthScale}"/>
+                <Label      Grid.Row="5" Grid.Column="1" Content=":"/>
+                <DockPanel Grid.Row="5" Grid.Column="2">
                     <Button Content="{loc:Loc SkeletonEditor.Buttons.Bake}" DockPanel.Dock="Right" Width="60"  Click="{s:MethodBinding BakeSkeletonAction}" Margin="2"/>
                     <TextBox Text="{Binding BoneScale, UpdateSourceTrigger=LostFocus, Mode=TwoWay}" VerticalContentAlignment="Center" Margin="2" DockPanel.Dock="Left"/>
                 </DockPanel>

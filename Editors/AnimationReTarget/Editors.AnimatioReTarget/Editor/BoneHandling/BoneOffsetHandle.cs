@@ -1,34 +1,22 @@
 using Editors.Shared.Core.Common;
 using GameWorld.Core.Animation;
 using GameWorld.Core.Components;
-using GameWorld.Core.Components.Gizmo;
 using GameWorld.Core.Components.Input;
 using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Services;
 using GameWorld.Core.Utility;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
 
 namespace Editors.AnimatioReTarget.Editor.BoneHandling
 {
-    public enum OffsetHandleMode { Off, Move, Rotate }
-
     /// <summary>
     /// A move or rotate handle on the selected bone of the Generated model. A drag writes the bone's Translation and Rotation
-    /// offsets, so the numbers in the panel show it and the clip regenerates as it goes. It drives the shared Gizmo widget at the
-    /// bone, as the meta editor's tag handle does, rather than at the scene selection.
+    /// offsets, so the numbers in the panel show it and the clip regenerates as it goes.
     /// </summary>
-    public class BoneOffsetHandle : BaseComponent, IDisposable
+    public class BoneOffsetHandle : BoneHandle
     {
-        readonly ArcBallCamera _camera;
-        readonly IMouseComponent _mouse;
-        readonly IKeyboardComponent _keyboard;
-        readonly RenderEngineComponent _renderEngine;
-        readonly IDeviceResolver _deviceResolver;
-        readonly IGraphicsResourceCreator _graphicsResourceCreator;
         readonly BoneManager _boneManager;
 
-        Gizmo? _gizmo;
         SceneObject? _generated;
         Func<float> _scale = () => 1;
 
@@ -39,36 +27,10 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
 
         public BoneOffsetHandle(ArcBallCamera camera, IMouseComponent mouse, IKeyboardComponent keyboard, RenderEngineComponent renderEngine,
             IDeviceResolver deviceResolver, IGraphicsResourceCreator graphicsResourceCreator, BoneManager boneManager)
+            : base(camera, mouse, keyboard, renderEngine, deviceResolver, graphicsResourceCreator)
         {
-            _camera = camera;
-            _mouse = mouse;
-            _keyboard = keyboard;
-            _renderEngine = renderEngine;
-            _deviceResolver = deviceResolver;
-            _graphicsResourceCreator = graphicsResourceCreator;
             _boneManager = boneManager;
-            UpdateOrder = (int)ComponentUpdateOrderEnum.Gizmo;
-            DrawOrder = (int)ComponentDrawOrderEnum.Gizmo;
         }
-
-        OffsetHandleMode _mode = OffsetHandleMode.Move;
-        public OffsetHandleMode Mode
-        {
-            get => _mode;
-            set
-            {
-                End();
-                SetAndNotify(ref _mode, value);
-                NotifyPropertyChanged(nameof(Moving));
-                NotifyPropertyChanged(nameof(Rotating));
-                if (_gizmo != null && value != OffsetHandleMode.Off)
-                    _gizmo.ActiveMode = value == OffsetHandleMode.Rotate ? GizmoMode.Rotate : GizmoMode.Translate;
-            }
-        }
-
-        // The panel's two toggle buttons; pressing the lit one again hides the handle.
-        public bool Moving { get => Mode == OffsetHandleMode.Move; set => Mode = value ? OffsetHandleMode.Move : OffsetHandleMode.Off; }
-        public bool Rotating { get => Mode == OffsetHandleMode.Rotate; set => Mode = value ? OffsetHandleMode.Rotate : OffsetHandleMode.Off; }
 
         public void Follow(SceneObject generated, Func<float> skeletonScale) => (_generated, _scale) = (generated, skeletonScale);
 
@@ -79,7 +41,7 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
                 var bone = _boneManager.SelectedBone;
                 var skeleton = _generated?.Skeleton;
                 // The remapper leaves the root's offsets alone, so a handle on it would move nothing.
-                if (Mode == OffsetHandleMode.Off || bone == null || skeleton == null || _generated!.AnimationClip == null
+                if (Mode == BoneHandleMode.Off || bone == null || skeleton == null || _generated!.AnimationClip == null
                     || bone.BoneIndex >= skeleton.BoneCount || skeleton.GetParentBoneIndex(bone.BoneIndex) == -1)
                     return null;
                 return bone;
@@ -95,10 +57,9 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
             return frame.GetSkeletonAnimatedWorld(_generated.Skeleton, bone.BoneIndex) * _generated.MainNode.ModelMatrix;
         }
 
-        /// <summary>Where the handle stands, or null when none is shown.</summary>
-        public Vector3? Where => Shown(Bone)?.Translation;
+        public override Vector3? Where => Shown(Bone)?.Translation;
 
-        public void Begin()
+        public override void Begin()
         {
             _dragged = Bone;
             if (_dragged == null)
@@ -113,7 +74,7 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
 
         /// <summary>A step of the drag in the scene. The offset is added after the skeleton scale is applied to the root, so it is
         /// written smaller by that scale for the bone to move by the full step.</summary>
-        public void MoveBy(Vector3 step)
+        public override void MoveBy(Vector3 step)
         {
             var scale = _scale();
             if (_dragged == null || scale == 0)
@@ -126,7 +87,7 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
         /// A turn of the drag about the scene's axes. The remapper applies the offset R before the bone's own world turn W, so for
         /// the drawn bone to turn by D the new offset is W D W^-1 R, with W as drawn when the drag began.
         /// </summary>
-        public void TurnBy(Matrix turn)
+        public override void TurnBy(Matrix turn)
         {
             if (_dragged == null)
                 return;
@@ -135,7 +96,7 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
             Write(_dragged.RotationOffset, AnglesOf(offset));
         }
 
-        public void End() => _dragged = null;
+        public override void End() => _dragged = null;
 
         /// <summary>Degrees about X, then Y, then Z: the inverse of MathUtil.CreateRotation, which the remapper turns them with.</summary>
         public static Vector3 AnglesOf(Matrix m)
@@ -163,65 +124,6 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
             v.X.Value = value.X;
             v.Y.Value = value.Y;
             v.Z.Value = value.Z;
-        }
-
-        public override void Initialize()
-        {
-            _gizmo = new Gizmo(_camera, _mouse, _deviceResolver.Device, _renderEngine, _graphicsResourceCreator) { ActivePivot = PivotType.ObjectCenter };
-            _gizmo.ActiveMode = Mode == OffsetHandleMode.Rotate ? GizmoMode.Rotate : GizmoMode.Translate;
-            _gizmo.Selection.Add(new Target());
-            _gizmo.StartEvent += Started;
-            _gizmo.StopEvent += Stopped;
-            _gizmo.TranslateEvent += (_, e) => MoveBy((Vector3)e.Value);
-            _gizmo.RotateEvent += (_, e) => TurnBy((Matrix)e.Value);
-        }
-
-        public override void Update(GameTime gameTime)
-        {
-            var where = Where;
-            if (_gizmo == null || where == null)
-                return;
-            _gizmo.Selection[0].Position = where.Value;
-            _gizmo.Update(gameTime, !_keyboard.IsKeyDown(Keys.LeftAlt));
-        }
-
-        public override void Draw(GameTime gameTime)
-        {
-            if (Where != null)
-                _gizmo?.Draw();
-        }
-
-        // A press while another part of the view holds the mouse, as the camera does through a middle-button drag, is left to it.
-        void Started()
-        {
-            if (!_mouse.IsMouseOwner(this))
-                return;
-            _mouse.MouseOwner = this;
-            Begin();
-        }
-
-        /// <summary>A drag of the handle ended: one undo step.</summary>
-        public event Action? DragEnded;
-
-        void Stopped()
-        {
-            End();
-            DragEnded?.Invoke();
-            if (_mouse.MouseOwner == this)
-            {
-                _mouse.MouseOwner = null;
-                _mouse.ClearStates();
-            }
-        }
-
-        public void Dispose() => _gizmo?.Dispose();
-
-        class Target : ITransformable
-        {
-            public Vector3 Position { get; set; }
-            public Vector3 Scale { get; set; } = Vector3.One;
-            public Quaternion Orientation { get; set; } = Quaternion.Identity;
-            public Vector3 GetObjectCentre() => Position;
         }
     }
 }

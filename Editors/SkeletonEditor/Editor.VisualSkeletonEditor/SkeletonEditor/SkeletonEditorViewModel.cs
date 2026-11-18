@@ -6,6 +6,7 @@ using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.BaseControl;
 using Editors.Shared.Core.Common.ReferenceModel;
 using GameWorld.Core.Animation;
+using GameWorld.Core.Components.Selection;
 using Microsoft.Xna.Framework;
 using Shared.Core.Misc;
 using Shared.Core.PackFiles;
@@ -67,7 +68,9 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             CopyPasteManager copyPasteManager,
             IEditorHostParameters editorHostParameters,
             IStandardDialogs packFileUiProvider,
-            IFileSaveService packFileSaveService)
+            IFileSaveService packFileSaveService,
+            SkeletonBoneHandle handle,
+            SelectionComponent selection)
             : base(editorHostParameters)
         {
             DisplayName = "Skeleton Editor";
@@ -76,6 +79,8 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             _copyPasteManager = copyPasteManager;
             _packFileUiProvider = packFileUiProvider;
             _packFileSaveService = packFileSaveService;
+            Handle = handle;
+            _selection = selection;
             _selectedBoneRotationOffset = new Vector3ViewModel(0, 0, 0, x=> HandleTranslationChanged());
             _selectedBoneTranslationOffset = new Vector3ViewModel(0, 0, 0, x => HandleTranslationChanged());
 
@@ -89,10 +94,35 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             _techSkeletonNode = assetNode.Data;
 
             SceneObjects.Add(assetNode);
+
+            // The view: a click on a bone picks it, and a drag of the handle moves or turns the selected bone, as one undo step.
+            GameWorld.AddComponent(Handle);
+            Handle.Follow(() => _techSkeletonNode, () => SelectedBone?.BoneIndex ?? -1);
+            Handle.Changing += () => BeforeEdit(null);
+            Handle.Changed += () => RefreshBoneInformation(SelectedBone);
+            _selection.ClickHandler = PickBone;
+        }
+
+        /// <summary>The move or rotate handle on the selected bone, and the click that picks a bone in the view.</summary>
+        public SkeletonBoneHandle Handle { get; }
+        readonly SelectionComponent _selection;
+
+        // Every click is the editor's: nothing else in this view is selectable. One near no bone keeps the selection.
+        bool PickBone(Vector2 click)
+        {
+            var bone = Handle.BoneAt(click);
+            if (bone >= 0)
+                SelectedBone = Find(Bones, bone);
+            return true;
         }
 
         partial void OnShowBonesAsWorldTransformChanged(bool value) => RefreshBoneInformation(SelectedBone);
-        partial void OnSelectedBoneChanged(SkeletonBoneNode? value) => RefreshBoneInformation(value);
+        partial void OnSelectedBoneChanged(SkeletonBoneNode? value)
+        {
+            RefreshBoneInformation(value);
+            if (value != null)
+                value.IsSelected = true;   // the tree shows a bone picked in the view, or by an undo
+        }
         partial void OnIsTechSkeletonChanged(bool value) => SetTechSkeletonTransform(value);
         partial void OnBoneVisualScaleChanged(float value) => _techSkeletonNode?.SelectedBoneScale(value);
         partial void OnBoneScaleChanged(float value)
