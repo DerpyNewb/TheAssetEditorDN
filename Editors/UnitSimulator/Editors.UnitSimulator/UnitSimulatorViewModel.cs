@@ -34,6 +34,7 @@ namespace Editors.UnitSimulator
         readonly IPackFileService _pfs;
         readonly IFileSaveService _fileSaver;
         readonly IEventHub _eventHub;
+        readonly IEditorManager _editorManager;
         readonly Dictionary<string, ClipLength?> _lengths = [];
         // Edited, unsaved tables by path. The instance here is the one saved, whatever a part's list holds.
         readonly Dictionary<string, AnimationBinWh3> _editedTables = [];
@@ -81,9 +82,11 @@ namespace Editors.UnitSimulator
             MetaDataFileParser metaDataFileParser,
             SceneManager sceneManager,
             AnimationsContainerComponent animations,
-            IStandardDialogs dialogs)
+            IStandardDialogs dialogs,
+            IEditorManager editorManager)
             : base(hostParameters)
         {
+            _editorManager = editorManager;
             DisplayName = "Unit Simulator";
             _pfs = pfs;
             _fileSaver = fileSaver;
@@ -379,6 +382,15 @@ namespace Editors.UnitSimulator
                 if (!value)
                     _editedTables.Clear();
             }
+        }
+
+        /// <summary>Poses the rider in the KeyFrame Tool: both parts go across with their tables, slots and the clip each plays,
+        /// a baked rider included.</summary>
+        [RelayCommand]
+        void OpenInKeyFrameTool()
+        {
+            var editor = (Editors.AnimationVisualEditors.AnimationKeyframeEditor.AnimationKeyframeEditorViewModel)_editorManager.Create(EditorEnums.AnimationKeyFrame_Editor);
+            editor.LoadRiderAndMount(Rider, Mount);
         }
 
         public bool Save()

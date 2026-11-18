@@ -7,6 +7,8 @@
                     <TextBlock DockPanel.Dock="Top" Margin="5" TextWrapping="Wrap"
                                Text="One row per slot of the mount's table. The rider plays RIDER_ and the mount slot's name. Click a row to play the pair."/>
                     <ItemsControl DockPanel.Dock="Top" Margin="5,0,5,5" ItemsSource="{Binding MountRiderTags}"/>
+                    <Button DockPanel.Dock="Top" Content="Open in KeyFrame Tool" Command="{Binding OpenInKeyFrameToolCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="5,0,5,5"
+                            ToolTip="Opens the KeyFrame Tool with this rider and mount, their tables and slots, and the clip each is playing, a baked rider included."/>
                     <Expander DockPanel.Dock="Bottom" Margin="5" Header="Rider-only slots: pick these on the Rider panel while the mount plays its own">
                         <ListBox ItemsSource="{Binding RiderOnlySlots}" MaxHeight="160"/>
                     </Expander>

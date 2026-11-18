@@ -17,5 +17,6 @@
     <ProjectReference Include="..\..\..\Shared\SharedUI\Shared.Ui\Shared.Ui.csproj" />
     <ProjectReference Include="..\..\Shared\Editors.Shared.Core\Editors.Shared.Core.csproj" />
     <ProjectReference Include="..\..\MetaDataEditor\AnimationMeta\Editors.AnimationMeta.csproj" />
+    <ProjectReference Include="..\..\AnimationEditor\Editors.AnimationVisualEditors.csproj" />
   </ItemGroup>
 </Project>
