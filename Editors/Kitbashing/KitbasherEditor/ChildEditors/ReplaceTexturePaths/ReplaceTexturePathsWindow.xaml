@@ -7,6 +7,7 @@
     xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
     Style="{StaticResource CustomWindowStyle}"
     WindowStartupLocation="CenterOwner"
+    HelpDocumentPath="docs\Documentation\Kitbash_Tools.html"
     Title="{loc:Loc KitbashTool.ReplaceTexturePaths.Title}" SizeToContent="Height" Width="520">
     <local:ReplaceTexturePathsView/>
 </common:AssetEditorWindow>

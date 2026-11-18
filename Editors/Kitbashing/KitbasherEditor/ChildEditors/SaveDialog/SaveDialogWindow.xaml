@@ -14,6 +14,7 @@
             ResizeMode="NoResize"
     SizeToContent="WidthAndHeight"
         Style="{StaticResource CustomWindowStyle}"
+        HelpDocumentPath="docs\Documentation\Kitbash_Tools.html"
         Title="{loc:Loc KitbashTool.SaveDialog.Title}">
     
     <Grid Margin="2">

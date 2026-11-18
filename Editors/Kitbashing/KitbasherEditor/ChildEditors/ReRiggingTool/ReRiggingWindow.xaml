@@ -10,6 +10,7 @@
     xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
     mc:Ignorable="d"
         Style="{StaticResource CustomWindowStyle}"
+        HelpDocumentPath="docs\Documentation\Kitbash_Tools.html"
         Title="{loc:Loc KitbashTool.ReRigging.Title}" Height="500" Width="1000">
     <Grid>
         <Grid.RowDefinitions>

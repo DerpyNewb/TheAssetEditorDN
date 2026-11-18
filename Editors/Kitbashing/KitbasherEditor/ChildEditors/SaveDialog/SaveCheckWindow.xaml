@@ -6,6 +6,7 @@
     xmlns:local="clr-namespace:Editors.KitbasherEditor.ChildEditors.SaveDialog"
     Style="{StaticResource CustomWindowStyle}"
     WindowStartupLocation="CenterOwner"
+    HelpDocumentPath="docs\Documentation\Kitbash_Tools.html"
     Title="{Binding Title}" Height="420" Width="620">
     <local:SaveCheckView/>
 </common:AssetEditorWindow>
