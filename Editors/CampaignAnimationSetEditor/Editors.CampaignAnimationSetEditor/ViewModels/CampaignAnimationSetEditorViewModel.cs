@@ -80,7 +80,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
                 var chunk = file.DataSource.ReadDataAsChunk();
                 var bin = CampaignAnimationBinLoader.Load(chunk);
                 foreach (var status in bin.Status)
-                    Statuses.Add(new StatusItemViewModel(status));
+                    AddStatusItem(new StatusItemViewModel(status));
 
                 Bin = bin;
                 SelectedStatus = Statuses.FirstOrDefault();
@@ -92,6 +92,8 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
                 LoadError = $"This file could not be parsed as a campaign animation set: {e.Message}\n\n" +
                              "It may use an older/unsupported bin version, or contain a data type this editor does not understand.";
             }
+            // Even when the file fails to parse: an undo must never bring back the previous file under this one's name.
+            ResetUndo();
         }
 
         public bool Save()
@@ -170,7 +172,80 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             CurrentFile = result;
             DisplayName = result.Name;
             HasUnsavedChanges = false;
+            // The save writes the new reference into the set; that is not an edit to undo.
+            _current = Take();
             return true;
+        }
+
+        // Undo keeps whole snapshots of the set. Its rows are plain classes with no change events, so a change is found by
+        // comparing what the set writes now with the last snapshot: when a row is added or removed, when the view loses focus
+        // after a typed edit, and before an undo or redo. A Generate's clips, written only on save, go with its snapshot.
+        record Snapshot(byte[]? Bytes, List<CampaignAnimationSetGeneratorService.PendingAnimationWrite> Pending, string? Selected);
+        Snapshot? _current;
+        readonly Stack<Snapshot> _undo = new();
+        readonly Stack<Snapshot> _redo = new();
+
+        Snapshot Take()
+        {
+            if (Bin == null)
+                return new(null, _pendingAnimationWrites, null);
+            foreach (var status in Statuses)
+                status.CommitToModel();
+            Bin.Status = Statuses.Select(x => x.Model).ToList();
+            return new(CampaignAnimationBinLoader.Write(Bin, Bin.Reference ?? ""), _pendingAnimationWrites, SelectedStatus?.Name);
+        }
+
+        void ResetUndo()
+        {
+            _undo.Clear();
+            _redo.Clear();
+            _current = Take();
+        }
+
+        /// <summary>Records the set as it is now as one undo step, if it changed since the last.</summary>
+        public void Checkpoint()
+        {
+            var now = Take();
+            if (_current != null && ReferenceEquals(now.Pending, _current.Pending) && (now.Bytes ?? []).AsSpan().SequenceEqual(_current.Bytes ?? []))
+                return;
+            if (_current != null)
+            {
+                _undo.Push(_current);
+                _redo.Clear();
+                HasUnsavedChanges = true;
+            }
+            _current = now;
+        }
+
+        [RelayCommand] public void UndoAction() => Step(_undo, _redo);
+        [RelayCommand] public void RedoAction() => Step(_redo, _undo);
+
+        void Step(Stack<Snapshot> from, Stack<Snapshot> to)
+        {
+            Checkpoint();
+            if (from.Count == 0)
+                return;
+            var leaving = _current!;
+            to.Push(leaving);
+            var snapshot = from.Pop();
+            Statuses.Clear();
+            Bin = snapshot.Bytes == null ? null : CampaignAnimationBinLoader.Load(new global::Shared.ByteParsing.ByteChunk(snapshot.Bytes));
+            foreach (var status in Bin?.Status ?? [])
+                AddStatusItem(new StatusItemViewModel(status));
+            _pendingAnimationWrites = snapshot.Pending;
+            // Show the status the step was made in. A snapshot is taken just after its edit, so an undo leaves it and a redo
+            // arrives at it; the snapshot an undo arrives at holds whatever was selected before, often somewhere else.
+            var madeIn = from == _undo ? leaving.Selected : snapshot.Selected;
+            SelectedStatus = Statuses.FirstOrDefault(x => x.Name == madeIn) ?? Statuses.FirstOrDefault();
+            HasUnsavedChanges = true;
+            // What this set writes now, which is what the next edit is compared with.
+            _current = Take();
+        }
+
+        void AddStatusItem(StatusItemViewModel status)
+        {
+            status.RowsChanged += Checkpoint;
+            Statuses.Add(status);
         }
 
         [RelayCommand(CanExecute = nameof(HasOpenFile))]
@@ -214,9 +289,9 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             }
 
             var vm = StatusItemViewModel.CreateNew(name);
-            Statuses.Add(vm);
+            AddStatusItem(vm);
             SelectedStatus = vm;
-            HasUnsavedChanges = true;
+            Checkpoint();
         }
 
         [RelayCommand]
@@ -232,7 +307,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             Statuses.Remove(status);
             if (SelectedStatus == status)
                 SelectedStatus = Statuses.FirstOrDefault();
-            HasUnsavedChanges = true;
+            Checkpoint();
         }
 
         [RelayCommand]
@@ -266,16 +341,17 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
                 return;
             }
 
+            Checkpoint();
             Statuses.Clear();
             foreach (var status in generateResult.Bin.Status)
-                Statuses.Add(new StatusItemViewModel(status));
+                AddStatusItem(new StatusItemViewModel(status));
 
             Bin = generateResult.Bin;
             // Discards anything pending from a previous unsaved Generate - none of it was written.
             _pendingAnimationWrites = generateResult.PendingAnimationWrites.ToList();
             SelectedStatus = Statuses.FirstOrDefault();
             LoadError = null;
-            HasUnsavedChanges = true;
+            Checkpoint();
         }
 
         public void Close()
