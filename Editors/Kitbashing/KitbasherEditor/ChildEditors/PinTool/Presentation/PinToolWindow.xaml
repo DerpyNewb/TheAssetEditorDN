@@ -10,7 +10,7 @@
         mc:Ignorable="d"
                                 
         Style="{StaticResource CustomWindowStyle}"
-        HelpDocumentPath="docs\index.html#doc=Kitbash_PinTool"
+        HelpDocumentPath="docs\Documentation\Kitbash_PinTool.html"
         Title="{loc:Loc KitbashTool.PinTool.Title}" Height="600" Width="400">
     <local:PinToolView/>
 </windowhandling:AssetEditorWindow>

@@ -117,6 +117,9 @@ namespace Editors.BmdEditor.Services
             _mouse.MouseOwner = this;
         }
 
+        /// <summary>A drag of the gizmo ended: one undo step.</summary>
+        public event Action? DragEnded;
+
         void OnDragEnd()
         {
             if (_mouse.MouseOwner == this)
@@ -124,6 +127,7 @@ namespace Editors.BmdEditor.Services
                 _mouse.MouseOwner = null;
                 _mouse.ClearStates();
             }
+            DragEnded?.Invoke();
         }
 
         void OnTranslate(ITransformable transformable, TransformationEventArgs e)

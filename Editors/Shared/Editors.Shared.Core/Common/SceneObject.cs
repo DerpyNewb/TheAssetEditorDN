@@ -44,6 +44,8 @@ namespace Editors.Shared.Core.Common
 
         // --- UI elements
         public NotifyAttr<string> MeshName { get; set; } = new NotifyAttr<string>("");
+        /// <summary>The file the mesh was loaded from, so another editor can load the same one.</summary>
+        public PackFile? MeshFile { get; set; }
         public NotifyAttr<string> SkeletonName { get; set; } = new NotifyAttr<string>("");
         public NotifyAttr<string> AnimationName { get; set; } = new NotifyAttr<string>("");
         public NotifyAttr<bool> ShowMesh { get; set; }

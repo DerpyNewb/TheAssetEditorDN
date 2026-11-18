@@ -57,31 +57,27 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
             _exceptionService = exceptionService;
         }
 
-        public void BuildRmvFileMaterials(GltfImporterSettings settings, SharpGLTF.Schema2.ModelRoot modelRoot, RmvFile rmvFile)
+        /// <param name="partSources">Each rmv2 part's (mesh, primitive), as RmvMeshBuilder made them; null when every mesh is
+        /// one part from its first primitive.</param>
+        public void BuildRmvFileMaterials(GltfImporterSettings settings, SharpGLTF.Schema2.ModelRoot modelRoot, RmvFile rmvFile, List<(int Mesh, int Primitive)>? partSources = null)
         {
-            ValidateInput_BuildRmvFileMaterials(modelRoot, rmvFile);
+            partSources ??= Enumerable.Range(0, modelRoot.LogicalMeshes.Count).Select(i => (i, 0)).ToList();
+            ValidateInput_BuildRmvFileMaterials(modelRoot, rmvFile, partSources.Count);
 
-            for (int i = 0; i < modelRoot.LogicalMeshes.Count; i++)
+            for (int i = 0; i < partSources.Count; i++)
             {
-                BuildRmvModelMaterial(
-                    settings,
-                    modelRoot.LogicalMeshes[i],
-                    (rmvFile.ModelList.Any() && rmvFile.ModelList[0].Any())
-                    ?
-                    rmvFile.ModelList[0][i]
-                    :
-                    null
-                );
+                var mesh = modelRoot.LogicalMeshes[partSources[i].Mesh];
+                BuildRmvModelMaterial(settings, mesh, partSources[i].Primitive, rmvFile.ModelList[0][i]);
             }
 
             rmvFile.RecalculateOffsets();
         }
 
-        private void BuildRmvModelMaterial(GltfImporterSettings settings, Mesh mesh, RmvModel rmvModel)
+        private void BuildRmvModelMaterial(GltfImporterSettings settings, Mesh mesh, int primitiveIndex, RmvModel rmvModel)
         {
-            if (!ValidateInput_BuildRmvModelMaterial(mesh)) return;
+            var primitive = mesh.Primitives[primitiveIndex];
+            if (!ValidateInput_BuildRmvModelMaterial(primitive)) return;
 
-            var primitive = mesh.Primitives.First();
             var gltfMaterial = primitive.Material;
 
             foreach (var itText in gltfMaterial.Channels)
@@ -95,7 +91,10 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
 
                 var gameType = settings.SelectedGame;                
                 
-                var texturePackFolder = GetTexturePackFolder(settings, mesh.Name, postFixString);
+                // A mesh with several primitives has a material per primitive, so each gets its own name. Parts split off one
+                // primitive at the vertex limit share its textures, which are added once.
+                var textureName = mesh.Primitives.Count > 1 ? $"{mesh.Name}_{primitiveIndex}" : mesh.Name;
+                var texturePackFolder = GetTexturePackFolder(settings, textureName, postFixString);
                 var DEBUG___textureName = itText.Texture.PrimaryImage.Name;
 
                 // import texture PNG -> DDS. The image's bytes, not its path: a .glb's textures are inside it and have none.
@@ -130,7 +129,7 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
             return $"{settings.DestinationPackPath.Replace('\\', '/').Trim('/').ToLowerInvariant()}/tex/{textureFileName}";
         }
 
-        private static void ValidateInput_BuildRmvFileMaterials(ModelRoot modelRoot, RmvFile rmvFile)
+        private static void ValidateInput_BuildRmvFileMaterials(ModelRoot modelRoot, RmvFile rmvFile, int partCount)
         {
             if (modelRoot == null)
                 throw new ArgumentNullException(nameof(modelRoot), "Invalid Scene: ModelRoot can't be null");
@@ -144,20 +143,12 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
             if (!rmvFile.ModelList.Any())
                 throw new Exception("ERROR: unexpected not meshes in rmv2 file struct");
 
-            if (rmvFile.ModelList[0].Length != modelRoot.LogicalMeshes.Count)
+            if (rmvFile.ModelList[0].Length != partCount)
                 throw new Exception("ERROR: unexpected rmv2 mesh count mismatch");
         }
 
-        private static bool ValidateInput_BuildRmvModelMaterial(Mesh mesh)
+        private static bool ValidateInput_BuildRmvModelMaterial(MeshPrimitive primitive)
         {
-            if (mesh == null)
-                throw new ArgumentNullException(nameof(mesh), "Invalid Mesh: Mesh can't be null");
-
-            if (mesh.Primitives == null || !mesh.Primitives.Any())
-                throw new Exception($"Invalid Mesh: No Primitives found in mesh. Primitives.Count = {mesh.Primitives?.Count}");
-
-            var primitive = mesh.Primitives.First();
-
             if (primitive == null)
                 throw new Exception("Invalid Mesh: primitive[0] can't be null ");
 

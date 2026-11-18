@@ -216,6 +216,31 @@ namespace Editors.AnimationVisualEditors.AnimationKeyframeEditor
             _rider.Player.OnFrameChanged += RiderOnFrameChanged;
         }
 
+        /// <summary>Loads another editor's rider and mount: the mesh (or the skeleton alone), the table, the slot, and the clip
+        /// each part is playing. The clip is copied, not reloaded from the slot, because it may be one the other editor made, such
+        /// as the Unit Simulator's baked rider.</summary>
+        public void LoadRiderAndMount(SceneObjectViewModel rider, SceneObjectViewModel mount)
+        {
+            CopyPart(rider, SceneObjects.First(x => x.Data == Rider));
+            CopyPart(mount, SceneObjects.First(x => x.Data == Mount));
+        }
+
+        void CopyPart(SceneObjectViewModel from, SceneObjectViewModel to)
+        {
+            if (from.Data.MeshFile != null)
+                SceneObjectEditor.SetMesh(to.Data, from.Data.MeshFile);
+            else if (_pfs.FindFile(from.Data.SkeletonName.Value) is { } skeleton)
+                SceneObjectEditor.SetSkeleton(to.Data, skeleton);
+
+            var tables = to.FragAndSlotSelection.FragmentList;
+            tables.SelectedItem = tables.PossibleValues.FirstOrDefault(x => x.FullPath == from.FragAndSlotSelection.FragmentList.SelectedItem?.FullPath);
+            var slots = to.FragAndSlotSelection.FragmentSlotList;
+            slots.SelectedItem = slots.PossibleValues.FirstOrDefault(x => x.SlotName == from.FragAndSlotSelection.FragmentSlotList.SelectedItem?.SlotName);
+
+            if (from.Data.AnimationClip != null)
+                SceneObjectEditor.SetAnimationClip(to.Data, from.Data.AnimationClip.Clone(), from.Data.AnimationName.Value);
+        }
+
         private void UpdateCanSaveAndPreviewStates()
         {
 

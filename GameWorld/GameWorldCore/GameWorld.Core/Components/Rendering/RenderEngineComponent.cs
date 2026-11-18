@@ -135,6 +135,9 @@ namespace GameWorld.Core.Components.Rendering
         /// <summary>The colour black guides are drawn in on the current background: ApplicationSettingsHelper.GuideColour.</summary>
         public Color GuideColour => ApplicationSettingsHelper.GuideColour(_applicationSettingsService.CurrentSettings.RenderEngineBackgroundColour);
 
+        /// <summary>The lines queued for this frame, as drawn.</summary>
+        public IReadOnlyList<VertexPositionColor> RenderLines => _renderLines;
+
         public void AddRenderLines(VertexPositionColor[] lineVertices)
         {
             Guard.IsTrue(lineVertices.Length % 2 == 0);

@@ -17,6 +17,8 @@
         public List<string>? Nodes { get; set; }
         public bool? Add { get; set; }
         public bool? Visible { get; set; }
+        // close: drop the tab's unsaved changes instead of refusing.
+        public bool? Discard { get; set; }
         public string? Name { get; set; }
         public float[]? Translate { get; set; }
         public float[]? Rotate { get; set; }

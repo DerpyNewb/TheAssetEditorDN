@@ -10,6 +10,7 @@ using Editors.Shared.Core.Common.BaseControl;
 using GameWorld.Core.Animation;
 using Microsoft.Xna.Framework;
 using Shared.Core.Events;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.Services;
 
@@ -77,6 +78,8 @@ namespace Editors.AnimatioReTarget.Editor
                 if (CanUpdateAnimation(out _))
                     UpdateAnimation();
             };
+            _history = new(TakeSnapshot, (a, b) => a.Preset == b.Preset, Restore);
+            _boneManager.MappingApplied += Checkpoint;
             // Live: every setting regenerates the clip, with no Apply.
             _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
             _boneManager.SettingsChanged += ScheduleUpdate;
@@ -92,6 +95,7 @@ namespace Editors.AnimatioReTarget.Editor
             GameWorld.AddComponent(renderingComponent);
             _offsetHandle = offsetHandle;
             GameWorld.AddComponent(offsetHandle);
+            offsetHandle.DragEnded += Checkpoint;
 
             _eventHub.Register<SceneObjectUpdateEvent>(this, OnSceneObjectUpdated);
 
@@ -134,6 +138,10 @@ namespace Editors.AnimatioReTarget.Editor
             if (e.Owner == _target && e.SkeletonChanged)
                 BoneManager.UpdateTargetSkeleton(_target.SkeletonName.Value);
 
+            // Another skeleton is another bone tree: the steps made on the last one do not apply to it.
+            if (e.SkeletonChanged)
+                _history.Reset();
+
             Rendering.ComputeOffsets();
         }
 
@@ -165,13 +173,44 @@ namespace Editors.AnimatioReTarget.Editor
             });
         }
 
-        public void SavePreset(string path)
+        RetargetPreset CurrentPreset() => new(1, _source.SkeletonName.Value, _target.SkeletonName.Value,
+            new(Settings.SkeletonScale, Settings.AnimationSpeedMult, Settings.ApplyRelativeScale, Settings.ZeroUnmappedBones),
+            BoneManager.PresetBones());
+
+        /// <summary>Puts a preset's settings and bones on the editor. Returns the names it could not place.</summary>
+        List<string> ApplyPreset(RetargetPreset preset)
         {
-            var preset = new RetargetPreset(1, _source.SkeletonName.Value, _target.SkeletonName.Value,
-                new(Settings.SkeletonScale, Settings.AnimationSpeedMult, Settings.ApplyRelativeScale, Settings.ZeroUnmappedBones),
-                BoneManager.PresetBones());
-            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(preset, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            Settings.SkeletonScale = preset.Settings.SkeletonScale;
+            Settings.AnimationSpeedMult = preset.Settings.AnimationSpeedMult;
+            Settings.ApplyRelativeScale = preset.Settings.ApplyRelativeScale;
+            Settings.ZeroUnmappedBones = preset.Settings.ZeroUnmappedBones;
+            return BoneManager.ApplyPresetBones(preset.Bones);
         }
+
+        public void SavePreset(string path) =>
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(CurrentPreset(), new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+
+        // Undo keeps the mapping and every setting as a preset, and the selected bone. A step is recorded when a mapping is
+        // applied (the mapping window, a loaded preset) and when a handle drag ends, and, from the view, when a mouse button is
+        // let go or a field is left; a checkpoint where nothing changed records nothing.
+        record Snapshot(string Preset, string? SelectedBone);
+        readonly SnapshotUndo<Snapshot> _history;
+
+        Snapshot TakeSnapshot() => new(System.Text.Json.JsonSerializer.Serialize(CurrentPreset()), BoneManager.SelectedBone?.BoneName);
+
+        // Selects the bone the step was made in; the snapshot an undo arrives at holds whatever was selected before it.
+        void Restore(Snapshot snapshot, Snapshot madeIn)
+        {
+            ApplyPreset(System.Text.Json.JsonSerializer.Deserialize<RetargetPreset>(snapshot.Preset)!);
+            if (madeIn.SelectedBone != null && SkeletonBoneNodeHelper.GetNodeFromName(madeIn.SelectedBone, BoneManager.Bones) is { } bone)
+                BoneManager.SelectedBone = bone;
+        }
+
+        /// <summary>Records the mapping and the settings as one undo step, if they changed since the last.</summary>
+        public void Checkpoint() => _history.Checkpoint();
+
+        [RelayCommand] public void Undo() => _history.Undo();
+        [RelayCommand] public void Redo() => _history.Redo();
 
         /// <summary>Loads a preset onto the current skeletons. Returns what it could not place, or null when everything was placed.</summary>
         public string? LoadPreset(string path)
@@ -181,11 +220,7 @@ namespace Editors.AnimatioReTarget.Editor
             if (preset.Settings == null || preset.Bones == null
                 || preset.Bones.Any(x => x?.Name == null || x.RotationOffset?.Length != 3 || x.TranslationOffset?.Length != 3))
                 throw new InvalidDataException("The file is not a complete retarget preset.");
-            Settings.SkeletonScale = preset.Settings.SkeletonScale;
-            Settings.AnimationSpeedMult = preset.Settings.AnimationSpeedMult;
-            Settings.ApplyRelativeScale = preset.Settings.ApplyRelativeScale;
-            Settings.ZeroUnmappedBones = preset.Settings.ZeroUnmappedBones;
-            var missing = BoneManager.ApplyPresetBones(preset.Bones);
+            var missing = ApplyPreset(preset);
             if (missing.Count == 0)
                 return null;
             const int Shown = 20;

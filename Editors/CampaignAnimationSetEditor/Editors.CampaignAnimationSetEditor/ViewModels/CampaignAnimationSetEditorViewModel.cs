@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.CampaignAnimationSetEditor.Services;
 using Editors.CampaignAnimationSetEditor.Views;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
@@ -64,6 +65,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             _fileSaveService = fileSaveService;
             _dialogs = dialogs;
             _generatorService = generatorService;
+            _history = new(Take, (a, b) => ReferenceEquals(a.Pending, b.Pending) && (a.Bytes ?? []).AsSpan().SequenceEqual(b.Bytes ?? []), Restore);
         }
 
         public void LoadFile(PackFile file)
@@ -80,7 +82,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
                 var chunk = file.DataSource.ReadDataAsChunk();
                 var bin = CampaignAnimationBinLoader.Load(chunk);
                 foreach (var status in bin.Status)
-                    Statuses.Add(new StatusItemViewModel(status));
+                    AddStatusItem(new StatusItemViewModel(status));
 
                 Bin = bin;
                 SelectedStatus = Statuses.FirstOrDefault();
@@ -92,6 +94,8 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
                 LoadError = $"This file could not be parsed as a campaign animation set: {e.Message}\n\n" +
                              "It may use an older/unsupported bin version, or contain a data type this editor does not understand.";
             }
+            // Even when the file fails to parse: an undo must never bring back the previous file under this one's name.
+            _history.Reset();
         }
 
         public bool Save()
@@ -170,7 +174,53 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             CurrentFile = result;
             DisplayName = result.Name;
             HasUnsavedChanges = false;
+            // The save writes the new reference into the set; that is not an edit to undo.
+            _history.Rebase();
             return true;
+        }
+
+        // Undo keeps whole snapshots of the set. Its rows are plain classes with no change events, so a change is found by
+        // comparing what the set writes now with the last snapshot: when a row is added or removed, when the view loses focus
+        // after a typed edit, and before an undo or redo. A Generate's clips, written only on save, go with its snapshot.
+        record Snapshot(byte[]? Bytes, List<CampaignAnimationSetGeneratorService.PendingAnimationWrite> Pending, string? Selected);
+        readonly SnapshotUndo<Snapshot> _history;
+
+        Snapshot Take()
+        {
+            if (Bin == null)
+                return new(null, _pendingAnimationWrites, null);
+            foreach (var status in Statuses)
+                status.CommitToModel();
+            Bin.Status = Statuses.Select(x => x.Model).ToList();
+            return new(CampaignAnimationBinLoader.Write(Bin, Bin.Reference ?? ""), _pendingAnimationWrites, SelectedStatus?.Name);
+        }
+
+        /// <summary>Records the set as it is now as one undo step, if it changed since the last.</summary>
+        public void Checkpoint()
+        {
+            if (_history.Checkpoint())
+                HasUnsavedChanges = true;
+        }
+
+        [RelayCommand] public void UndoAction() => _history.Undo();
+        [RelayCommand] public void RedoAction() => _history.Redo();
+
+        // Shows the status the step was made in; the snapshot an undo arrives at holds whatever was selected before it.
+        void Restore(Snapshot snapshot, Snapshot madeIn)
+        {
+            Statuses.Clear();
+            Bin = snapshot.Bytes == null ? null : CampaignAnimationBinLoader.Load(new global::Shared.ByteParsing.ByteChunk(snapshot.Bytes));
+            foreach (var status in Bin?.Status ?? [])
+                AddStatusItem(new StatusItemViewModel(status));
+            _pendingAnimationWrites = snapshot.Pending;
+            SelectedStatus = Statuses.FirstOrDefault(x => x.Name == madeIn.Selected) ?? Statuses.FirstOrDefault();
+            HasUnsavedChanges = true;
+        }
+
+        void AddStatusItem(StatusItemViewModel status)
+        {
+            status.RowsChanged += Checkpoint;
+            Statuses.Add(status);
         }
 
         [RelayCommand(CanExecute = nameof(HasOpenFile))]
@@ -214,9 +264,9 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             }
 
             var vm = StatusItemViewModel.CreateNew(name);
-            Statuses.Add(vm);
+            AddStatusItem(vm);
             SelectedStatus = vm;
-            HasUnsavedChanges = true;
+            Checkpoint();
         }
 
         [RelayCommand]
@@ -232,7 +282,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             Statuses.Remove(status);
             if (SelectedStatus == status)
                 SelectedStatus = Statuses.FirstOrDefault();
-            HasUnsavedChanges = true;
+            Checkpoint();
         }
 
         [RelayCommand]
@@ -266,16 +316,17 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
                 return;
             }
 
+            Checkpoint();
             Statuses.Clear();
             foreach (var status in generateResult.Bin.Status)
-                Statuses.Add(new StatusItemViewModel(status));
+                AddStatusItem(new StatusItemViewModel(status));
 
             Bin = generateResult.Bin;
             // Discards anything pending from a previous unsaved Generate - none of it was written.
             _pendingAnimationWrites = generateResult.PendingAnimationWrites.ToList();
             SelectedStatus = Statuses.FirstOrDefault();
             LoadError = null;
-            HasUnsavedChanges = true;
+            Checkpoint();
         }
 
         public void Close()

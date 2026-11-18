@@ -238,6 +238,38 @@ public class GltfTextureExportSessionTests
         }
     }
 
+    // The 16-bit option used to write an 8-bit PNG plus a headerless .raw file. A ramp of 1,000 heights must come back from the
+    // PNG as 16-bit grey with all 1,000 steps, which 8 bits cannot hold.
+    [Test]
+    public void SixteenBitDisplacementIsASixteenBitPng()
+    {
+        var outputDirectory = Path.Combine(Path.GetTempPath(), $"asset-editor-displacement-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outputDirectory);
+        try
+        {
+            const int Width = 1000;
+            var heights = new float[Width, 2];
+            for (var x = 0; x < Width; x++)
+                heights[x, 0] = heights[x, 1] = x / (Width - 1f);
+
+            GltfTextureHandler.Save16BitDisplacementMap(heights, outputDirectory, "body");
+
+            using var stream = File.OpenRead(Path.Combine(outputDirectory, "body_displacement.png"));
+            var frame = new System.Windows.Media.Imaging.PngBitmapDecoder(stream, System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+            Assert.That(frame.Format, Is.EqualTo(System.Windows.Media.PixelFormats.Gray16));
+            var pixels = new ushort[Width * 2];
+            frame.CopyPixels(pixels, Width * 2, 0);
+            Assert.That(pixels.Take(Width).Distinct().Count(), Is.EqualTo(Width), "every height keeps its own level");
+            Assert.That(pixels[0], Is.EqualTo(0));
+            Assert.That(pixels[Width - 1], Is.EqualTo(65535));
+            Assert.That(Directory.GetFiles(outputDirectory), Has.Length.EqualTo(1), "no .raw beside it");
+        }
+        finally
+        {
+            Directory.Delete(outputDirectory, recursive: true);
+        }
+    }
+
     private static ResolvedModelAsset CreateAsset(string firstTexture, string secondTexture)
     {
         var firstModel = CreateModel("first", firstTexture);

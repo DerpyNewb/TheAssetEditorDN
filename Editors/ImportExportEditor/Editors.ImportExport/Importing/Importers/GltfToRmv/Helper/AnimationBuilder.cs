@@ -31,18 +31,21 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
 
     public class AnimationBuilder  
     {        
-        static public AnimationFile? Build(AnimationBuilderSettings settings, AnimationFile skeletonAnimFile)
+        /// <param name="animationIndex">Which of the glTF's clips; each becomes its own .anim.</param>
+        static public AnimationFile? Build(AnimationBuilderSettings settings, AnimationFile skeletonAnimFile, int animationIndex = 0)
         {
-            if (settings.modelRoot.LogicalAnimations.Count() == 0)
+            if (settings.modelRoot.LogicalAnimations.Count() <= animationIndex)
                 return null;
 
             AnimationFile newAnimFile = new AnimationFile();
 
-            var animation = settings.modelRoot.LogicalAnimations[0];
+            var animation = settings.modelRoot.LogicalAnimations[animationIndex];
 
             var animationTime = animation.Duration;
             var keyInterval = 1.0f / settings.keysPerSecond; // time between keys
-            var keyCount = (int)(animationTime / keyInterval); // number of keys
+            // A key at 0 and one at the end: truncating Duration / keyInterval dropped the last key, so every clip came back
+            // one key short.
+            var keyCount = (int)Math.Round(animationTime / keyInterval) + 1;
             
             newAnimFile.Header = new AnimationHeader()
             {
@@ -50,8 +53,7 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
                 FrameRate = settings.keysPerSecond,
                 SkeletonName = settings.skeletonName,
 
-                // TODO: this value is actually the time for the last key, not duration
-                // so, we subtract one "keytime" from the value.
+                // The time of the last key, as the game reads it.
                 AnimationTotalPlayTimeInSec = keyInterval * (float)(keyCount - 1)
             };
 
@@ -64,13 +66,11 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
 
             DoQuantization(skeletonAnimFile, part);
 
-            float keyTime = 0.0f;
             for (int i = 0; i < keyCount; i++)
             {
                 var frame = new Frame();
-                FillFrame(settings, skeletonAnimFile, keyTime, frame);
+                FillFrame(settings, animation, skeletonAnimFile, i * keyInterval, frame);
                 part.DynamicFrames.Add(frame);
-                keyTime += keyInterval;
             }
 
             return newAnimFile;
@@ -108,15 +108,15 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
             }
         }
 
-        private static void FillFrame(AnimationBuilderSettings settings, AnimationFile skeletonAnimFile, float currentKeyTime, Frame frame)
+        private static void FillFrame(AnimationBuilderSettings settings, Animation animation, AnimationFile skeletonAnimFile, float currentKeyTime, Frame frame)
         {
             RmvVector3[] translations = new RmvVector3[skeletonAnimFile.Bones.Length];
             RmvVector4[] quaternions = new RmvVector4[skeletonAnimFile.Bones.Length];
 
             foreach (var bone in skeletonAnimFile.Bones)
             {
-                var translation = GltfAnimationTrackSampler.SampleTranslation(settings.modelRoot, bone.Name, currentKeyTime);
-                var quaternion = GltfAnimationTrackSampler.SampleQuaternion(settings.modelRoot, bone.Name, currentKeyTime);
+                var translation = GltfAnimationTrackSampler.SampleTranslation(settings.modelRoot, animation, bone.Name, currentKeyTime);
+                var quaternion = GltfAnimationTrackSampler.SampleQuaternion(settings.modelRoot, animation, bone.Name, currentKeyTime);
 
                 // using the arrays with bone.id as index, makes sure sampled data is stored at the index
                 translations[bone.Id] = new RmvVector3(translation);

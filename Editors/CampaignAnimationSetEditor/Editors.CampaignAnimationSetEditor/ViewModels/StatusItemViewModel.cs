@@ -50,6 +50,9 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
         public ObservableCollection<UnknownEntry> Unknown { get; }
         public ObservableCollection<LocomotionEntry> Locomotion { get; }
 
+        /// <summary>A row was added to or removed from one of the lists.</summary>
+        public event System.Action? RowsChanged;
+
         public StatusItemViewModel(StatusItem model)
         {
             Model = model;
@@ -67,6 +70,9 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             Action = new ObservableCollection<ActionEntry>(model.Action ?? []);
             Unknown = new ObservableCollection<UnknownEntry>(model.Unknown ?? []);
             Locomotion = new ObservableCollection<LocomotionEntry>(model.Locomotion ?? []);
+
+            foreach (var list in new System.Collections.Specialized.INotifyCollectionChanged[] { PersistentMetaData, Poses, Docks, Idle, Porthole, Selection, Transitions, Action, Unknown, Locomotion })
+                list.CollectionChanged += (_, _) => RowsChanged?.Invoke();
         }
 
         /// <summary>Creates a brand new, empty status. <paramref name="name"/> "global" (case

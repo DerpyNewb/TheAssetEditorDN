@@ -42,6 +42,15 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
         [ObservableProperty] string _selectedBoneName;
         [ObservableProperty] bool _showSkeleton = true;
         [ObservableProperty] bool _showRefMesh = true;
+        /// <summary>The bones the selected one can move under: none, or any bone listed before it.</summary>
+        [ObservableProperty] ObservableCollection<ParentChoice> _parentChoices = new();
+        [ObservableProperty] ParentChoice? _selectedBoneParent;
+        bool _showingParent;
+
+        public record ParentChoice(int Index, string Name)
+        {
+            public override string ToString() => Index < 0 ? "(no parent)" : $"{Index}: {Name}";
+        }
 
         // The skeleton as it was before each edit, and after each undo for redo. A run of edits to one value of one bone (a drag, a
         // name typed) is one step.
@@ -92,6 +101,7 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             BoneTransformHandler.Scale(SelectedBone, _techSkeletonNode.Skeleton, (float)BoneScale);
         }
         partial void OnSelectedBoneNameChanged(string value) => UpdateSelectedBoneName(value);
+        partial void OnSelectedBoneParentChanged(ParentChoice? value) => SetSelectedBoneParent(value);
         partial void OnShowSkeletonChanged(bool value) => _techSkeletonNode.ShowSkeleton.Value = value;
         partial void OnShowRefMeshChanged(bool value) => _techSkeletonNode.ShowMesh.Value = value;
 
@@ -179,6 +189,38 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
 
             SelectedBoneRotationOffset.DisableCallbacks = false;
             SelectedBoneTranslationOffset.DisableCallbacks = false;
+            ShowParent(selectedBone);
+        }
+
+        void ShowParent(SkeletonBoneNode? selectedBone)
+        {
+            _showingParent = true;
+            ParentChoices.Clear();
+            var skeleton = _techSkeletonNode?.Skeleton;
+            if (selectedBone != null && skeleton != null)
+            {
+                ParentChoices.Add(new ParentChoice(-1, ""));
+                for (var i = 0; i < selectedBone.BoneIndex; i++)
+                    ParentChoices.Add(new ParentChoice(i, skeleton.BoneNames[i]));
+                SelectedBoneParent = ParentChoices.FirstOrDefault(x => x.Index == skeleton.GetParentBoneIndex(selectedBone.BoneIndex));
+            }
+            else
+            {
+                SelectedBoneParent = null;
+            }
+            _showingParent = false;
+        }
+
+        void SetSelectedBoneParent(ParentChoice? parent)
+        {
+            var skeleton = _techSkeletonNode?.Skeleton;
+            if (_showingParent || parent == null || SelectedBone == null || skeleton == null || skeleton.GetParentBoneIndex(SelectedBone.BoneIndex) == parent.Index)
+                return;
+
+            BeforeEdit(null);
+            var bone = SelectedBone.BoneIndex;
+            skeleton.SetParentBone(bone, parent.Index);
+            RefreshBoneList(bone);
         }
 
         void UpdateSelectedBoneName(string newName)

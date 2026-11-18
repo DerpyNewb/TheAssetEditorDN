@@ -299,6 +299,25 @@ namespace GameWorld.Core.Animation
             RebuildSkeletonMatrix();
         }
 
+        /// <summary>Moves a bone, and everything under it, onto another parent and keeps it where it is in the world. The new
+        /// parent must come before the bone (or be -1, no parent): bones are stored parents first, and moving one would
+        /// renumber it, breaking every animation and skinned mesh made for this skeleton.</summary>
+        public void SetParentBone(int boneIndex, int newParentIndex)
+        {
+            if (boneIndex < 0 || boneIndex >= BoneCount)
+                throw new ArgumentOutOfRangeException(nameof(boneIndex));
+            if (newParentIndex >= boneIndex || newParentIndex < -1)
+                throw new ArgumentException($"{BoneNames[boneIndex]} can only go under a bone listed before it, so no bone is renumbered", nameof(newParentIndex));
+
+            var world = GetWorldTransform(boneIndex);
+            var local = newParentIndex == -1 ? world : world * Matrix.Invert(GetWorldTransform(newParentIndex));
+            local.Decompose(out _, out var rotation, out var translation);
+            _parentBoneIds[boneIndex] = newParentIndex;
+            Translation[boneIndex] = translation;
+            Rotation[boneIndex] = Quaternion.Normalize(rotation);
+            RebuildSkeletonMatrix();
+        }
+
         public void DeleteBone(int boneIndex, bool rebuildMatrix = true)
         {
             // Delete the bone and all of its descendants, keeping the relative order of the

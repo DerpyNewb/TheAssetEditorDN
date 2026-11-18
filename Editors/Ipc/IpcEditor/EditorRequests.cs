@@ -10,7 +10,9 @@ using GameWorld.Core.SceneNodes;
 using Microsoft.Xna.Framework;
 using Shared.Core.ErrorHandling;
 using Shared.Core.Events;
+using Shared.Core.PackFiles;
 using Shared.Core.ToolCreation;
+using Shared.Ui.BaseDialogs.PackFileTree.ContextMenu.Commands;
 
 namespace Editors.Ipc
 {
@@ -18,15 +20,20 @@ namespace Editors.Ipc
     // thread. Every change goes through the editor's own commands, so the editor's Undo takes it back.
     public partial class EditorRequests
     {
-        public static readonly string[] Actions = ["editors", "scene", "select", "visible", "transform", "command", "camera", "keyframe"];
+        public static readonly string[] Actions = ["editors", "scene", "select", "visible", "transform", "command", "camera", "keyframe",
+            "save", "savepack", "close"];
 
         readonly IEditorManager _editorManager;
         readonly IScopeRepository _scopes;
+        readonly IUiCommandFactory _commands;
+        readonly IPackFileService _packFileService;
 
-        public EditorRequests(IEditorManager editorManager, IScopeRepository scopes)
+        public EditorRequests(IEditorManager editorManager, IScopeRepository scopes, IUiCommandFactory commands, IPackFileService packFileService)
         {
             _editorManager = editorManager;
             _scopes = scopes;
+            _commands = commands;
+            _packFileService = packFileService;
         }
 
         public static bool Handles(string action) => Actions.Contains(action, StringComparer.OrdinalIgnoreCase);
@@ -43,11 +50,17 @@ namespace Editors.Ipc
 
             if (action == "keyframe" && string.Equals(request.Name, "open", StringComparison.OrdinalIgnoreCase))
                 return KeyframeOpen(request);
+            if (action == "savepack")
+                return SavePack();
 
             var index = request.Editor ?? _editorManager.GetCurrentEditor();
             if (index < 0 || index >= editors.Count)
                 return IpcResponse.Failure(editors.Count == 0 ? "No editor is open" : $"No editor {index}; {editors.Count} are open, 0 to {editors.Count - 1}");
             var editor = editors[index];
+            if (action == "save")
+                return Save(editor);
+            if (action == "close")
+                return Close(editor, request.Discard == true);
 
             // SceneManager is registered for every editor, so asking a text editor for one would build an empty scene.
             if (editor is not (KitbasherViewModel or EditorHostBase))
@@ -269,6 +282,40 @@ namespace Editors.Ipc
                 zoom = camera.Zoom,
                 lookAt = new[] { camera.LookAt.X, camera.LookAt.Y, camera.LookAt.Z },
             });
+        }
+
+        // The tab's own Save, as Ctrl+S runs it: into the editable pack in memory; savepack puts that on disk. A save that
+        // asks first, as Kitbash's dialog does the first time, answers pending and the dialog is the user's.
+        static IpcResponse Save(IEditorInterface editor)
+        {
+            if (editor is not ISaveableEditor saveable)
+                return IpcResponse.Failure($"{editor.DisplayName} ({editor.GetType().Name}) does not save");
+            return saveable.Save() ? IpcResponse.Success() : IpcResponse.Failure($"{editor.DisplayName} did not save; its status bar or the log says why");
+        }
+
+        // File > Save: the editable pack to its file. A pack never saved asks where, and a failed save shows its error, both
+        // in a dialog, so either answers pending.
+        IpcResponse SavePack()
+        {
+            var pack = _packFileService.GetEditablePack();
+            if (pack == null)
+                return IpcResponse.Failure("No pack is editable; mark one editable first");
+            _commands.Create<SavePackFileContainerCommand>().ExecuteForEditablePack();
+            return Data(new { pack = pack.Name, path = pack.SystemFilePath });
+        }
+
+        // A tab with unsaved changes would ask "Are you sure?" in a box the pipe cannot answer, so it stays open unless
+        // discard says to drop them.
+        IpcResponse Close(IEditorInterface editor, bool discard)
+        {
+            if (editor is ISaveableEditor { HasUnsavedChanges: true } saveable)
+            {
+                if (!discard)
+                    return IpcResponse.Failure($"{editor.DisplayName} has unsaved changes; save it, or close with \"discard\": true");
+                saveable.HasUnsavedChanges = false;
+            }
+            _editorManager.CloseTool(editor);
+            return _editorManager.GetAllEditors().Contains(editor) ? IpcResponse.Failure($"{editor.DisplayName} did not close") : IpcResponse.Success();
         }
 
         static IpcResponse Data(object data) => new() { Ok = true, Data = data };

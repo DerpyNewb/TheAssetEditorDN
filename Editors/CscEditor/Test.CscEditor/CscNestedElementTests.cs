@@ -53,7 +53,7 @@ namespace Test.CscEditor
         /// ELEMENT + ANIMATION_ELEMENT bundle (id 1) - the porthole-scene layout - plus a
         /// COMPOSITE_SCENE manifest with a group for BOTH elements.
         /// </summary>
-        static byte[] BuildSceneBytes()
+        internal static byte[] BuildSceneBytes()
         {
             var variantModelRecord = EsfNode.NewRecord("VARIANT_MODEL_ELEMENT", 100, V100Flags,
             [[

@@ -45,7 +45,7 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv
         {
             var importedFileName = GetImportedPackFileName(settings);
 
-            var rmv2File = RmvMeshBuilder.Build(settings, modelRoot, skeletonAnimFile, skeletonName);
+            var rmv2File = RmvMeshBuilder.Build(settings, modelRoot, skeletonAnimFile, skeletonName, _partSources = []);
             if (rmv2File == null)
                 return null;
 
@@ -77,25 +77,49 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv
             _packFileService.AddFilesToPack(settings.DestinationPackFileContainer, entries);
         }
 
+        // Each rmv2 part's (mesh, primitive) in the glTF, filled by ImportMeshes.
+        private List<(int Mesh, int Primitive)> _partSources = [];
+
         private void ImportMaterials(GltfImporterSettings settings, ModelRoot modelRoot, RmvFile rmv2File)
         {
-            _materialBuilder.BuildRmvFileMaterials(settings, modelRoot, rmv2File);
+            _materialBuilder.BuildRmvFileMaterials(settings, modelRoot, rmv2File, _partSources);
         }
 
         private void ImportAnimations(GltfImporterSettings settings, ModelRoot modelRoot, AnimationFile? skeletonAnimFile, string skeletonName)
         {
-            var fileName = Path.GetFileNameWithoutExtension(settings.InputGltfFile);
-            string importedFileName = $@"{fileName}.anim";
-
-            var animFile = AnimationBuilder.Build(new AnimationBuilderSettings(modelRoot, skeletonName, settings.AnimationKeysPerSecond, settings.DestinationPackFileContainer, settings.DestinationPackPath), skeletonAnimFile);
-
-            if (animFile != null)
+            // One .anim per clip. A single clip keeps the file's own name; several are named after the clips.
+            var builderSettings = new AnimationBuilderSettings(modelRoot, skeletonName, settings.AnimationKeysPerSecond, settings.DestinationPackFileContainer, settings.DestinationPackPath);
+            var names = AnimationFileNames(Path.GetFileNameWithoutExtension(settings.InputGltfFile), modelRoot.LogicalAnimations.Select(a => a.Name).ToList());
+            var entries = new List<NewPackFileEntry>();
+            for (var i = 0; i < names.Count; i++)
             {
-                var animBytes = AnimationFile.ConvertToBytes(animFile);
-                var packFileImported = new PackFile(importedFileName, new MemorySource(animBytes));
-                var newFile = new NewPackFileEntry(settings.DestinationPackPath, packFileImported);
-                _packFileService.AddFilesToPack(settings.DestinationPackFileContainer, [newFile]);
+                var animFile = AnimationBuilder.Build(builderSettings, skeletonAnimFile!, i);
+                if (animFile != null)
+                    entries.Add(new NewPackFileEntry(settings.DestinationPackPath, new PackFile(names[i], new MemorySource(AnimationFile.ConvertToBytes(animFile)))));
             }
+            if (entries.Count != 0)
+                _packFileService.AddFilesToPack(settings.DestinationPackFileContainer, entries);
+        }
+
+        /// <summary>The .anim file name for each clip: the input's name for one clip, else the input's name and the clip's,
+        /// lower case with no spaces, numbered when a clip has no name or two clips share one.</summary>
+        internal static List<string> AnimationFileNames(string inputName, IReadOnlyList<string?> clipNames)
+        {
+            static string Clean(string s) => new string(s.Trim().ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) || c == '_' || c == '-' ? c : '_').ToArray());
+            var stem = Clean(inputName);
+            if (clipNames.Count == 1)
+                return [$"{stem}.anim"];
+            var used = new HashSet<string>();
+            var names = new List<string>();
+            for (var i = 0; i < clipNames.Count; i++)
+            {
+                var clip = string.IsNullOrWhiteSpace(clipNames[i]) ? $"{i}" : Clean(clipNames[i]!);
+                var name = $"{stem}_{clip}";
+                for (var n = 2; !used.Add(name); n++)
+                    name = $"{stem}_{clip}_{n}";
+                names.Add($"{name}.anim");
+            }
+            return names;
         }
 
         public void Import(GltfImporterSettings settings)
@@ -186,7 +210,9 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv
             if (nodeSearchResult == null || !nodeSearchResult.Any())
                 return "";
 
-            var skeletonName = nodeSearchResult.First().Name.TrimStart(Value.ToCharArray());
+            // Strip the prefix itself. TrimStart(chars) also ate leading name letters from the
+            // set "/skeleton", turning e.g. "snake01" into "ake01".
+            var skeletonName = nodeSearchResult.First().Name.Substring(Value.Length);
 
             return skeletonName.ToLower();
         }

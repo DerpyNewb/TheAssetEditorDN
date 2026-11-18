@@ -200,9 +200,13 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
             Begin();
         }
 
+        /// <summary>A drag of the handle ended: one undo step.</summary>
+        public event Action? DragEnded;
+
         void Stopped()
         {
             End();
+            DragEnded?.Invoke();
             if (_mouse.MouseOwner == this)
             {
                 _mouse.MouseOwner = null;

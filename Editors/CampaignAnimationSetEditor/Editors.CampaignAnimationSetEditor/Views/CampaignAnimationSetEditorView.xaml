@@ -53,6 +53,9 @@
             <Button Content="Save" Command="{Binding SaveClickedCommand}" Padding="10,5" Height="44" VerticalContentAlignment="Center"/>
             <Button Content="Save As" Command="{Binding SaveAsClickedCommand}" Padding="10,5" Height="44" VerticalContentAlignment="Center"/>
             <Separator/>
+            <Button Content="Undo" Command="{Binding UndoActionCommand}" Padding="10,5" Height="44" VerticalContentAlignment="Center" ToolTip="Ctrl+Z, outside a text field"/>
+            <Button Content="Redo" Command="{Binding RedoActionCommand}" Padding="10,5" Height="44" VerticalContentAlignment="Center" ToolTip="Ctrl+Y"/>
+            <Separator/>
             <Button Command="{Binding GenerateFromBattleSetCommand}" Padding="10,5" Height="44">
                 <TextBlock Text="Generate from Battle Animation Set" TextWrapping="Wrap" TextAlignment="Center" Width="120"/>
             </Button>

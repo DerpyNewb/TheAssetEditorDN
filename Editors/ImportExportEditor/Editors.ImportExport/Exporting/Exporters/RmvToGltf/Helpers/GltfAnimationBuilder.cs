@@ -41,7 +41,8 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers
             var gameSkeleton = new GameSkeleton(skeletonAnimFile, null);
             var animationClip = new AnimationClip(animationToExport, gameSkeleton);
 
-            var secondsPerFrame = animationClip.PlayTimeInSec / animationClip.DynamicFrames.Count;            
+            // A .anim's play time is the time of its last frame (a 3-frame pose at 20 fps is 0.1 s), so N frames span N - 1 steps.
+            var secondsPerFrame = animationClip.DynamicFrames.Count > 1 ? animationClip.PlayTimeInSec / (animationClip.DynamicFrames.Count - 1) : 0;            
 
             var gltfAnimation = modelRoot.CreateAnimation(animationName);
 

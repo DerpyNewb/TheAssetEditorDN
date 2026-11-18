@@ -110,6 +110,14 @@ namespace GameWorld.Core.Rendering
             return output;
         }
 
+        /// <summary>The box's twelve edges, as <see cref="AddBoundingBox(BoundingBox, Color, Vector3)"/>, its corners moved by <paramref name="world"/>.</summary>
+        public static VertexPositionColor[] AddBoundingBox(BoundingBox b, Color color, Matrix world)
+        {
+            var corners = b.GetCorners().Select(x => Vector3.Transform(x, world)).ToArray();
+            int[] edges = [0, 1, 2, 3, 0, 3, 1, 2, 4, 5, 6, 7, 4, 7, 5, 6, 0, 4, 1, 5, 2, 6, 3, 7];
+            return edges.Select(i => new VertexPositionColor(corners[i], color)).ToArray();
+        }
+
         public static VertexPositionColor[] AddLocator(Vector3 pos, float size, Color color)
         {
             var vertices = new VertexPositionColor[6];

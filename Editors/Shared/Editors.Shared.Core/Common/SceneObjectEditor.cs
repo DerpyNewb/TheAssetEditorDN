@@ -98,6 +98,7 @@ namespace Editors.Shared.Core.Common
                 SetSkeleton(sceneObject, skeletonFile, false);
             }
             sceneObject.MeshName.Value = file.Name;
+            sceneObject.MeshFile = file;
             sceneObject.ShowMesh.Value = sceneObject.ShowMesh.Value;
             sceneObject.ShowSkeleton.Value = sceneObject.ShowSkeleton.Value;
 
@@ -116,6 +117,7 @@ namespace Editors.Shared.Core.Common
             sceneObject.ParentNode.RemoveObject(sceneObject.ModelNode);
             sceneObject.ModelNode = null!;
             sceneObject.MeshName.Value = "";
+            sceneObject.MeshFile = null;
 
             _eventHub.Publish(new SceneObjectUpdateEvent(sceneObject, true, false, false, false));
             sceneObject.TriggerMeshChanged();
@@ -130,6 +132,7 @@ namespace Editors.Shared.Core.Common
                 return;
 
             assetViewModel.ModelNode = SceneNodeHelper.CloneNodeAndChildren(other.ModelNode);
+            assetViewModel.MeshFile = other.MeshFile;
 
             var cloneMeshes = SceneNodeHelper.GetChildrenOfType<Rmv2MeshNode>(assetViewModel.ModelNode);
             foreach (var mesh in cloneMeshes)

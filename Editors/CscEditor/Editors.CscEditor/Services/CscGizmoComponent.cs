@@ -36,6 +36,9 @@ namespace Editors.CscEditor.Services
         /// <summary>Raised after a drag changed element data (mark dirty, refresh details).</summary>
         public event Action? ElementModified;
 
+        /// <summary>A drag of the gizmo ended: one undo step.</summary>
+        public event Action? DragEnded;
+
         public CscGizmoComponent(
             ArcBallCamera camera,
             IMouseComponent mouseComponent,
@@ -134,6 +137,7 @@ namespace Editors.CscEditor.Services
                 _mouse.MouseOwner = null;
                 _mouse.ClearStates();
             }
+            DragEnded?.Invoke();
         }
 
         /// <summary>

@@ -884,34 +884,22 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers
             }
         }
 
-        private void Save16BitDisplacementMap(float[,] heightMap, string outDirectory, string fileName)
+        /// <summary>Writes {fileName}_displacement.png as 16-bit grey, the same file the 8-bit option writes, so a material
+        /// pointing at it needs no change. System.Drawing cannot write 16-bit grey; WPF's PNG encoder can.</summary>
+        internal static void Save16BitDisplacementMap(float[,] heightMap, string outDirectory, string fileName)
         {
             int width = heightMap.GetLength(0);
             int height = heightMap.GetLength(1);
-
-            // Create 16-bit grayscale data
-            byte[] pixelData = new byte[width * height * 2]; // 2 bytes per pixel
-
+            var pixels = new ushort[width * height];
             for (int y = 0; y < height; y++)
-            {
                 for (int x = 0; x < width; x++)
-                {
-                    ushort value = (ushort)(heightMap[x, y] * 65535);
-                    int index = (y * width + x) * 2;
-                    pixelData[index] = (byte)(value >> 8);     // High byte
-                    pixelData[index + 1] = (byte)(value & 0xFF); // Low byte
-                }
-            }
+                    pixels[y * width + x] = (ushort)Math.Round(Math.Clamp(heightMap[x, y], 0, 1) * 65535);
 
-            // Save as 16-bit PNG using custom encoding
-            var displacementPngPath = Path.Combine(outDirectory, fileName + "_displacement_16bit.png");
-
-            // For now, save as 8-bit with note - true 16-bit PNG requires external library
-            // System.Drawing doesn't support 16-bit grayscale directly
-            Save8BitDisplacementMap(heightMap, outDirectory, fileName + "_displacement");
-
-            // Also save raw 16-bit data for advanced users
-            File.WriteAllBytes(Path.Combine(outDirectory, fileName + "_displacement_16bit.raw"), pixelData);
+            var image = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, System.Windows.Media.PixelFormats.Gray16, null, pixels, width * 2);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
+            using var stream = File.Create(Path.Combine(outDirectory, fileName + "_displacement.png"));
+            encoder.Save(stream);
         }
 
         private void Save8BitDisplacementMap(float[,] heightMap, string outDirectory, string fileName)

@@ -71,7 +71,7 @@ namespace Test.AnimationMeta
             {
                 Assert.That(result.Problems[0].IsWarning, Is.False);
                 Assert.That(result.Problems[0].Message, Does.StartWith("Vanilla WH3 never uses version 7 of EFFECT."));
-                Assert.That(result.Problems[0].Message, Does.EndWith("Vanilla uses EFFECT_12 instead, 19,009 times."));
+                Assert.That(result.Problems[0].Message, Does.EndWith("Vanilla uses EFFECT_12 instead, 19,012 times."));
                 Assert.That(result.Problems[1].Message, Does.EndWith("Vanilla doesn't use SOUND_IMPACT in any version."));
             });
         }

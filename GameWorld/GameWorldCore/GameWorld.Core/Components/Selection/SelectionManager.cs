@@ -132,7 +132,7 @@ namespace GameWorld.Core.Components.Selection
                 foreach (var item in objectSelectionState.CurrentSelection())
                 {
                     if (item is Rmv2MeshNode mesh)
-                        _renderEngine.AddRenderLines(LineHelper.AddBoundingBox(item.Geometry.BoundingBox, Color.Black, mesh.PivotPoint));
+                        _renderEngine.AddRenderLines(LineHelper.AddBoundingBox(item.Geometry.BoundingBox, Color.Black, mesh.RenderMatrix));
                 }
             }
 

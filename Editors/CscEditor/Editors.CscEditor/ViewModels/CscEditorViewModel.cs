@@ -176,6 +176,14 @@ namespace Editors.CscEditor.ViewModels
         public ICommand AddCompositeSceneCommand { get; }
         public ICommand AddPrefabCommand { get; }
         public ICommand AddAnimationCommand { get; }
+        public ICommand UndoCommand { get; }
+        public ICommand RedoCommand { get; }
+
+        // Undo keeps whole snapshots of the scene as the writer writes it, and the selected element's id. A step is recorded when
+        // an element is added, deleted or re-parented, when a gizmo drag ends, and, from the view, when a mouse button is let go
+        // or a field is left; a checkpoint where nothing changed records nothing.
+        record Snapshot(byte[] Bytes, int SelectedId);
+        readonly SnapshotUndo<Snapshot> _history;
 
         public CscEditorViewModel(
             IPackFileService packFileService,
@@ -203,6 +211,10 @@ namespace Editors.CscEditor.ViewModels
             _selectionManager = selectionManager;
             Scene = gameWorld;
             SceneRootItems = [new CscSceneRootViewModel(RootElements, "Root", OnSceneRootModified)];
+            _history = new(
+                () => new(SceneData == null ? [] : CscSceneWriter.Write(SceneData), SelectedElement?.Element.Id ?? -1),
+                (a, b) => a.Bytes.AsSpan().SequenceEqual(b.Bytes),
+                Restore);
 
             PortholeBackImage = LoadPackImage("ui/skins/default/porthole_back.png");
             PortholeFrameImage = LoadPackImage("ui/skins/default/porthole.png");
@@ -210,6 +222,7 @@ namespace Editors.CscEditor.ViewModels
             componentInserter.Execute();
 
             _gizmo.ElementModified += OnGizmoModifiedElement;
+            _gizmo.DragEnded += Checkpoint;
             _animation.PortholeFrameUpdated += OnPortholeFrameUpdated;
             _eventHub.Register<SelectionChangedEvent>(this, OnScene3dSelectionChanged);
             _context.PropertyChanged += OnPlaybackContextChanged;
@@ -241,6 +254,8 @@ namespace Editors.CscEditor.ViewModels
             AddCompositeSceneCommand = new RelayCommand(AddCompositeScene);
             AddPrefabCommand = new RelayCommand(AddPrefab);
             AddAnimationCommand = new RelayCommand(AddAnimation);
+            UndoCommand = new RelayCommand(Undo);
+            RedoCommand = new RelayCommand(Redo);
         }
 
         void OnPortholeFrameUpdated() => NotifyPropertyChanged(nameof(PortholeLiveFrame));
@@ -298,33 +313,82 @@ namespace Editors.CscEditor.ViewModels
 
             try
             {
-                SceneData = CscScene.Load(file.DataSource.ReadData());
-                _context.Duration = SceneData.Duration;
                 _context.CurrentTime = 0;
                 _context.IsPlaying = false;
-                SceneRootItems[0].SetScene(SceneData);
-
-                // Build the 3D scene first - root-ref sub-scenes are loaded during the build and
-                // the tree wants to show their contents too.
-                _sceneBuilder.Build(SceneData);
-                RebuildElementTree();
-                _animation.SetScene(SceneData);
-                _animation.ApplyFrame();
-
-                var warning = SceneData.ManifestParsed
-                    ? ""
-                    : " (manifest not editable - keyframe add/remove disabled)";
-                StatusText = $"{SceneData.Elements.Count} elements, ROOT v{SceneData.RootVersion}, " +
-                             $"duration {SceneData.Duration:0.##}s{warning}";
-                NotifyPropertyChanged(nameof(Duration));
-                SceneRootItems[0].Duration = Duration;
-                NotifyPropertyChanged(nameof(ManifestEditable));
-                NotifyPropertyChanged(nameof(CurveStructureLocked));
+                ShowScene(CscScene.Load(file.DataSource.ReadData()));
             }
             catch (Exception e)
             {
                 _logger.Error(e, "Failed to load CSC file {Name}", file.Name);
                 _dialogs.ShowExceptionWindow(e, $"Failed to load '{file.Name}' as a CSC scene.");
+            }
+            ResetUndo();
+        }
+
+        /// <summary>Builds the 3D scene, the tree and the timeline from <paramref name="scene"/>, for a load and for an undo.</summary>
+        void ShowScene(CscScene scene)
+        {
+            SceneData = scene;
+            _context.Duration = SceneData.Duration;
+            SceneRootItems[0].SetScene(SceneData);
+
+            // Build the 3D scene first - root-ref sub-scenes are loaded during the build and
+            // the tree wants to show their contents too.
+            _sceneBuilder.Build(SceneData);
+            RebuildElementTree();
+            _animation.SetScene(SceneData);
+            _animation.ApplyFrame();
+
+            var warning = SceneData.ManifestParsed
+                ? ""
+                : " (manifest not editable - keyframe add/remove disabled)";
+            StatusText = $"{SceneData.Elements.Count} elements, ROOT v{SceneData.RootVersion}, " +
+                         $"duration {SceneData.Duration:0.##}s{warning}";
+            NotifyPropertyChanged(nameof(Duration));
+            SceneRootItems[0].Duration = Duration;
+            NotifyPropertyChanged(nameof(ManifestEditable));
+            NotifyPropertyChanged(nameof(CurveStructureLocked));
+        }
+
+        // The writer's self-check throws on a scene it cannot write. The history takes its snapshot before changing anything, so
+        // a throw leaves it as it was, and the status bar says why.
+        void ResetUndo() => TryHistory(() => { _history.Reset(); return false; });
+
+        /// <summary>Records the scene as one undo step, if it changed since the last.</summary>
+        public void Checkpoint()
+        {
+            if (TryHistory(_history.Checkpoint))
+                HasUnsavedChanges = true;
+        }
+
+        public void Undo() => TryHistory(_history.Undo);
+        public void Redo() => TryHistory(_history.Redo);
+
+        bool TryHistory(Func<bool> action)
+        {
+            try
+            {
+                return action();
+            }
+            catch (Exception e)
+            {
+                _logger.Warning(e, "CSC undo could not snapshot the scene");
+                StatusText = $"Undo is unavailable: {e.Message}";
+                return false;
+            }
+        }
+
+        // Shows the element the step was made in; the snapshot an undo arrives at holds whatever was selected before it.
+        void Restore(Snapshot snapshot, Snapshot madeIn)
+        {
+            SelectedElement = null;
+            ShowScene(CscScene.Load(snapshot.Bytes));
+            HasUnsavedChanges = true;
+            if (SceneData!.Elements.FirstOrDefault(x => x.Id == madeIn.SelectedId) is { } element && FindViewModel(element) is { } vm)
+            {
+                SelectedElement = vm;
+                vm.IsSelected = true;
+                ExpandTo(vm);
             }
         }
 
@@ -652,6 +716,8 @@ namespace Editors.CscEditor.ViewModels
             _animation.ApplyFrame();
             HasUnsavedChanges = true;
             vm.IsSelected = true;
+            SelectedElement = vm;
+            Checkpoint();
             StatusText = $"Added {kind} element [{element.Id}]" + (parent != null ? $" under [{parent.Id}]" : "");
         }
 
@@ -690,10 +756,12 @@ namespace Editors.CscEditor.ViewModels
             }
             RemoveNodes(vm.Element);
 
+            Checkpoint();
             SceneData.RemoveElementSubtree(vm.Element);
             RemoveVm(RootElements, vm);
             SelectedElement = null;
             HasUnsavedChanges = true;
+            Checkpoint();
         }
 
         static int CountDescendants(CscElement element) =>
@@ -740,6 +808,7 @@ namespace Editors.CscEditor.ViewModels
             _sceneBuilder.RefreshAnimationBindings(SceneData);
             _animation.ApplyFrame();
             HasUnsavedChanges = true;
+            Checkpoint();
             StatusText = newParentVm != null
                 ? $"[{childVm.Element.Id}] attached to [{newParentVm.Element.Id}]"
                 : $"[{childVm.Element.Id}] detached (top level)";
@@ -769,6 +838,7 @@ namespace Editors.CscEditor.ViewModels
         {
             _eventHub?.UnRegister(this);
             _gizmo.ElementModified -= OnGizmoModifiedElement;
+            _gizmo.DragEnded -= Checkpoint;
             _animation.PortholeFrameUpdated -= OnPortholeFrameUpdated;
             _context.PropertyChanged -= OnPlaybackContextChanged;
             _animation.ClearLookThrough();

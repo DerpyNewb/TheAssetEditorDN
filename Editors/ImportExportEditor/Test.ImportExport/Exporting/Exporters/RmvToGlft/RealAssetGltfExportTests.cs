@@ -300,6 +300,72 @@ public class RealAssetGltfExportTests
         }
     }
 
+    // A glTF with two clips imports as two .anim files, each its own clip: the import used to read the first clip only.
+    // Karl exported with his idle and the humanoid01 bind-pose clip, then imported back; each file must match its source.
+    [Test]
+    [CancelAfter(240_000)]
+    public void EveryClipOfAGltfImportsAsItsOwnAnimation()
+    {
+        const string Idle = @"animations\battle\humanoid01\2handed_hammer\stand\hu1_2hh_stand_idle_01.anim";
+        const string BindPose = @"animations\skeletons\humanoid01.anim";
+        var pfs = PackFileSerivceTestHelper.CreateFromPackFile(PathHelper.GetDataFile("Karl_and_celestialgeneral.pack"));
+        var model = pfs.FindFile(@"variantmeshes\wh_variantmodels\hu1\emp\emp_karl_franz\emp_karl_franz.rigid_model_v2")!;
+        var dialogs = new Mock<IStandardDialogs>();
+        var skeletonLookup = new SkeletonAnimationLookUpHelper(pfs, new Mock<IGlobalEventHub>().Object);
+        var outputDirectory = CreateTempDirectory("asset-editor-karl-clips");
+        try
+        {
+            var glb = Path.Combine(outputDirectory, "karl.glb");
+            CreateProductionExporter(pfs, dialogs.Object, skeletonLookup).Export(new RmvToGltfExporterSettings(
+                model, [pfs.FindFile(Idle)!, pfs.FindFile(BindPose)!], glb,
+                ExportMaterials: false, ConvertMaterialTextureToBlender: false, ConvertNormalTextureToBlue: false, ExportAnimations: true, MirrorMesh: true));
+            Assert.That(ModelRoot.Load(glb).LogicalAnimations, Has.Count.EqualTo(2), "the export carries both clips");
+
+            var container = Shared.Core.PackFiles.Models.Containers.PackFileContainer.CreatePackFile("new", "new.pack");
+            var importer = new Editors.ImportExport.Importing.Importers.GltfToRmv.GltfImporter(pfs, dialogs.Object, skeletonLookup,
+                new Editors.ImportExport.Importing.Importers.GltfToRmv.Helper.RmvMaterialBuilder(pfs, dialogs.Object));
+            importer.Import(new Editors.ImportExport.Importing.Importers.GltfToRmv.GltfImporterSettings(glb, "imported", container,
+                Shared.Core.Settings.GameTypeEnum.Warhammer3, false, false, false, false, true, 20.0f, true));
+
+            var anims = container.FileList.Where(x => x.Key.EndsWith(".anim")).OrderBy(x => x.Key).Select(x => x.Value).ToList();
+            Assert.That(anims, Has.Count.EqualTo(2), string.Join(", ", container.FileList.Keys));
+            var skeleton = new GameWorld.Core.Animation.GameSkeleton(Shared.GameFormats.Animation.AnimationFile.Create(pfs.FindFile(BindPose)!), null!);
+            // Through AnimationClip, which joins a v8 file's parts: the idle is two parts, and its part 0 ends at frame 63 of 105.
+            var sources = new[] { Idle, BindPose }.Select(p => new GameWorld.Core.Animation.AnimationClip(Shared.GameFormats.Animation.AnimationFile.Create(pfs.FindFile(p)!), skeleton)).ToList();
+            var imported = anims.Select(x => new GameWorld.Core.Animation.AnimationClip(Shared.GameFormats.Animation.AnimationFile.Create(x), skeleton)).ToList();
+            // Each source clip must match one imported file in length, at frame 0 and at its last frame, and the two must differ.
+            var worst = sources.Select(source => imported.Min(i => FrameError(source, i))).ToList();
+            TestContext.Out.WriteLine($"worst bone error per clip: {string.Join(", ", worst)}");
+            Assert.That(worst, Has.All.LessThan(1e-3f));
+            Assert.That(FrameError(imported[0], imported[1]), Is.GreaterThan(1e-2f), "the two imported clips are the same clip");
+        }
+        finally
+        {
+            skeletonLookup.Dispose();
+            DeleteTempDirectory(outputDirectory);
+        }
+    }
+
+    // The largest difference in any bone's local translation or rotation at the first and last frame, or 1 when the
+    // clips differ in length.
+    private static float FrameError(GameWorld.Core.Animation.AnimationClip a, GameWorld.Core.Animation.AnimationClip b)
+    {
+        if (a.DynamicFrames.Count != b.DynamicFrames.Count || Math.Abs(a.PlayTimeInSec - b.PlayTimeInSec) > 1e-3f)
+            return 1;
+        var worst = 0f;
+        foreach (var index in new[] { 0, a.DynamicFrames.Count - 1 })
+        {
+            var (fa, fb) = (a.DynamicFrames[index], b.DynamicFrames[index]);
+            for (var bone = 0; bone < fa.Position.Count; bone++)
+            {
+                var (ta, tb, ra, rb) = (fa.Position[bone], fb.Position[bone], fa.Rotation[bone], fb.Rotation[bone]);
+                worst = Math.Max(worst, Math.Max(Math.Abs(ta.X - tb.X), Math.Max(Math.Abs(ta.Y - tb.Y), Math.Abs(ta.Z - tb.Z))));
+                worst = Math.Max(worst, 1 - Math.Min(1f, Math.Abs(Microsoft.Xna.Framework.Quaternion.Dot(ra, rb))));
+            }
+        }
+        return worst;
+    }
+
     private static RmvToGltfExporter CreateProductionExporter(
         IPackFileService packFileService,
         IStandardDialogs dialogs,

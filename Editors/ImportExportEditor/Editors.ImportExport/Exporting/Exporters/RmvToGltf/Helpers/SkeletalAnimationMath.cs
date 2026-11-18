@@ -36,11 +36,11 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers
     }
     public class GltfAnimationTrackSampler
     {
-        static public Vector3 SampleTranslation(ModelRoot model, string boneName, float time)
-        {
-            // Access the first animation
-            var animation = model.LogicalAnimations[0];
+        static public Vector3 SampleTranslation(ModelRoot model, string boneName, float time) => SampleTranslation(model, model.LogicalAnimations[0], boneName, time);
 
+        // A bone the clip does not key keeps its rest pose, as a glTF player shows it: a clip need not key every bone.
+        static public Vector3 SampleTranslation(ModelRoot model, Animation animation, string boneName, float time)
+        {
             // Access the first node
             var node = model.LogicalNodes.FirstOrDefault(n => n.Name.ToLower() == boneName.ToLower());
 
@@ -50,18 +50,16 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers
             }
 
             // Get the translation sampler for the node
-            var translationSampler = animation.FindTranslationChannel(node).GetTranslationSampler().CreateCurveSampler();            
-
-            var translationVector = translationSampler.GetPoint(time);
+            var channel = animation.FindTranslationChannel(node);
+            var translationVector = channel == null ? node.LocalTransform.Translation : channel.GetTranslationSampler().CreateCurveSampler().GetPoint(time);
 
             return GlobalSceneTransforms.FlipVector(translationVector, true);
         }
 
-        static public Quaternion SampleQuaternion(ModelRoot model, string boneName, float time)
-        {
-            // Access the first animation
-            var animation = model.LogicalAnimations[0];
+        static public Quaternion SampleQuaternion(ModelRoot model, string boneName, float time) => SampleQuaternion(model, model.LogicalAnimations[0], boneName, time);
 
+        static public Quaternion SampleQuaternion(ModelRoot model, Animation animation, string boneName, float time)
+        {
             // Access the first nodef
             var node = model.LogicalNodes.FirstOrDefault(n => n.Name.ToLower() == boneName.ToLower());
 
@@ -71,9 +69,8 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers
             }
 
             // Get the translation sampler for the node 
-            var quaternionSampler = animation.FindRotationChannel(node).GetRotationSampler().CreateCurveSampler();
-
-            var outQuaternion = quaternionSampler.GetPoint(time);
+            var channel = animation.FindRotationChannel(node);
+            var outQuaternion = channel == null ? node.LocalTransform.Rotation : channel.GetRotationSampler().CreateCurveSampler().GetPoint(time);
 
             return GlobalSceneTransforms.FlipQuaternion(outQuaternion, true);
         }

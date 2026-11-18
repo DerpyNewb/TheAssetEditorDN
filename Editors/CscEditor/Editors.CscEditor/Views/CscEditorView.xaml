@@ -25,6 +25,9 @@
         <ToolBar Grid.Row="0">
             <Button Content="Save" Command="{Binding SaveCommand}" Padding="8,3"/>
             <Separator/>
+            <Button Content="Undo" Command="{Binding UndoCommand}" Padding="8,3" ToolTip="Ctrl+Z, outside a text field"/>
+            <Button Content="Redo" Command="{Binding RedoCommand}" Padding="8,3" ToolTip="Ctrl+Y"/>
+            <Separator/>
             <Menu Background="Transparent" VerticalAlignment="Center">
                 <MenuItem Header="Add" Padding="8,3"
                           Background="{DynamicResource Popup.Static.Background}"
