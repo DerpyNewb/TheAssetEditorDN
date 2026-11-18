@@ -3,6 +3,8 @@ using Editors.BmdEditor.ViewModels;
 using System.Windows;
 using System.ComponentModel;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using Shared.Ui.Common;
 
 namespace Editors.BmdEditor.Views
 {
@@ -15,6 +17,11 @@ namespace Editors.BmdEditor.Views
         {
             InitializeComponent();
             DataContextChanged += BmdEditorView_DataContextChanged;
+            // One undo step per gesture: when a mouse button is let go, handled or not, so a checkbox or a slider has already
+            // changed the file; and when a typed field is left.
+            AddHandler(MouseUpEvent, new MouseButtonEventHandler((_, _) => (DataContext as BmdEditorViewModel)?.Checkpoint()), handledEventsToo: true);
+            LostKeyboardFocus += (_, _) => (DataContext as BmdEditorViewModel)?.Checkpoint();
+            UndoRedoKeys.Attach(this, () => (DataContext as BmdEditorViewModel)?.Undo(), () => (DataContext as BmdEditorViewModel)?.Redo());
         }
 
         private void BmdEditorView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

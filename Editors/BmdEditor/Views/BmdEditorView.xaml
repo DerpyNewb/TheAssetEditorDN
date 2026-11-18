@@ -21,6 +21,8 @@
             <Button Content="Refresh" Command="{Binding RefreshCommand}" Padding="10,5"/>
             <Separator/>
             <Button Content="Save" Command="{Binding SaveCommand}" Padding="10,5"/>
+            <Button Content="Undo" Command="{Binding UndoCommand}" Padding="10,5" ToolTip="Ctrl+Z, outside a text field"/>
+            <Button Content="Redo" Command="{Binding RedoCommand}" Padding="10,5" ToolTip="Ctrl+Y"/>
             <Separator/>
             <Button Content="Export" Command="{Binding ExportCommand}" Padding="10,5"/>
             <Separator/>

@@ -83,6 +83,15 @@ namespace Editors.BmdEditor.ViewModels
         public ICommand RefreshCommand { get; }
         public ICommand ExportCommand { get; }
         public ICommand SaveCommand { get; }
+        public ICommand UndoCommand { get; }
+        public ICommand RedoCommand { get; }
+
+        // Undo keeps whole snapshots of the file as the writer writes it, and which element was selected. A step is recorded when
+        // an element is added and when a gizmo drag ends, and, from the view, when a mouse button is let go or a field is left;
+        // a checkpoint where nothing changed records nothing. Elements have no ids, so the selection is kept by its place in
+        // AllElements and only put back when the file has the same number of elements.
+        record Snapshot(byte[] Bytes, int SelectedIndex, int ElementCount);
+        readonly SnapshotUndo<Snapshot> _history;
         public ICommand NavigateToReferencedFileCommand { get; }
         public ICommand GizmoTranslateCommand { get; }
         public ICommand GizmoRotateCommand { get; }
@@ -176,6 +185,13 @@ namespace Editors.BmdEditor.ViewModels
             AddLightProbeCommand = new RelayCommand(AddLightProbe);
             AddTerrainHoleCommand = new RelayCommand(AddTerrainHole);
             AddCscCommand = new RelayCommand(AddCsc);
+            UndoCommand = new RelayCommand(Undo);
+            RedoCommand = new RelayCommand(Redo);
+            _history = new(
+                () => new(BmdFile == null ? [] : BmdWriter.Write(BmdFile), SelectedComponent == null ? -1 : AllElements.IndexOf(SelectedComponent), AllElements.Count),
+                (a, b) => a.Bytes.AsSpan().SequenceEqual(b.Bytes),
+                Restore);
+            _gizmo.DragEnded += Checkpoint;
 
             // Subscribe to selection changes from 3D view
             _eventHub.Register<SelectionChangedEvent>(this, OnSelectionChanged);
@@ -199,6 +215,49 @@ namespace Editors.BmdEditor.ViewModels
 
             // Update collections (this will load scene content)
             PopulateViewModels();
+            ResetUndo();
+        }
+
+        // The writer refuses files older than FastBin 11. The history takes its snapshot before changing anything, so a refusal
+        // leaves it as it was, and the status bar says why.
+        void ResetUndo() => TryHistory(() => { _history.Reset(); return false; });
+
+        /// <summary>Records the file as one undo step, if it changed since the last.</summary>
+        public void Checkpoint()
+        {
+            if (TryHistory(_history.Checkpoint))
+                HasUnsavedChanges = true;
+        }
+
+        public void Undo() => TryHistory(_history.Undo);
+        public void Redo() => TryHistory(_history.Redo);
+
+        bool TryHistory(Func<bool> action)
+        {
+            try
+            {
+                return action();
+            }
+            catch (Exception e)
+            {
+                StatusText = $"Undo is unavailable: {e.Message}";
+                NotifyPropertyChanged(nameof(StatusText));
+                return false;
+            }
+        }
+
+        // Shows the element the step was made in; the snapshot an undo arrives at holds whatever was selected before it.
+        void Restore(Snapshot snapshot, Snapshot madeIn)
+        {
+            using (var stream = new MemoryStream(snapshot.Bytes))
+                BmdFile = new BmdParser(stream).Parse();
+            SelectedComponent = null;
+            _gizmo.SetTarget(null);
+            _bmdSceneCreator.CreateSceneFromBmd(BmdFile, CurrentFile);
+            PopulateViewModels();
+            HasUnsavedChanges = true;
+            if (madeIn.SelectedIndex >= 0 && madeIn.ElementCount == AllElements.Count)
+                SelectComponent(AllElements[madeIn.SelectedIndex]);
         }
 
         // -------------------------------------------------------------------
@@ -220,6 +279,7 @@ namespace Editors.BmdEditor.ViewModels
             var newElement = findNewElement();
             if (newElement != null)
                 SelectComponent(newElement);
+            Checkpoint();
         }
 
         private void AddProp()
@@ -883,6 +943,7 @@ namespace Editors.BmdEditor.ViewModels
         {
             // Unregister from events
             _eventHub?.UnRegister(this);
+            _gizmo.DragEnded -= Checkpoint;
             GC.SuppressFinalize(this);
         }
     }
