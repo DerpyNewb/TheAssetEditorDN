@@ -4,7 +4,9 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
 {
     public abstract class DockEquipment : DecodedMetaEntryBase
     {
-        [MetaDataTag(5, "0=\"Weapon Bone 1\" in .frg but \"be_prop_0\" in a typical VMD. 1=\"Weapon Bone 2\" in .frg but \"be_prop_1\" in VMD. etc.")]
+        public const string PropHelp = "1 = be_prop_0 in a typical VMD, 2 = be_prop_1, and so on: the game counts from 1 (measured in game 2026-11-18). What 0 does is unknown, though vanilla uses it over 160 times.";
+
+        [MetaDataTag(5, PropHelp)]
         public int PropBoneId { get; set; }
 
         [MetaDataTag(6)]
@@ -20,8 +22,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
 
     public abstract class DockEquipment_v0 : DecodedMetaEntryBase_v0
     {
-        //TODO verify
-        [MetaDataTag(2, "(Might be not true for old  meta version) 0=\"Weapon Bone 1\" in .frg but \"be_prop_0\" in a typical VMD. 1=\"Weapon Bone 2\" in .frg but \"be_prop_1\" in VMD. etc.")]
+        [MetaDataTag(2, "(Measured on version 10 only.) " + DockEquipment.PropHelp)]
         public int PropBoneId { get; set; }
 
         public virtual string AnimationSlotName { get; } = "";
@@ -30,8 +31,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
 
     public abstract class DockEquipment_v1 : DecodedMetaEntryBase_v1
     {
-        //TODO verify
-        [MetaDataTag(3, "(Might be not true for old  meta version) 0=\"Weapon Bone 1\" in .frg but \"be_prop_0\" in a typical VMD. 1=\"Weapon Bone 2\" in .frg but \"be_prop_1\" in VMD. etc.")]
+        [MetaDataTag(3, "(Measured on version 10 only.) " + DockEquipment.PropHelp)]
         public int PropBoneId { get; set; }
 
         public virtual string AnimationSlotName { get; } = "";
@@ -40,8 +40,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
 
     public abstract class DockEquipment_v2 : DecodedMetaEntryBase_v2
     {
-        //TODO verify
-        [MetaDataTag(4, "(Might be not true for old  meta version) 0=\"Weapon Bone 1\" in .frg but \"be_prop_0\" in a typical VMD. 1=\"Weapon Bone 2\" in .frg but \"be_prop_1\" in VMD. etc.")]
+        [MetaDataTag(4, "(Measured on version 10 only.) " + DockEquipment.PropHelp)]
         public int PropBoneId { get; set; }
 
         public virtual string AnimationSlotName { get; } = "";

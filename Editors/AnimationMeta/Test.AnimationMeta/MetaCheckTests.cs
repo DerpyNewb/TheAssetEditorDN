@@ -77,14 +77,16 @@ namespace Test.AnimationMeta
         }
 
         [Test]
-        public void APropBoneId_IsFlagged_OnlyWhenNeitherReadingNamesABone()
+        public void APropBoneId_IsFlagged_WhenTheBoneItCountsFromOneIsMissing()
         {
-            var bones = new MetaCheckScene(null, ["root", "hand_right", "be_prop_0", "BE_PROP_1"]);
+            var bones = new MetaCheckScene(null, ["root", "hand_right", "be_prop_0", "BE_PROP_1", "be_prop_3"]);
             var tags = new ParsedMetadataAttribute[]
             {
-                Tag<DockEquipmentRHand_v11>("DOCK_EQPT_RHAND_11", x => x.PropBoneId = 0),   // be_prop_0, counted from 0
-                Tag<DockEquipmentRHand_v11>("DOCK_EQPT_RHAND_11", x => x.PropBoneId = 2),   // be_prop_1, counted from 1
-                Tag<DockEquipmentRHand_v11>("DOCK_EQPT_RHAND_11", x => x.PropBoneId = 3),
+                Tag<DockEquipmentRHand_v11>("DOCK_EQPT_RHAND_11", x => x.PropBoneId = 0),   // unknown in game, never flagged
+                Tag<DockEquipmentRHand_v11>("DOCK_EQPT_RHAND_11", x => x.PropBoneId = 1),   // be_prop_0
+                Tag<DockEquipmentRHand_v11>("DOCK_EQPT_RHAND_11", x => x.PropBoneId = 2),   // BE_PROP_1, any case
+                Tag<DockEquipmentRHand_v11>("DOCK_EQPT_RHAND_11", x => x.PropBoneId = 3),   // be_prop_2 is missing, though be_prop_3 is there
+                Tag<DockEquipmentRHand_v11>("DOCK_EQPT_RHAND_11", x => x.PropBoneId = 4),   // be_prop_3
                 Tag<WeaponOn_v11>("WEAPON_ON_11", x => x.PropBoneId = 5),
                 Tag<WeaponRHand_v2>("WEAPON_RHAND_2", x => x.PropBoneId = 9),
                 Tag<WeaponRHand_v1>("WEAPON_RHAND_1", x => x.PropBoneId = 9),
@@ -95,9 +97,9 @@ namespace Test.AnimationMeta
 
             Assert.Multiple(() =>
             {
-                Assert.That(flagged.Select(x => x.Index), Is.EqualTo(new[] { 2, 3, 4, 5, 6 }));
-                Assert.That(flagged[0].Message, Does.StartWith("Its prop bone id is 3, but this skeleton has neither be_prop_3 nor be_prop_2."));
-                Assert.That(flagged[0].Message, Does.Contain("from 0 or from 1 isn't settled"));
+                Assert.That(flagged.Select(x => x.Index), Is.EqualTo(new[] { 3, 5, 6, 7, 8 }));
+                Assert.That(flagged[0].Message, Does.StartWith("Its prop bone id is 3, so it docks be_prop_2, but this skeleton has no be_prop_2."));
+                Assert.That(flagged[0].Message, Does.EndWith("id 1 is be_prop_0."));
                 Assert.That(Check(null, tags).Problems.Where(x => x.Message.Contains("prop bone")), Is.Empty, "no skeleton, no check");
             });
         }
