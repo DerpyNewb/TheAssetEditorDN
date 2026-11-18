@@ -5,6 +5,11 @@ using GameWorld.Core.Components;
 using GameWorld.Core.Components.Rendering;
 using GameWorld.Core.Components.Selection;
 using GameWorld.Core.SceneNodes;
+using GameWorld.Core.Services.SceneSaving;
+using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
+using Shared.Core.PackFiles.Utility;
+using Shared.Core.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xna.Framework;
 using Shared.Core.Commands;
@@ -185,6 +190,73 @@ namespace Test.Ipc
             Assert.That(Service<SceneManager>().GetEnumeratorConditional(x => x == _mesh), Is.Empty, "the mesh is still in the scene");
         }
 
+        List<EditorRequests.EditorInfo> Editors() => (List<EditorRequests.EditorInfo>)Send(new IpcRequest { Action = "editors" }).Data!;
+
+        void MoveTheMesh()
+        {
+            Send(new IpcRequest { Action = "select", Nodes = [_mesh.Id] });
+            Assert.That(Send(new IpcRequest { Action = "transform", Translate = [1, 0, 0] }).Ok, Is.True);
+        }
+
+        [Test]
+        public void Close_WithUnsavedChanges_IsRefused_UntilDiscardSaysSo()
+        {
+            MoveTheMesh();
+
+            var refused = Send(new IpcRequest { Action = "close" });
+            Assert.That(refused.Ok, Is.False);
+            Assert.That(refused.Error, Does.Contain("unsaved changes"));
+            Assert.That(Editors(), Has.Count.EqualTo(1));
+
+            Assert.That(Send(new IpcRequest { Action = "close", Discard = true }).Ok, Is.True);
+            Assert.That(Editors(), Is.Empty);
+        }
+
+        [Test]
+        public void SaveThenSavePack_PutsTheMovedModelOnDisk_AndTheTabClosesWithoutDiscard()
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"ipc_savepack_{Guid.NewGuid():N}.pack");
+            var pack = _runner.PackFileService.GetEditablePack()!;
+            _runner.PackFileService.SavePackContainer(pack, path, false, GameInformationDatabase.GetGameById(GameTypeEnum.Warhammer3));    // gives it its file
+            var settings = Service<GeometrySaveSettings>();
+            settings.IsUserInitialized = true;     // no dialog, which a test cannot click
+            settings.DisplayDialogOnNextSave = false;
+            MoveTheMesh();
+            try
+            {
+                var saved = Send(new IpcRequest { Action = "save" });
+                Assert.That(saved.Ok, Is.True, saved.Error);
+                var inMemory = pack.GetAllFiles().ToDictionary(x => x.Key, x => x.Value.DataSource.ReadData());
+                Assert.That(inMemory, Is.Not.Empty, "the save wrote nothing into the editable pack");
+
+                var written = Send(new IpcRequest { Action = "savepack" });
+                Assert.That(written.Ok, Is.True, written.Error);
+                Assert.That(written.Pending, Is.Not.True, "the save stopped at a dialog");
+
+                var loader = _runner.ServiceProvider.GetRequiredService<IPackFileContainerLoader>();
+                var onDisk = loader.CreateFromPackFile(PackFileContainerType.Normal, path, true)!.GetAllFiles()
+                    .ToDictionary(x => x.Key, x => x.Value.DataSource.ReadData());
+                Assert.That(onDisk, Is.EqualTo(inMemory));
+
+                Assert.That(Send(new IpcRequest { Action = "close" }).Ok, Is.True, "a saved tab has nothing to discard");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [Test]
+        public void SavePack_WithNoEditablePack_IsRefused()
+        {
+            _runner.PackFileService.SetEditablePack(null);
+
+            var reply = Send(new IpcRequest { Action = "savepack" });
+
+            Assert.That(reply.Ok, Is.False);
+            Assert.That(reply.Error, Does.Contain("No pack is editable"));
+        }
+
         [Test]
         public void Camera_SetsInDegrees_AndReadsBack()
         {
@@ -223,7 +295,7 @@ namespace Test.Ipc
         [Test]
         public async Task ACommandStillRunning_AnswersPending_InsteadOfHoldingThePipe()
         {
-            var handler = new IpcRequestHandler(null!, null!, null!, null!, new EditorRequests(null!, null!), new NeverDispatcher());
+            var handler = new IpcRequestHandler(null!, null!, null!, null!, new EditorRequests(null!, null!, null!, null!), new NeverDispatcher());
 
             var request = handler.HandleAsync(new IpcRequest { Action = "command", Name = "SaveCommand" }, CancellationToken.None);
             Assert.That(await Task.WhenAny(request, Task.Delay(TimeSpan.FromSeconds(30))), Is.SameAs(request), "the reply waited for the UI thread");
