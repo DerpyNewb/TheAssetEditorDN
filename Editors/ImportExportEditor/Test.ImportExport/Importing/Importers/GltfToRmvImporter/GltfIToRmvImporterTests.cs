@@ -99,6 +99,51 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
         }
     }
 
+    // A glTF mesh with two materials is one mesh with two primitives. Only the first primitive used to be read, so the second
+    // material's half of the mesh was silently left behind. Each primitive is now its own part with its own textures.
+    class GltfMultiPrimitiveImportTest
+    {
+        [Test]
+        public void EveryPrimitiveOfAMeshBecomesAPartWithItsOwnTextures()
+        {
+            var glb = Path.Combine(Path.GetTempPath(), $"karl_two_primitives_{Guid.NewGuid():N}.glb");
+            var model = SharpGLTF.Schema2.ModelRoot.Load(TestData.InputGtlfFile);
+            var first = model.LogicalMeshes[0].Primitives[0];
+            var second = model.LogicalMeshes[1].Primitives[0];
+            var added = model.LogicalMeshes[0].CreatePrimitive();
+            foreach (var accessor in second.VertexAccessors)
+                added.SetVertexAccessor(accessor.Key, accessor.Value);
+            added.SetIndexAccessor(second.IndexAccessor);
+            added.Material = second.Material;
+            model.SaveGLB(glb);
+            try
+            {
+                var pfs = PackFileSerivceTestHelper.Create(TestData.InputPack);
+                var dialogs = new Mock<IStandardDialogs>();
+                var importer = new GltfImporter(pfs, dialogs.Object, new SkeletonAnimationLookUpHelper(pfs, new Mock<IGlobalEventHub>().Object), new RmvMaterialBuilder(pfs, dialogs.Object));
+                var container = PackFileContainer.CreatePackFile("new", "new.pack");
+                var settings = new GltfImporterSettings(glb, "skeletons", container, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, false, 20.0f, true);
+
+                importer.Import(settings);
+
+                var rmvPath = $@"{settings.DestinationPackPath}\{Path.GetFileNameWithoutExtension(glb)}.rigid_model_v2".ToLower();
+                var parts = ModelFactory.Create().Load(container.FindFile(rmvPath)!.DataSource!.ReadData()).ModelList[0];
+                Assert.That(parts, Has.Length.EqualTo(TestData.Rmv2Expected.lod0MeshCount + 1), "mesh 0's second primitive is a part of its own");
+                Assert.That(parts[0].Mesh.IndexList, Has.Length.EqualTo(first.GetIndices().Count));
+                Assert.That(parts[1].Mesh.IndexList, Has.Length.EqualTo(second.GetIndices().Count));
+                Assert.That(parts.Select(p => p.Material.ModelName).Distinct().Count(), Is.EqualTo(parts.Length), "part names are unique");
+                var firstTextures = parts[0].Material.GetAllTextures().Select(t => t.Path).ToList();
+                var secondTextures = parts[1].Material.GetAllTextures().Select(t => t.Path).ToList();
+                Assert.That(firstTextures.Intersect(secondTextures), Is.Empty, "each primitive's material has its own files");
+                Assert.That(firstTextures.Concat(secondTextures), Has.All.Matches<string>(t => container.FindFile(t) != null));
+            }
+            finally
+            {
+                File.Delete(glb);
+            }
+        }
+    }
+
     // Tests some Components of Importer pipeline
     class GltfToRmv2ImporterComponentTest
     {

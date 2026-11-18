@@ -24,7 +24,11 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
     /// </summary>
     public class RmvMeshBuilder
     {
-        public static RmvFile? Build(GltfImporterSettings settings, ModelRoot modelRoot, AnimationFile? animSkeletonFile, string SkeletonName)
+        /// <summary>One rmv2 part per glTF primitive, so a mesh with two materials keeps both; a primitive over RMV2's 65,536
+        /// vertices is split into several parts. <paramref name="partSources"/>, when given, receives each part's
+        /// (mesh, primitive) so its material can be found.</summary>
+        public static RmvFile? Build(GltfImporterSettings settings, ModelRoot modelRoot, AnimationFile? animSkeletonFile, string SkeletonName,
+            List<(int Mesh, int Primitive)>? partSources = null)
         {
             if (modelRoot == null)
                 throw new ArgumentNullException(nameof(modelRoot), "Invalid Scene: ModelRoot can't be null");
@@ -59,37 +63,43 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
 
             rmv2File.LodHeaders = new RmvLodHeader[1];
             rmv2File.LodHeaders[0] = LodHeaderFactory.Create().CreateEmpty(RmvVersionEnum.RMV2_V7, 100.0f, 0, 0);
-            rmv2File.LodHeaders[0].MeshCount = (uint)modelRoot.LogicalMeshes.Count;
-
             var modelList = new List<RmvModel>();
-            foreach (var mesh in modelRoot.LogicalMeshes)
-            {                                
+            for (var meshIndex = 0; meshIndex < modelRoot.LogicalMeshes.Count; meshIndex++)
+            {
+                var mesh = modelRoot.LogicalMeshes[meshIndex];
                 // We use NODE name as mesh name, because users typically name the NODE in Blender/Maya/3dsMax, not the mesh
                 var meshNodeName =
-                    (mesh.VisualParents != null && mesh.VisualParents.Any()) ? 
+                    (mesh.VisualParents != null && mesh.VisualParents.Any()) ?
                     mesh.VisualParents.First().Name : mesh.Name;
 
-                var rmv2Mesh = GenerateRmvMesh(mesh, modelRoot, animSkeletonFile);
-                var rmvModel = CreateRmvModel(rmv2Mesh, meshNodeName, animSkeletonFile);
-                modelList.Add(rmvModel);
+                if (mesh.Primitives == null || !mesh.Primitives.Any())
+                    throw new Exception($"Invalid Mesh: No Primitives found in mesh. Primitives.Count = {mesh.Primitives?.Count}");
+
+                for (var primitiveIndex = 0; primitiveIndex < mesh.Primitives.Count; primitiveIndex++)
+                {
+                    var parts = SplitAtVertexLimit(GenerateRmvMesh(mesh.Primitives[primitiveIndex], modelRoot, animSkeletonFile));
+                    for (var part = 0; part < parts.Count; part++)
+                    {
+                        var name = primitiveIndex == 0 && part == 0 ? meshNodeName
+                            : parts.Count == 1 ? $"{meshNodeName}_{primitiveIndex}" : $"{meshNodeName}_{primitiveIndex}_{part}";
+                        modelList.Add(CreateRmvModel(parts[part], name, animSkeletonFile));
+                        partSources?.Add((meshIndex, primitiveIndex));
+                    }
+                }
             }
 
+            rmv2File.LodHeaders[0].MeshCount = (uint)modelList.Count;
             rmv2File.ModelList[0] = modelList.ToArray();
             rmv2File.RecalculateOffsets();            
 
             return rmv2File;
         }
 
-        private static RmvMesh GenerateRmvMesh(SharpGLTF.Schema2.Mesh mesh, ModelRoot modelRoot, AnimationFile? animSkeletonFile)
+        // The whole primitive as one list of vertices and triangles, before the RMV2 limit is applied: indices are int here.
+        record FullMesh(CommonVertex[] Vertices, int[] Indices);
+
+        private static FullMesh GenerateRmvMesh(MeshPrimitive primitive, ModelRoot modelRoot, AnimationFile? animSkeletonFile)
         {
-            if (mesh == null)
-                throw new ArgumentNullException(nameof(mesh), "Invalid Mesh: Mesh can't be null");
-
-            if (mesh.Primitives == null || !mesh.Primitives.Any())
-                throw new Exception($"Invalid Mesh: No Primitives found in mesh. Primitives.Count = {mesh.Primitives?.Count}");
-
-            var primitive = mesh.Primitives.First();
-
             if (primitive == null)
                 throw new Exception("Invalid Mesh: primitive[0] can't be null ");
 
@@ -101,31 +111,77 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
             if (vertexBufferColumns.Positions == null || !vertexBufferColumns.Positions.Any())
                 throw new Exception($"Invalid Mesh: No vertex data. Positions.Count = {vertexBufferColumns.Positions?.Count}");
 
-            if (vertexBufferColumns.Positions.Count() > ushort.MaxValue + 1)
-                throw new Exception("Unsupported Mesh (Vertex count too high): RMV2 only supports 65536 vertices per mesh");
-    
-
-            var rmv2Mesh = new RmvMesh();
-            rmv2Mesh.VertexList = new CommonVertex[vertexBufferColumns.Positions.Count()];
-            for (var vertexIndex = 0; vertexIndex < vertexBufferColumns.Positions.Count(); vertexIndex++)
+            var vertices = new CommonVertex[vertexBufferColumns.Positions.Count()];
+            for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
             {
                 var vertexBuilder = vertexBufferColumns.GetVertex<VertexPositionNormalTangent, VertexTexture1, VertexJoints4>(vertexIndex);
-                rmv2Mesh.VertexList[vertexIndex] = ConvertToRmvVertex(vertexBuilder, modelRoot, animSkeletonFile);
+                vertices[vertexIndex] = ConvertToRmvVertex(vertexBuilder, modelRoot, animSkeletonFile);
             }
 
             var indices = primitive.GetIndices();
-            rmv2Mesh.IndexList = new ushort[indices.Count()];
+            var indexList = new int[indices.Count()];
             for (int i = 0; i < indices.Count(); i += 3) // reverse wind order, as we "mirrored" t
             {
-                rmv2Mesh.IndexList[i + 0] = (ushort)indices[i + 0];
-                rmv2Mesh.IndexList[i + 2] = (ushort)indices[i + 1];
-                rmv2Mesh.IndexList[i + 1] = (ushort)indices[i + 2];
+                indexList[i + 0] = (int)indices[i + 0];
+                indexList[i + 2] = (int)indices[i + 1];
+                indexList[i + 1] = (int)indices[i + 2];
             }
 
-            // recæculate tangents and bitangents
-            TangentBasisCalculator.CalculateForRmv2Mesh(rmv2Mesh);
+            return new FullMesh(vertices, indexList);
+        }
 
-            return rmv2Mesh;
+        /// <summary>RMV2 indexes vertices with 16 bits, so one part holds at most 65,536. A larger mesh is cut into parts by
+        /// whole triangles, in order, each part taking the vertices its triangles use.</summary>
+        internal static List<RmvMesh> SplitAtVertexLimit(CommonVertex[] vertices, int[] indices, int limit = ushort.MaxValue + 1)
+        {
+            var parts = new List<RmvMesh>();
+            var remap = new Dictionary<int, ushort>();
+            var partVertices = new List<CommonVertex>();
+            var partIndices = new List<ushort>();
+
+            void Flush()
+            {
+                var mesh = new RmvMesh { VertexList = partVertices.ToArray(), IndexList = partIndices.ToArray() };
+                TangentBasisCalculator.CalculateForRmv2Mesh(mesh);
+                parts.Add(mesh);
+                remap.Clear();
+                partVertices = [];
+                partIndices = [];
+            }
+
+            for (var t = 0; t < indices.Length; t += 3)
+            {
+                var added = 0;
+                for (var k = 0; k < 3; k++)
+                    added += remap.ContainsKey(indices[t + k]) || indices.Skip(t).Take(k).Contains(indices[t + k]) ? 0 : 1;
+                if (partVertices.Count + added > limit)
+                    Flush();
+                for (var k = 0; k < 3; k++)
+                {
+                    if (!remap.TryGetValue(indices[t + k], out var local))
+                    {
+                        local = (ushort)partVertices.Count;
+                        remap[indices[t + k]] = local;
+                        partVertices.Add(vertices[indices[t + k]]);
+                    }
+                    partIndices.Add(local);
+                }
+            }
+            if (partIndices.Count != 0 || parts.Count == 0)
+                Flush();
+            return parts;
+        }
+
+        static List<RmvMesh> SplitAtVertexLimit(FullMesh mesh)
+        {
+            // A mesh within the limit keeps every vertex, unused ones included, exactly as before.
+            if (mesh.Vertices.Length <= ushort.MaxValue + 1)
+            {
+                var whole = new RmvMesh { VertexList = mesh.Vertices, IndexList = mesh.Indices.Select(i => (ushort)i).ToArray() };
+                TangentBasisCalculator.CalculateForRmv2Mesh(whole);
+                return [whole];
+            }
+            return SplitAtVertexLimit(mesh.Vertices, mesh.Indices);
         }
 
         private static CommonVertex ConvertToRmvVertex(VertexBuilder<VertexPositionNormalTangent, VertexTexture1, VertexJoints4> vertexBuilder, ModelRoot modelRoot, AnimationFile animSkeletonFile)
