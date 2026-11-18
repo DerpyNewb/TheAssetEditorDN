@@ -408,7 +408,7 @@ namespace Test.AnimatioReTarget
 
             var formats = new System.Windows.Controls.ComboBox { DataContext = _editor.SaveManager.Settings };
             formats.SetBinding(System.Windows.Controls.ItemsControl.ItemsSourceProperty, "PossibleAnimationFormats");
-            Assert.That(formats.Items, Has.Count.EqualTo(3));
+            Assert.That(formats.Items, Has.Count.EqualTo(4), "versions 5 to 8");
         }
 
         static IEnumerable<T> FindAll<T>(System.Windows.DependencyObject root) where T : System.Windows.DependencyObject

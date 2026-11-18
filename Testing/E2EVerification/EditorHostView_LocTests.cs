@@ -18,7 +18,7 @@
             var source = File.ReadAllText(Path.Combine(SettingsView_Tests.Root(), "Editors", "UnitSimulator", "Editors.UnitSimulator", "UnitSimulatorViewModel.cs"));
             var keys = System.Text.RegularExpressions.Regex.Matches(source, @"""(UnitSimulator\.Pane\.[A-Za-z]+)""").Select(m => m.Groups[1].Value).Distinct().ToList();
 
-            Assert.That(keys, Has.Count.EqualTo(5), "the simulator's five pane titles are not loc keys");
+            Assert.That(keys, Has.Count.EqualTo(6), "the simulator's six pane titles (Bake since 2026-11-18) are not loc keys");
             Assert.That(SettingsView_Tests.MissingInALanguage(keys), Is.Empty);
         }
     }
