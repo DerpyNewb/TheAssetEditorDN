@@ -664,7 +664,8 @@ namespace Editors.VfxEditor.ViewModels
                 return;
             if (All(Tree).FirstOrDefault(n => n.Key == "emitter:" + newId) is { } renamed)
                 (renamed.IsSelected, SelectedNode) = (true, renamed);
-            Status = $"{id} renamed {newId}; a reference to this effect from another file still names {id}";
+            _session.Renamed(id, newId);
+            Status = $"{id} renamed {newId}; references to it in your pack's other effects follow when you save";
         }
 
         [RelayCommand]
@@ -900,7 +901,7 @@ namespace Editors.VfxEditor.ViewModels
                 if (!save())
                     return false;
                 DisplayName = _session.File!.Name;
-                Status = "Saved " + _session.EffectName;
+                Status = "Saved " + _session.EffectName + _session.Carried;
                 OnPropertyChanged(nameof(HasUnsavedChanges));
                 OnPropertyChanged(nameof(CurrentFile));
                 return true;

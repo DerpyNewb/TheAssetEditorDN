@@ -1,3 +1,5 @@
+using Editors.VfxEditor.Document;
+using System.Text;
 using Editors.VfxEditor;
 using Moq;
 using Shared.Core.PackFiles;
@@ -88,6 +90,115 @@ namespace Test.VfxEditor
             unreadable.Setup(s => s.ReadData()).Throws(new System.IO.IOException("the pack moved"));
             File("vfx\\lib.xml").DataSource = unreadable.Object;
             Assert.That(_session.EmitterIdsOf("lib"), Is.Null);
+        }
+
+        // An effect that only references `target`, switching these of its emitters on.
+        static string Uses(string target, params string[] rows) =>
+            Fixtures.Effect(emitters: "", chains: "", stacks: "", references: Fixtures.Reference(target, [.. rows.Select(r => Fixtures.Row(r))]));
+
+        void Add(IPackFileContainer pack, string name, string effect) =>
+            _packFileService.AddFilesToPack(pack, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes(name, Fixtures.Utf16(effect)))]);
+
+        string Text(string path)
+        {
+            var bytes = File(path).DataSource.ReadData();
+            return Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2);
+        }
+
+        void Rename(string id, string newId)
+        {
+            var document = _session.Document!;
+            document.Apply(VfxEdits.RenameEmitter(document, id, newId));
+            _session.Renamed(id, newId);
+        }
+
+        // Another effect's override rows name the library's emitters by id, so a rename left them switching nothing. Saving the
+        // library now moves the rows in the editable pack; a file in another pack is named instead, as only its pack can change it.
+        [Test]
+        public void A_saved_rename_moves_the_references_in_the_editable_pack_and_names_the_rest()
+        {
+            var source = _packFileService.GetAllPackfileContainers().Single(c => c.Name == "source");
+            Add(_output, "user.xml", Uses("lib", "t1", "t2"));
+            Add(_output, "other.xml", Uses("lib2", "t1"));
+            Add(source, "theirs.xml", Uses("lib", "t1"));
+            _session.Load(File("vfx\\lib.xml"));
+            Rename("t1", "t9");
+            Assert.That(Text("vfx\\user.xml"), Does.Contain("name=\"t1\""), "not before the save");
+
+            _session.Save();
+
+            Assert.That(Text("vfx\\user.xml"), Does.Contain("name=\"t9\"").And.Contain("name=\"t2\"").And.Not.Contain("name=\"t1\""));
+            Assert.That(Text("vfx\\other.xml"), Does.Contain("name=\"t1\""), "a reference to another effect");
+            Assert.That(Text("vfx\\theirs.xml"), Does.Contain("name=\"t1\""), "another pack's file");
+            Assert.That(_session.Carried, Is.EqualTo("; references moved to the new ids in vfx\\user.xml; outside your pack, vfx\\theirs.xml still names an old id"));
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void A_rename_undone_or_renamed_back_moves_no_reference(bool undo)
+        {
+            Add(_output, "user.xml", Uses("lib", "t1"));
+            _session.Load(File("vfx\\lib.xml"));
+            Rename("t1", "t9");
+            if (undo)
+                _session.Document!.Undo();
+            else
+                Rename("t9", "t1");
+
+            _session.Save();
+
+            Assert.That((Text("vfx\\user.xml").Contains("name=\"t1\""), _session.Carried), Is.EqualTo((true, "")));
+        }
+
+        // Two emitters swapping ids through a third: each row follows its own emitter, once. A row naming an id the library
+        // never had, as 485 vanilla rows do, names it still.
+        [Test]
+        public void A_swap_moves_each_reference_to_its_own_emitters_new_id()
+        {
+            Add(_output, "user.xml", Uses("lib", "t1", "t2", "tx"));
+            _session.Load(File("vfx\\lib.xml"));
+            Rename("t1", "tx");
+            Rename("t2", "t1");
+            Rename("tx", "t2");
+
+            _session.Save();
+
+            var user = Text("vfx\\user.xml");
+            Assert.That(user.IndexOf("name=\"t2\""), Is.GreaterThan(0).And.LessThan(user.IndexOf("name=\"t1\"")), "the first row, t1's, now names t2");
+            Assert.That(user, Does.Contain("name=\"tx\""));
+        }
+
+        // A rename in one file, never saved, does not follow the tab to the next file it opens.
+        [Test]
+        public void An_unsaved_rename_is_forgotten_when_another_file_opens()
+        {
+            Add(_output, "lib2.xml", Fixtures.Effect(emitters: Fixtures.Emitters("t9")));
+            Add(_output, "user.xml", Uses("lib2", "t1"));
+            _session.Load(File("vfx\\lib.xml"));
+            Rename("t1", "t9");
+            _session.Load(File("vfx\\lib2.xml"));
+
+            _session.Save();
+
+            Assert.That(Text("vfx\\user.xml"), Does.Contain("name=\"t1\""));
+        }
+
+        // CA's files can only reference CA's effects, so they are read only when the saved effect is one of CA's.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Cas_files_are_read_only_for_an_effect_that_is_one_of_cas(bool casEffect)
+        {
+            var ca = _packFileService.CreateNewPackFileContainer("ca", PackFileVersion.PFH5, PackFileCAType.MOD);
+            Add(ca, "cas_user.xml", Uses("lib", "t1"));
+            if (casEffect)
+                Add(ca, "lib.xml", Fixtures.Effect(emitters: Fixtures.Emitters("t1", "t2")));
+            ca.IsCaPackFile = true;
+            _session.Load(File("vfx\\lib.xml"));
+            Rename("t1", "t9");
+
+            _session.Save();
+
+            Assert.That(_session.Carried, Is.EqualTo(casEffect ? "; outside your pack, vfx\\cas_user.xml still names an old id" : ""));
         }
     }
 }
