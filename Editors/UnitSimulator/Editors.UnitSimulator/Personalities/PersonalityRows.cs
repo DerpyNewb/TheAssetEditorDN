@@ -4,8 +4,8 @@ using Shared.GameFormats.DB;
 namespace Editors.UnitSimulator.Personalities
 {
     /// <summary>The three tables a personality is read from, out of every loaded pack. A personality key in several files is listed
-    /// once per file (spec 3.6); a variant, or a land unit's junction row for one personality, is the last loaded copy.</summary>
-    // ponytail: the last loaded copy of a variant or a junction pair is used; which copy the game keeps is not measured (spec 8).
+    /// once per file (spec 3.6), the copy the game keeps first; a variant, or a land unit's junction row for one personality, is that
+    /// copy (DbTables).</summary>
     public sealed class PersonalityRows
     {
         public const string Personalities = "battle_personalities_tables";
@@ -37,9 +37,9 @@ namespace Editors.UnitSimulator.Personalities
         public DbRow? JunctionOf(string personality) => _junctions.FirstOrDefault(x => x.Text("battle_personality") == personality);
 
         public List<DbRow> JunctionsOfUnit(string landUnit) =>
-            [.. _junctions.Where(x => x.Text("land_unit") == landUnit).GroupBy(x => x.Text("battle_personality")).Select(x => x.Last())];
+            [.. _junctions.Where(x => x.Text("land_unit") == landUnit).GroupBy(x => x.Text("battle_personality")).Select(x => x.First())];
 
-        public DbRow? Variant(string name) => _variants.LastOrDefault(x => x.Text("variant_name") == name);
+        public DbRow? Variant(string name) => _variants.FirstOrDefault(x => x.Text("variant_name") == name);
 
         public List<string> TechFoldersOf(string variantFileName) =>
             [.. _variants.Where(x => string.Equals(x.Text("variant_filename"), variantFileName, StringComparison.OrdinalIgnoreCase) && x.Text("tech_folder") != "")

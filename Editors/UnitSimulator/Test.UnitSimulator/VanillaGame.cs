@@ -17,7 +17,7 @@ namespace Test.UnitSimulator
         public const string WarhorseTable = "animations/database/battle/bin/hr1_warhorse.bin";
         public const string TablesAnimPack = "animations/database/battle/bin/animation_tables__.animpack";
 
-        // asCaPacks marks the packs as CA's, as the app loads them, for the tests of what a CA pack refuses. withDb adds db.pack and
+        // asCaPacks marks the packs as CA's, as the app loads them, for the tests of what a CA pack refuses and of whose DB row wins. withDb adds db.pack and
         // the model packs, for the personalities: their tables, variant meshes and tech skeletons. Only the packs' indexes are read.
         public static AssetEditorTestRunner Load(bool asCaPacks = false, bool withDb = false)
         {

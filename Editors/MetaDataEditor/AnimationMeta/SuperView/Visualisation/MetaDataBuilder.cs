@@ -260,7 +260,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 _skeletonRows = DbTables.Read(_packFileService, "battle_skeletons_tables", problems);
                 problems.ForEach(LogOnce);
             }
-            return _skeletonRows.LastOrDefault(x => string.Equals(x.Text("name"), name, StringComparison.OrdinalIgnoreCase));
+            return _skeletonRows.FirstOrDefault(x => string.Equals(x.Text("name"), name, StringComparison.OrdinalIgnoreCase));
         }
 
         // SPLICE versions 11 and 12 (10,288 of vanilla's 10,306; SPLICE_OVERRIDE inherits the class and is left out). Which

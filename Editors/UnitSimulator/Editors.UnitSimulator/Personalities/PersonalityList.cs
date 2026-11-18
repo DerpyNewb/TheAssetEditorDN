@@ -182,7 +182,8 @@ namespace Editors.UnitSimulator.Personalities
         void MarkCopies(PersonalityPart part)
         {
             var copies = Rows.Copies(part.Key);
-            part.Copies = copies.Count == 0 ? "new key" : "in " + string.Join(", ", copies.Select(x => $"{x.Pack}: {x.File}"));
+            part.Copies = copies.Count == 0 ? "new key" : "in " + string.Join(", ", copies.Select(x => $"{x.Pack}: {x.File}"))
+                + (copies.Count > 1 ? " (the game keeps the first)" : "");
         }
 
         /// <summary>Every junction row naming the land unit, each personality on its row's bone, with its row's values.</summary>
@@ -200,7 +201,7 @@ namespace Editors.UnitSimulator.Personalities
             foreach (var row in rows)
             {
                 var key = row.Text("battle_personality");
-                if (Rows.Copies(key).LastOrDefault() is not { } copy)
+                if (Rows.Copies(key).FirstOrDefault() is not { } copy)
                     problems.Add($"{unit}'s junction row names {key}, which no loaded battle_personalities table has.");
                 else if (Parts.Any(x => x.Key == key))
                     problems.Add($"{key} is on already.");

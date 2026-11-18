@@ -34,7 +34,7 @@ namespace Test.UnitSimulator
 
         internal static PersonalityPart AddByKey(UnitSimulatorViewModel sim, string key)
         {
-            sim.Personalities.Add(sim.Personalities.Rows.Copies(key).Last());
+            sim.Personalities.Add(sim.Personalities.Rows.Copies(key).First());
             return sim.Personalities.Parts.Single(x => x.Key == key);
         }
 
@@ -94,7 +94,7 @@ namespace Test.UnitSimulator
         {
             var (_, sim) = OpenOn(CasketModel);
             var priest = AddByKey(sim, CasketRider);
-            sim.Personalities.Add(sim.Personalities.Rows.Copies(CasketRider).Last());
+            sim.Personalities.Add(sim.Personalities.Rows.Copies(CasketRider).First());
             Assert.That(sim.Personalities.Parts, Has.Count.EqualTo(1));
             Assert.That(sim.Personalities.Status, Does.Contain(CasketRider).And.Contain("on already"));
 
