@@ -38,23 +38,19 @@
                 <DockPanel Margin="0,2">
                     <TextBlock Text="{loc:Loc SuperView.SlotFiles.Animation}" Width="70" VerticalAlignment="Center"/>
                     <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotAnimCommand}" ToolTip="{loc:Loc SuperView.SlotFiles.BrowseAnimation}"/>
-                    <TextBox Text="{Binding SlotAnim, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                    <TextBox Text="{Binding SlotAnim, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center"/>
                 </DockPanel>
                 <DockPanel Margin="0,2">
                     <TextBlock Text="{loc:Loc SuperView.SlotFiles.Meta}" Width="70" VerticalAlignment="Center"/>
                     <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotMetaCommand}"/>
-                    <TextBox Text="{Binding SlotMeta, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                    <TextBox Text="{Binding SlotMeta, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center"/>
                 </DockPanel>
                 <TextBlock Margin="70,0,30,2" Text="{Binding SlotMetaSource}" Style="{StaticResource MetaSource}" AutomationProperties.AutomationId="SlotMetaSource"/>
                 <DockPanel Margin="0,2">
                     <TextBlock Text="{loc:Loc SuperView.SlotFiles.Sound}" Width="70" VerticalAlignment="Center"/>
                     <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSlotSoundCommand}"/>
-                    <TextBox Text="{Binding SlotSound, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                    <TextBox Text="{Binding SlotSound, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center"/>
                 </DockPanel>
-                <UniformGrid Margin="0,4,0,0" Columns="2">
-                    <Button Margin="0,0,2,0" Content="{loc:Loc SuperView.SlotFiles.Preview}" ToolTip="{loc:Loc SuperView.SlotFiles.Preview.Tooltip}" Command="{Binding PreviewSlotFilesCommand}"/>
-                    <Button Margin="2,0,0,0" Content="{loc:Loc SuperView.SlotFiles.Apply}" Command="{Binding ApplySlotFilesCommand}"/>
-                </UniformGrid>
             </StackPanel>
         </GroupBox>
         <local:MetaTimelineView Margin="5,0,5,5" DockPanel.Dock="Top"/>

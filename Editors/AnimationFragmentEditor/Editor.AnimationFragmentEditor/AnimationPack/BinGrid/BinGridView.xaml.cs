@@ -175,13 +175,4 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
             _vm.OpenPathCommand.Execute(column switch { "Animation" => row.Animation, "Meta" => row.Meta, _ => row.Sound });
         }
     }
-
-    /// <summary>A path cell's text: the file name, or "(none)" for an empty path.</summary>
-    public sealed class FileNameConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-            value is string path && path.Length != 0 ? Path.GetFileName(path) : "(none)";
-
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
-    }
 }
