@@ -23,6 +23,7 @@ namespace Shared.CoreTest.Services
             Assert.That(ForkRelease.Newer(tags, x => x, new Version(1, 1)), Is.EqualTo(new[] { "v0.79-dn-v1.3", "v0.79-dn-v1.2" }));
             Assert.That(ForkRelease.Newer(tags, x => x, new Version(1, 3)), Is.Empty);
             Assert.That(ForkRelease.Newer(new[] { "v0.78-dn-v1.8.1" }, x => x, new Version(1, 8)), Has.Count.EqualTo(1), "a hotfix is offered to the release it fixes");
+            Assert.That(ForkRelease.Newer(new[] { "v0.78-dn-v1.9.1" }, x => x, new Version(1, 9)), Has.Count.EqualTo(1), "a hotfix is offered to the release it fixes");
         }
 
         [Test]
