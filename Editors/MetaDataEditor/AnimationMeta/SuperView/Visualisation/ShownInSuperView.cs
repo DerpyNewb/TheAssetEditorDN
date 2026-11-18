@@ -39,7 +39,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             (typeof(SpliceOverride_v11), Drawn.No, NotDrawn),
             (typeof(SpliceOverride_v12), Drawn.No, NotDrawn),
             (typeof(Splice_v11), Drawn.Partly, "SuperView drives the generic bone to its depth, the neck, torso, arms and legs that the skeleton's battle_skeletons row names, and with Weapon Pose the weapon bones. An additive splice adds its difference from the reference animation's first frame, or from the bind pose. These are readings of the fields, not checked in game. SuperView ignores Stretch, Exclude Stripped and Primary Persistent."),
-            (typeof(HandPose), Drawn.Partly, "SuperView poses the fingers with the animation set's HAND_POSE_* slot that this tag names, so a set without that slot leaves the fingers as the animation has them. Only version 10 of LHAND_POSE and RHAND_POSE is drawn."),
+            (typeof(IHandPose), Drawn.Partly, "SuperView poses the fingers with the animation set's HAND_POSE_* slot that this tag names, so a set without that slot leaves the fingers as the animation has them. The pose switches at once at the tag's start time, where the game may blend. Versions 0 and 1 are not drawn."),
             (typeof(FacePose), Drawn.Partly, "SuperView poses the face with the animation set's FACE_POSE_* slot that this tag names. It needs at least two of those slots to tell the face's bones from the body's, so a set with fewer leaves the face as the animation has it."),
             // WEAPON_* tags are dock tags with no dock slot of their own; the builder tries them and logs that the slot is missing.
             (typeof(WeaponHip_v10), Drawn.No, NotDrawn),
