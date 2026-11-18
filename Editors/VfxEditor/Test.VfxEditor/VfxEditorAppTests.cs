@@ -578,24 +578,38 @@ namespace Test.VfxEditor
             Assert.That(lines.Select(l => l.Points.Count), Is.EqualTo(new[] { 61, 61 }), "the Curve fixture's two channels");
         }
 
-        // Rename takes the id across the emitter's records and keeps its node picked; the type picker writes its type.
+        // Rename takes the id across the emitter's records and keeps its node picked; the type picker writes its type. Saving
+        // moves another effect's reference to the emitter to its new id, and the status says where.
         [Test]
         public void An_emitter_is_renamed_and_retyped_from_its_node()
         {
             var runner = new AssetEditorTestRunner();
             var source = runner.CreateEmptyPackFile("source", false);
             runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16(Fixtures.Default)))]);
+            var output = runner.CreateOutputPack();
+            var user = Fixtures.Effect(emitters: "", chains: "", stacks: "", references: Fixtures.Reference("fx", Fixtures.Row("e1")));
+            runner.PackFileService.AddFilesToPack(output, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("user.xml", Fixtures.Utf16(user)))]);
             var editor = Open(runner);
             editor.SelectedNode = editor.Tree[1].Children[0];
 
             editor.NewEmitterId = "e9";
             editor.RenameEmitterCommand.Execute(null);
             Assert.That(editor.SelectedNode?.Label, Is.EqualTo("e9 (continuous_mesh)"));
-            Assert.That(editor.Status, Does.Contain("still names e1"));
+            Assert.That(editor.Status, Does.Contain("follow when you save"));
 
             Assert.That(editor.EmitterTypes, Is.EqualTo(new[] { "continuous_mesh", "continuous_rigid" }));
             editor.EmitterType = "continuous_rigid";
             Assert.That((editor.SelectedNode?.Label, editor.EmitterType), Is.EqualTo(("e9 (continuous_rigid)", "continuous_rigid")));
+
+            Assert.That(editor.Save(), Is.True);
+            Assert.That(editor.Status, Is.EqualTo("Saved fx; references moved to the new ids in vfx\\user.xml"));
+            var saved = runner.PackFileService.FindFile("vfx\\user.xml", output)!.DataSource.ReadData();
+            Assert.That(Encoding.Unicode.GetString(saved, 2, saved.Length - 2), Is.EqualTo(user.Replace("name=\"e1\"", "name=\"e9\"")));
+
+            // A copy under another name moves nothing, and does not repeat the last save's report.
+            runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>())).Returns(new SaveDialogResult(true, null, @"vfx\fx_copy.xml"));
+            editor.SaveFileAsCommand.Execute(null);
+            Assert.That(editor.Status, Is.EqualTo("Saved fx_copy"));
         }
 
         // A continuous_rigid particle draws its model through the model's own materials, standing where the particle is.
