@@ -32,6 +32,7 @@ namespace Test.AnimationMeta
 
         static readonly Vector3 LeftGrip = new(-0.5f, 1, 0.1f);
         static readonly Vector3 RightGrip = new(0.5f, 1, 0.1f);
+        static readonly Vector3 RightGrip2 = new(0.5f, 1, 0.3f);
         const int Prop = 3;
 
         GameSkeleton _skeleton = null!;
@@ -59,11 +60,14 @@ namespace Test.AnimationMeta
             [
                 new NewPackFileEntry("animations/test", PackFile.CreateFromBytes("dock_left.anim", AnimationFile.ConvertToBytes(Clip(LeftGrip).ConvertToFileFormat(_skeleton)))),
                 new NewPackFileEntry("animations/test", PackFile.CreateFromBytes("dock_right.anim", AnimationFile.ConvertToBytes(Clip(RightGrip).ConvertToFileFormat(_skeleton)))),
+                new NewPackFileEntry("animations/test", PackFile.CreateFromBytes("dock_right_2.anim", AnimationFile.ConvertToBytes(Clip(RightGrip2).ConvertToFileFormat(_skeleton)))),
             ]);
+            // The right hand has a second position and the left hand does not.
             _fragment = new Fragment(
             [
                 new() { SlotName = "DOCK_EQUIPMENT_LEFT_HAND", AnimationFile = "animations/test/dock_left.anim" },
                 new() { SlotName = "DOCK_EQUIPMENT_RIGHT_HAND", AnimationFile = "animations/test/dock_right.anim" },
+                new() { SlotName = "DOCK_EQUIPMENT_RIGHT_HAND_2", AnimationFile = "animations/test/dock_right_2.anim" },
             ]);
             // The dock path uses only the pack file service.
             _builder = new MetaDataBuilder(null!, null!, null!, runner.PackFileService, null!);
@@ -195,6 +199,68 @@ namespace Test.AnimationMeta
         {
             var at = PropAt(0.6f, Right(), Left(start: 0.5f));
             Assert.That(Vector3.Distance(at, LeftGrip), Is.LessThan(1e-4), $"prop at {at}");
+        }
+
+        // DOCK_EQPT_RHAND_2 (171 vanilla tags) holds the prop in the set's second right-hand position. SuperView drew it in the first.
+        [Test]
+        public void ASecondPositionDock_UsesTheSetsSecondPosition()
+        {
+            var at = PropAt(0.5f, new DockEquipmentRHand2_v11 { PropBoneId = 1 });
+            Assert.That(Vector3.Distance(at, RightGrip2), Is.LessThan(1e-4), $"prop at {at}");
+            TearDown();
+            Setup();
+            at = PropAt(0.5f, Right());
+            Assert.That(Vector3.Distance(at, RightGrip), Is.LessThan(1e-4), $"the first position's tag, prop at {at}");
+        }
+
+        // A set with no second position draws the first instead, as a first-position tag already falls back to the second.
+        [Test]
+        public void ASecondPositionDock_InASetWithoutOne_UsesTheFirst()
+        {
+            var at = PropAt(0.5f, new DockEquipmentLHand2_v11 { PropBoneId = 1 });
+            Assert.That(Vector3.Distance(at, LeftGrip), Is.LessThan(1e-4), $"prop at {at}");
+        }
+
+        // A second-position tag is still a hand, so the right hand wins a tie with it as it does between first positions.
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ASecondPositionLeftDock_TiedWithARightDock_TheRightHandHoldsIt(bool rightFirst)
+        {
+            var left = new DockEquipmentLHand2_v11 { PropBoneId = 1 };
+            var at = rightFirst ? PropAt(0.5f, Right(), left) : PropAt(0.5f, left, Right());
+            Assert.That(Vector3.Distance(at, RightGrip), Is.LessThan(1e-4), $"prop at {at}");
+        }
+
+        // Troy's right-hand, waist, back and WEAPON_* classes inherited the left hand's, so SuperView would have docked a Troy
+        // file's right-hand prop in the left hand. Every dock class now poses with its own tag's slot and bone.
+        [Test]
+        public void EveryDockClass_PosesWithItsOwnTagsSlot()
+        {
+            var expected = new Dictionary<string, (string Slot, string Bone)>
+            {
+                ["DOCK_EQPT_RHAND"] = ("DOCK_EQUIPMENT_RIGHT_HAND", "hand_right"),
+                ["DOCK_EQPT_RHAND_2"] = ("DOCK_EQUIPMENT_RIGHT_HAND_2", "hand_right"),
+                ["DOCK_EQPT_LHAND"] = ("DOCK_EQUIPMENT_LEFT_HAND", "hand_left"),
+                ["DOCK_EQPT_LHAND_2"] = ("DOCK_EQUIPMENT_LEFT_HAND_2", "hand_left"),
+                ["DOCK_EQPT_RWAIST"] = ("DOCK_EQUIPMENT_RIGHT_WAIST", "root"),
+                ["DOCK_EQPT_LWAIST"] = ("DOCK_EQUIPMENT_LEFT_WAIST", "root"),
+                ["DOCK_EQPT_BACK"] = ("DOCK_EQUIPMENT_BACK", "spine_2"),
+                ["WEAPON_HIP"] = ("", ""),
+                ["WEAPON_RHAND"] = ("", ""),
+                ["WEAPON_LHAND"] = ("", ""),
+                ["WEAPON_ON"] = ("", ""),
+            };
+            var classes = typeof(DockEquipment).Assembly.GetTypes()
+                .Where(x => typeof(DockEquipment).IsAssignableFrom(x) && !x.IsAbstract)
+                .SelectMany(x => x.GetCustomAttributes(typeof(MetaDataAttribute), false).Cast<MetaDataAttribute>().Select(a => (Type: x, Tag: a.Name)))
+                .ToList();
+            var wrong = classes
+                .Select(x => (x.Type, Want: expected[x.Tag], Dock: (DockEquipment)Activator.CreateInstance(x.Type)!))
+                .Where(x => x.Dock.AnimationSlotName != x.Want.Slot || x.Dock.SkeletonNameAlternatives.Single() != x.Want.Bone)
+                .Select(x => $"{x.Type.Name}: {x.Dock.AnimationSlotName} on {string.Join(",", x.Dock.SkeletonNameAlternatives)}");
+
+            Assert.That(classes, Has.Count.EqualTo(34), "dock classes checked");
+            Assert.That(wrong, Is.Empty);
         }
 
         // animroot, the two hands, and be_prop_0 at the origin.

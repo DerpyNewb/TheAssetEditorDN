@@ -6,6 +6,15 @@ using Shared.GameFormats.AnimationMeta.Parsing;
 
 namespace Shared.GameFormats.AnimationMeta.Definitions
 {
+    // What SuperView poses a hand with. Versions 0 and 1 have no start time, and no vanilla WH3 file uses them.
+    public interface IHandPose
+    {
+        string Name { get; }
+        float StartTime { get; }
+        int HandPoseId { get; }
+        float Weight { get; }
+    }
+
     public class HandPose_v0 : DecodedMetaEntryBase_v0
     {
         [MetaDataTag(2, "This should be an enum. (these are animation slots in .frg) 0=HAND_POSE_RELAX,1=HAND_POSE_FLAT,2=HAND_POSE_CLENCH,3=HAND_POSE_GRIP,4=HAND_POSE_HALF_OPEN,5=HAND_POSE_THUMB_GRIP,6=HAND_POSE_CUSTOM_1,7=HAND_POSE_CUSTOM_2,8=HAND_POSE_CUSTOM_3,9=HAND_POSE_CUSTOM_4,10=HAND_POSE_CUSTOM_5,11=HAND_POSE_CUSTOM_6,12=HAND_POSE_CUSTOM_7,13=HAND_POSE_CUSTOM_8,14=HAND_POSE_CUSTOM_9,15=HAND_POSE_CUSTOM_10,")]
@@ -24,7 +33,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public float Weight { get; set; }
     }
 
-    public class HandPose_v2 : DecodedMetaEntryBase_v2
+    public class HandPose_v2 : DecodedMetaEntryBase_v2, IHandPose
     {
         [MetaDataTag(4, "This should be an enum. (these are animation slots in .frg) 0=HAND_POSE_RELAX,1=HAND_POSE_FLAT,2=HAND_POSE_CLENCH,3=HAND_POSE_GRIP,4=HAND_POSE_HALF_OPEN,5=HAND_POSE_THUMB_GRIP,6=HAND_POSE_CUSTOM_1,7=HAND_POSE_CUSTOM_2,8=HAND_POSE_CUSTOM_3,9=HAND_POSE_CUSTOM_4,10=HAND_POSE_CUSTOM_5,11=HAND_POSE_CUSTOM_6,12=HAND_POSE_CUSTOM_7,13=HAND_POSE_CUSTOM_8,14=HAND_POSE_CUSTOM_9,15=HAND_POSE_CUSTOM_10,")]
         public int HandPoseId { get; set; }
@@ -67,7 +76,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
 
 
 
-    public class HandPose : DecodedMetaEntryBase
+    public class HandPose : DecodedMetaEntryBase, IHandPose
     {
         [MetaDataTag(5, "This should be an enum. (these are animation slots in .frg) 0=HAND_POSE_RELAX,1=HAND_POSE_FLAT,2=HAND_POSE_CLENCH,3=HAND_POSE_GRIP,4=HAND_POSE_HALF_OPEN,5=HAND_POSE_THUMB_GRIP,6=HAND_POSE_CUSTOM_1,7=HAND_POSE_CUSTOM_2,8=HAND_POSE_CUSTOM_3,9=HAND_POSE_CUSTOM_4,10=HAND_POSE_CUSTOM_5,11=HAND_POSE_CUSTOM_6,12=HAND_POSE_CUSTOM_7,13=HAND_POSE_CUSTOM_8,14=HAND_POSE_CUSTOM_9,15=HAND_POSE_CUSTOM_10,")]
         public int HandPoseId { get; set; }

@@ -123,7 +123,7 @@ namespace Test.AnimationMeta
             Assert.Multiple(() =>
             {
                 Assert.That(Of(typeof(Splice_v11)).Tooltip, Does.Contain("ignores Stretch"));
-                Assert.That(Of(typeof(RHandPose)).Tooltip, Does.Contain("Only version 10"));
+                Assert.That(Of(typeof(RHandPose_v2)).Tooltip, Does.Contain("Versions 0 and 1 are not drawn"));
                 Assert.That(Of(typeof(DockEquipmentLHand_v10)).Tooltip, Does.Contain("DOCK_EQUIPMENT_"));
                 Assert.That(Of(typeof(CrewLocation_v10)).Tooltip, Does.Contain("ignores the tag's times"));
                 Assert.That(Of(typeof(SyncMarker_v10)).Tooltip, Does.Contain("doesn't draw"));

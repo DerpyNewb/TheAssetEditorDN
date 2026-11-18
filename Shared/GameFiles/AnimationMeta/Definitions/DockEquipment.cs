@@ -83,16 +83,17 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public float UnknownFloat { get; set; }
     }
 
-    // TODO: proper inheritance
     [MetaData("DOCK_EQPT_RHAND_2", 11)]
     public class DockEquipmentRHand2_v11 : DockEquipmentRHand_v10
     {
+        public override string AnimationSlotName => "DOCK_EQUIPMENT_RIGHT_HAND_2";
+
         [MetaDataTag(8)]
         public float UnknownFloat { get; set; }
     }
 
     [MetaData("DOCK_EQPT_RHAND", 11, MetaDataAttributePriority.Low)]
-    public class DockEquipmentRHand_v11_Troy : DockEquipmentLHand_v10
+    public class DockEquipmentRHand_v11_Troy : DockEquipmentRHand_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -102,7 +103,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
 
 
     [MetaData("DOCK_EQPT_RHAND", 14, MetaDataAttributePriority.Low)]
-    public class DockEquipmentRHand_v14_Troy : DockEquipmentLHand_v10
+    public class DockEquipmentRHand_v14_Troy : DockEquipmentRHand_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -156,10 +157,11 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public float UnknownFloat { get; set; }
     }
 
-    // TODO: proper inheritance
     [MetaData("DOCK_EQPT_LHAND_2", 11)]
     public class DockEquipmentLHand2_v11 : DockEquipmentLHand_v10
     {
+        public override string AnimationSlotName => "DOCK_EQUIPMENT_LEFT_HAND_2";
+
         [MetaDataTag(8)]
         public float UnknownFloat { get; set; }
     }
@@ -222,7 +224,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("DOCK_EQPT_RWAIST", 11, MetaDataAttributePriority.Low)]
-    public class DockEquipmentRWaist_v11_Troy : DockEquipmentLHand_v10
+    public class DockEquipmentRWaist_v11_Troy : DockEquipmentRWaist_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -231,7 +233,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("DOCK_EQPT_RWAIST", 14, MetaDataAttributePriority.Low)]
-    public class DockEquipmentRWaist_v14_Troy : DockEquipmentLHand_v10
+    public class DockEquipmentRWaist_v14_Troy : DockEquipmentRWaist_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -284,7 +286,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("DOCK_EQPT_LWAIST", 11, MetaDataAttributePriority.Low)]
-    public class DockEquipmentLWaist_v11_Troy : DockEquipmentLHand_v10
+    public class DockEquipmentLWaist_v11_Troy : DockEquipmentLWaist_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -293,7 +295,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("DOCK_EQPT_LWAIST", 14, MetaDataAttributePriority.Low)]
-    public class DockEquipmentLWaist_v14_Troy : DockEquipmentLHand_v10
+    public class DockEquipmentLWaist_v14_Troy : DockEquipmentLWaist_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -347,7 +349,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("DOCK_EQPT_BACK", 11, MetaDataAttributePriority.Low)]
-    public class DockEquipmentBack_v11_Troy : DockEquipmentLHand_v10
+    public class DockEquipmentBack_v11_Troy : DockEquipmentBack_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -356,7 +358,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("DOCK_EQPT_BACK", 14, MetaDataAttributePriority.Low)]
-    public class DockEquipmentBack_v14_Troy : DockEquipmentLHand_v10
+    public class DockEquipmentBack_v14_Troy : DockEquipmentBack_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -440,7 +442,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("WEAPON_RHAND", 11, MetaDataAttributePriority.Low)]
-    public class WeaponRHand_v11_Troy : DockEquipmentLHand_v10
+    public class WeaponRHand_v11_Troy : WeaponRHand_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -487,7 +489,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("WEAPON_LHAND", 11, MetaDataAttributePriority.Low)]
-    public class WeaponLHand_v11_Troy : DockEquipmentLHand_v10
+    public class WeaponLHand_v11_Troy : WeaponLHand_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -519,7 +521,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("WEAPON_ON", 11, MetaDataAttributePriority.Low)]
-    public class WeaponOn_v11_Troy : DockEquipmentLHand_v10
+    public class WeaponOn_v11_Troy : WeaponOn_v10
     {
         public override string Description { get; } = "_TroyOnly";
 
@@ -528,7 +530,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
     }
 
     [MetaData("WEAPON_ON", 14, MetaDataAttributePriority.Low)]
-    public class WeaponOn_v14_Troy : DockEquipmentLHand_v10
+    public class WeaponOn_v14_Troy : WeaponOn_v10
     {
         public override string Description { get; } = "_TroyOnly";
 

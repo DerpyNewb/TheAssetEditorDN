@@ -226,8 +226,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 return;
 
             // Persistent keys sit before time 0, so a key in the animation's own meta overrides them.
-            var tags = (persistent?.GetItemsOfType<HandPose>() ?? []).Select(x => (Time: -1f, Tag: x))
-                .Concat((metaData?.GetItemsOfType<HandPose>() ?? []).Select(x => (Time: x.StartTime, Tag: x)))
+            var tags = (persistent?.GetItemsOfType<IHandPose>() ?? []).Select(x => (Time: -1f, Tag: x))
+                .Concat((metaData?.GetItemsOfType<IHandPose>() ?? []).Select(x => (Time: x.StartTime, Tag: x)))
                 .ToList();
 
             foreach (var (tagName, handBone) in new[] { ("LHAND_POSE", "hand_left"), ("RHAND_POSE", "hand_right") })
@@ -391,7 +391,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             // A prop docked to both hands from the same moment goes to the right hand, whichever tag comes first: in all
             // nine vanilla cases where the animation's own keys hold the prop rigid to one hand, it is the right one.
             var docks = file.GetItemsOfType<DockEquipment>();
-            static bool Hand(DockEquipment x, string side) => x.AnimationSlotName == $"DOCK_EQUIPMENT_{side}_HAND";
+            static bool Hand(DockEquipment x, string side) => x.AnimationSlotName.StartsWith($"DOCK_EQUIPMENT_{side}_HAND");
             foreach (var meteDataItem in docks.Where(l => !Hand(l, "LEFT") || !docks.Any(r => Hand(r, "RIGHT") && r.PropBoneId == l.PropBoneId && r.StartTime == l.StartTime)))
                 CreateEquipmentDock(meteDataItem, fragment, skeleton, rootPlayer);
 
@@ -415,8 +415,10 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
                 return;
             }
  
-            var animPath = fragment.Entries.FirstOrDefault(x => x.SlotName == metaData.AnimationSlotName)?.AnimationFile ??
-                           fragment.Entries.FirstOrDefault(x => x.SlotName == metaData.AnimationSlotName + "_2")?.AnimationFile;
+            // A _2 tag poses with the hand's second position. Either tag falls back to the other position when the set lacks its own.
+            var slot = metaData.AnimationSlotName;
+            var animPath = fragment.Entries.FirstOrDefault(x => x.SlotName == slot)?.AnimationFile ??
+                           fragment.Entries.FirstOrDefault(x => x.SlotName == (slot.EndsWith("_2") ? slot[..^2] : slot + "_2"))?.AnimationFile;
             if (animPath == null)
             {
                 _logger.Here().Error($"Unable to create docking, as {metaData.AnimationSlotName} animation is missing");
