@@ -35,6 +35,9 @@ namespace Shared.GameFormats.AnimationMeta.Parsing
                 Version = BitConverter.ToInt32(fileContent, 0)
             };
 
+            // Nine vanilla files are zero bytes from end to end, the Tomb Herald's hu1s_sws_run_02.anm.meta among them: no tags.
+            if (outputFile.Version == 0 && fileContent.All(b => b == 0))
+                return outputFile;
             if (outputFile.Version != 2)
                 throw new Exception($"Unknown version - {outputFile.Version}");
 

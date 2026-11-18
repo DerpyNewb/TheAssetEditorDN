@@ -43,7 +43,8 @@ namespace Test.AnimationMeta
                         seen[key] = (total + 1, failed + (isFailure ? 1 : 0), isFailure && failed == 0 ? path : example);
                     }
 
-                    if (!parsed.Attributes.Any(x => x is ParsedUnknownMetadataAttribute) && !parser.GenerateBytes(parsed.Version, parsed).SequenceEqual(bytes))
+                    // A zero-filled file saves back as an empty version 0 file, without its padding.
+                    if (parsed.Version == 2 && !parsed.Attributes.Any(x => x is ParsedUnknownMetadataAttribute) && !parser.GenerateBytes(parsed.Version, parsed).SequenceEqual(bytes))
                         changedOnResave.Add(path);
                 }
             }
@@ -56,6 +57,7 @@ namespace Test.AnimationMeta
 
             Assert.Multiple(() =>
             {
+                Assert.That(unparsedFiles, Is.Empty, "files that throw");
                 Assert.That(seen.Where(x => x.Value.Failed > 0).Select(x => x.Key), Is.Empty, "tags that fail to decode");
                 Assert.That(changedOnResave, Is.Empty, "files whose bytes change when saved unedited");
                 Assert.That(seen.Where(x => database.GetWarhammer3UseCount(x.Key) != x.Value.Total).Select(x => $"{x.Key} = {x.Value.Total}"),

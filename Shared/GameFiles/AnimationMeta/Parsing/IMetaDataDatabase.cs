@@ -268,38 +268,38 @@ namespace Shared.GameFormats.AnimationMeta.Parsing
         }
 
         // Uses of each tag+version across vanilla WH3's anim.pack, anim2.pack and anim_3.pack, counted
-        // 2026-10-11 by Test.AnimationMeta's VanillaMetaSurvey. A version missing here is used by no
+        // 2026-11-18 by Test.AnimationMeta's VanillaMetaSurvey. A version missing here is used by no
         // vanilla WH3 animation; most of those are formats from older games.
         static readonly Dictionary<string, int> s_warhammer3UseCount = new()
         {
             ["ALLOWED_DELTA_SCALE_10"] = 11, ["ALPHA_10"] = 1400, ["ANIMATED_PROP_10"] = 10, ["ANIMATED_PROP_11"] = 23,
-            ["ANIMATED_PROP_13"] = 1, ["ANIMATED_PROP_14"] = 2074, ["ANIMATED_PROP_15"] = 1948, ["BEARING_10"] = 38,
+            ["ANIMATED_PROP_13"] = 1, ["ANIMATED_PROP_14"] = 2073, ["ANIMATED_PROP_15"] = 1949, ["BEARING_10"] = 38,
             ["BLEND_OVERRIDE_11"] = 81, ["BLOOD_11"] = 1689, ["BLOOD_12"] = 470, ["BOUNDING_VOLUME_OVERRIDE_10"] = 2,
             ["CAMERA_SHAKE_POS_10"] = 1094, ["CAMERA_SHAKE_SCALE_10"] = 833, ["CANNOT_DISMEMBER_10"] = 12, ["CREW_LOCATION_10"] = 734,
             ["CREW_LOCATION_2"] = 6, ["DISABLE_FACIAL_10"] = 1, ["DISABLE_HEAD_TRACKING_10"] = 567, ["DISABLE_MODEL_10"] = 207,
             ["DISABLE_PERSISTENT_10"] = 6896, ["DISABLE_PERSISTENT_2"] = 5, ["DISABLE_PERSISTENT_ID_10"] = 3, ["DISABLE_PERSISTENT_ID_11"] = 2573,
             ["DISABLE_PERSISTENT_VFX_10"] = 528, ["DISMEMBER_10"] = 129, ["DISTANCE_10"] = 38, ["DOCK_EQPT_BACK_10"] = 91,
-            ["DOCK_EQPT_BACK_11"] = 2505, ["DOCK_EQPT_LHAND_10"] = 374, ["DOCK_EQPT_LHAND_11"] = 6683, ["DOCK_EQPT_LHAND_2_11"] = 128,
+            ["DOCK_EQPT_BACK_11"] = 2505, ["DOCK_EQPT_LHAND_10"] = 373, ["DOCK_EQPT_LHAND_11"] = 6684, ["DOCK_EQPT_LHAND_2_11"] = 128,
             ["DOCK_EQPT_LHAND_3"] = 5, ["DOCK_EQPT_LWAIST_10"] = 52, ["DOCK_EQPT_LWAIST_11"] = 1258, ["DOCK_EQPT_LWAIST_3"] = 2,
             ["DOCK_EQPT_RHAND_10"] = 407, ["DOCK_EQPT_RHAND_11"] = 8090, ["DOCK_EQPT_RHAND_2_11"] = 171, ["DOCK_EQPT_RHAND_3"] = 5,
-            ["DOCK_EQPT_RWAIST_10"] = 9, ["DOCK_EQPT_RWAIST_11"] = 234, ["EFFECT_11"] = 1649, ["EFFECT_12"] = 19009,
-            ["EJECT_ATTACHED_10"] = 16, ["FACE_POSE_10"] = 16814, ["FIRE_POS_10"] = 2785, ["FULL_BODY_10"] = 383,
+            ["DOCK_EQPT_RWAIST_10"] = 9, ["DOCK_EQPT_RWAIST_11"] = 234, ["EFFECT_11"] = 1646, ["EFFECT_12"] = 19012,
+            ["EJECT_ATTACHED_10"] = 16, ["FACE_POSE_10"] = 16814, ["FIRE_POS_10"] = 2791, ["FULL_BODY_10"] = 383,
             ["IGNORE_FOOT_SLIDING_10"] = 9, ["IMPACT_POS_10"] = 13923, ["IMPACT_POS_2"] = 15, ["IMPACT_SPEED_10"] = 354,
             ["LHAND_POSE_10"] = 11360, ["LHAND_POSE_2"] = 14, ["MAX_TARGET_SIZE_11"] = 78, ["MIN_TARGET_SIZE_11"] = 26,
             ["NOT_BUILDING_10"] = 13, ["PARENT_CONSTRAINT_10"] = 53, ["POSITION_10"] = 8, ["PROP_10"] = 41,
-            ["PROP_11"] = 2, ["PROP_13"] = 11, ["PROP_14"] = 361, ["PROP_15"] = 303,
+            ["PROP_11"] = 2, ["PROP_13"] = 11, ["PROP_14"] = 359, ["PROP_15"] = 305,
             ["PROP_4"] = 9, ["RESCALE_10"] = 970, ["RHAND_POSE_10"] = 11368, ["RHAND_POSE_2"] = 12,
             ["RIDER_ANIMATION_REQUIRED_10"] = 1, ["RIDER_CUSTOM_ANIMATION_10"] = 3, ["RIDER_IDLE_SPEED_SCALE_10"] = 34, ["SC_HEIGHT_10"] = 119,
             ["SC_RADIUS_10"] = 107, ["SC_RATIO_10"] = 101, ["SHADER_PARAMETER_11"] = 2, ["SHADER_PARAMETER_12"] = 1194,
             ["SNIP_10"] = 65, ["SOUND_DEFEND_TYPE_10"] = 288, ["SOUND_DEFEND_TYPE_11"] = 60, ["SOUND_POSITION_10"] = 46,
-            ["SOUND_SPHERE_10"] = 32, ["SOUND_SPHERE_LINK_10"] = 2, ["SOUND_TRIGGER_10"] = 12181, ["SOUND_TRIGGER_11"] = 261641,
+            ["SOUND_SPHERE_10"] = 32, ["SOUND_SPHERE_LINK_10"] = 2, ["SOUND_TRIGGER_10"] = 12181, ["SOUND_TRIGGER_11"] = 261701,
             ["SOUND_TRIGGER_4"] = 158, ["SPLASH_ATTACK_10"] = 6101, ["SPLASH_ATTACK_3"] = 4, ["SPLICE_10"] = 12,
-            ["SPLICE_11"] = 199, ["SPLICE_12"] = 10090, ["SPLICE_5"] = 3, ["SPLICE_6"] = 3,
+            ["SPLICE_11"] = 199, ["SPLICE_12"] = 10089, ["SPLICE_5"] = 3, ["SPLICE_6"] = 3,
             ["SPLICE_OVERRIDE_12"] = 299, ["SYNC_MARKER_10"] = 2, ["TARGET_POS_10"] = 215, ["TIME_10"] = 26,
-            ["TRANSFORM_10"] = 5799, ["TURRET_ATTACHMENT_14"] = 1, ["USE_BASE_METADATA_10"] = 3, ["VFX_ALPHA_10"] = 10,
+            ["TRANSFORM_10"] = 5806, ["TURRET_ATTACHMENT_14"] = 1, ["USE_BASE_METADATA_10"] = 3, ["VFX_ALPHA_10"] = 10,
             ["VOLUMETRIC_EFFECT_10"] = 1, ["WEAPON_HIP_11"] = 13, ["WEAPON_HIP_3"] = 1, ["WEAPON_LHAND_10"] = 1,
             ["WEAPON_LHAND_11"] = 150, ["WEAPON_ON_10"] = 64, ["WEAPON_ON_11"] = 913, ["WEAPON_RHAND_10"] = 5,
-            ["WEAPON_RHAND_11"] = 684, ["WEAPON_RHAND_3"] = 1, ["WOUNDED_POSE_10"] = 5,
+            ["WEAPON_RHAND_11"] = 684, ["WEAPON_RHAND_3"] = 1, ["WOUNDED_POSE_10"] = 5
         };
 
         public int GetWarhammer3UseCount(string tagAndVersion) => s_warhammer3UseCount.GetValueOrDefault(tagAndVersion);
