@@ -13,5 +13,12 @@ namespace Editor.VisualSkeletonEditor.SkeletonEditor
             InitializeComponent();
             UndoRedoKeys.Attach(this, () => (DataContext as SkeletonEditorViewModel)?.UndoAction(), () => (DataContext as SkeletonEditorViewModel)?.RedoAction());
         }
+
+        // A bone picked in the view is shown in the list, scrolled to.
+        void OnBoneSelected(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (e.OriginalSource is TreeViewItem item)
+                item.BringIntoView();
+        }
     }
 }

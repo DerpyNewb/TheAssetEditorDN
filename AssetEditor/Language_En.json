@@ -451,6 +451,10 @@
   "SkeletonEditor.SelectedBone.Translation": "Translation",
   "SkeletonEditor.SelectedBone.Rotation": "Rotation",
   "SkeletonEditor.SelectedBone.LengthScale": "Length Scale",
+  "SkeletonEditor.SelectedBone.Handle": "Handle in view",
+  "SkeletonEditor.SelectedBone.HandleMove": "Move",
+  "SkeletonEditor.SelectedBone.HandleRotate": "Rotate",
+  "SkeletonEditor.SelectedBone.HandleTooltip": "Click a bone in the view to select it, then drag the handle to move or turn it. Its children go with it, and each drag is one undo step. Press the lit button again to hide the handle.",
 
   "AnimationBatchExporter.PackfilesToConvert": "Packfiles to convert:",
   "AnimationBatchExporter.OutputFormat": "Output format:",

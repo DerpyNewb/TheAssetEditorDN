@@ -451,6 +451,10 @@
   "SkeletonEditor.SelectedBone.Translation": "位移",
   "SkeletonEditor.SelectedBone.Rotation": "旋转",
   "SkeletonEditor.SelectedBone.LengthScale": "长度缩放",
+  "SkeletonEditor.SelectedBone.Handle": "视图中的控制柄",
+  "SkeletonEditor.SelectedBone.HandleMove": "移动",
+  "SkeletonEditor.SelectedBone.HandleRotate": "旋转",
+  "SkeletonEditor.SelectedBone.HandleTooltip": "在视图中点击骨骼即可选中，然后拖动控制柄来移动或旋转它。其子骨骼会一起移动，每次拖动为一个撤销步骤。再次点击已亮起的按钮可隐藏控制柄。",
 
   "AnimationBatchExporter.PackfilesToConvert": "要转换的 Pack 文件:",
   "AnimationBatchExporter.OutputFormat": "输出格式:",
