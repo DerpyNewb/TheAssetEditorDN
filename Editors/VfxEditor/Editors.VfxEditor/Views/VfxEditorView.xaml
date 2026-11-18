@@ -99,8 +99,11 @@
         </ToolBar>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="6,3" TextTrimming="CharacterEllipsis"/>
         <Grid>
-            <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" Margin="12"
-                       Visibility="{Binding HasLoadError, Converter={StaticResource BoolToVis}}"/>
+            <StackPanel Margin="12" Visibility="{Binding HasLoadError, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap"/>
+                <Button Content="Open in text editor" Command="{Binding OpenAsTextCommand}" Padding="8,2" Margin="0,8,0,0"
+                        HorizontalAlignment="Left" Visibility="{Binding CanOpenAsText, Converter={StaticResource BoolToVis}}"/>
+            </StackPanel>
             <Grid Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVis}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="260" MinWidth="150"/>

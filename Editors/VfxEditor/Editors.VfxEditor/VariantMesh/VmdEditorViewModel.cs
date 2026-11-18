@@ -26,6 +26,7 @@ namespace Editors.VfxEditor.VariantMesh
         readonly IFileSaveService _fileSaveService;
         readonly IStandardDialogs _dialogs;
         readonly IUiCommandFactory _commands;
+        readonly IEditorManager _editors;
         readonly IGlobalEventHub _globalEventHub;
         List<VmdRowRef> _refs = [];
         Func<VmdRowRef, bool>? _select;
@@ -36,8 +37,9 @@ namespace Editors.VfxEditor.VariantMesh
         string? _ownPath;
 
         public VmdEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs, IUiCommandFactory commands,
-            IGlobalEventHub globalEventHub)
+            IGlobalEventHub globalEventHub, IEditorManager editors)
         {
+            _editors = editors;
             _packFileService = packFileService;
             _fileSaveService = fileSaveService;
             _dialogs = dialogs;
@@ -88,6 +90,17 @@ namespace Editors.VfxEditor.VariantMesh
         [ObservableProperty] bool _hasUnsavedChanges;
 
         public bool HasLoadError => LoadError != null;
+        public bool CanOpenAsText => LoadError != null && CurrentFile != null;
+
+        /// <summary>A file this editor cannot read, opened in the text editor in this tab's place, where it can be fixed.</summary>
+        [RelayCommand]
+        void OpenAsText()
+        {
+            if (CurrentFile is not { } file)
+                return;
+            _editors.CreateFromFile(file, EditorEnums.XML_VariantMesh_Editor);
+            _editors.CloseTool(this);
+        }
 
         /// <summary>The file as text in the shared text editor, shown instead of the grid while ShowAsXml is on.</summary>
         public SimpleTextEditorViewModel XmlView { get; } = new();

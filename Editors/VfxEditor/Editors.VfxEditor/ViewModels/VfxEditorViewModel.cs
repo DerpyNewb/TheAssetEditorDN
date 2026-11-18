@@ -40,6 +40,7 @@ namespace Editors.VfxEditor.ViewModels
         readonly VfxFileSession _session;
         readonly IPackFileService _packFileService;
         readonly IUiCommandFactory _commands;
+        readonly IEditorManager _editors;
         readonly IStandardDialogs _dialogs;
         readonly IGlobalEventHub _globalEventHub;
         readonly Dictionary<string, ImageSource?> _thumbnails = new(StringComparer.OrdinalIgnoreCase);
@@ -53,8 +54,9 @@ namespace Editors.VfxEditor.ViewModels
 
         public VfxEditorViewModel(IPackFileService packFileService, IFileSaveService fileSaveService, IStandardDialogs dialogs, IUiCommandFactory commands,
             IWpfGame gameWorld, IComponentInserter componentInserter, VfxVocabularyService vocabularyService, VfxPreviewComponent preview, GridComponent grid,
-            IGlobalEventHub globalEventHub, RenderEngineComponent renderEngine, SceneRenderParametersStore sceneParameters)
+            IGlobalEventHub globalEventHub, RenderEngineComponent renderEngine, SceneRenderParametersStore sceneParameters, IEditorManager editors)
         {
+            _editors = editors;
             _renderEngine = renderEngine;
             _sceneParameters = sceneParameters;
             _globalEventHub = globalEventHub;
@@ -139,6 +141,7 @@ namespace Editors.VfxEditor.ViewModels
 
         public bool HasLoadError => LoadError != null;
         public bool IsLoaded => LoadError == null;
+        public bool CanOpenAsText => LoadError != null && CurrentFile != null;
         public bool IsEmitterNode => SelectedNode?.Kind == NodeKind.Emitter;
         public bool IsEmittersNode => SelectedNode?.Kind == NodeKind.Emitters;
         public bool IsChainNode => SelectedNode?.Kind == NodeKind.Chain;
@@ -179,6 +182,17 @@ namespace Editors.VfxEditor.ViewModels
         {
             OnPropertyChanged(nameof(HasLoadError));
             OnPropertyChanged(nameof(IsLoaded));
+            OnPropertyChanged(nameof(CanOpenAsText));
+        }
+
+        /// <summary>A file this editor cannot read, opened in the text editor in this tab's place, where it can be fixed.</summary>
+        [RelayCommand]
+        void OpenAsText()
+        {
+            if (CurrentFile is not { } file)
+                return;
+            _editors.CreateFromFile(file, EditorEnums.XML_Editor);
+            _editors.CloseTool(this);
         }
 
         partial void OnTierChanged(int value)

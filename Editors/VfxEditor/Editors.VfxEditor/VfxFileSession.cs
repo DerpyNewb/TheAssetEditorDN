@@ -11,7 +11,7 @@ namespace Editors.VfxEditor
     /// service. Save writes to this path in the editable pack, so a file opened from CA's packs is created there.</summary>
     public sealed class VfxFileSession(IPackFileService packFileService, IFileSaveService fileSaveService)
     {
-        const string ReopenHint = "Close this tab and open the file again, picking the text editor.";
+        const string ReopenHint = "Open in text editor shows its text, where it can be fixed.";
 
         public PackFile? File { get; private set; }
         public VfxDocument? Document { get; private set; }

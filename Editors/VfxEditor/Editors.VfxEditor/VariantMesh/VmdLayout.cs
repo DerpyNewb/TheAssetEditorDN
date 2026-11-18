@@ -13,7 +13,7 @@ namespace Editors.VfxEditor.VariantMesh
     /// and its rows in file order, each nested slot right after the entry that holds it.</summary>
     public static class VmdLayout
     {
-        const string ReopenHint = "Close this tab and open the file again, picking the text editor.";
+        const string ReopenHint = "Open in text editor shows its text, where it can be fixed.";
 
         public static (VfxDocument? Document, string? Error) Load(byte[] bytes)
         {

@@ -9,6 +9,8 @@ using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
 using Shared.Core.ToolCreation;
+using Editors.Shared.Core.Editors.VariantMeshDefinition;
+using Shared.Ui.Editors.TextEditor;
 using Test.TestingUtility.Shared;
 
 namespace Test.VfxEditor
@@ -286,7 +288,7 @@ namespace Test.VfxEditor
             var hub = new Mock<IGlobalEventHub>();
             hub.Setup(x => x.Register(It.IsAny<object>(), It.IsAny<Action<PackFileContainerManipulationEvent>>()))
                 .Callback<object, Action<PackFileContainerManipulationEvent>>((_, action) => packsChanged = action);
-            var editor = new VmdEditorViewModel(packs.Object, Mock.Of<IFileSaveService>(), Mock.Of<IStandardDialogs>(), Mock.Of<IUiCommandFactory>(), hub.Object);
+            var editor = new VmdEditorViewModel(packs.Object, Mock.Of<IFileSaveService>(), Mock.Of<IStandardDialogs>(), Mock.Of<IUiCommandFactory>(), hub.Object, Mock.Of<IEditorManager>());
             editor.LoadFile(PackFile.CreateFromBytes("unit.variantmeshdefinition", Encoding.UTF8.GetBytes(VmdFixtures.Unit)));
 
             editor.Rows[2].Probability = "0.5";
@@ -345,6 +347,22 @@ namespace Test.VfxEditor
             Assert.That(editor.Save(), Is.False);
             editor.ShowAsXml = true;
             Assert.That(editor.ShowAsXml, Is.False);
+        }
+
+        // The button under the load error opens the file in the text editor in this tab's place. A file that reads has none.
+        [Test]
+        public void A_file_that_does_not_parse_opens_in_the_text_editor_in_its_place()
+        {
+            var (runner, editor) = Open("<VARIANT_MESH>\r\n\t<SLOT name=\"a\">\r\n</VARIANT_MESH>");
+            var editors = (IEditorManager)runner.ServiceProvider.GetService(typeof(IEditorManager))!;
+            Assert.That(editor.CanOpenAsText, Is.True);
+
+            editor.OpenAsTextCommand.Execute(null);
+
+            var open = editors.GetAllEditors().Single();
+            Assert.That(open, Is.InstanceOf<TextEditorViewModel<VariantMeshToXmlConverter>>());
+            Assert.That(((IFileEditor)open).CurrentFile, Is.SameAs(editor.CurrentFile));
+            Assert.That(Open(VmdFixtures.Unit).Editor.CanOpenAsText, Is.False);
         }
 
         // Show as XML

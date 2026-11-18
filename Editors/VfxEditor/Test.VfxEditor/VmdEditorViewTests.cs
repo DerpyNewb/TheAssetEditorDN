@@ -54,12 +54,18 @@ namespace Test.VfxEditor
         [Test, Apartment(ApartmentState.STA)]
         public void A_file_that_does_not_parse_shows_why_instead_of_a_grid()
         {
-            var (_, editor) = VmdEditorAppTests.Open("<VARIANT_MESH><SLOT name=\"a\"></VARIANT_MESH>");
+            var (runner, editor) = VmdEditorAppTests.Open("<VARIANT_MESH><SLOT name=\"a\"></VARIANT_MESH>");
             var (window, grid) = Host(editor);
             try
             {
                 Assert.That(grid.IsVisible, Is.False);
                 Assert.That(Descendants(window).OfType<TextBlock>().Any(t => t.IsVisible && t.Text.Contains("did not parse")), Is.True);
+
+                // Its button opens the file in the text editor in this tab's place.
+                var button = Descendants(window).OfType<Button>().Single(b => b.IsVisible && b.Content as string == "Open in text editor");
+                button.Command.Execute(button.CommandParameter);
+                var editors = (Shared.Core.ToolCreation.IEditorManager)runner.ServiceProvider.GetService(typeof(Shared.Core.ToolCreation.IEditorManager))!;
+                Assert.That(editors.GetAllEditors().Single(), Is.Not.SameAs(editor));
             }
             finally
             {
