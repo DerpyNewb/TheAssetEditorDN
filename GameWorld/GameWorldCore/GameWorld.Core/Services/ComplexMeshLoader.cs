@@ -166,7 +166,7 @@ namespace GameWorld.Core.Services
         Rmv2ModelNode LoadRigidMesh(ResolvedModelAsset asset, ref SceneNode? parent, AnimationPlayer player, string? attachmentPointName, bool onlyLoadRootNode)
         {
             var modelFullPath = _packFileService.GetFullPath(asset.GeometryFile);
-            var modelNode = new Rmv2ModelNode(Path.GetFileName(asset.GeometryFile.Name));
+            var modelNode = new Rmv2ModelNode(Path.GetFileName(asset.GeometryFile.Name)) { FilePath = modelFullPath };
             var lodNodes = _rmv2ModelNodeLoader.CreateModelNodesFromAsset(asset, modelFullPath, onlyLoadRootNode);
             foreach (var lodNode in lodNodes)
             {

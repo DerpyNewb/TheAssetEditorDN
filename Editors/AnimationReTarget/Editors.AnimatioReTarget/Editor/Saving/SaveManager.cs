@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Globalization;
+using System.IO;
 using CommonControls.SelectionListDialog;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -6,13 +7,16 @@ using Editors.AnimatioReTarget.Editor.BoneHandling;
 using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.ReferenceModel;
 using GameWorld.Core.Animation;
+using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Services;
+using Microsoft.Xna.Framework;
 using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
 using Shared.GameFormats.Animation;
 using Shared.GameFormats.AnimationPack;
+using Shared.GameFormats.RigidModel;
 using Shared.Ui.BaseDialogs.SelectionListDialog;
 using Shared.Ui.Common;
 
@@ -99,7 +103,105 @@ namespace Editors.AnimatioReTarget.Editor.Saving
                 var skeleton = _skeletonAnimationLookUpHelper.GetSkeletonFileFromName(animFile.Header.SkeletonName);
                 animFile.ConvertToVersion(Settings.AnimationFormat, skeleton, _pfs);
             }
+            // Renamed after the conversion, which looks the skeleton up by the header's name.
+            if (Settings.UseGeneratedSkeleton && !string.IsNullOrWhiteSpace(Settings.ScaledSkeletonName))
+                animFile.Header.SkeletonName = Settings.ScaledSkeletonName.Trim();
             return AnimationFile.ConvertToBytes(animFile);
+        }
+
+        /// <summary>The skeleton scale the generated animation is made at. Set by the editor.</summary>
+        public Func<float>? SkeletonScale { get; set; }
+
+        /// <summary>"_s" and the scale's digits: humanoid01_s15 is humanoid01 at 1.5.</summary>
+        public static string ScaleSuffix(float scale) => "_s" + scale.ToString(CultureInfo.InvariantCulture).Replace(".", "");
+
+        /// <summary>
+        /// Saves the target skeleton and every model loaded for it, the hidden dismemberment stumps too, at the skeleton scale, so
+        /// animations saved at that scale play on them in game. A saved animation keeps the scale only in its bone positions, so on the unscaled skeleton
+        /// the model's parts drift apart instead of growing. The skeleton and its .bone_inv_trans_mats go to animations\skeletons,
+        /// each model beside its original, all named with ScaleSuffix, and animations saved from then on name the new skeleton.
+        /// Returns the paths saved, or null when nothing was.
+        /// </summary>
+        public List<string>? ExportScaledMesh()
+        {
+            const string title = "Export at scale";
+            var scale = SkeletonScale?.Invoke() ?? 1;
+            var skeleton = _generated?.Skeleton;
+            var root = _generated?.ModelNode;
+            var models = root == null ? [] : SceneNodeHelper.GetChildrenOfType<Rmv2ModelNode>(root).Append(root as Rmv2ModelNode)
+                .Select(x => x?.FilePath).Where(x => !string.IsNullOrEmpty(x)).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var editablePack = _pfs.GetEditablePack();
+            var refusal = skeleton == null || models.Count == 0 ? "Pick a target model first."
+                : scale <= 0 || scale == 1 ? "Set a skeleton scale other than 1 first. At 1 the target's own skeleton and models already fit."
+                : editablePack == null ? "Select an editable pack first." : null;
+            if (refusal != null)
+            {
+                _standardDialogs.ShowDialogBox(refusal, title);
+                return null;
+            }
+
+            var suffix = ScaleSuffix(scale);
+            var name = skeleton!.SkeletonName + suffix;
+            var skeletonPath = $@"animations\skeletons\{name}.anim";
+            var invMatsPath = Path.ChangeExtension(skeletonPath, ".bone_inv_trans_mats");
+            var outputs = models.Select(x => (Source: x, Output: Path.Combine(Path.GetDirectoryName(x) ?? "", Path.GetFileNameWithoutExtension(x) + suffix + ".rigid_model_v2"))).ToList();
+            var paths = outputs.Select(x => x.Output).Prepend(invMatsPath).Prepend(skeletonPath).ToList();
+
+            var existing = paths.Count(x => _pfs.FindFile(x, editablePack) != null);
+            if (existing != 0 && _standardDialogs.ShowChoiceBox($"{existing} of the {paths.Count} files are already in your pack.", title, ["Overwrite them", "Cancel"]) != 0)
+                return null;
+
+            // Every model is scaled before anything is written, so one that cannot be leaves the pack as it was.
+            List<(string Output, byte[] Bytes)> scaled;
+            try
+            {
+                scaled = outputs.Select(x => (x.Output, ScaleModel(_pfs.FindFile(x.Source)?.DataSource.ReadData() ?? throw new FileNotFoundException($"{x.Source} is in no loaded pack"), scale, name))).ToList();
+            }
+            catch (Exception e)
+            {
+                _standardDialogs.ShowDialogBox($"Nothing was saved. {e.Message}", title);
+                return null;
+            }
+
+            var scaledSkeleton = skeleton.Clone();
+            for (var i = 0; i < scaledSkeleton.BoneCount; i++)
+                scaledSkeleton.Translation[i] *= scale;
+            scaledSkeleton.SkeletonName = name;
+            scaledSkeleton.RebuildSkeletonMatrix();
+
+            _saveService.Save(skeletonPath, AnimationFile.ConvertToBytes(AnimationClip.CreateSkeletonAnimation(scaledSkeleton).ConvertToFileFormat(scaledSkeleton)), false);
+            _saveService.Save(invMatsPath, scaledSkeleton.CreateInvMatrixFile().GetBytes(), false);
+            foreach (var (output, bytes) in scaled)
+                _saveService.Save(output, bytes, false);
+
+            Settings.UseGeneratedSkeleton = true;
+            Settings.ScaledSkeletonName = name;
+            _standardDialogs.ShowDialogBox($"Saved at {scale.ToString(CultureInfo.InvariantCulture)}x:\n{string.Join("\n", paths)}\n\nAnimations you save from now on name {name}. " +
+                $"Point the animation set (bin) at {name} and the variant mesh at the new models.", title);
+            return paths;
+        }
+
+        /// <summary>A .rigid_model_v2 with every vertex, bounding box and pivot scaled about the origin, naming the skeleton given.</summary>
+        public static byte[] ScaleModel(byte[] bytes, float scale, string skeletonName)
+        {
+            var file = ModelFactory.Create().Load(bytes);
+            var header = file.Header;
+            header.SkeletonName = skeletonName;
+            file.Header = header;
+            foreach (var model in file.ModelList.SelectMany(x => x))
+            {
+                if (model.Mesh.RawVertexData != null)
+                    throw new InvalidDataException($"{model.Material.ModelName} has a vertex layout AssetEditor cannot read, so it cannot be scaled.");
+                foreach (var vertex in model.Mesh.VertexList)
+                    vertex.Position = new Vector4(vertex.GetPosistionAsVec3() * scale, vertex.Position.W);
+
+                var common = model.CommonHeader;
+                var box = common.BoundingBox;
+                common.BoundingBox.UpdateBoundingBox(new BoundingBox(new Vector3(box.MinimumX, box.MinimumY, box.MinimumZ) * scale, new Vector3(box.MaximumX, box.MaximumY, box.MaximumZ) * scale));
+                model.CommonHeader = common;
+                model.Material.PivotPoint *= scale;
+            }
+            return ModelFactory.Create().Save(file);
         }
 
         [RelayCommand] void ShowSaveSettings()

@@ -55,18 +55,48 @@ namespace Test.E2EVerification
                 Foreground = (Brush)Application.Current.FindResource("Window.Static.Foreground"),
             };
 
-        [Test, Apartment(ApartmentState.STA), Explicit]
-        public void Render()
+        // The app, its dark theme and English text, which the real windows get from App.xaml. One per process.
+        static string Setup(AssetEditorTestRunner runner)
         {
             _ = System.IO.Packaging.PackUriHelper.UriSchemePack;
             var outDir = Environment.GetEnvironmentVariable("SCRATCH_OUT")!;
             Directory.CreateDirectory(outDir);
-            var runner = new AssetEditorTestRunner();
             var loc = (LocalizationManager)runner.ServiceProvider.GetService(typeof(LocalizationManager))!;
             loc.LoadLanguage("en");
             var app = new ScratchApp { ServiceProvider = runner.ServiceProvider, ShutdownMode = ShutdownMode.OnExplicitShutdown };
             foreach (var dict in new[] { "Themes/ColourDictionaries/DarkTheme.xaml", "Themes/ControlColours.xaml", "Themes/Controls.xaml" })
                 app.Resources.MergedDictionaries.Add((ResourceDictionary)Application.LoadComponent(new Uri($"/AssetEditor;component/{dict}", UriKind.Relative)));
+            return outDir;
+        }
+
+        // The retarget save window after Export at scale, and with Use scaled skeleton unticked.
+        [Test, Apartment(ApartmentState.STA), Explicit]
+        public void RenderRetargetSave()
+        {
+            var outDir = Setup(new AssetEditorTestRunner());
+            var settings = new Editors.AnimatioReTarget.Editor.Saving.SaveSettings
+            {
+                OutputPath = @"animations\battle\humanoid01e\2handed_hammer\stand\prefix_hu1_2hh_stand_idle_01.anim",
+                UseGeneratedSkeleton = true,
+                ScaledSkeletonName = "humanoid01e_s15",
+            };
+            var styled = new Editors.AnimatioReTarget.Editor.Saving.SaveWindow(settings);
+            var content = styled.Content;
+            styled.Content = null;
+            var window = Offscreen(content, 800, 250);
+            window.DataContext = settings;
+            window.Show();
+            Save(window, Path.Combine(outDir, "retarget_save.png"));
+            settings.UseGeneratedSkeleton = false;
+            Save(window, Path.Combine(outDir, "retarget_save_unticked.png"));
+            window.Close();
+        }
+
+        [Test, Apartment(ApartmentState.STA), Explicit]
+        public void Render()
+        {
+            var runner = new AssetEditorTestRunner();
+            var outDir = Setup(runner);
 
             runner.CreateCaContainer();
             runner.LoadPackFile(PathHelper.GetDataFile("Throt.pack"), true);
