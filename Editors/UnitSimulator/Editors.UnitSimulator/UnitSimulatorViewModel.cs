@@ -206,11 +206,12 @@ namespace Editors.UnitSimulator
             return _lengths[path] = length;
         }
 
-        // The mount slot's RIDER_* tags. Only RIDER_IDLE_SPEED_SCALE has a decoded field, and AnimationPlayer has no rate to apply it
-        // with, so none is acted out (spec section 4).
+        // The mount slot's RIDER_* tags. Only RIDER_IDLE_SPEED_SCALE has a decoded field. AnimationPlayer.Speed could play it since
+        // 58b15cde, but what the game does with it (which rider clip, and whether the factor multiplies or replaces) is unmeasured,
+        // and a guessed preview would mislead whoever tunes a mount against it. So none is acted out (spec section 4).
         static IEnumerable<string> RiderTags(ParsedMetadataFile? meta) =>
             (meta?.Attributes ?? []).Where(x => x.Name.StartsWith("RIDER_", StringComparison.Ordinal)).Select(x => x is RiderIdleSpeedScale scale
-                ? $"{x.Name} {scale.AnimationSpeedScale}: not applied, the preview cannot change one part's speed"
+                ? $"{x.Name} {scale.AnimationSpeedScale}: not applied, what the game does with it is not measured yet"
                 : $"{x.Name}: listed, its fields are not decoded");
 
         public string[] PartNames { get; } = ["Rider", "Mount"];
