@@ -1,5 +1,8 @@
 using System.IO;
+using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 using Shared.GameFormats.DB;
+using Test.TestingUtility.Shared;
 
 namespace Test.UnitSimulator
 {
@@ -9,7 +12,7 @@ namespace Test.UnitSimulator
         const string CasketRider = "wh2_dlc09_tmb_casket_of_souls_rider1";
 
         // A v12 battle_personalities row: key, table, variant, battle_entity, battle_entity_stats and the three flags.
-        static object[] Row(string key) => [key, "hu1_test_table", "derpy_test_variant", "", "", false, true, false];
+        static object[] Row(string key, string variant = "derpy_test_variant") => [key, "hu1_test_table", variant, "", "", false, true, false];
 
         // The counts tools/read_vanilla_db.py gives for CA's 9.0 db.pack.
         [Test]
@@ -57,17 +60,47 @@ namespace Test.UnitSimulator
             Assert.That(e!.Message, Does.Contain("v99").And.Contain("test/derpy_v99"));
         }
 
+        // A mod's row beats CA's although derpy_ sorts after data__ (measured in game 2026-11-18).
         [Test]
-        public void AKeyInTwoPacks_IsKeptOncePerFile_WithItsSource()
+        public void AKeyInTwoPacks_IsKeptOncePerFile_WithItsSource_TheModsCopyFirst()
         {
-            var runner = VanillaGame.Load(withDb: true);
+            var runner = VanillaGame.Load(asCaPacks: true, withDb: true);
             MadeUpDb.AddPack(runner, "derpy_test_mod", Personalities, "derpy_test_personalities", MadeUpDb.File(Personalities, 12, Row(CasketRider)));
 
             var copies = DbTables.Read(runner.PackFileService, Personalities).Where(x => x.Text("key") == CasketRider).ToList();
 
-            Assert.That(copies.Select(x => x.File), Is.EqualTo(new[] { "db/battle_personalities_tables/data__", "db/battle_personalities_tables/derpy_test_personalities" }));
-            Assert.That(copies[1].Pack, Is.EqualTo("derpy_test_mod"));
-            Assert.That(copies[1].Text("variant"), Is.EqualTo("derpy_test_variant"));
+            Assert.That(copies.Select(x => x.File), Is.EqualTo(new[] { "db/battle_personalities_tables/derpy_test_personalities", "db/battle_personalities_tables/data__" }));
+            Assert.That(copies[0].Pack, Is.EqualTo("derpy_test_mod"));
+            Assert.That(copies[0].Text("variant"), Is.EqualTo("derpy_test_variant"));
+        }
+
+        // The in-game test of 2026-11-18 (docs/MOD_STRUCTURE.md, "Which copy of a DB row wins"), with the variant column marking
+        // each copy. The packs load in the opposite order to their names: the mod list is not known, so the names rank them.
+        [Test]
+        public void TheCopyTheGameKeeps_ComesFirst()
+        {
+            var runner = new AssetEditorTestRunner();
+            Pack(runner, "zzz_dbtest_z", ("aaa_dbtest_cross", [Row("u2", "z_aaa")]), ("dbtest_samepath", [Row("u4", "z_samepath"), Row("u5", "z_samepath")]));
+            Pack(runner, "!!dbtest_a", ("aaa_dbtest_samepack", [Row("u1", "a_aaa")]), ("zzz_dbtest_samepack", [Row("u1", "a_zzz")]),
+                ("zzz_dbtest_cross", [Row("u2", "a_zzz")]), ("dbtest_samepath", [Row("u4", "a_samepath")]));
+
+            var rows = DbTables.Read(runner.PackFileService, Personalities);
+            string[] Copies(string key) => [.. rows.Where(x => x.Text("key") == key).Select(x => x.Text("variant"))];
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Copies("u1"), Is.EqualTo(new[] { "a_aaa", "a_zzz" }), "in one pack, the file whose name sorts first");
+                Assert.That(Copies("u2"), Is.EqualTo(new[] { "z_aaa", "a_zzz" }), "the file's name decides, not its pack's");
+                Assert.That(Copies("u4"), Is.EqualTo(new[] { "a_samepath" }), "one path in two packs: the first pack keeps its whole file");
+                Assert.That(Copies("u5"), Is.Empty, "and the other pack's rows at that path are gone");
+            });
+        }
+
+        static void Pack(AssetEditorTestRunner runner, string name, params (string File, object[][] Rows)[] files)
+        {
+            var pack = runner.CreateEmptyPackFile(name, false);
+            runner.PackFileService.AddFilesToPack(pack,
+                [.. files.Select(x => new NewPackFileEntry(@"db\" + Personalities, PackFile.CreateFromBytes(x.File, MadeUpDb.File(Personalities, 12, x.Rows))))]);
         }
     }
 }
