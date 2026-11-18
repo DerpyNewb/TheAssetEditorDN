@@ -424,6 +424,8 @@
     "SkeletonEditor.Settings.WorldTransforms":  "World transforms",
     "SkeletonEditor.Settings.IsTechSkeleton":  "Is Tech skeleton",
     "SkeletonEditor.SelectedBoneGroupHeader":  "Selected bone:",
+    "SkeletonEditor.SelectedBone.Parent": "Parent",
+    "SkeletonEditor.SelectedBone.ParentTooltip": "Place l'os sous un autre sans le déplacer. Seuls les os listés avant lui peuvent être son parent : aucun os n'est renuméroté et les animations de ce squelette restent valides.",
     "SkeletonEditor.SelectedBone.Name":  "Name",
     "SkeletonEditor.SelectedBone.Translation":  "Translation",
     "SkeletonEditor.SelectedBone.Rotation":  "Rotation",

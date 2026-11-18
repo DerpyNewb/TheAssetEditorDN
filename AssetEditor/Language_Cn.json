@@ -443,6 +443,8 @@
   "SkeletonEditor.Settings.WorldTransforms": "世界变换",
   "SkeletonEditor.Settings.IsTechSkeleton": "是否为技术 Skeleton",
   "SkeletonEditor.SelectedBoneGroupHeader": "选中骨骼:",
+  "SkeletonEditor.SelectedBone.Parent": "父骨骼",
+  "SkeletonEditor.SelectedBone.ParentTooltip": "将骨骼移到另一骨骼下，位置不变。只有排在它之前的骨骼可以做父骨骼，这样不会重新编号，该骨架的动画仍然可用。",
   "SkeletonEditor.SelectedBone.Name": "名称",
   "SkeletonEditor.SelectedBone.Translation": "位移",
   "SkeletonEditor.SelectedBone.Rotation": "旋转",

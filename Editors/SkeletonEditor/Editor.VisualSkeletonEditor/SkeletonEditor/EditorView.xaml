@@ -147,6 +147,11 @@
                 <mathviews:Vector3View Grid.Row="2" Grid.Column="3" VerticalContentAlignment="Center" Vector3="{Binding SelectedBoneRotationOffset, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
 
 
+                <Label      Grid.Row="3" Grid.Column="0" Content="{loc:Loc SkeletonEditor.SelectedBone.Parent}"/>
+                <Label      Grid.Row="3" Grid.Column="1" Content=":"/>
+                <ComboBox   Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" ItemsSource="{Binding ParentChoices}" SelectedItem="{Binding SelectedBoneParent, Mode=TwoWay}" Margin="2"
+                            ToolTip="{loc:Loc SkeletonEditor.SelectedBone.ParentTooltip}"/>
+
                 <Label      Grid.Row="4" Grid.Column="0" Content="{loc:Loc SkeletonEditor.SelectedBone.LengthScale}"/>
                 <Label      Grid.Row="4" Grid.Column="1" Content=":"/>
                 <DockPanel Grid.Row="4" Grid.Column="2">

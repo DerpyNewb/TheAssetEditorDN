@@ -443,6 +443,8 @@
   "SkeletonEditor.Settings.WorldTransforms": "World transforms",
   "SkeletonEditor.Settings.IsTechSkeleton": "Is Tech skeleton",
   "SkeletonEditor.SelectedBoneGroupHeader": "Selected bone:",
+  "SkeletonEditor.SelectedBone.Parent": "Parent",
+  "SkeletonEditor.SelectedBone.ParentTooltip": "Move the bone under another, keeping it where it is. Only bones listed before it can be its parent, so no bone is renumbered and animations made for this skeleton still fit.",
   "SkeletonEditor.SelectedBone.Name": "Name",
   "SkeletonEditor.SelectedBone.Translation": "Translation",
   "SkeletonEditor.SelectedBone.Rotation": "Rotation",
