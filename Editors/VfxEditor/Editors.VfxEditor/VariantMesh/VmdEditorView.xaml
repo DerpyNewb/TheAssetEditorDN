@@ -359,8 +359,11 @@
             </DataGrid>
 
             <!-- A file the grid cannot read says why, and where to open it instead. -->
-            <TextBlock Text="{Binding LoadError}" Visibility="{Binding HasLoadError, Converter={StaticResource BoolToVis}}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" TextAlignment="Center"/>
+            <StackPanel Visibility="{Binding HasLoadError, Converter={StaticResource BoolToVis}}" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+                <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" TextAlignment="Center"/>
+                <Button Content="Open in text editor" Command="{Binding OpenAsTextCommand}" Padding="8,2" Margin="0,8,0,0"
+                        HorizontalAlignment="Center" Visibility="{Binding CanOpenAsText, Converter={StaticResource BoolToVis}}"/>
+            </StackPanel>
 
             <!-- The empty state: a file with no slots says how to start one. -->
             <TextBlock Text="This file has no slots yet. Add slot starts one, and Paste takes slots copied from another file or the text editor."

@@ -24,6 +24,7 @@ using Shared.Core.Services;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.ToolCreation;
+using Shared.Ui.Editors.TextEditor;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
 using Vector3 = Microsoft.Xna.Framework.Vector3;
@@ -224,6 +225,7 @@ namespace Test.VfxEditor
             var editor = Open(runner, null);
             Assert.That((editor.Tree.Count, editor.CurrentFile), Is.EqualTo((0, (PackFile?)null)));
             Assert.That(editor.LoadError, Does.Contain("Open"));
+            Assert.That(editor.CanOpenAsText, Is.False, "no file to open as text");
 
             editor.OpenFileCommand.Execute(null);
             Assert.That((editor.DisplayName, editor.Tree.Count, editor.HasLoadError, editor.CurrentFile), Is.EqualTo(("fx.xml", 5, false, file)));
@@ -233,6 +235,41 @@ namespace Test.VfxEditor
             runner.Dialogs.Setup(x => x.ShowYesNoBox(It.IsAny<string>(), It.IsAny<string>())).Returns(ShowMessageBoxResult.Cancel);
             editor.OpenFileCommand.Execute(null);
             Assert.That((editor.HasUnsavedChanges, editor.Rows.Single(r => r.Label == "A").Value), Is.EqualTo((true, "2")));
+        }
+
+        // A file that does not parse says why, and the button under the message opens it in the text editor in this tab's
+        // place. Opened from Tools, the tab is on screen before Open picks the file, so the button has to appear then.
+        [Test, Apartment(ApartmentState.STA)]
+        public void A_file_that_does_not_parse_opens_in_the_text_editor_in_its_place()
+        {
+            var runner = new AssetEditorTestRunner();
+            var source = runner.CreateEmptyPackFile("source", false);
+            runner.PackFileService.AddFilesToPack(source, [new NewPackFileEntry("vfx", PackFile.CreateFromBytes("fx.xml", Fixtures.Utf16("<vfx><emitters>")))]);
+            var file = runner.PackFileService.FindFile("vfx\\fx.xml")!;
+            runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>())).Returns(new BrowseDialogResultFile(true, file));
+            var editors = (IEditorManager)runner.ServiceProvider.GetService(typeof(IEditorManager))!;
+
+            var editor = Open(runner, null);
+            var view = new VfxEditorView { DataContext = editor };
+            // Laid out as the tab lays it out: a collapsed button has no width.
+            Button Shown()
+            {
+                view.Measure(new Size(1600, 900));
+                view.Arrange(new Rect(0, 0, 1600, 900));
+                view.UpdateLayout();
+                return Descendants(view).OfType<Button>().Single(b => b.Content as string == "Open in text editor");
+            }
+            Assert.That(Shown().ActualWidth, Is.Zero, "no file yet");
+
+            editor.OpenFileCommand.Execute(null);
+            Assert.That(editor.LoadError, Does.Contain("did not parse").And.Contain("Open in text editor"));
+            var button = Shown();
+            Assert.That(button.ActualWidth, Is.GreaterThan(0), "shown once the file is open");
+            button.Command.Execute(button.CommandParameter);
+
+            var open = editors.GetAllEditors().Single();
+            Assert.That(open, Is.InstanceOf<TextEditorViewModel<DefaultTextConverter>>());
+            Assert.That(((IFileEditor)open).CurrentFile, Is.SameAs(editor.CurrentFile));
         }
 
         // A model picked as a guide stands where the effect is: at the origin standing still, along the flight when the
