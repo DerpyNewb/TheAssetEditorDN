@@ -122,6 +122,7 @@ namespace Editors.AnimatioReTarget.Editor
             Rendering.SetSceneNodes(source.Data, target.Data, generated.Data);
             SaveManager.SetSceneNodes(source.Data, target.Data, generated.Data);
             SaveManager.Remap = UpdateAnimation;
+            SaveManager.SkeletonScale = () => Settings.SkeletonScale;
             OffsetHandle.Follow(generated.Data, () => Settings.SkeletonScale);
             // Another source animation is retargeted with the mapping and settings already made.
             _source.AnimationChanged += _ => ScheduleUpdate();

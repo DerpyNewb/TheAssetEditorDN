@@ -37,9 +37,18 @@
         }
 
 
+        /// <summary>The .rigid_model_v2 this was loaded from, in the pack. Empty for a model built in the editor.</summary>
+        public string FilePath { get; set; } = "";
+
         protected Rmv2ModelNode() { }
 
         public override ISceneNode CreateCopyInstance() => new Rmv2ModelNode();
+
+        public override void CopyInto(ISceneNode target)
+        {
+            ((Rmv2ModelNode)target).FilePath = FilePath;
+            base.CopyInto(target);
+        }
     }
 }
 

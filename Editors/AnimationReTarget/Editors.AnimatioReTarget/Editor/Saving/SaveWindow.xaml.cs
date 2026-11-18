@@ -26,6 +26,8 @@ namespace Editors.AnimatioReTarget.Editor.Saving
             Close();
         }
 
+        private void ExportScaledMeshClick(object sender, RoutedEventArgs e) => _saveManager.ExportScaledMesh();
+
         private void BatchExportClick(object sender, RoutedEventArgs e)
         {
             Close();
