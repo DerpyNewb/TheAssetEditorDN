@@ -337,6 +337,7 @@
   "UnitSimulator.Pane.MountMeta": "坐骑元数据",
   "UnitSimulator.Pane.RiderMeta": "骑手元数据",
   "UnitSimulator.Pane.Table": "表",
+  "UnitSimulator.Pane.Bake": "烘焙",
 
   "AnimationPlayer.Toggle": "动画",
   "AnimationPlayer.MainAnimation": "主动画:",

@@ -320,7 +320,7 @@ namespace Test.UnitSimulator
             AssertDefaultLayout(shown);
         }
 
-        static readonly string[] SimulatorPanes = ["Pairing", "Personalities", "MountMeta", "RiderMeta", "Table"];
+        static readonly string[] SimulatorPanes = ["Pairing", "Personalities", "MountMeta", "RiderMeta", "Table", "Bake"];
 
         static IEnumerable<string> PaneIds(Shown shown) => shown.Dock.Layout.Descendents().OfType<LayoutAnchorable>().Select(x => x.ContentId);
 
@@ -397,7 +397,7 @@ namespace Test.UnitSimulator
             using var shown = Show(Open());
             var panels = MenuNamed(shown, "PanelsMenu");
             panels.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent));
-            Assert.That(panels.Items.OfType<MenuItem>().Select(x => (string)x.Header), Is.SupersetOf(new[] { "UnitSimulator.Pane.Pairing", "UnitSimulator.Pane.Personalities", "UnitSimulator.Pane.MountMeta", "UnitSimulator.Pane.RiderMeta", "UnitSimulator.Pane.Table" }), "the titles are loc keys, which a test prints as themselves");
+            Assert.That(panels.Items.OfType<MenuItem>().Select(x => (string)x.Header), Is.SupersetOf(new[] { "UnitSimulator.Pane.Pairing", "UnitSimulator.Pane.Personalities", "UnitSimulator.Pane.MountMeta", "UnitSimulator.Pane.RiderMeta", "UnitSimulator.Pane.Table", "UnitSimulator.Pane.Bake" }), "the titles are loc keys, which a test prints as themselves");
         }
 
         // A part is taller than a small share; scrolled by whole parts, the list could only show its top. By pixel, its end is reached.

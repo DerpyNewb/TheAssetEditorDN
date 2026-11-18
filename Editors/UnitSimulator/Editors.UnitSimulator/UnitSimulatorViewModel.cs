@@ -53,6 +53,7 @@ namespace Editors.UnitSimulator
             new("MountMeta", "UnitSimulator.Pane.MountMeta", typeof(Views.MetaView), MountMeta),
             new("RiderMeta", "UnitSimulator.Pane.RiderMeta", typeof(Views.MetaView), RiderMeta),
             new("Table", "UnitSimulator.Pane.Table", typeof(Views.TableView), this),
+            new("Bake", "UnitSimulator.Pane.Bake", typeof(Views.BakeView), Bake),
         ];
         public override global::Shared.Core.ToolCreation.EditorEnums LayoutKey => global::Shared.Core.ToolCreation.EditorEnums.UnitSimulator_Editor;
 
@@ -62,6 +63,8 @@ namespace Editors.UnitSimulator
         public PersonalityList Personalities { get; }
         public PartMeta MountMeta { get; }
         public PartMeta RiderMeta { get; }
+        /// <summary>The rider's table baked onto this mount.</summary>
+        public Bake.RiderBakePanel Bake { get; }
 
         [ObservableProperty] ObservableCollection<PairRow> _pairs = [];
         [ObservableProperty] ObservableCollection<string> _riderOnlySlots = [];
@@ -97,6 +100,7 @@ namespace Editors.UnitSimulator
             RiderMeta.UnsavedChanged += () => OnPropertyChanged(nameof(HasUnsavedChanges));
 
             Rider.FragAndSlotSelection.FragmentList.SelectedItemChanged += OnRiderTableChanged;
+            Bake = new Bake.RiderBakePanel(pfs, fileSaver, SceneObjectEditor, services.GetService<GameWorld.Core.Components.Selection.SelectionManager>(), Mount, Rider);
             Mount.FragAndSlotSelection.FragmentList.SelectedItemChanged += _ => RefreshPairs();
             Mount.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += OnMountSlotChanged;
             Rider.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += _ => LoadSlotFields();

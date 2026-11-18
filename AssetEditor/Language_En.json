@@ -337,6 +337,7 @@
   "UnitSimulator.Pane.MountMeta": "Mount meta",
   "UnitSimulator.Pane.RiderMeta": "Rider meta",
   "UnitSimulator.Pane.Table": "Table",
+  "UnitSimulator.Pane.Bake": "Bake",
 
   "AnimationPlayer.Toggle": "Animation",
   "AnimationPlayer.MainAnimation": "Main animation:",

@@ -322,6 +322,7 @@
   "UnitSimulator.Pane.MountMeta": "Méta de la monture",
   "UnitSimulator.Pane.RiderMeta": "Méta du cavalier",
   "UnitSimulator.Pane.Table": "Table",
+  "UnitSimulator.Pane.Bake": "Bake",
     "AnimationPlayer.Toggle":  "Animation",
     "AnimationPlayer.MainAnimation":  "Main animation:",
     "AnimationPlayer.FrameLabel":  "Frame ",
