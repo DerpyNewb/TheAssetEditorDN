@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Editors.ImportExport.Exporting.Exporters.DdsToMaterialPng;
@@ -275,11 +275,8 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers
 
                 if (exportedPath != null)
                 {
-                    // Invert the mask values for proper alpha channel usage
-                    // Game masks are often inverted (black=show, white=hide)
-                    // Alpha channels need (black=transparent, white=opaque)
-                    if (File.Exists(exportedPath))
-                        InvertMaskImage(exportedPath);
+                    // Raw, as the game reads it: R, G and B weight faction colours 1 to 3, black is untinted. An inverted copy
+                    // went back into the game wrong once edited, and the mask is not an alpha channel.
 
                     // Rename to have _mask suffix
                     var directory = Path.GetDirectoryName(exportedPath) ?? string.Empty;
@@ -304,37 +301,6 @@ namespace Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers
             // it as BaseColor: doing so would replace the actual diffuse/base-
             // colour image when both textures are present. The converted PNG
             // remains available at the cached path for manual downstream use.
-        }
-
-        private void InvertMaskImage(string imagePath)
-        {
-            byte[] imageBytes;
-
-            // Load image into memory to avoid file lock
-            using (var fs = File.OpenRead(imagePath))
-            using (var ms = new MemoryStream())
-            {
-                fs.CopyTo(ms);
-                imageBytes = ms.ToArray();
-            }
-
-            // Process the image from memory
-            using var imageStream = new MemoryStream(imageBytes);
-            using var image = System.Drawing.Image.FromStream(imageStream);
-            using var bitmap = new System.Drawing.Bitmap(image);
-            var pixels = BitmapPixelBuffer.ReadBgra(bitmap);
-
-            // Invert all pixel values (255 - value)
-            for (var index = 0; index < pixels.Length; index += 4)
-            {
-                pixels[index] = (byte)(255 - pixels[index]);
-                pixels[index + 1] = (byte)(255 - pixels[index + 1]);
-                pixels[index + 2] = (byte)(255 - pixels[index + 2]);
-            }
-
-            BitmapPixelBuffer.WriteBgra(bitmap, pixels);
-            // Save back to the same file
-            bitmap.Save(imagePath, System.Drawing.Imaging.ImageFormat.Png);
         }
 
         private void DoTextureConversionNormalMap(RmvToGltfExporterSettings settings, List<TextureResult> output, GltfTextureExportSession session, int meshIndex, MaterialBuilderTextureInput text)

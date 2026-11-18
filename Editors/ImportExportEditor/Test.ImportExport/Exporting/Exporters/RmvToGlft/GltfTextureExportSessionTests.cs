@@ -202,6 +202,42 @@ public class GltfTextureExportSessionTests
         }
     }
 
+    // The mask's R, G and B weight faction colours 1 to 3, as the game reads them. It used to be inverted on export, so an edited
+    // copy went back into the game with every tint area swapped. The exported file must be the decoded mask, untouched.
+    [Test]
+    public void MaskIsExportedAsTheGameStoresIt()
+    {
+        var outputDirectory = Path.Combine(Path.GetTempPath(), $"asset-editor-textures-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outputDirectory);
+        var baseColourPath = Path.Combine(outputDirectory, "body_base_colour.png");
+        var maskPath = Path.Combine(outputDirectory, "body_mask.png");
+        File.WriteAllBytes(baseColourPath, OnePixelPng);
+        File.WriteAllBytes(maskPath, OnePixelPng);
+
+        try
+        {
+            var materialExporter = new Mock<IDdsToMaterialPngExporter>();
+            materialExporter
+                .Setup(x => x.Export(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+                .Returns((string source, string output, bool convertToBlender) =>
+                    source.EndsWith("base_colour.dds", StringComparison.OrdinalIgnoreCase) ? baseColourPath : maskPath);
+            var handler = new GltfTextureHandler(new Mock<IDdsToNormalPngExporter>().Object, materialExporter.Object);
+            var asset = CreateTexturedAsset("textures/body_base_colour.dds", "textures/body_mask.dds");
+            var settings = new RmvToGltfExporterSettings(asset.InputFile, [], Path.Combine(outputDirectory, "model.glb"), true, false, false, false, false);
+
+            handler.HandleTextures(asset, settings, new GltfTextureExportSession(collisionSafe: false));
+
+            var exportedMask = Path.Combine(outputDirectory, "body_mask_mask.png");
+            Assert.That(File.Exists(exportedMask), Is.True);
+            Assert.That(File.ReadAllBytes(exportedMask), Is.EqualTo(OnePixelPng), "the mask was changed on its way out");
+        }
+        finally
+        {
+            if (Directory.Exists(outputDirectory))
+                Directory.Delete(outputDirectory, recursive: true);
+        }
+    }
+
     private static ResolvedModelAsset CreateAsset(string firstTexture, string secondTexture)
     {
         var firstModel = CreateModel("first", firstTexture);

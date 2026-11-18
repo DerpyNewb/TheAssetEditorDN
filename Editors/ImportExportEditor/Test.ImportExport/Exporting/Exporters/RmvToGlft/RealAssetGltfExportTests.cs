@@ -63,7 +63,8 @@ public class RealAssetGltfExportTests
             "The selected tracked base-colour and converted auxiliary mask fixtures must differ for this regression test.");
 
         // BaseColor is emitted for every effective BaseColour/Diffuse texture,
-        // while masks are exported as auxiliary PNGs and inverted in RGB.
+        // while masks are exported as auxiliary PNGs. Masks were once inverted on export; the inverted
+        // form is still checked so neither form can stand in for a BaseColor.
         // Keep the complete expected sets so a bad material binding cannot be
         // hidden by another part's correctly exported texture.
         var expectedBaseColours = asset.FirstLod
