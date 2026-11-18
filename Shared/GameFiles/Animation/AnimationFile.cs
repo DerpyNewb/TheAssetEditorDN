@@ -343,6 +343,10 @@ namespace Shared.GameFormats.Animation
                         animationPart.DynamicFrames.Add(frame);
                     }
                 }
+                else
+                {
+                    animationPart.PoseFrameCount = (int)frame_count;
+                }
 
                 output.Add(animationPart);
             }
@@ -413,8 +417,8 @@ namespace Shared.GameFormats.Animation
 
         static byte[] ConvertToBytesInvernal(AnimationFile input)
         {
-            if (input.AnimationParts.Count != 1 || input.Header.Version == 8)
-                throw new Exception("Animations with multiple parts or version 8 can not be saved!");
+            if (input.AnimationParts.Count != 1 && input.Header.Version != 8)
+                throw new Exception($"Only version 8 animations can hold more than one part; this one is version {input.Header.Version} with {input.AnimationParts.Count}.");
 
             using var memoryStream = new MemoryStream();
             using var writer = new BinaryWriter(memoryStream);
@@ -427,7 +431,8 @@ namespace Shared.GameFormats.Animation
             for (var i = 0; i < input.Header.SkeletonName.Length; i++)
                 writer.Write(input.Header.SkeletonName[i]);
 
-            if (input.Header.Version == 7 || input.Header.Version == 6)
+            // As the reader: flags from version 7 on. Version 6 has none.
+            if (input.Header.Version > 6)
             {
                 writer.Write(input.Header.FlagCount);
                 foreach (var flag in input.Header.FlagVariables)
@@ -445,6 +450,12 @@ namespace Shared.GameFormats.Animation
                 for (var i = 0; i < bone.Name.Length; i++)
                     writer.Write(bone.Name[i]);
                 writer.Write(bone.ParentId);
+            }
+
+            if (input.Header.Version == 8)
+            {
+                WriteAnimationParts_v8(writer, input);
+                return memoryStream.ToArray();
             }
 
             foreach (var animationPart in input.AnimationParts)
@@ -491,6 +502,77 @@ namespace Shared.GameFormats.Animation
 
             return memoryStream.ToArray();
         }
+
+        // Version 8 at full precision: every track is written as CA's uncompressed encodings (translation 12, rotation 8; negative
+        // for a static track), so the range maps are empty. A ranged (3/4) track CA shipped is decoded on load and comes back as
+        // the uncompressed encoding of the same value, larger but not lossy beyond the 1/32767 rotation step.
+        // ponytail: no ranged encoder; add one if file size matters.
+        static void WriteAnimationParts_v8(BinaryWriter writer, AnimationFile input)
+        {
+            const sbyte Translation = 12;
+            const sbyte Rotation = 8;
+            var boneCount = input.Bones.Length;
+
+            writer.Write(input.Header.UnknownValue_v8);
+            writer.Write((uint)input.AnimationParts.Count);
+
+            foreach (var part in input.AnimationParts)
+            {
+                if (part.TranslationMappings.Count != boneCount || part.RotationMappings.Count != boneCount)
+                    throw new Exception($"An animation part maps {part.TranslationMappings.Count} translations and {part.RotationMappings.Count} rotations for {boneCount} bones.");
+
+                // Tracks go out in bone order, because the reader numbers them that way: the n-th dynamic bone reads the n-th value.
+                var dynamicT = new List<int>();
+                var dynamicR = new List<int>();
+                var staticT = new List<int>();
+                var staticR = new List<int>();
+                for (var bone = 0; bone < boneCount; bone++)
+                {
+                    var t = part.TranslationMappings[bone];
+                    writer.Write(t.IsStatic ? (sbyte)-Translation : t.IsDynamic ? Translation : (sbyte)0);
+                    if (t.IsStatic) staticT.Add(t.Id); else if (t.IsDynamic) dynamicT.Add(t.Id);
+                }
+                for (var bone = 0; bone < boneCount; bone++)
+                {
+                    var r = part.RotationMappings[bone];
+                    writer.Write(r.IsStatic ? (sbyte)-Rotation : r.IsDynamic ? Rotation : (sbyte)0);
+                    if (r.IsStatic) staticR.Add(r.Id); else if (r.IsDynamic) dynamicR.Add(r.Id);
+                }
+
+                writer.Write(0u);   // range map translations
+                writer.Write(0u);   // range map quaternions
+
+                writer.Write((uint)staticT.Count);
+                writer.Write((uint)staticR.Count);
+                if (staticT.Count != 0 || staticR.Count != 0)
+                {
+                    if (part.StaticFrame == null)
+                        throw new Exception("An animation part maps static tracks but has no static frame.");
+                    WriteFrame(writer, SelectTracks(part.StaticFrame, staticT, staticR));
+                }
+
+                writer.Write((uint)dynamicT.Count);
+                writer.Write((uint)dynamicR.Count);
+                if (dynamicT.Count != 0 || dynamicR.Count != 0)
+                {
+                    if (part.DynamicFrames.Count == 0)
+                        throw new Exception("An animation part maps dynamic tracks but has no frames.");
+                    writer.Write((uint)part.DynamicFrames.Count);
+                    foreach (var frame in part.DynamicFrames)
+                        WriteFrame(writer, SelectTracks(frame, dynamicT, dynamicR));
+                }
+                else
+                {
+                    writer.Write((uint)part.PoseFrameCount);
+                }
+            }
+        }
+
+        static Frame SelectTracks(Frame frame, List<int> translations, List<int> rotations) => new()
+        {
+            Transforms = translations.Select(id => frame.Transforms[id]).ToList(),
+            Quaternion = rotations.Select(id => frame.Quaternion[id]).ToList(),
+        };
 
         public static byte[] ConvertToBytes(AnimationFile input)
         {
