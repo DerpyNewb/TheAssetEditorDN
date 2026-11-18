@@ -24,6 +24,7 @@ namespace Editors.Shared.Core.Common.ReferenceModel
 
         [ObservableProperty] FilterCollection<IAnimationBinGenericFormat> _fragmentList;
         [ObservableProperty] FilterCollection<AnimationBinEntryGenericFormat> _fragmentSlotList;
+        [ObservableProperty] FilterCollection<AnimationReference> _animationList;
         [ObservableProperty] string? _metaDataName;
         [ObservableProperty] string? _metaDataPersistName;
         [ObservableProperty] string? _animationFileName;
@@ -44,6 +45,11 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             {
                 SearchFilter = (value, rx) => { return rx.Match(value.SlotName).Success; }
             };
+            AnimationList = new FilterCollection<AnimationReference>(null, PlayAnimation)
+            {
+                IsPlainTextFilter = true,
+                SearchFilter = (value, rx) => rx.Match(value.AnimationFile).Success
+            };
 
             OnSkeletonChange(_sceneObject.Skeleton);
             _sceneObject.SkeletonChanged += OnSkeletonChange;
@@ -60,17 +66,20 @@ namespace Editors.Shared.Core.Common.ReferenceModel
         {
             FragmentList.SelectedItem = null;
             FragmentSlotList.SelectedItem = null;
+            AnimationList.SelectedItem = null;
 
             if (newValue == null)
             {
                 FragmentList.UpdatePossibleValues(null);
                 FragmentSlotList.UpdatePossibleValues(null);
+                AnimationList.UpdatePossibleValues(null);
                 return;
             }
 
             var skeletonName = Path.GetFileNameWithoutExtension(_sceneObject.SkeletonName.Value);
             var allPossibleFragments = LoadFragmentsForSkeleton(skeletonName);
             FragmentList.UpdatePossibleValues(allPossibleFragments);
+            AnimationList.UpdatePossibleValues(_skeletonAnimationLookUpHelper.CopyAnimationsForSkeleton(skeletonName).OrderBy(x => x.AnimationFile));
         }
 
         List<IAnimationBinGenericFormat> LoadFragmentsForSkeleton(string skeletonName) => AnimationSets.ForSkeleton(_pfs, skeletonName);
@@ -92,6 +101,16 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             }
 
             animationSlotsCollection.UpdatePossibleValues(value.Entries);
+        }
+
+        /// <summary>Plays any animation made for the model's skeleton, with the .anm.meta beside it when there is one, without picking
+        /// a set and a slot first (upstream #263). A set that is picked still gives it its persistent meta.</summary>
+        public void PlayAnimation(AnimationReference? animation)
+        {
+            if (animation == null)
+                return;
+            var meta = Path.ChangeExtension(animation.AnimationFile, ".anm.meta");
+            PlaySlot(new AnimationBinEntryGenericFormat { SlotName = "", AnimationFile = animation.AnimationFile, MetaFile = _pfs.FindFile(meta) != null ? meta : "" });
         }
 
         /// <summary>Plays a slot's animation and metas on the scene object. Picking a slot calls it; SuperView's Preview calls it with

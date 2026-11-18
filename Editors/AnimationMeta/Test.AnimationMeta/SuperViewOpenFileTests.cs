@@ -52,6 +52,26 @@ namespace Test.AnimationMeta
             Assert.That(superView.MetaEditor.Tags, Is.Not.Empty);
         }
 
+        // Any animation made for the skeleton plays with no set or slot picked, with the .anm.meta beside it (upstream #263).
+        [Test]
+        public void VariantMesh_PlaysAnyAnimationOfItsSkeleton_WithoutASetOrSlot()
+        {
+            var vmd = _runner.PackFileService.FindFile(ThrotVmd)!;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(vmd, EditorEnums.SuperView_Editor);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            var slot = selection.FragmentList.PossibleValues.First(x => x.FullPath == ThrotTable).Entries.First(x => x.SlotName == "ATTACK_5");
+            Assert.That(slot.MetaFile, Is.EqualTo(Path.ChangeExtension(slot.AnimationFile, ".anm.meta")), "the test needs a slot whose meta sits beside its clip");
+            Assert.That((selection.FragmentList.SelectedItem, superView.MetaEditor.ParsedFile), Is.EqualTo(((object?)null, (object?)null)), "no set picked, no meta loaded");
+
+            // The animation index writes paths with backslashes, a set with forward ones.
+            static string Key(string? path) => path?.Replace('\\', '/').ToLowerInvariant() ?? "";
+            selection.AnimationList.SelectedItem = selection.AnimationList.PossibleValues.First(x => Key(x.AnimationFile) == Key(slot.AnimationFile));
+
+            Assert.That(Key(selection.AnimationFileName), Does.EndWith(Key(slot.AnimationFile)));
+            Assert.That(Key(selection.MetaDataName), Is.EqualTo(Key(slot.MetaFile)));
+            Assert.That(superView.MetaEditor.Tags, Is.Not.Empty, "its meta is in the meta editor");
+        }
+
         // SuperView's tab goes red with its meta editors: an edited field says SuperView has unsaved changes, so its tab heard.
         [Test]
         public void VariantMesh_AnEditedTagMarksTheTabUnsaved()

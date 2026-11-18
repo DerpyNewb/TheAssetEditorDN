@@ -316,6 +316,8 @@
   "ReferenceModel.SceneObject.Skeleton": "Skeleton",
   "ReferenceModel.SceneObject.Fragment": "Fragment",
   "ReferenceModel.SceneObject.Slot": "Slot",
+  "ReferenceModel.SceneObject.AnyAnimation": "任意动画",
+  "ReferenceModel.SceneObject.AnyAnimation.ToolTip": "为此骨架制作的任意动画；若旁边有 .anm.meta，则一并播放。无需选择动画集或槽位。",
   "ReferenceModel.SceneObject.AnimationFile": "动画文件",
   "ReferenceModel.SceneObject.MetaFile": "元文件",
   "ReferenceModel.SceneObject.PersistMetaFile": "持久元文件",

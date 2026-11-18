@@ -96,9 +96,32 @@
                           IsTextSearchEnabled="false"
                           KeyUp="OnFilterBoxKeyUp"
                           DisplayMemberPath="SlotName"
-                          Text="{Binding FragAndSlotSelection.FragmentSlotList.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
-                          ItemsSource="{Binding FragAndSlotSelection.FragmentSlotList.Values}" 
+                          Text="{Binding FragAndSlotSelection.FragmentSlotList.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                          ItemsSource="{Binding FragAndSlotSelection.FragmentSlotList.Values}"
                           SelectedItem="{Binding FragAndSlotSelection.FragmentSlotList.SelectedItem, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"/>
+            </DockPanel>
+
+            <!-- Any clip made for the skeleton, with no set or slot: thousands of them, so the list virtualises -->
+            <DockPanel Margin="0,0,0,1" ToolTip="{loc:Loc ReferenceModel.SceneObject.AnyAnimation.ToolTip}">
+                <CheckBox Visibility="Hidden" />
+                <Label DockPanel.Dock="Left" Content="{loc:Loc ReferenceModel.SceneObject.AnyAnimation}" Width ="{StaticResource labelWidth}" />
+                <Label DockPanel.Dock="Left" Content=":"/>
+                <Button DockPanel.Dock="Right" Width="30" Margin="10,0,0,0" Content="..." Visibility="Hidden"/>
+
+                <ComboBox
+                          IsEditable="True"
+                          IsTextSearchEnabled="false"
+                          KeyUp="OnFilterBoxKeyUp"
+                          DisplayMemberPath="AnimationFile"
+                          Text="{Binding FragAndSlotSelection.AnimationList.Filter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                          ItemsSource="{Binding FragAndSlotSelection.AnimationList.Values}"
+                          SelectedItem="{Binding FragAndSlotSelection.AnimationList.SelectedItem, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
+                    <ComboBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel/>
+                        </ItemsPanelTemplate>
+                    </ComboBox.ItemsPanel>
+                </ComboBox>
             </DockPanel>
 
             <Rectangle  Fill="LightGray" Height="1" Margin="2,2,2,2"/>
