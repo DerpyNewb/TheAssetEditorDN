@@ -84,7 +84,7 @@ namespace Editors.Shared.Core.Services.RiderBake
         }
 
         // The first animation of a slot, by its 9.0 name; null when the table has no such slot or the slot names no file.
-        static string? FirstAnim(AnimationBinWh3 table, string slot)
+        public static string? FirstAnim(AnimationBinWh3 table, string slot)
         {
             var id = AnimationSlotTypeHelperWh3.GetfromValue(slot)?.Id;
             var file = table.AnimationTableEntries.FirstOrDefault(x => x.AnimationId == id)?.AnimationRefs.FirstOrDefault()?.AnimationFile;
