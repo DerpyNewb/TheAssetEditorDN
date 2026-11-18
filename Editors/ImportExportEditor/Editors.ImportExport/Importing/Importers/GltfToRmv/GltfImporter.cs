@@ -3,6 +3,7 @@ using CommonControls.BaseDialogs.ErrorListDialog;
 using Editors.ImportExport.Importing.Importers.GltfToRmv.Helper;
 using Editors.ImportExport.Misc;
 using GameWorld.Core.Services;
+using GameWorld.Core.Services.SceneSaving.Material;
 using Shared.Core.ErrorHandling;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
@@ -61,6 +62,21 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv
             _packFileService.AddFilesToPack(settings.DestinationPackFileContainer, [newFile]);
         }
 
+        // The .wsmodel and its materials, as Kitbash writes them, unless the model already has one in a loaded pack.
+        private void SaveWsModelToPack(GltfImporterSettings settings, RmvFile rmv2File)
+        {
+            if (!RmvWsModelWriter.Supports(settings.SelectedGame))
+                return;
+            var modelPath = $"{settings.DestinationPackPath}/{GetImportedPackFileName(settings)}";
+            if (_packFileService.FindFile(Path.ChangeExtension(modelPath, ".wsmodel")) != null)
+                return;
+
+            var entries = RmvWsModelWriter.Create(rmv2File, modelPath, settings.SelectedGame)
+                .Select(x => new NewPackFileEntry(Path.GetDirectoryName(x.PackPath)!, PackFile.CreateFromBytes(Path.GetFileName(x.PackPath), x.Bytes)))
+                .ToList();
+            _packFileService.AddFilesToPack(settings.DestinationPackFileContainer, entries);
+        }
+
         private void ImportMaterials(GltfImporterSettings settings, ModelRoot modelRoot, RmvFile rmv2File)
         {
             _materialBuilder.BuildRmvFileMaterials(settings, modelRoot, rmv2File);
@@ -100,7 +116,10 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv
                 ImportAnimations(settings, modelRoot, skeletonData.skeletonAnimFile, skeletonData.skeletonName ?? "");
 
             if (settings.ImportMeshes)
+            {
                 SaveRmvFileToPack(settings, GetImportedPackFileName(settings), rmv2File);
+                SaveWsModelToPack(settings, rmv2File);
+            }
 
         }
 
@@ -157,7 +176,8 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv
             return (skeletonName, skeletonAnimFile);
         }
 
-        private static string GetImportedPackFileName(GltfImporterSettings settings) => Path.GetFileNameWithoutExtension(settings.InputGltfFile) + ".rigid_model_v2";
+        // Lower case: since 6.1 an upper-case letter in a pack path crashes the game.
+        private static string GetImportedPackFileName(GltfImporterSettings settings) => Path.GetFileNameWithoutExtension(settings.InputGltfFile).Replace(' ', '_').ToLowerInvariant() + ".rigid_model_v2";
 
         private static string FetchSkeletonIdStringFromScene(ModelRoot modelRoot)
         {

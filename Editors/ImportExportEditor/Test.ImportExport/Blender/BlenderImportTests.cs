@@ -94,6 +94,31 @@ public class BlenderImportTests
         Assert.That(outcome.AddedPackPaths[0], Does.StartWith(@"test\"));
     }
 
+    // A model imported into a new path gets a .wsmodel naming it and materials for every part; a model that already has one keeps it.
+    [Test]
+    [CancelAfter(300_000)]
+    public void WritesAWsModelBesideANewModelAndKeepsAnExistingOne()
+    {
+        var runner = BlenderRunnerTests.RealRunner();
+        var blend = ExportHammerBlend(runner, out _);
+        var (pfs, container) = Destination();
+
+        var outcome = new BlenderImporter(pfs, runner).Import(blend, container, "test", null, 0, false, _ => false, GameTypeEnum.Warhammer3);
+
+        Assert.That(outcome.Result.Ok, Is.True, outcome.Result.Error);
+        var model = outcome.AddedPackPaths.Single(p => p.EndsWith(".rigid_model_v2"));
+        var wsModelFile = pfs.FindFile(Path.ChangeExtension(model, ".wsmodel"), container);
+        Assert.That(wsModelFile, Is.Not.Null, string.Join(", ", outcome.AddedPackPaths));
+        var wsModel = new Shared.GameFormats.WsModel.WsModelFile(wsModelFile!);
+        Assert.That(wsModel.GeometryPath, Is.EqualTo(model.Replace('\\', '/')));
+        var rmv = Load(pfs, model);
+        Assert.That(wsModel.MaterialList, Has.Count.EqualTo(rmv.ModelList.Sum(lod => lod.Length)));
+        Assert.That(wsModel.MaterialList.All(m => pfs.FindFile(m.MaterialPath, container) != null), Is.True, "every material it names is in the pack");
+
+        var again = new BlenderImporter(pfs, runner).Import(blend, container, "test", null, 0, false, _ => false, GameTypeEnum.Warhammer3);
+        Assert.That(again.AddedPackPaths, Has.Count.EqualTo(1), "the second import keeps the wsmodel the first one wrote");
+    }
+
     [Test]
     [CancelAfter(300_000)]
     public void KarlRoundTripKeepsLodsCountsAndSkeleton()

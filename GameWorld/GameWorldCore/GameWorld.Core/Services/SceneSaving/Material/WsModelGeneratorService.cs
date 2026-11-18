@@ -52,7 +52,7 @@ namespace GameWorld.Core.Services.SceneSaving.Material
             }
         }
 
-        static string CreateWsModel(IMaterialToWsMaterialSerializer wsMaterialGenerator, string modelFilePath, List<WsModelGeneratorInput> meshInformation)
+        internal static string CreateWsModel(IMaterialToWsMaterialSerializer wsMaterialGenerator, string modelFilePath, List<WsModelGeneratorInput> meshInformation)
         {
             var meshesWithUniqeNames = EnsureUniqueMeshNames(meshInformation);
             var orderedMeshInfo = meshesWithUniqeNames

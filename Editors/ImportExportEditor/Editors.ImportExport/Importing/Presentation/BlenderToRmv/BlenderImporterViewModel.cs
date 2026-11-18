@@ -31,7 +31,7 @@ namespace Editors.ImportExport.Importing.Presentation.BlenderToRmv
         public void Execute(PackFile importSource, string outputPath, IPackFileContainer packFileContainer, GameTypeEnum gameType)
         {
             var outcome = importer.Import(importSource.Name, packFileContainer, outputPath,
-                string.IsNullOrWhiteSpace(SkeletonName) ? null : SkeletonName.Trim(), Version, GenerateLods, AskToReplace);
+                string.IsNullOrWhiteSpace(SkeletonName) ? null : SkeletonName.Trim(), Version, GenerateLods, AskToReplace, gameType);
             BlenderResultReport.Show("Import from Blender", outcome.Result);
         }
 

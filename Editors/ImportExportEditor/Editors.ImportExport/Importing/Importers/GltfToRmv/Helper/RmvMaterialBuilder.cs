@@ -122,14 +122,12 @@ namespace Editors.ImportExport.Importing.Importers.GltfToRmv.Helper
 
         private static string GetTexturePackFolder(GltfImporterSettings settings, string meshName, string postFixString)
         {
-            // set file name
-            var textureNameBase = meshName.Any() ? meshName : Path.GetFileNameWithoutExtension(settings.InputGltfFile);
-            var textureFileName = @$"{textureNameBase} {(postFixString.Any() ? @$"_{postFixString}.dds" : ".dds")}";
+            // Lower case with no spaces, as CA's are: since 6.1 an upper-case letter in a pack path crashes the game, and the name
+            // used to carry a space before its suffix ("body _base_colour.dds"). Forward slashes, as the rmv2 stores them.
+            var textureNameBase = (meshName.Any() ? meshName : Path.GetFileNameWithoutExtension(settings.InputGltfFile)).Trim().Replace(' ', '_').ToLowerInvariant();
+            var textureFileName = postFixString.Any() ? $"{textureNameBase}_{postFixString}.dds" : $"{textureNameBase}.dds";
 
-            var texturePackFolder = settings.DestinationPackPath + @"\tex";
-            var textureFullPackPath = @$"{texturePackFolder}\{textureFileName}";
-
-            return textureFullPackPath;
+            return $"{settings.DestinationPackPath.Replace('\\', '/').Trim('/').ToLowerInvariant()}/tex/{textureFileName}";
         }
 
         private static void ValidateInput_BuildRmvFileMaterials(ModelRoot modelRoot, RmvFile rmvFile)

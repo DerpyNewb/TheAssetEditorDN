@@ -1,7 +1,9 @@
 using System.IO;
 using Editors.ImportExport.Blender;
+using GameWorld.Core.Services.SceneSaving.Material;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
+using Shared.Core.Settings;
 using Shared.GameFormats.RigidModel;
 
 namespace Editors.ImportExport.Importing.Importers.BlenderToRmv
@@ -24,8 +26,10 @@ namespace Editors.ImportExport.Importing.Importers.BlenderToRmv
         /// <param name="version">RMV2 version to write; 0 keeps each model's own.</param>
         /// <param name="replaceOriginal">Asked once per model AssetEditor exported, with the pack path it came from;
         /// true writes it back there instead of into <paramref name="packFolder"/>.</param>
+        /// <param name="wsModelGame">Writes a .wsmodel and its materials for this game beside each model that has none in any loaded
+        /// pack; null writes none. A model that already has one, as a round trip to CA's path does, keeps it.</param>
         public BlenderImportOutcome Import(string diskFile, IPackFileContainer container, string packFolder, string? skeletonName, int version, bool autoLods,
-            Func<string, bool>? replaceOriginal = null)
+            Func<string, bool>? replaceOriginal = null, GameTypeEnum? wsModelGame = null)
         {
             var jobFolder = BlenderRunner.NewJobFolder(Path.GetFileNameWithoutExtension(diskFile));
             var job = new BlenderJob("to_rmv2", Path.GetFullPath(diskFile), Path.Combine(jobFolder, "out"),
@@ -36,12 +40,13 @@ namespace Editors.ImportExport.Importing.Importers.BlenderToRmv
 
             // Parse everything before adding anything, so a bad file never reaches the pack.
             var files = new List<(string Folder, string Name, byte[] Bytes)>();
+            var models = new List<RmvFile>();
             foreach (var output in result.Files)
             {
                 var bytes = File.ReadAllBytes(output.Path);
                 try
                 {
-                    ModelFactory.Create().Load(bytes);
+                    models.Add(ModelFactory.Create().Load(bytes));
                 }
                 catch (Exception e)
                 {
@@ -54,6 +59,17 @@ namespace Editors.ImportExport.Importing.Importers.BlenderToRmv
             }
 
             BlenderRunner.Finish(result, jobFolder); // the bytes are read; the outputs are no longer needed
+            if (wsModelGame is { } game && RmvWsModelWriter.Supports(game))
+            {
+                for (var i = 0; i < models.Count; i++)
+                {
+                    var modelPath = string.IsNullOrEmpty(files[i].Folder) ? files[i].Name : $"{files[i].Folder}/{files[i].Name}";
+                    if (_packFileService.FindFile(Path.ChangeExtension(modelPath, ".wsmodel")) != null)
+                        continue;
+                    foreach (var (packPath, bytes) in RmvWsModelWriter.Create(models[i], modelPath, game))
+                        files.Add((Path.GetDirectoryName(packPath)!, Path.GetFileName(packPath), bytes));
+                }
+            }
             var entries = files.Select(f => new NewPackFileEntry(f.Folder, PackFile.CreateFromBytes(f.Name, f.Bytes))).ToList();
             _packFileService.AddFilesToPack(container, entries);
             var added = files.Select(f => string.IsNullOrEmpty(f.Folder) ? f.Name : $@"{f.Folder}\{f.Name}").ToList();

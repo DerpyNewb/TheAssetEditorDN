@@ -80,6 +80,22 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
             Assert.That(rmv2File!.ModelList[0][0]!.Material!.GetAllTextures().Count(), Is.EqualTo(TestData.Rmv2Expected.Lod0Mesh0TextureCount));
             Assert.That(rmv2File!.ModelList[0][0]!.Mesh.IndexList.Length, Is.EqualTo(TestData.Rmv2Expected.Lod0Mesh0IndexCount));
             Assert.That(rmv2File!.ModelList[0][0]!.Mesh.VertexList.Length, Is.EqualTo(TestData.Rmv2Expected.Lod0Mesh0VertexCount));
+
+            // The .wsmodel beside it names the model and a material for every part, and each texture a material names is in the pack.
+            var wsModelFile = packFileContainer.FindFile(Path.ChangeExtension(rmv2FileName, ".wsmodel"));
+            Assert.That(wsModelFile, Is.Not.Null, "no .wsmodel beside the imported model");
+            var wsModel = new Shared.GameFormats.WsModel.WsModelFile(wsModelFile!);
+            Assert.That(wsModel.GeometryPath, Is.EqualTo(rmv2FileName.Replace('\\', '/')));
+            Assert.That(wsModel.MaterialList, Has.Count.EqualTo(rmv2File.ModelList.Sum(lod => lod.Length)));
+            foreach (var entry in wsModel.MaterialList)
+            {
+                var material = new Shared.GameFormats.WsModel.WsModelMaterialFile(packFileContainer.FindFile(entry.MaterialPath)!);
+                // CA's common textures and Kitbash's "none" placeholder (test_mask.dds) live in the game's packs, not this one.
+                Assert.That(material.Textures.Values, Has.All.Matches<string>(t => t == t.ToLowerInvariant() && !t.Contains(' ')), entry.MaterialPath);
+                var imported = material.Textures.Values.Where(t => t.StartsWith(settings.DestinationPackPath + "/")).ToList();
+                Assert.That(imported, Is.Not.Empty, $"{entry.MaterialPath} names none of the imported textures");
+                Assert.That(imported, Has.All.Matches<string>(t => packFileContainer.FindFile(t) != null), entry.MaterialPath);
+            }
         }
     }
 
