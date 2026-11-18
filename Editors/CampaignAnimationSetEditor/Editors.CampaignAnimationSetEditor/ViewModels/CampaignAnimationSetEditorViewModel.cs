@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.CampaignAnimationSetEditor.Services;
 using Editors.CampaignAnimationSetEditor.Views;
+using Shared.Core.Misc;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
@@ -64,6 +65,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             _fileSaveService = fileSaveService;
             _dialogs = dialogs;
             _generatorService = generatorService;
+            _history = new(Take, (a, b) => ReferenceEquals(a.Pending, b.Pending) && (a.Bytes ?? []).AsSpan().SequenceEqual(b.Bytes ?? []), Restore);
         }
 
         public void LoadFile(PackFile file)
@@ -93,7 +95,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
                              "It may use an older/unsupported bin version, or contain a data type this editor does not understand.";
             }
             // Even when the file fails to parse: an undo must never bring back the previous file under this one's name.
-            ResetUndo();
+            _history.Reset();
         }
 
         public bool Save()
@@ -173,7 +175,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             DisplayName = result.Name;
             HasUnsavedChanges = false;
             // The save writes the new reference into the set; that is not an edit to undo.
-            _current = Take();
+            _history.Rebase();
             return true;
         }
 
@@ -181,9 +183,7 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
         // comparing what the set writes now with the last snapshot: when a row is added or removed, when the view loses focus
         // after a typed edit, and before an undo or redo. A Generate's clips, written only on save, go with its snapshot.
         record Snapshot(byte[]? Bytes, List<CampaignAnimationSetGeneratorService.PendingAnimationWrite> Pending, string? Selected);
-        Snapshot? _current;
-        readonly Stack<Snapshot> _undo = new();
-        readonly Stack<Snapshot> _redo = new();
+        readonly SnapshotUndo<Snapshot> _history;
 
         Snapshot Take()
         {
@@ -195,51 +195,26 @@ namespace Editors.CampaignAnimationSetEditor.ViewModels
             return new(CampaignAnimationBinLoader.Write(Bin, Bin.Reference ?? ""), _pendingAnimationWrites, SelectedStatus?.Name);
         }
 
-        void ResetUndo()
-        {
-            _undo.Clear();
-            _redo.Clear();
-            _current = Take();
-        }
-
         /// <summary>Records the set as it is now as one undo step, if it changed since the last.</summary>
         public void Checkpoint()
         {
-            var now = Take();
-            if (_current != null && ReferenceEquals(now.Pending, _current.Pending) && (now.Bytes ?? []).AsSpan().SequenceEqual(_current.Bytes ?? []))
-                return;
-            if (_current != null)
-            {
-                _undo.Push(_current);
-                _redo.Clear();
+            if (_history.Checkpoint())
                 HasUnsavedChanges = true;
-            }
-            _current = now;
         }
 
-        [RelayCommand] public void UndoAction() => Step(_undo, _redo);
-        [RelayCommand] public void RedoAction() => Step(_redo, _undo);
+        [RelayCommand] public void UndoAction() => _history.Undo();
+        [RelayCommand] public void RedoAction() => _history.Redo();
 
-        void Step(Stack<Snapshot> from, Stack<Snapshot> to)
+        // Shows the status the step was made in; the snapshot an undo arrives at holds whatever was selected before it.
+        void Restore(Snapshot snapshot, Snapshot madeIn)
         {
-            Checkpoint();
-            if (from.Count == 0)
-                return;
-            var leaving = _current!;
-            to.Push(leaving);
-            var snapshot = from.Pop();
             Statuses.Clear();
             Bin = snapshot.Bytes == null ? null : CampaignAnimationBinLoader.Load(new global::Shared.ByteParsing.ByteChunk(snapshot.Bytes));
             foreach (var status in Bin?.Status ?? [])
                 AddStatusItem(new StatusItemViewModel(status));
             _pendingAnimationWrites = snapshot.Pending;
-            // Show the status the step was made in. A snapshot is taken just after its edit, so an undo leaves it and a redo
-            // arrives at it; the snapshot an undo arrives at holds whatever was selected before, often somewhere else.
-            var madeIn = from == _undo ? leaving.Selected : snapshot.Selected;
-            SelectedStatus = Statuses.FirstOrDefault(x => x.Name == madeIn) ?? Statuses.FirstOrDefault();
+            SelectedStatus = Statuses.FirstOrDefault(x => x.Name == madeIn.Selected) ?? Statuses.FirstOrDefault();
             HasUnsavedChanges = true;
-            // What this set writes now, which is what the next edit is compared with.
-            _current = Take();
         }
 
         void AddStatusItem(StatusItemViewModel status)
