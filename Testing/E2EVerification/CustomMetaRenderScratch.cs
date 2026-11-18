@@ -83,6 +83,18 @@ namespace Test.E2EVerification
             panel.Show();
             Save(panel, Path.Combine(outDir, "custommeta_vanilla.png"));
 
+            // The slot grid, as the pane under the player shows it, then with an edit in it: bold, with Undo and Save lit.
+            var grid = Offscreen(new Editors.AnimationMeta.SuperView.SlotGridView { DataContext = superView.SlotGrid }, 1180, 330);
+            grid.Show();
+            Save(grid, Path.Combine(outDir, "slotgrid.png"));
+            var attackRow = superView.SlotGrid.SelectedRow!;
+            attackRow.Weight += 1.5f;
+            attackRow.Weapon3 = !attackRow.Weapon3;
+            Save(grid, Path.Combine(outDir, "slotgrid_edited.png"));
+            superView.SlotGrid.UndoCommand.Execute(null);
+            superView.SlotGrid.UndoCommand.Execute(null);
+            grid.Close();
+
             // The question a save asks, with the words SaveCommand writes.
             string? message = null;
             IReadOnlyList<string>? choices = null;
@@ -99,11 +111,12 @@ namespace Test.E2EVerification
             Save(question, Path.Combine(outDir, "custommeta_question.png"));
             question.Close();
 
-            // A slot with no meta: New meta shows, and a typed path no pack has says so.
+            // A slot with no meta shows New meta; a typed path no pack has says so.
             superView.SlotMeta = "";
-            superView.ApplySlotFilesCommand.Execute(null);
-            superView.SlotMeta = "animations/no/such.anm.meta";
+            superView.Save();
             Save(panel, Path.Combine(outDir, "custommeta_newmeta.png"));
+            superView.SlotMeta = "animations/no/such.anm.meta";
+            Save(panel, Path.Combine(outDir, "custommeta_typo.png"));
             panel.Close();
             TestContext.Out.WriteLine($"sources: [{superView.PersistentMetaSource}] [{superView.MetaSource}] [{superView.SlotMetaSource}] noMeta={superView.SlotHasNoMeta}");
         }

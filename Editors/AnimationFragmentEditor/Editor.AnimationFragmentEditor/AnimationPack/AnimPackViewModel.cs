@@ -9,6 +9,7 @@ using GameWorld.Core.Services;
 using Shared.Core.Events;
 using Shared.Core.Misc;
 using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Events;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Utility;
 using Shared.Core.Services;
@@ -62,6 +63,7 @@ namespace CommonControls.Editors.AnimationPack
         public Func<IReadOnlyCollection<string>, string?> PickSlot { get; set; } = _ => null;
 
         readonly IStandardDialogs _dialogs;
+        readonly IGlobalEventHub _globalEventHub;
 
         public AnimPackViewModel(IUiCommandFactory uiCommandFactory,
             IPackFileService pfs,
@@ -69,8 +71,12 @@ namespace CommonControls.Editors.AnimationPack
             ApplicationSettingsService appSettings,
             IFileSaveService packFileSaveService,
             MetaDataFileParser metaDataFileParser,
-            IStandardDialogs dialogs)
+            IStandardDialogs dialogs,
+            IGlobalEventHub globalEventHub)
         {
+            _globalEventHub = globalEventHub;
+            globalEventHub.Register<PackFileContainerFilesUpdatedEvent>(this, x => OnSavedElsewhere(x.Container, x.ChangedFiles));
+            globalEventHub.Register<PackFileContainerFilesAddedEvent>(this, x => OnSavedElsewhere(x.Container, x.AddedFiles));
             _uiCommandFactory = uiCommandFactory;
             _pfs = pfs;
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
@@ -239,8 +245,33 @@ namespace CommonControls.Editors.AnimationPack
         }
 
         BinTableChecks Checks() => new(_pfs, _skeletonAnimationLookUpHelper, _metaDataFileParser, _packFile);
-        public void Close() { }
+        public void Close() => _globalEventHub.UnRegister(this);
         public bool HasUnsavedChanges { get; set; }
+
+        // The editor writes its whole copy of the animpack back on save, so a table another editor saved into the same file since,
+        // SuperView's slot grid say, would be undone. Unedited, the editor reads the file again; edited, its save asks first. Its own
+        // save raises the event too, while it still has the edits, so the flag is set and the save clears it.
+        bool _savedElsewhere;
+
+        void OnSavedElsewhere(IPackFileContainer container, List<PackFile> files)
+        {
+            if (_packFile == null)
+                return;
+            static string Key(string path) => path.Replace('\\', '/').ToLowerInvariant();
+            var path = Key(_pfs.GetFullPath(_packFile));
+            var file = files.FirstOrDefault(x => Key(_pfs.GetFullPath(x, container)) == path);
+            if (file == null)
+                return;
+            if (HasUnsavedChanges || SelectedItemViewModel?.HasUnsavedChanges() == true)
+            {
+                _savedElsewhere = true;
+                return;
+            }
+            var shown = AnimationPackItems.SelectedItem?.FileName;
+            LoadFile(file);
+            if (shown != null)
+                AnimationPackItems.SelectedItem = AnimationPackItems.PossibleValues.FirstOrDefault(x => x.FileName == shown);
+        }
 
         public PackFile CurrentFile => _packFile;
 
@@ -297,6 +328,9 @@ namespace CommonControls.Editors.AnimationPack
                 .ToList();
             if (problems.Count != 0 && _dialogs.ShowYesNoBox(string.Join("\n", problems) + "\n\nSave anyway?", "Save") != ShowMessageBoxResult.OK)
                 return false;
+            if (_savedElsewhere && _dialogs.ShowYesNoBox($"Another editor saved {DisplayName} after it was opened here, SuperView's slot grid perhaps. " +
+                    "Saving writes this editor's copy over that change.\n\nSave anyway?", "Save") != ShowMessageBoxResult.OK)
+                return false;
 
             var newAnimPack = new AnimationPackFileDatabase(_pfs.GetFullPath(_packFile));
 
@@ -309,6 +343,7 @@ namespace CommonControls.Editors.AnimationPack
             if (result != null)
             {
                 HasUnsavedChanges = false;
+                _savedElsewhere = false;
                 foreach (var file in AnimationPackItems.PossibleValues)
                     file.IsChanged.Value = false;
             }

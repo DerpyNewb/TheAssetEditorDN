@@ -18,7 +18,7 @@ using Test.TestingUtility.TestUtility;
 namespace Test.AnimationMeta
 {
     // A .variantmeshdefinition offers SuperView in the tool selector, beside the XML and Kitbash editors.
-    public class SuperViewOpenFileTests
+    public partial class SuperViewOpenFileTests
     {
         const string ThrotVmd = @"variantmeshes\variantmeshdefinitions\skv_throt.variantmeshdefinition";
         const string ThrotTable = @"animations/database/battle/bin/hu17_dlc16_throt.bin";
@@ -389,11 +389,11 @@ namespace Test.AnimationMeta
             Assert.That((said.Single().Contains("is already in a loaded pack"), output.GetFileCount()), Is.EqualTo((true, files)));
         }
 
-        // A slot with no meta, made the way a modder makes one: the slot panel's Meta field emptied and applied.
+        // A slot with no meta, made the way a modder makes one: the slot panel's Meta field emptied and saved.
         static void ClearSlotMeta(SuperViewViewModel superView)
         {
             superView.SlotMeta = "";
-            superView.ApplySlotFilesCommand.Execute(null);
+            Assert.That(superView.Save(), Is.True);
         }
 
         // A skeleton with no battle animation table (Glottkin's only set is cam_lord_glt01_dlc29_ghurk.bin) still lists its
@@ -432,8 +432,8 @@ namespace Test.AnimationMeta
         }
 
         // A campaign set is edited from SuperView as a battle table is. The slot panel follows the pick; its browse offers the
-        // skeleton's own animations; Apply points the slot at other files and Save meta as at a new meta; the set is written whole
-        // into the editable pack, paths lower-cased with forward slashes, and the other rows are left as they were.
+        // skeleton's own animations; a typed file points the slot at it and Save meta as at a new meta, which saves both; the set is
+        // written whole into the editable pack, paths lower-cased with forward slashes, and the other rows are left as they were.
         [Test]
         public void CampaignSet_SlotFilesAndSaveMetaAs_WriteTheSet()
         {
@@ -458,7 +458,6 @@ namespace Test.AnimationMeta
             var said = new List<string>();
             _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
             superView.SlotAnim = other.ToUpperInvariant().Replace('/', '\\');
-            superView.ApplySlotFilesCommand.Execute(null);
             _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>())).Returns(new SaveDialogResult(true, null, @"Animations\Derpy\Cam_Fatality"));
             superView.SelectedTabControllerIndex = 1;
             superView.SaveMetaAsCommand.Execute(null);
@@ -472,11 +471,12 @@ namespace Test.AnimationMeta
             Assert.That((selection.MetaDataName, superView.SlotAnim, superView.SlotMeta, pfs.FindFile(NewMeta) != null), Is.EqualTo((NewMeta, other, NewMeta, true)));
         }
 
-        // Preview plays the slot panel's files in the picked slot, the meta in the Animation tab, and writes nothing: every pack's files
-        // and the set's rows are as they were. Picking a slot plays what the set names again. A file in no loaded pack, or an
-        // animation for another skeleton, is refused and the scene keeps playing what it did.
+        // A typed file plays at once in the picked slot, the meta in the Animation tab, and writes nothing: every pack's files and the
+        // set's rows are as they were. Another slot plays what its set names; the edited one, picked again, its edit, until it is
+        // undone. A file in no loaded pack, or an animation for another skeleton, says why in the grid and the scene keeps playing
+        // what it did.
         [Test]
-        public void Preview_PlaysTheTypedFilesInTheSlot_AndWritesNothing()
+        public void TypedFiles_PlayAtOnceInTheSlot_AndWriteNothing()
         {
             var pfs = _runner.PackFileService;
             var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
@@ -490,6 +490,7 @@ namespace Test.AnimationMeta
             // ATTACK_5 shows only its first weapon bone (see AnimationSlot_ShowsOnlyTheWeaponBonesItFlags), and so does its preview.
             var weapons = SceneNodeHelper.GetChildrenOfType<SlotNode>(data.ModelNode).Where(x => x.AttachmentBoneName?.StartsWith("be_prop_") == true && x.Children.Count > 0).ToList();
             attack.WeaponBools = 1 << int.Parse(weapons[0].AttachmentBoneName["be_prop_".Length..]);
+            superView.SlotGrid.Load();    // its rows as the set now names them
             selection.FragmentSlotList.SelectedItem = attack;
             static string Key(string path) => path.Replace('\\', '/').ToLowerInvariant();
             (string, string) Playing() => (Key(data.AnimationName.Value), Key(pfs.GetFullPath(superView.MetaEditor.CurrentFile)));
@@ -502,11 +503,10 @@ namespace Test.AnimationMeta
             var said = new List<string>();
             _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
 
+            Assert.That(pfs.FindFile(superView.SlotSound), Is.Null, "the slot's own .snd.meta, in no loaded pack as CA's often are, does not stop it playing");
             (superView.SlotAnim, superView.SlotMeta) = (donor.AnimationFile.ToUpperInvariant().Replace('/', '\\'), donor.MetaFile);
-            Assert.That(pfs.FindFile(superView.SlotSound), Is.Null, "the slot's own .snd.meta, in no loaded pack as CA's often are, does not stop a preview");
-            superView.PreviewSlotFilesCommand.Execute(null);
-            Assert.That((said, Playing()), Is.EqualTo((new List<string>(), (donor.AnimationFile, donor.MetaFile))));
-            Assert.That(superView.MetaEditor.Tags, Is.Not.Empty, "the Animation tab shows the previewed meta");
+            Assert.That((said, Playing(), superView.SlotGrid.Status), Is.EqualTo((new List<string>(), (donor.AnimationFile, donor.MetaFile), "")));
+            Assert.That(superView.MetaEditor.Tags, Is.Not.Empty, "the Animation tab shows the typed meta");
             Assert.That((weapons.Count > 1, weapons.Count(x => x.IsVisible)), Is.EqualTo((true, 1)), "the slot's weapon bones");
             Assert.That((Files(), set.Entries.Select(Row).ToList(), selection.FragmentSlotList.SelectedItem!.AnimationFile), Is.EqualTo((files, rows, attack.AnimationFile)));
 
@@ -521,33 +521,36 @@ namespace Test.AnimationMeta
             // The lookup re-reads a pack on a background task, so it is asked until the stand-in is listed under its own skeleton.
             var lookup = _runner.GetRequiredServiceInCurrentEditorScope<GameWorld.Core.Services.ISkeletonAnimationLookUpHelper>();
             Assert.That(() => lookup.GetAnimationsForSkeleton(stranger).Select(x => Key(x.AnimationFile)).ToList(), Does.Contain(Elsewhere).After(10000, 50));
+            files = Files();    // with the stand-in
             foreach (var (typed, refusal) in new[] { ("animations/derpy/nowhere.anim", "is in no loaded pack"), (Elsewhere, "is not an animation for") })
             {
-                said.Clear();
                 superView.SlotAnim = typed;
-                superView.PreviewSlotFilesCommand.Execute(null);
-                Assert.That(said.Single(), Does.StartWith($"{typed} {refusal}"));
+                Assert.That(superView.SlotGrid.Status, Does.StartWith($"{typed} {refusal}"));
                 Assert.That(Playing(), Is.EqualTo((donor.AnimationFile, donor.MetaFile)), typed);
             }
+            superView.SlotAnim = donor.AnimationFile;
+            Assert.That((said, Files(), set.Entries.Select(Row).ToList(), superView.HasUnsavedChanges), Is.EqualTo((new List<string>(), files, rows, true)));
 
-            // Another slot plays the set's own files, and ATTACK_5 picked again its own.
+            // Another slot plays the set's own files, and ATTACK_5 picked again its edit, until the edits are undone.
             var other = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName != "ATTACK_5" && x.AnimationFile != donor.AnimationFile && pfs.FindFile(x.AnimationFile) != null);
             selection.FragmentSlotList.SelectedItem = other;
             Assert.That((Key(data.AnimationName.Value), superView.SlotAnim), Is.EqualTo((other.AnimationFile, other.AnimationFile)));
             selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
-            Assert.That((Playing(), superView.SlotAnim, superView.SlotMeta), Is.EqualTo(((attack.AnimationFile, attack.MetaFile), attack.AnimationFile, attack.MetaFile)));
+            Assert.That((Playing(), Key(superView.SlotAnim), superView.SlotMeta), Is.EqualTo(((donor.AnimationFile, donor.MetaFile), donor.AnimationFile, donor.MetaFile)));
+            while (superView.SlotGrid.CanUndo)
+                superView.SlotGrid.UndoCommand.Execute(null);
+            Assert.That((Playing(), superView.SlotAnim, superView.SlotMeta, superView.HasUnsavedChanges),
+                Is.EqualTo(((attack.AnimationFile, attack.MetaFile), attack.AnimationFile, attack.MetaFile, false)));
         }
 
-        // Preview with no set picked says so and plays nothing new.
+        // A file typed with no slot picked says so and plays nothing.
         [Test]
-        public void Preview_WithNoSlotPicked_IsRefused()
+        public void TypedFile_WithNoSlotPicked_IsRefused()
         {
             var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(_runner.PackFileService.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
-            var said = new List<string>();
-            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
             superView.SlotAnim = "animations/whatever.anim";
-            superView.PreviewSlotFilesCommand.Execute(null);
-            Assert.That((said, superView.SceneObjects[0].Data.AnimationName.Value ?? ""), Is.EqualTo((new List<string> { "Pick an animation set and a slot first." }, "")));
+            Assert.That((superView.SlotGrid.Status, superView.SceneObjects[0].Data.AnimationName.Value ?? "", superView.HasUnsavedChanges),
+                Is.EqualTo(("Pick an animation set and a slot first.", "", false)));
         }
 
         // The campaign writer lower-cases every string, so a set with capitals is not what it writes back. One edit and then another
@@ -573,7 +576,7 @@ namespace Test.AnimationMeta
             {
                 selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == slot);
                 superView.SlotMeta = $"animations/derpy/{slot.Replace('/', '_')}.anm.meta";
-                superView.ApplySlotFilesCommand.Execute(null);
+                superView.Save();
             }
 
             var saved = CampaignAnimationBinLoader.Load(pfs.FindFile(CamThrot, pfs.GetEditablePack())!.DataSource.ReadDataAsChunk());

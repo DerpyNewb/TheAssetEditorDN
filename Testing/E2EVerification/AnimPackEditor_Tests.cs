@@ -1,7 +1,9 @@
 ﻿using CommonControls.Editors.AnimationPack;
+using Moq;
 using Shared.Core.Commands;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
+using Shared.Core.Services;
 using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationPack;
 using Shared.GameFormats.AnimationPack.AnimPackFileTypes.Wh3;
@@ -43,6 +45,73 @@ namespace Test.E2EVerification
         }
 
         static List<string> Names(AnimPackViewModel editor) => editor.AnimationPackItems.PossibleValues.Select(x => x.FileName).ToList();
+
+        const string AnimPackPath = @"animations\database\battle\bin\derpy_test.animpack";
+
+        // Another editor saving into the animpack, as SuperView's slot grid does: derpy_a now names the other graph.
+        static void SaveElsewhere(AssetEditorTestRunner runner)
+        {
+            var pfs = runner.PackFileService;
+            var file = pfs.FindFile(AnimPackPath)!;
+            var animPack = AnimationPackSerializer.Load(file, pfs);
+            animPack.Files.OfType<AnimationBinWh3>().Single(x => x.FileName.EndsWith("derpy_a.bin")).LocomotionGraph = GraphB;
+            pfs.SaveFile(file, AnimationPackSerializer.ConvertToBytes(animPack));
+        }
+
+        static string GraphOfA(AnimPackViewModel editor) =>
+            editor.AnimationPackItems.PossibleValues.OfType<AnimationBinWh3>().Single(x => x.FileName.EndsWith("derpy_a.bin")).LocomotionGraph;
+
+        // The editor writes its whole copy back on save. Unedited, it reads the animpack again when another editor saves into it, and
+        // shows the table it showed, as read again. Another file saved in the same pack is not its business.
+        [Test]
+        public void AnUneditedEditor_ReadsTheAnimpackAgain_WhenAnotherEditorSavesIt()
+        {
+            var runner = new AssetEditorTestRunner();
+            var editor = Open(runner);
+            editor.AnimationPackItems.SelectedItem = editor.AnimationPackItems.PossibleValues.Single(x => x.FileName.EndsWith("derpy_a.bin"));
+            var listed = editor.AnimationPackItems.PossibleValues.ToList();
+            runner.PackFileService.SaveFile(runner.PackFileService.FindFile(@"animations\locomotion_graphs\derpy_b.xml")!, [1]);
+            Assert.That(editor.AnimationPackItems.PossibleValues, Is.EqualTo(listed), "another file's save read the animpack again");
+
+            SaveElsewhere(runner);
+            var shown = editor.AnimationPackItems.SelectedItem as AnimationBinWh3;
+            Assert.That((shown?.FileName, shown?.LocomotionGraph, editor.AnimationPackItems.PossibleValues.Contains(shown!), editor.HasUnsavedChanges),
+                Is.EqualTo((listed[0].FileName, GraphB, true, false)));
+        }
+
+        // Edited, it keeps its edits, and its save asks before writing them over the other editor's change: No leaves the file as the
+        // other editor saved it, Yes writes the editor's copy. Its own save is not another editor's, so the next one does not ask.
+        [Test]
+        public void AnEditedEditor_AsksBeforeItsSaveWritesOverAnotherEditorsSave()
+        {
+            var runner = new AssetEditorTestRunner();
+            var editor = Open(runner);
+            var (asked, answer) = (new List<string>(), ShowMessageBoxResult.Cancel);
+            runner.Dialogs.Setup(x => x.ShowYesNoBox(It.IsAny<string>(), It.IsAny<string>()))
+                .Returns<string, string>((message, _) =>
+                {
+                    if (!message.StartsWith("Another editor saved"))
+                        return ShowMessageBoxResult.OK;
+                    asked.Add(message);
+                    return answer;
+                });
+            editor.AnimationPackItems.SelectedItem = editor.AnimationPackItems.PossibleValues[1];
+            editor.RemoveActionCommand.Execute(null);
+
+            SaveElsewhere(runner);
+            var file = runner.PackFileService.FindFile(AnimPackPath)!;
+            var theirs = file.DataSource.ReadData();
+            Assert.That((Names(editor).Count, GraphOfA(editor)), Is.EqualTo((1, GraphA)), "the edit was dropped for the other editor's save");
+            Assert.That((editor.Save(), asked.Count, file.DataSource.ReadData()), Is.EqualTo((false, 1, theirs)));
+
+            answer = ShowMessageBoxResult.OK;
+            Assert.That((editor.Save(), asked.Count), Is.EqualTo((true, 2)));
+            var saved = AnimationPackSerializer.Load(runner.PackFileService.FindFile(AnimPackPath)!, runner.PackFileService);
+            Assert.That(saved.Files.Select(x => x.FileName), Is.EqualTo(Names(editor)));
+
+            editor.UndoAction();
+            Assert.That((editor.HasUnsavedChanges, editor.Save(), asked.Count), Is.EqualTo((true, true, 2)));
+        }
 
         [Test]
         public void ARemovedTable_ComesBackWhereItWas_AndGoesAgainOnRedo()

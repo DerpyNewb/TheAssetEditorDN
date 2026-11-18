@@ -10,6 +10,7 @@ using Editors.Shared.Core.Common.BaseControl;
 using Editors.Shared.Core.Common.ReferenceModel;
 using GameWorld.Core.Services;
 using Microsoft.Xna.Framework;
+using Shared.Core.Commands;
 using Shared.Core.Events;
 using Shared.Core.Events.Scoped;
 using Shared.Core.PackFiles;
@@ -66,12 +67,14 @@ namespace Editors.AnimationMeta.SuperView
         { 
             get 
             {
-                return PersistentMetaEditor.HasUnsavedChanges || MetaEditor.HasUnsavedChanges;
+                return PersistentMetaEditor.HasUnsavedChanges || MetaEditor.HasUnsavedChanges || SlotGrid?.HasUnsavedChanges == true;
             }
-            set 
+            set
             {
                 PersistentMetaEditor.HasUnsavedChanges = value;
                 MetaEditor.HasUnsavedChanges = value;
+                if (!value)
+                    SlotGrid?.Discard();
             }
         }
 
@@ -198,7 +201,13 @@ namespace Editors.AnimationMeta.SuperView
 
             _asset = assetViewModel;
             InitTimeline();
-            _asset.FragAndSlotSelection.FragmentSlotList.SelectedItemChanged += LoadSlotFields;
+            SlotGrid = new SlotGridViewModel(_asset.FragAndSlotSelection, CannotPlay, x => SourceOf(Key(x)), Save, OfferToSaveSlotGrid, OpenFullGrid);
+            SlotGrid.Changed += ShowSelectedRow;
+            SlotGrid.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SlotGridViewModel.SelectedRow))
+                    ShowSelectedRow();
+            };
 
             // The meta's props always play, so the model under them has to as well; off, it stands
             // in its bind pose (Rmv2MeshNode only skins while its player is enabled).
@@ -239,7 +248,9 @@ namespace Editors.AnimationMeta.SuperView
             MetaEditor.LoadFile(e.Owner.MetaData);
             PersistentMetaSource = Describe(PersistentMetaEditor.CurrentFile);
             MetaSource = Describe(MetaEditor.CurrentFile);
-            OnSlotMetaChanged(SlotMeta);
+            // Only the label: the field is the selected row's, and a row picked in the grid plays before the panel shows it, so
+            // writing the field back would give that row the previous one's meta.
+            SlotMetaSource = SourceOf(Key(SlotMeta.Trim()));
 
             RecreateMetaDataInformation();
         }
@@ -255,9 +266,14 @@ namespace Editors.AnimationMeta.SuperView
 
         partial void OnSlotMetaChanged(string value)
         {
-            var path = Key(value.Trim());
+            SlotMetaSource = SourceOf(Key(value.Trim()));
+            EditSelectedRow(row => row.Meta = value);
+        }
+
+        string SourceOf(string path)
+        {
             var source = path.Length == 0 ? "" : CustomMeta.Source(_packFileService, path);
-            SlotMetaSource = path.Length == 0 ? "" : source.Length == 0 ? "Not in any loaded pack" : $"From {source}";
+            return path.Length == 0 ? "" : source.Length == 0 ? "Not in any loaded pack" : $"From {source}";
         }
 
         // Opened on a .variantmeshdefinition from the pack browser: the file is the mesh, and the
@@ -296,60 +312,68 @@ namespace Editors.AnimationMeta.SuperView
             base.Close();
         }
 
-        // Only an edited tab is saved: writing an untouched vanilla meta would override it for nothing.
+        // Only an edited tab is saved: writing an untouched vanilla meta would override it for nothing. The slot grid's edits are
+        // written into their set.
         public bool Save()
         {
             var res0 = !PersistentMetaEditor.HasUnsavedChanges || PersistentMetaEditor.Save();
             var res1 = !MetaEditor.HasUnsavedChanges || MetaEditor.Save();
-            return res0 && res1;
+            var res2 = !SlotGrid.HasUnsavedChanges || Said(SaveSlotGrid());
+            return res0 && res1 && res2;
         }
 
-        // The slot panel: the picked slot's three files, typed or browsed, and Apply, which saves them into its set.
+        bool Said(string? problem)
+        {
+            if (problem != null)
+                _standardDialogs.ShowDialogBox(problem);
+            return problem == null;
+        }
+
+        /// <summary>Every slot of the picked set, under the player; the slot panel shows its selected row.</summary>
+        public SlotGridViewModel SlotGrid { get; private set; } = null!;
+        public override IReadOnlyList<EditorPane> EditorPanes => [new("SlotGrid", "SuperView.SlotGrid", typeof(SlotGridView), SlotGrid, UnderPlayer: true)];
+
+        // The slot panel: the slot grid's selected row's three files, typed or browsed. A change is an edit of that row, which plays at
+        // once and is written with the set by Save.
         [ObservableProperty] string _slotAnim = "";
         [ObservableProperty] string _slotMeta = "";
         [ObservableProperty] string _slotSound = "";
+        bool _showingRow;
 
-        void LoadSlotFields(AnimationBinEntryGenericFormat? slot)
+        void ShowSelectedRow()
         {
-            (SlotAnim, SlotMeta, SlotSound) = (slot?.AnimationFile ?? "", slot?.MetaFile ?? "", slot?.SoundFile ?? "");
-            SlotHasNoMeta = slot != null && string.IsNullOrEmpty(slot.MetaFile);
+            var row = SlotGrid.SelectedRow;
+            _showingRow = true;
+            (SlotAnim, SlotMeta, SlotSound) = (row?.Animation ?? "", row?.Meta ?? "", row?.Sound ?? "");
+            _showingRow = false;
+            SlotHasNoMeta = row != null && string.IsNullOrEmpty(row.Meta);
+            OnPropertyChanged(nameof(HasUnsavedChanges));
         }
 
-        [RelayCommand]
-        void ApplySlotFiles()
-        {
-            var problem = _asset.FragAndSlotSelection.FragmentSlotList.SelectedItem is { } slot ? AssignFiles(slot, SlotAnim, SlotMeta, SlotSound)
-                : "Pick an animation set and a slot first.";
-            if (problem != null)
-                _standardDialogs.ShowDialogBox(problem);
-        }
+        partial void OnSlotAnimChanged(string value) => EditSelectedRow(row => row.Animation = value);
+        partial void OnSlotSoundChanged(string value) => EditSelectedRow(row => row.Sound = value);
 
-        // Plays the typed animation and meta in the picked slot and writes nothing: the set, its animpack and the slot list stay as they are, and
-        // picking a slot plays what the set names again. The Animation tab shows the previewed meta, so Save writes that file.
-        [RelayCommand]
-        void PreviewSlotFiles()
+        void EditSelectedRow(Action<SlotGridRow> edit)
         {
-            var selection = _asset.FragAndSlotSelection;
-            var set = selection.FragmentList.SelectedItem;
-            var picked = selection.FragmentSlotList.SelectedItem;
-            var (anim, meta, sound) = (Key(SlotAnim.Trim()), Key(SlotMeta.Trim()), Key(SlotSound.Trim()));
-            // Not the sound: SuperView plays no slot's .snd.meta, and CA's slots name ones no loaded pack has.
-            var missing = new[] { anim, meta }.FirstOrDefault(x => x.Length != 0 && _packFileService.FindFile(x) == null);
-            var problem = set == null || picked == null ? "Pick an animation set and a slot first."
-                : missing != null ? $"{missing} is in no loaded pack."
-                : anim.Length != 0 && !_skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(set.SkeletonName).Any(x => Key(x.AnimationFile) == anim) ? $"{anim} is not an animation for {set.SkeletonName}, the set's skeleton."
-                : null;
-            if (problem != null)
-            {
-                _standardDialogs.ShowDialogBox(problem);
+            if (_showingRow || SlotGrid == null)
                 return;
-            }
+            if (SlotGrid.SelectedRow is { } row)
+                edit(row);
+            else
+                SlotGrid.Status = "Pick an animation set and a slot first.";
+        }
 
-            selection.PlaySlot(new AnimationBinEntryGenericFormat
-            {
-                Index = picked!.Index, SlotIndex = picked.SlotIndex, SlotName = picked.SlotName, BlendInTime = picked.BlendInTime, SelectionWeight = picked.SelectionWeight,
-                WeaponBools = picked.WeaponBools, AnimationFile = anim, MetaFile = meta, SoundFile = sound,
-            });
+        // Why a row's files cannot play: a file in no loaded pack, or an animation for another skeleton. Not the sound: SuperView plays
+        // no slot's .snd.meta, and CA's slots name ones no loaded pack has.
+        string? CannotPlay(SlotGridRow row)
+        {
+            var (anim, meta) = (Key(row.Animation.Trim()), Key(row.Meta.Trim()));
+            var missing = new[] { anim, meta }.FirstOrDefault(x => x.Length != 0 && _packFileService.FindFile(x) == null);
+            var set = SlotGrid.Set;
+            return missing != null ? $"{missing} is in no loaded pack."
+                : set != null && anim.Length != 0 && !_skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(set.SkeletonName).Any(x => Key(x.AnimationFile) == anim)
+                    ? $"{anim} is not an animation for {set.SkeletonName}, the set's skeleton."
+                : null;
         }
 
         // An animation offered only if it is for the set's skeleton, as one for another skeleton cannot play on it.
@@ -393,7 +417,7 @@ namespace Editors.AnimationMeta.SuperView
                 var path = CustomMeta.Ask(_standardDialogs, _packFileService, _settings, original, CustomMeta.Offered(original, CustomMeta.Prefix(_settings)));
                 if (path == null)
                     return false;
-                problem = AssignFiles(slot!, slot!.AnimationFile, path, slot.SoundFile, _metaDataFileParser.GenerateBytes(editor.MetaDataFileVersion, editor.ParsedFile!));
+                problem = SaveRowMeta(SlotGrid.RowOf(slot)!, path, _metaDataFileParser.GenerateBytes(editor.MetaDataFileVersion, editor.ParsedFile!));
             }
             if (problem != null)
                 _standardDialogs.ShowDialogBox(problem);
@@ -405,10 +429,10 @@ namespace Editors.AnimationMeta.SuperView
         [RelayCommand]
         void NewMeta()
         {
-            var slot = _asset.FragAndSlotSelection.FragmentSlotList.SelectedItem;
-            var anim = slot == null ? "" : Key(slot.AnimationFile ?? "");
-            var problem = slot == null ? "Pick an animation set and a slot first."
-                : !string.IsNullOrEmpty(slot.MetaFile) ? "This slot already has a meta."
+            var row = SlotGrid.SelectedRow;
+            var anim = row == null ? "" : Key(row.Animation.Trim());
+            var problem = row == null ? "Pick an animation set and a slot first."
+                : row.Meta.Trim().Length != 0 ? "This slot already has a meta."
                 : anim.Length == 0 ? "This slot has no animation to name a meta after."
                 : null;
             if (problem == null)
@@ -418,73 +442,140 @@ namespace Editors.AnimationMeta.SuperView
                 var path = CustomMeta.Ask(_standardDialogs, _packFileService, _settings, plain, offered);
                 if (path == null)
                     return;
-                problem = _packFileService.FindFile(path) != null ? $"{path} is already in a loaded pack. To use it, type it into the slot's Meta field and click Apply to slot."
-                    : AssignFiles(slot!, slot!.AnimationFile!, path, slot.SoundFile, _metaDataFileParser.GenerateBytes(2, new ParsedMetadataFile { Version = 2 }));
+                problem = _packFileService.FindFile(path) != null ? $"{path} is already in a loaded pack. To use it, type it into the slot's Meta field."
+                    : SaveRowMeta(row!, path, _metaDataFileParser.GenerateBytes(2, new ParsedMetadataFile { Version = 2 }));
             }
             if (problem != null)
                 _standardDialogs.ShowDialogBox(problem);
         }
 
-        // Points a slot at other files and saves its set into the editable pack, then writes metaBytes, when given, at the meta's
-        // path. A battle table is spliced into its animpack; a campaign set is a file of its own and is written whole. Either is
-        // first read again from the editable pack, so a set picked before an earlier save does not undo it. Null when saved, else
-        // why not, and nothing is written then. Paths are stored lower-cased with forward slashes, as CA's rows have them.
-        string? AssignFiles(AnimationBinEntryGenericFormat slot, string anim, string meta, string sound, byte[]? metaBytes = null)
+        // Points a row at a new meta, as an edit, and saves the set with every other edit of the grid, then writes the meta. The edit
+        // is taken back when the save is refused.
+        string? SaveRowMeta(SlotGridRow row, string metaPath, byte[] metaBytes)
         {
-            (anim, meta, sound) = (Key(anim.Trim()), Key(meta.Trim()), Key(sound.Trim()));
-            var selection = _asset.FragAndSlotSelection;
-            var shown = selection.FragmentList.SelectedItem;
-            var editable = _packFileService.GetEditablePack();
-            if (editable == null)
-                return "No editable pack is selected.";
+            var before = row.Values;
+            row.Meta = metaPath;
+            var problem = SaveSlotGrid(Key(metaPath.Trim()), metaBytes);
+            if (problem != null && row.Values != before)
+                SlotGrid.UndoCommand.Execute(null);
+            return problem;
+        }
 
-            IAnimationBinGenericFormat saved;
-            try
-            {
-                if (shown is AnimationBinWh3 table)
-                {
-                    table = AnimTableEdits.Latest(_packFileService, table);
-                    var before = table.ToByteArray();
-                    AnimTableEdits.SetFiles(table, slot, anim, meta, sound);
-                    if (AnimTableEdits.Save(_packFileService, _fileSaveService, table) is { } refused)
-                    {
-                        table.AnimationTableEntries = new AnimationBinWh3(table.FileName, before).AnimationTableEntries;
-                        return refused;
-                    }
-                    saved = AnimTableEdits.Latest(_packFileService, table);
-                }
-                else if (shown is CampaignAnimationSet campaign)
-                {
-                    CampaignAnimationSet Read() => new(campaign.FullPath, CampaignAnimationBinLoader.Load(
-                        (_packFileService.FindFile(campaign.FullPath, editable) ?? _packFileService.FindFile(campaign.FullPath))!.DataSource.ReadDataAsChunk()));
-                    var set = Read();
-                    set.SetFiles(slot, anim, meta, sound);
-                    _fileSaveService.Save(campaign.FullPath, CampaignAnimationBinLoader.Write(set.Bin, Path.GetFileNameWithoutExtension(campaign.FullPath)), false);
-                    // Read back as written: the writer lower-cases every string, so a set with capitals is not what it wrote, and a
-                    // slot picked from it would name files the file no longer does.
-                    saved = Read();
-                }
-                else
-                    return "Pick an animation set first.";
-            }
-            catch (ArgumentException e)
-            {
-                return e.Message;
-            }
+        // Writes the slot grid's edits into their set in the editable pack, then metaBytes, when given, at metaPath, and picks the saved
+        // set in the shown one's place. Null when saved, else why not, and nothing is written then.
+        string? SaveSlotGrid(string? metaPath = null, byte[]? metaBytes = null)
+        {
+            var shown = SlotGrid.Set;
+            var (problem, saved) = WriteSlots(shown, SlotGrid.Rows.Where(x => x.IsEdited).ToList());
+            if (problem != null)
+                return problem;
             if (metaBytes != null)
-                _fileSaveService.Save(meta, metaBytes, false);
+                _fileSaveService.Save(metaPath!, metaBytes, false);
 
             // The slot list is built from a set when it is picked, so the saved copy is picked in the shown one's place, then the slot
             // at the same place in the list: an edit changes a row's files, never the rows. The edited tab loads its new file; the
-            // other keeps any unsaved edit, as its file is the same one.
+            // other keeps any unsaved edit, as its file is the same one. The list update re-picks the shown set, which reloads the grid
+            // as saved, so picking the saved copy does not ask about the edits just written.
+            var selection = _asset.FragAndSlotSelection;
             var slots = selection.FragmentSlotList;
-            var at = slots.PossibleValues.IndexOf(slots.SelectedItem!);
+            var at = slots.SelectedItem == null ? -1 : slots.PossibleValues.IndexOf(slots.SelectedItem);
             var name = slots.SelectedItem?.SlotName;
-            selection.FragmentList.UpdatePossibleValues(selection.FragmentList.PossibleValues.Select(x => x == shown ? saved : x).ToList());
+            selection.FragmentList.UpdatePossibleValues(selection.FragmentList.PossibleValues.Select(x => x == shown ? saved! : x).ToList());
             selection.FragmentList.SelectedItem = saved;
             slots.SelectedItem = at >= 0 && at < slots.PossibleValues.Count && slots.PossibleValues[at].SlotName == name ? slots.PossibleValues[at]
                 : slots.PossibleValues.FirstOrDefault(x => x.SlotName == name);
             return null;
+        }
+
+        // What the grid leaves out, the set's header and adding or removing slots, is in the set's own editor: the animpack holding a
+        // battle table, the editable pack's copy when there is one, or a campaign set's file.
+        void OpenFullGrid()
+        {
+            var set = SlotGrid.Set;
+            var path = set is AnimationBinWh3 table ? AnimTableEdits.Latest(_packFileService, table).Parent?.FileName : set?.FullPath;
+            var editable = _packFileService.GetEditablePack();
+            var file = path == null ? null : (editable == null ? null : _packFileService.FindFile(path, editable)) ?? _packFileService.FindFile(path);
+            if (file == null)
+                SlotGrid.Status = set == null ? "Pick an animation set first." : $"{set.Name}'s file is in no loaded pack.";
+            else
+                _uiCommandFactory.Create<OpenEditorCommand>().Execute(file);
+        }
+
+        // Another set is being picked while the grid has unsaved edits to this one: save them into it, or drop them. Closing the box
+        // saves, so nothing is lost by accident. The saved copy takes the old one's place in the list, the pick going ahead.
+        void OfferToSaveSlotGrid(IAnimationBinGenericFormat set)
+        {
+            if (_standardDialogs.ShowChoiceBox($"The slot grid has unsaved edits to {set.Name}.", "Slot grid", ["Save them", "Drop them"]) == 1)
+                return;
+            var (problem, saved) = WriteSlots(set, SlotGrid.Rows.Where(x => x.IsEdited).ToList());
+            if (problem != null)
+            {
+                _standardDialogs.ShowDialogBox($"The slot grid's edits were not saved: {problem}");
+                return;
+            }
+            var list = _asset.FragAndSlotSelection.FragmentList;
+            if (list.PossibleValues.IndexOf(set) is var i and >= 0)
+                list.PossibleValues[i] = saved!;
+            if (list.Values.IndexOf(set) is var j and >= 0)
+                list.Values[j] = saved!;
+        }
+
+        // Writes edited rows into a set: a battle table is spliced into its animpack, a campaign set is a file of its own and is
+        // written whole. Either is first read again from the editable pack, so a set picked before an earlier save does not undo it.
+        // A row is found in the set by the files it names as saved. Paths are stored lower-cased with forward slashes, as CA's rows
+        // have them. Returns the set as saved, or why not, and nothing is written then.
+        (string? Problem, IAnimationBinGenericFormat? Saved) WriteSlots(IAnimationBinGenericFormat? set, List<SlotGridRow> edits)
+        {
+            var editable = _packFileService.GetEditablePack();
+            if (editable == null)
+                return ("No editable pack is selected.", null);
+            try
+            {
+                if (set is AnimationBinWh3 table)
+                {
+                    table = AnimTableEdits.Latest(_packFileService, table);
+                    var before = table.ToByteArray();
+                    void Undo() => table.AnimationTableEntries = new AnimationBinWh3(table.FileName, before).AnimationTableEntries;
+                    try
+                    {
+                        foreach (var row in edits)
+                        {
+                            var v = row.Values;
+                            AnimTableEdits.SetFiles(table, row.Slot, Key(v.Animation.Trim()), Key(v.Meta.Trim()), Key(v.Sound.Trim()));
+                            AnimTableEdits.SetBlendAndWeight(table, row.Slot.SlotIndex, v.BlendIn, v.Weight);
+                            AnimTableEdits.Row(table, row.Slot.SlotIndex).WeaponBools = v.Weapons;
+                        }
+                    }
+                    catch
+                    {
+                        Undo();
+                        throw;
+                    }
+                    if (AnimTableEdits.Save(_packFileService, _fileSaveService, table) is { } refused)
+                    {
+                        Undo();
+                        return (refused, null);
+                    }
+                    return (null, AnimTableEdits.Latest(_packFileService, table));
+                }
+                if (set is CampaignAnimationSet campaign)
+                {
+                    CampaignAnimationSet Read() => new(campaign.FullPath, CampaignAnimationBinLoader.Load(
+                        (_packFileService.FindFile(campaign.FullPath, editable) ?? _packFileService.FindFile(campaign.FullPath))!.DataSource.ReadDataAsChunk()));
+                    var copy = Read();
+                    foreach (var row in edits)
+                        copy.SetFiles(row.Slot, Key(row.Animation.Trim()), Key(row.Meta.Trim()), Key(row.Sound.Trim()));
+                    _fileSaveService.Save(campaign.FullPath, CampaignAnimationBinLoader.Write(copy.Bin, Path.GetFileNameWithoutExtension(campaign.FullPath)), false);
+                    // Read back as written: the writer lower-cases every string, so a set with capitals is not what it wrote, and a
+                    // slot picked from it would name files the file no longer does.
+                    return (null, Read());
+                }
+                return ("Pick an animation set first.", null);
+            }
+            catch (ArgumentException e)
+            {
+                return (e.Message, null);
+            }
         }
     }
 }
