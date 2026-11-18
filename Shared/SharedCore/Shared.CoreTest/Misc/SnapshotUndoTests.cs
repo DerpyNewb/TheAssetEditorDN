@@ -34,6 +34,26 @@ namespace Shared.CoreTest.Misc
             Assert.That((history.Undo(), doc), Is.EqualTo((true, "b")));
         }
 
+        // Undo twice: the second is told where its own step was made, not where the first undo left the selection.
+        [Test]
+        public void EachUndo_IsToldWhereItsOwnStepWasMade()
+        {
+            var doc = new Doc("a", "x");
+            var madeIn = new List<string>();
+            var history = new SnapshotUndo<Doc>(() => doc, (p, q) => p.Text == q.Text, (load, made) => { doc = load with { Where = made.Where }; madeIn.Add(made.Where); });
+            history.Reset();
+            doc = new("b", "x");
+            history.Checkpoint();
+            doc = new("c", "y");
+            history.Checkpoint();
+
+            history.Undo();
+            history.Undo();
+            Assert.That((doc.Text, madeIn), Is.EqualTo(("a", new List<string> { "y", "x" })));
+        }
+
+        record Doc(string Text, string Where);
+
         // A restore that sets off a checkpoint of its own, through a change event the editor checkpoints on, records nothing.
         [Test]
         public void ACheckpointDuringARestore_RecordsNothing()

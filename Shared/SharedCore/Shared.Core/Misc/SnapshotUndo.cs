@@ -38,7 +38,11 @@ namespace Shared.Core.Misc
             if (_restoring)
                 return false;
             var now = take();
-            var changed = _current != null && !same(now, _current);
+            // Nothing changed: the last snapshot stays, so it still says where its step was made (the editor's selection may have
+            // moved since, and an undo should show the edit, not where the user clicked afterwards).
+            if (_current != null && same(now, _current))
+                return false;
+            var changed = _current != null;
             if (changed)
             {
                 _undo.Push(_current!);
@@ -70,7 +74,11 @@ namespace Shared.Core.Misc
             {
                 _restoring = false;
             }
-            _current = take();
+            // The arriving snapshot is kept when the document reads back the same, so the next undo is told where its own step
+            // was made, not where this one left the selection. One that reads back otherwise is taken again, or the difference
+            // would be the next step.
+            var now = take();
+            _current = same(now, arriving) ? arriving : now;
             return true;
         }
     }
