@@ -190,7 +190,7 @@ namespace GameWorld.Core.Test.Vfx
         [TestCase(true, 0f, 0f, 0f, -1f)]
         public void SpawnDirection_OnTerrain_KeepsOnlyTheEmittersHeading(bool onTerrain, float elevation, float x, float y, float z)
         {
-            var s = Steady(e => { e.MaxParticles = 1; e.InitialSpeed = C(1); e.SpawnAngle = Vector2.Zero; e.Spread = (elevation, elevation); e.DirectionOnTerrain = onTerrain; });
+            var s = Steady(e => { e.MaxParticles = 1; e.InitialSpeed = C(1); e.SpreadArc = (0, 0); e.Spread = (elevation, elevation); e.DirectionOnTerrain = onTerrain; });
             var tilted = Matrix.CreateRotationZ(MathHelper.ToRadians(30)) * Matrix.CreateRotationY(MathHelper.PiOver2);
             var velocity = Run(s, 1, _ => tilted).Emitters[0].Particles.Single().Velocity;
             Assert.That(Vector3.Distance(velocity, new Vector3(x, y, z)), Is.LessThan(1e-3f), velocity.ToString());
@@ -281,7 +281,7 @@ namespace GameWorld.Core.Test.Vfx
             var s = Steady(x =>
             {
                 x.Space = space;
-                x.SpawnAngle = Vector2.Zero;
+                x.SpreadArc = (0, 0);
                 x.Spread = (-45, -45);
                 x.InitialSpeed = C(10);
                 x.Collisions = true;
@@ -479,7 +479,7 @@ namespace GameWorld.Core.Test.Vfx
         public void ConstantForce_IsInCentimetresPerSecondSquared_AndGivesTheAnalyticPath()
         {
             // One particle, 2 m/s along X, under one g downward: -981 cm/s2, 9.81 m/s2.
-            var s = Steady(x => { x.MaxParticles = 1; x.InitialSpeed = C(2); x.SpawnAngle = Vector2.Zero; x.Forces = [C(0, -981, 0)]; });
+            var s = Steady(x => { x.MaxParticles = 1; x.InitialSpeed = C(2); x.SpreadArc = (0, 0); x.Forces = [C(0, -981, 0)]; });
             var p = Run(s, 1).Emitters[0].Particles.Single();
             Assert.That(Vector3.Distance(p.Position, new Vector3(2 * p.Age, -4.905f * p.Age * p.Age, 0)), Is.LessThan(1e-3f));
         }
@@ -489,10 +489,56 @@ namespace GameWorld.Core.Test.Vfx
         [TestCase(SimulationSpace.LocalPositionOnly, 5f, 0f, 1f, Description = "moves with the bone, does not turn")]
         public void SimulationSpace_DecidesWhatTheBoneCarries(SimulationSpace space, float x, float y, float z)
         {
-            // One still particle spawned 1 m along the emitter's Z: a ring of radius 1, at 90 degrees.
-            var s = Steady(e => { e.Space = space; e.MaxParticles = 1; e.Rate = C(600); e.SpawnRing = C(1, 1); e.SpawnArc = new Vector2(90, 90); });
+            // One still particle spawned 1 m along the emitter's Z: a ring of radius 1, at azimuth -90 (90 is -Z).
+            var s = Steady(e => { e.Space = space; e.MaxParticles = 1; e.Rate = C(600); e.SpawnRing = C(1, 1); e.SpawnArc = new Vector2(-90, -90); });
             var state = States(Run(s, 1, MovingBone)).Single();
             Assert.That(Vector3.Distance(state.Position, new Vector3(x, y, z)), Is.LessThan(0.15f));
+        }
+
+        // The spawn point and the velocity, as the exe aims them (exe+1a98904, exe+1a9843c): SpawnAngle and SpawnSpread are
+        // elevations, SpawnArc and SpreadArc azimuths, azimuth 90 is -Z, and SpreadMethod false flies out through the spawn point.
+        [TestCase(0f, 0f, 1f, 0f, 0f)]
+        [TestCase(90f, 0f, 0f, 1f, 0f)]
+        [TestCase(0f, 90f, 0f, 0f, -1f)]
+        public void SpawnAngle_IsTheSpawnPointsElevation_AndSpawnArcItsAzimuth(float angle, float arc, float x, float y, float z)
+        {
+            var s = Steady(e => { e.MaxParticles = 1; e.SpawnRing = C(2, 2); e.SpawnAngle = new Vector2(angle, angle); e.SpawnArc = new Vector2(arc, arc); });
+            var position = States(Run(s, 1)).Single().Position;
+            Assert.That(Vector3.Distance(position, 2 * new Vector3(x, y, z)), Is.LessThan(1e-3f), position.ToString());
+        }
+
+        [TestCase(true, 0f, 0f, -1f, Description = "SpawnSpread 0 and SpreadArc 90")]
+        [TestCase(false, 0f, 1f, 0f, Description = "out through a spawn point straight up")]
+        public void SpreadMethod_PicksTheAnglesOrTheWayOut(bool spreadMethod, float x, float y, float z)
+        {
+            var s = Steady(e =>
+            {
+                e.MaxParticles = 1;
+                e.InitialSpeed = C(1);
+                e.SpawnRing = C(2, 2);
+                e.SpawnAngle = new Vector2(90, 90);
+                e.Spread = (0, 0);
+                e.SpreadArc = (90, 90);
+                e.SpreadMethod = spreadMethod;
+            });
+            var velocity = Run(s, 1).Emitters[0].Particles.Single().Velocity;
+            Assert.That(Vector3.Distance(velocity, new Vector3(x, y, z)), Is.LessThan(1e-3f), velocity.ToString());
+        }
+
+        // A file's SpawnArc 0,0 is one azimuth, not the whole ring: every particle is born on +X.
+        [Test]
+        public void SpawnArcZero_IsOneAzimuth()
+        {
+            var s = Steady(e => { e.SpawnRing = C(1, 1); e.SpawnArc = Vector2.Zero; });
+            Assert.That(States(Run(s, 1)).All(p => Vector3.Distance(p.Position, Vector3.UnitX) < 1e-3f), Is.True);
+        }
+
+        // SpreadMethod false with the spawn point on the centre: no direction, so no speed, as the exe leaves it.
+        [Test]
+        public void Outward_FromTheCentre_IsStill()
+        {
+            var s = Steady(e => { e.MaxParticles = 1; e.InitialSpeed = C(5); e.SpreadMethod = false; });
+            Assert.That(Run(s, 1).Emitters[0].Particles.Single().Velocity, Is.EqualTo(Vector3.Zero));
         }
 
         [Test]

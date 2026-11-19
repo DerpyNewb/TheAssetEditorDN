@@ -373,7 +373,8 @@ namespace GameWorld.Core.Vfx
             if (!(life > 0))   // NaN too (a malformed lifetime bias): it would never die
                 return;
 
-            // Where, in the emitter's space: the box, then the ring.
+            // Where, in the emitter's space: a point in the box, plus one between the spawn area's two radii in the direction
+            // SpawnAngle (elevation) and SpawnArc (azimuth) give, as exe+1a98904 does.
             var uArea = VfxConventions.EmitterTime(age, e.Life, s.LoopArea);
             var offset = Vector3.Zero;
             if (s.SpawnBox != null)
@@ -382,13 +383,12 @@ namespace GameWorld.Core.Vfx
             {
                 var ring = Next();
                 var radius = MathHelper.Lerp(s.SpawnRing.Evaluate(0, uArea, ring), s.SpawnRing.Evaluate(1, uArea, ring), Next());
-                var (from, to) = VfxConventions.RingArc(s.SpawnArc);
-                var angle = MathHelper.ToRadians(MathHelper.Lerp(from, to, Next()));
-                offset += new Vector3(MathF.Cos(angle), 0, MathF.Sin(angle)) * radius;
+                offset += VfxConventions.Direction(MathHelper.Lerp(s.SpawnAngle.X, s.SpawnAngle.Y, Next()), MathHelper.Lerp(s.SpawnArc.X, s.SpawnArc.Y, Next())) * radius;
             }
 
-            // Which way, and how fast.
-            var direction = VfxConventions.Direction(MathHelper.Lerp(s.SpawnAngle.X, s.SpawnAngle.Y, Next()), Draw(s.Spread));
+            // Which way, and how fast: SpawnSpread (elevation) and SpreadArc (azimuth), or with SpreadMethod false straight out
+            // through the spawn point (exe+1a9843c).
+            var direction = s.SpreadMethod ? VfxConventions.Direction(Draw(s.Spread), Draw(s.SpreadArc)) : VfxConventions.Outward(offset);
             // On the ground, keeping the emitter's heading: turned into the emitter's space here, as the world turns it back below.
             if (s.DirectionOnTerrain)
                 direction = Vector3.TransformNormal(direction, VfxConventions.RigidFrame(world, true) * Matrix.Invert(VfxConventions.RigidFrame(world, false)));
