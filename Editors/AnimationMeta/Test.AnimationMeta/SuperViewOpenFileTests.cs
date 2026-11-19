@@ -190,6 +190,43 @@ namespace Test.AnimationMeta
             Assert.That((original.DataSource.ReadData(), pfs.FindFile(pfs.GetFullPath(original), output)), Is.EqualTo((originalBytes, (PackFile?)null)));
         }
 
+        // The set picker as SceneObjectView.xaml binds it, Text, ItemsSource and SelectedItem in that order. WPF writes picks back of
+        // its own: null, when a save swaps the saved copy into the list in the shown set's place.
+        static System.Windows.Controls.ComboBox BindPicker(Shared.Ui.Common.FilterCollection<IAnimationBinGenericFormat> list)
+        {
+            static System.Windows.Data.Binding TwoWay(string path, object source) => new(path)
+                { Source = source, Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged };
+            var picker = new System.Windows.Controls.ComboBox { IsEditable = true, IsTextSearchEnabled = false, DisplayMemberPath = "FileName" };
+            picker.SetBinding(System.Windows.Controls.ComboBox.TextProperty, TwoWay(nameof(list.Filter), list));
+            picker.SetBinding(System.Windows.Controls.ItemsControl.ItemsSourceProperty, new System.Windows.Data.Binding(nameof(list.Values)) { Source = list });
+            picker.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, TwoWay(nameof(list.SelectedItem), list));
+            return picker;
+        }
+
+        // With the picker on screen, WPF's null pick came while the grid still held the edit just saved; that edit was offered for
+        // saving again and found the old meta in no variant: "The slot grid's edits were not saved: ...'s ATTACK_5 has no variant
+        // naming ..." (2026-11-19, Zhargroth's ATTACK_8). Every test without the picker passed.
+        [Test, Apartment(ApartmentState.STA)]
+        public void SaveMetaAs_WithTheSetPickerOnScreen_SaysNothing()
+        {
+            var pfs = _runner.PackFileService;
+            var superView = _runner.CommandFactory.Create<OpenEditorCommand>().Execute<SuperViewViewModel>(pfs.FindFile(ThrotVmd)!, EditorEnums.SuperView_Editor);
+            var list = superView.SceneObjects[0].FragAndSlotSelection.FragmentList;
+            var picker = BindPicker(list);
+            var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            list.SelectedItem = list.PossibleValues.First(x => x.FullPath == ThrotTable);
+            selection.FragmentSlotList.SelectedItem = selection.FragmentSlotList.PossibleValues.First(x => x.SlotName == "ATTACK_5");
+            superView.SelectedTabControllerIndex = 1;
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.DisplaySaveDialog(It.IsAny<IPackFileService>(), It.IsAny<List<string>>(), It.IsAny<string>())).Returns(new SaveDialogResult(true, null, "animations/derpy/picked"));
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
+            _runner.Dialogs.Setup(x => x.ShowChoiceBox(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>())).Callback<string, string, IReadOnlyList<string>>((m, _, _) => said.Add(m));
+
+            superView.SaveMetaAsCommand.Execute(null);
+
+            Assert.That((said, picker.SelectedItem == list.SelectedItem, superView.SlotGrid.SelectedRow?.Meta), Is.EqualTo((new List<string>(), true, "animations/derpy/picked.anm.meta")));
+        }
+
         // A table list read before a save (as one is again on a skeleton change, a copy per pack) still offers the table as it was.
         // An assignment made from that stale copy edits the copy the pack now holds, so the earlier assignment survives it.
         [Test]

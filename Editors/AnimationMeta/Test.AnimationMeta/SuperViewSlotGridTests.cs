@@ -117,8 +117,9 @@ namespace Test.AnimationMeta
         }
 
         // Picking another set while the grid has edits asks first. Drop them writes nothing; Save them, or the box closed, writes them
-        // into the set left, and the list offers it as saved.
-        [TestCase(1, false)]
+        // into the set left, and the list offers it as saved. Asked once, with the picker on screen: the saved copy swapped into
+        // its list makes WPF pick null, which must not find the edits just written still waiting.
+        [TestCase(1, false), Apartment(ApartmentState.STA)]
         [TestCase(0, true)]
         [TestCase(null, true)]
         public void SlotGrid_LeavingASetWithEdits_AsksToSaveOrDropThem(int? choice, bool written)
@@ -129,15 +130,18 @@ namespace Test.AnimationMeta
             pfs.SetEditablePack(pfs.GetAllPackfileContainers().Single(x => x.Name.Contains("Throt")));
             var (superView, set) = OpenThrotTable();
             var selection = superView.SceneObjects[0].FragAndSlotSelection;
+            BindPicker(selection.FragmentList);
             var row = superView.SlotGrid.Rows.First(x => x.Slot.SlotName == "ATTACK_5");
             var weight = row.Weight + 2f;
             row.Weight = weight;
             var asked = new List<IReadOnlyList<string>>();
             _runner.Dialogs.Setup(x => x.ShowChoiceBox(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
                 .Callback<string, string, IReadOnlyList<string>>((_, _, choices) => asked.Add(choices)).Returns(choice);
+            var said = new List<string>();
+            _runner.Dialogs.Setup(x => x.ShowDialogBox(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((m, _) => said.Add(m));
 
             selection.FragmentList.SelectedItem = selection.FragmentList.PossibleValues.First(x => x.FullPath == CamThrot);
-            Assert.That((asked.Count, superView.SlotGrid.IsBattleTable, superView.SlotGrid.HasUnsavedChanges), Is.EqualTo((1, false, false)));
+            Assert.That((asked.Count, said, superView.SlotGrid.IsBattleTable, superView.SlotGrid.HasUnsavedChanges), Is.EqualTo((1, new List<string>(), false, false)));
             Assert.That(SavedCopy(set).Entries.First(x => x.SlotName == "ATTACK_5").SelectionWeight == weight, Is.EqualTo(written));
             var listed = selection.FragmentList.PossibleValues.Single(x => x.FullPath == ThrotTable);
             Assert.That(listed.Entries.First(x => x.SlotName == "ATTACK_5").SelectionWeight == weight, Is.EqualTo(written), "the list offers the set as saved");

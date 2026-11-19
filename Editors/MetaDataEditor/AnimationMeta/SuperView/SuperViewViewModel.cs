@@ -469,13 +469,16 @@ namespace Editors.AnimationMeta.SuperView
             var (problem, saved) = WriteSlots(shown, SlotGrid.Rows.Where(x => x.IsEdited).ToList());
             if (problem != null)
                 return problem;
+            // Written, so no longer edits. The picks below include WPF's own: the picker writes null back while the saved copy takes
+            // the shown set's place in its items, and an edit still held was offered for saving again, into a table it no longer
+            // matched ("...has no variant naming...").
+            SlotGrid.Discard();
             if (metaBytes != null)
                 _fileSaveService.Save(metaPath!, metaBytes, false);
 
             // The slot list is built from a set when it is picked, so the saved copy is picked in the shown one's place, then the slot
             // at the same place in the list: an edit changes a row's files, never the rows. The edited tab loads its new file; the
-            // other keeps any unsaved edit, as its file is the same one. The list update re-picks the shown set, which reloads the grid
-            // as saved, so picking the saved copy does not ask about the edits just written.
+            // other keeps any unsaved edit, as its file is the same one.
             var selection = _asset.FragAndSlotSelection;
             var slots = selection.FragmentSlotList;
             var at = slots.SelectedItem == null ? -1 : slots.PossibleValues.IndexOf(slots.SelectedItem);
@@ -513,6 +516,7 @@ namespace Editors.AnimationMeta.SuperView
                 _standardDialogs.ShowDialogBox($"The slot grid's edits were not saved: {problem}");
                 return;
             }
+            SlotGrid.Discard();    // written; the swap below makes WPF pick null too, as in SaveSlotGrid
             var list = _asset.FragAndSlotSelection.FragmentList;
             if (list.PossibleValues.IndexOf(set) is var i and >= 0)
                 list.PossibleValues[i] = saved!;
