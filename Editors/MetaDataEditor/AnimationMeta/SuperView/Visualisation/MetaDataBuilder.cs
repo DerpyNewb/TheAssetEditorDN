@@ -180,8 +180,9 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         // Whether a tag that changes the model is on at a time. Start < End is the window between them; Start = End (or End
         // before Start) is on from Start to the end of the clip, so 0/0 is the whole clip. That is how vanilla's DISABLE_MODEL
         // tags read: 0/0 on the engines' "invisible" stands, an instant where a matched-combat victim is swallowed.
-        public static bool IsOn(DecodedMetaEntryBase tag, float time) =>
-            tag.EndTime > tag.StartTime ? time >= tag.StartTime && time <= tag.EndTime : time >= tag.StartTime;
+        public static bool IsOn(DecodedMetaEntryBase tag, float time) => IsOn(tag.StartTime, tag.EndTime, time);
+        public static bool IsOn(float startTime, float endTime, float time) =>
+            endTime > startTime ? time >= startTime && time <= endTime : time >= startTime;
 
         // Whether an event tag is firing at a time: FIRE_POS spawns its projectile at Start Time, IMPACT_POS is the hit,
         // SOUND_TRIGGER plays, CAMERA_SHAKE_POS shakes. 99.6% of the vanilla ones are instants (End = Start; FIRE_POS 2,778
@@ -509,9 +510,23 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             // Add to scene
             root.AddObject(loadedNode);
 
-            var instance = new AnimatedPropInstance(loadedNode, propPlayer, animatedPropMeta.StartTime);
+            var instance = new AnimatedPropInstance(loadedNode, propPlayer, animatedPropMeta.StartTime, animatedPropMeta.EndTime, WeaponShown(rootSkeleton, animatedPropMeta.OverrideProp));
             instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
             return instance;
+        }
+
+        // Override Prop n (1-7) names be_prop_(n-1), DOCK_EQPT's numbering: the game hides the whole tag while the animation set
+        // shows a weapon there, and leaves that weapon drawn. Read live, since the set's weapon flags change without a rebuild
+        // (BinAnimationViewModel sets the slots' IsVisible). "A weapon is showing" rather than "the flag is set": the game test
+        // had a weapon on the bone, so it cannot tell the two apart, and an empty slot has nothing to give way to.
+        public static Func<bool> WeaponShown(ISkeletonProvider skeleton, int overrideProp)
+        {
+            if (overrideProp < 1 || skeleton is not SceneObject scene)
+                return () => false;
+            var bone = $"be_prop_{overrideProp - 1}";
+            // Walked each frame, so a model swapped under the props is still the one asked.
+            return () => scene.ModelNode != null && SceneNodeHelper.GetChildrenOfType<SlotNode>(scene.ModelNode)
+                .Any(x => x.IsVisible && x.Children.Count > 0 && string.Equals(x.AttachmentBoneName, bone, StringComparison.OrdinalIgnoreCase));
         }
 
         private IMetaDataInstance CreateStaticLocator(DecodedMetaEntryBase metaData, SceneNode root, Vector3 position, string displayName, ParsedMetadataAttribute? selectedMetaDataAttribute, float scale = 0.3f)
