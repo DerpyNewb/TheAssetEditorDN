@@ -21,7 +21,7 @@ namespace Editors.Ipc
     public partial class EditorRequests
     {
         public static readonly string[] Actions = ["editors", "scene", "select", "visible", "transform", "command", "camera", "keyframe",
-            "save", "savepack", "close"];
+            "save", "savepack", "close", "vm"];
 
         readonly IEditorManager _editorManager;
         readonly IScopeRepository _scopes;
@@ -61,6 +61,8 @@ namespace Editors.Ipc
                 return Save(editor);
             if (action == "close")
                 return Close(editor, request.Discard == true);
+            if (action == "vm")
+                return ViewModel(editor, request);
 
             // SceneManager is registered for every editor, so asking a text editor for one would build an empty scene.
             if (editor is not (KitbasherViewModel or EditorHostBase))

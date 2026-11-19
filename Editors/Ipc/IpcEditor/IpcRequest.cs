@@ -36,5 +36,10 @@
         public int? Frame { get; set; }
         public int[]? Rows { get; set; }
         public int[]? Frames { get; set; }
+
+        // vm: Name is tree, get, set or invoke; Path the member path ("Tags[3].Variables[FieldName=StartTime].ValueAsString");
+        // Value the text to set or the one argument to pass, "@path" for an object; Depth how many levels a tree opens.
+        public string? Value { get; set; }
+        public int? Depth { get; set; }
     }
 }
