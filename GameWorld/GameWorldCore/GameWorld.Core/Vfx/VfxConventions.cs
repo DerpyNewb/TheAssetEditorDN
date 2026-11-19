@@ -31,20 +31,24 @@ namespace GameWorld.Core.Vfx
         public static Matrix Rotation(Vector3 degrees) =>
             Matrix.CreateRotationX(MathHelper.ToRadians(degrees.X)) * Matrix.CreateRotationY(MathHelper.ToRadians(degrees.Y)) * Matrix.CreateRotationZ(MathHelper.ToRadians(degrees.Z));
 
-        /// <summary>Spawn direction: SpawnAngle is the azimuth about Y from +X, SpawnSpread the elevation above the XZ plane (90 is straight up).</summary>
-        public static Vector3 Direction(float azimuthDegrees, float elevationDegrees)
+        /// <summary>A direction from an elevation above the XZ plane (90 is straight up) and an azimuth about Y, both in degrees.
+        /// Azimuth 0 is +X and 90 is -Z. The exe's own (exe+1a96948, build 6ae2a00b), used for both the spawn point (SpawnAngle,
+        /// SpawnArc) and the velocity (SpawnSpread, SpreadArc).</summary>
+        public static Vector3 Direction(float elevationDegrees, float azimuthDegrees)
         {
-            var azimuth = MathHelper.ToRadians(azimuthDegrees);
             var elevation = MathHelper.ToRadians(elevationDegrees);
-            return new Vector3(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
+            var azimuth = MathHelper.ToRadians(azimuthDegrees);
+            return new Vector3(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), -MathF.Cos(elevation) * MathF.Sin(azimuth));
         }
 
-        /// <summary>An absent SpawnAngle is every azimuth. 8,908 of vanilla's 11,722 continuous_mesh emitters omit it, and
-        /// where present it is an azimuth range (0..360 in 802, -180..180 in 366); measured 2026-10-11.</summary>
-        public static readonly Vector2 EveryAzimuth = new(0, 360);
+        /// <summary>SpawnArc when a file leaves it out: every azimuth. A file's own 0,0 is one azimuth, +X, not the whole ring
+        /// (exe+1a88cd8 sets this default and exe+1a98904 takes a present value as it is); CA's portal edges pair 0,0 with a
+        /// SpawnAngle of 0..360 or -25..205, a ring or an arch standing upright.</summary>
+        public static readonly Vector2 WholeTurn = new(0, 360);
 
-        /// <summary>SpawnArc is the spawn ring's start and end angle in degrees, in the XZ plane; 0,0 is the whole ring.</summary>
-        public static (float From, float To) RingArc(Vector2 spawnArc) => spawnArc == Vector2.Zero ? (0, 360) : (spawnArc.X, spawnArc.Y);
+        /// <summary>SpreadMethod false: straight out from the emitter's centre through the spawn point, and no direction at
+        /// all when the point is the centre, as the exe leaves it (exe+1a9843c).</summary>
+        public static Vector3 Outward(Vector3 offset) => offset.LengthSquared() > 1e-12f ? Vector3.Normalize(offset) : Vector3.Zero;
 
         /// <summary>SpawnInheritedSpeed is a plain share of the emitter's velocity (332 of its 1,385 vanilla emitters carry 0.5,
         /// nearly all lie in 0..1), given to world-space particles only: a local-space particle already rides with its emitter.

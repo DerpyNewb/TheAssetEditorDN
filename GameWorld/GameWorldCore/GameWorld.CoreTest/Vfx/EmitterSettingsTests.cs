@@ -384,14 +384,21 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(smoke.Skipped, Has.One.Matches<string>(x => x.Contains("ps_made_up")));
         }
 
-        // 8,908 of 11,722 vanilla continuous_mesh emitters omit SpawnAngle; where present it is an azimuth range
-        // (0..360 in 802, -180..180 in 366). Read as 0,0, every emitter without one sprayed into +X alone.
+        // The exe's defaults for what a file leaves out (exe+1a88cd8): SpawnAngle 0,0, SpawnArc 0..360, SpreadArc -180..180,
+        // SpreadMethod true. A present value is read as it is, SpawnArc 0,0 included.
         [Test]
-        public void AbsentSpawnAngle_IsEveryAzimuth_AndAPresentOneIsRead()
+        public void SpawnAngles_TakeTheExesDefaults_AndAPresentOneAsItIs()
         {
-            Assert.That(Read(Emitter("smoke"), SmokeChain).Single().SpawnAngle, Is.EqualTo(new Vector2(0, 360)));
-            var narrow = Read(Emitter("smoke", """<property name="SpawnAngle" quality="0" x="-90.00" y="90.00"/>"""), SmokeChain).Single();
-            Assert.That(narrow.SpawnAngle, Is.EqualTo(new Vector2(-90, 90)));
+            var plain = Read(Emitter("smoke"), SmokeChain).Single();
+            Assert.That((plain.SpawnAngle, plain.SpawnArc, plain.SpreadArc, plain.SpreadMethod), Is.EqualTo((Vector2.Zero, new Vector2(0, 360), (-180f, 180f), true)));
+            var set = Read(Emitter("smoke", """
+                <property name="SpawnAngle" quality="0" x="-25.00" y="205.00"/>
+                <property name="SpawnArc" quality="0" x="0.00" y="0.00"/>
+                <ranged_property name="SpreadArc" quality="0" min="-90.00" max="90.00"/>
+                <property name="SpreadMethod" quality="0" value="false"/>
+                """), SmokeChain).Single();
+            Assert.That((set.SpawnAngle, set.SpawnArc, set.SpreadArc, set.SpreadMethod), Is.EqualTo((new Vector2(-25, 205), Vector2.Zero, (-90f, 90f), false)));
+            Assert.That(set.Skipped, Has.None.Contains("SpreadArc"));
         }
 
         // SmokeChain with its ps_texture modifier swapped for another.

@@ -14,6 +14,8 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
         public Vector3 Position { get; set; }
         public Vector4 Orientation { get; set; }
         public float Scale { get; }
+        // n hides the tag while the animation set shows the weapon on be_prop_(n-1); 0 never does. Measured in game 2026-11-19.
+        public int OverrideProp { get; set; }
     }
 
     [MetaData("ANIMATED_PROP", 0)]

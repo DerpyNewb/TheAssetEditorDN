@@ -20,7 +20,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         // is assignable to wins, so a type the builder skips sits above the type it inherits from.
         public static readonly IReadOnlyList<(Type Tag, Drawn Drawn, string Tooltip)> Tags =
         [
-            (typeof(IAnimatedPropMeta), Drawn.Yes, "SuperView draws this prop's model on its bone. An animated prop also plays its own animation."),
+            (typeof(IAnimatedPropMeta), Drawn.Yes, "SuperView draws this prop's model on its bone between its Start and End Time, as the game does. An animated prop also plays its own animation. While the animation set shows the weapon that Override Prop names, the game doesn't draw the prop at all, and neither does SuperView."),
             (typeof(IEffectMeta), Drawn.Yes, "SuperView draws this effect's locator and plays its particles. Show VFX and the VFX filter decide which effects play."),
             (typeof(Blood_v11), Drawn.Yes, "SuperView draws this tag the way it draws an EFFECT: its locator and its particles."),
             (typeof(ImpactPosition_v10), Drawn.Yes, Locator),

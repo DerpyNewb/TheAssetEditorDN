@@ -54,9 +54,17 @@ namespace GameWorld.Core.Vfx
         public VfxCurve? SpawnBox { get; set; }
         public VfxCurve? SpawnRing { get; set; }
         public bool LoopArea { get; set; }
+        /// <summary>SpawnAngle: the spawn point's elevation range in degrees, from the emitter's centre; 0,0 when absent.</summary>
         public Vector2 SpawnAngle { get; set; }
-        public Vector2 SpawnArc { get; set; }
+        /// <summary>SpawnArc: the spawn point's azimuth range in degrees; every way when absent.</summary>
+        public Vector2 SpawnArc { get; set; } = VfxConventions.WholeTurn;
+        /// <summary>SpawnSpread: the velocity's elevation range in degrees, read while SpreadMethod is true.</summary>
         public (float Min, float Max) Spread { get; set; } = (90, 90);
+        /// <summary>SpreadArc: the velocity's azimuth range in degrees, read while SpreadMethod is true.</summary>
+        public (float Min, float Max) SpreadArc { get; set; } = (-180, 180);
+        /// <summary>SpreadMethod: true, the default, aims a particle by SpawnSpread and SpreadArc; false sends it straight out
+        /// from the emitter's centre through where it spawned. No vanilla emitter writes true; 2,905 write false.</summary>
+        public bool SpreadMethod { get; set; } = true;
         /// <summary>Metres the emitter moves per extra particle, on top of the rate; 0 is none.</summary>
         public float SpawnSpacing { get; set; }
         /// <summary>MaximumVelocity: the most a particle's speed reaches, in m/s; 0 for no cap.</summary>
@@ -240,9 +248,12 @@ namespace GameWorld.Core.Vfx
             s.SpawnBox = ParseCurve(s, P("SpawnAreaBox"));
             s.SpawnRing = ParseCurve(s, P("SpawnAreaCurve"));
             s.LoopArea = Flag("SpawnAreaLoopAnim");
-            s.SpawnAngle = P("SpawnAngle") == null ? VfxConventions.EveryAzimuth : Xy("SpawnAngle");
-            s.SpawnArc = Xy("SpawnArc");
+            // The defaults are the exe's (exe+1a88cd8): a present value is taken as it is, 0,0 included.
+            s.SpawnAngle = Xy("SpawnAngle");
+            s.SpawnArc = P("SpawnArc") == null ? VfxConventions.WholeTurn : Xy("SpawnArc");
             s.Spread = Range("SpawnSpread", (90, 90));
+            s.SpreadArc = Range("SpreadArc", (-180, 180));
+            s.SpreadMethod = P("SpreadMethod")?.IsTrue ?? true;
             s.SkipPositionUpdate = Flag("SkipParticlePositionUpdate");
             s.SpawnSpacing = Math.Max(0, Number("SpawnSpacing", 0));
             // CA ships no source for it; read as its name says, on 31 vanilla emitters whose particles start still.
@@ -322,8 +333,6 @@ namespace GameWorld.Core.Vfx
             Vector4 Cull(string name, Vector4 fallback) => P(name) is { } p ? new Vector4(p.Number("x"), p.Number("y"), p.Number("z"), p.Number("w")) : fallback;
             s.EmitterCull = Cull("CullDistances", s.EmitterCull);
             s.ParticleCull = Cull("ParticleCullDistances", s.ParticleCull);
-            if (Range("SpreadArc", (0, 0)) != (0, 0))
-                s.Skipped.Add("SpreadArc is not read");
 
             ReadChain(s, resolved.Chain, resolved.MaterialTexture);
             // A decal paints the ground's colour, not light, so its texture is laid over by its alpha whatever the chain says:
