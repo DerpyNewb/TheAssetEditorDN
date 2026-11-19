@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.PackFiles;
@@ -19,6 +20,10 @@ namespace Test.UnitSimulator
 
         // asCaPacks marks the packs as CA's, as the app loads them, for the tests of what a CA pack refuses and of whose DB row wins. withDb adds db.pack and
         // the model packs, for the personalities: their tables, variant meshes and tech skeletons. Only the packs' indexes are read.
+        // Each pack's index is read once per test run and the container shared: no test writes into these packs (each writes into
+        // one it makes), and reading all ten again for every test was most of the project's nine minutes.
+        static readonly ConcurrentDictionary<(string Pack, bool Ca), IPackFileContainer> Loaded = new();
+
         public static AssetEditorTestRunner Load(bool asCaPacks = false, bool withDb = false)
         {
             var dataFolder = Environment.GetEnvironmentVariable("WH3_DATA");
@@ -32,9 +37,12 @@ namespace Test.UnitSimulator
                 packs.AddRange(["db.pack", "variants.pack", "variants2.pack", "variants3.pack", "variants4.pack", "variants5.pack", "warmachines.pack"]);
             foreach (var pack in packs)
             {
-                var container = loader.CreateFromPackFile(PackFileContainerType.Normal, Path.Combine(dataFolder!, pack), true);
-                container.IsCaPackFile = asCaPacks;
-                runner.PackFileService.AddContainer(container);
+                runner.PackFileService.AddContainer(Loaded.GetOrAdd((pack, asCaPacks), key =>
+                {
+                    var container = loader.CreateFromPackFile(PackFileContainerType.Normal, Path.Combine(dataFolder!, key.Pack), true);
+                    container.IsCaPackFile = key.Ca;
+                    return container;
+                }));
             }
             return runner;
         }

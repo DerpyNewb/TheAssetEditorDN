@@ -86,6 +86,12 @@ namespace Test.UnitSimulator
             var tables = AnimTableEdits.AllByName(pfs);
             var (mountOnly, withEngine) = (0, 0);
             var (ownRider, problems) = (new List<string>(), new List<string>());
+            // Each skeleton read and each tech folder listed once: TechFolders.Skeletons re-sorts every pack's file list on each call,
+            // and done for each of the 454 units this test took 80 s.
+            var bonesAt = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+            var techSkeletons = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            string[] Bones(string path) => bonesAt.TryGetValue(path, out var known) ? known
+                : bonesAt[path] = AnimationFile.Create(pfs.FindFile(path)!).Bones.Select(x => x.Name).ToArray();
             foreach (var unit in DbTables.Read(pfs, "land_units_to_battle_personalities_junctions_tables").GroupBy(x => x.Text("land_unit")))
             {
                 var row = units[unit.Key];
@@ -99,11 +105,15 @@ namespace Test.UnitSimulator
                 mountOnly++;
                 var mount = mounts[row.Text("mount")];
                 var bones = new HashSet<string>();
-                if (tables.TryGetValue(mount.Text("animation"), out var table) && pfs.FindFile($@"animations\skeletons\{table.SkeletonName}.anim") is { } skeleton)
-                    bones.UnionWith(AnimationFile.Create(skeleton).Bones.Select(x => x.Name));
-                if (variants.TryGetValue(mount.Text("variant"), out var variant) && variant.Text("tech_folder") != "")
-                    foreach (var path in TechFolders.Skeletons(pfs, variant.Text("tech_folder")))
-                        bones.UnionWith(AnimationFile.Create(pfs.FindFile(path)!).Bones.Select(x => x.Name));
+                if (tables.TryGetValue(mount.Text("animation"), out var table) && pfs.FindFile($@"animations\skeletons\{table.SkeletonName}.anim") is not null)
+                    bones.UnionWith(Bones($@"animations\skeletons\{table.SkeletonName}.anim"));
+                if (variants.TryGetValue(mount.Text("variant"), out var variant) && variant.Text("tech_folder") is { Length: > 0 } techFolder)
+                {
+                    if (!techSkeletons.TryGetValue(techFolder, out var techPaths))
+                        techSkeletons[techFolder] = techPaths = TechFolders.Skeletons(pfs, techFolder);
+                    foreach (var path in techPaths)
+                        bones.UnionWith(Bones(path));
+                }
                 var missing = unit.Where(x => x.Text("riders_attachment_point") != "" && !bones.Contains(x.Text("riders_attachment_point"))).ToList();
                 if (missing.Count != 0 && missing.All(x => x.Text("battle_personality") == unit.Key))
                     ownRider.Add($"{unit.Key}: its own personality on {missing[0].Text("riders_attachment_point")}, which {mount.Text("variant")} has no skeleton for");
