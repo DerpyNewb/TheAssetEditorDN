@@ -30,6 +30,36 @@ namespace Test.UnitSimulator
             Assert.That(tables["hr1_warhorse"].FullPath, Is.EqualTo(VanillaGame.WarhorseTable));
         }
 
+        // A copy of one table in its own animpack, in a pack of its own, standing up as STAND plays `anim`.
+        static void TableIn(AssetEditorTestRunner runner, string pack, string animPack, string anim, bool ca = false)
+        {
+            var container = runner.CreateEmptyPackFile(pack, false);
+            runner.PackFileService.AddFilesToPack(container, [new NewPackFileEntry(@"animations\database\battle\bin",
+                PackFile.CreateFromBytes(animPack, MadeUpTables.AnimPack(MadeUpTables.Table("t", "humanoid01", "", ("STAND", anim)))))]);
+            container.IsCaPackFile = ca;
+        }
+
+        static string KeptStand(IPackFileService pfs) =>
+            AnimTableEdits.AllByName(pfs)["t"].Entries.Single(x => x.SlotName == "STAND").AnimationFile;
+
+        // Measured in game 2026-11-19 (docs/MOD_STRUCTURE.md, "Which copy of an animation table wins"): of one table in several
+        // animpacks the game plays the copy in the animpack whose file name sorts first, whatever pack holds it and wherever that
+        // pack is in the mod list, and CA's animpacks are ranked the same way: a mod's zzz_ animpack lost to CA's animation_tables.
+        [Test]
+        public void TheCopyKept_IsTheOneInTheAnimpackWhoseNameSortsFirst()
+        {
+            var runner = new AssetEditorTestRunner();
+            TableIn(runner, "ca_anim", "animation_tables.animpack", "ca.anim", ca: true);
+            TableIn(runner, "zzz_aprec_z", "!!aprec.animpack", "first.anim");
+            TableIn(runner, "!!aprec_a", "zzz_aprec.animpack", "last.anim");
+            Assert.That(KeptStand(runner.PackFileService), Is.EqualTo("first.anim"));
+
+            var caOnly = new AssetEditorTestRunner();
+            TableIn(caOnly, "ca_anim", "animation_tables.animpack", "ca.anim", ca: true);
+            TableIn(caOnly, "zzz_aprec_z", "zzz_aprec.animpack", "zzz.anim");
+            Assert.That(KeptStand(caOnly.PackFileService), Is.EqualTo("ca.anim"));
+        }
+
         // Every mounted table comes back byte for byte, the two with capitals in their anim paths included: Katarin's
         // (.../horse01/Katarin/...) and the Kislev Patriarch's (.../bear01/Patriarch/...), which the writer used to lower-case.
         [Test]

@@ -4,7 +4,7 @@ namespace Shared.GameFormats.AnimationMeta.Definitions
 {
     public abstract class DockEquipment : DecodedMetaEntryBase
     {
-        public const string PropHelp = "1 = be_prop_0 in a typical VMD, 2 = be_prop_1, and so on: the game counts from 1 (measured in game 2026-11-18). What 0 does is unknown, though vanilla uses it over 160 times.";
+        public const string PropHelp = "1 = be_prop_0 in a typical VMD, 2 = be_prop_1, and so on: the game counts from 1 (measured in game 2026-11-18). 0 docks nothing and leaves an earlier dock in place (measured in a persistent meta, 2026-11-19).";
 
         [MetaDataTag(5, PropHelp)]
         public int PropBoneId { get; set; }

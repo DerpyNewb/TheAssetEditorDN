@@ -17,8 +17,12 @@ namespace Editors.Shared.Core.Common
             OneCopyEach(pfs, PackFileServiceUtility.GetAllAnimPacks(pfs).SelectMany(x => AnimationPackSerializer.Load(x, pfs).GetGenericAnimationSets()))
                 .GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
 
-        /// <summary>The tables with one copy of each path. A table is listed once per pack holding its animpack, and CA ships some in two
-        /// animpacks; the copy kept is the editable pack's, which a save writes to, else the last loaded, which is the one FindFile gives.</summary>
+        /// <summary>The tables with one copy of each path. A table is listed once per animpack holding it: CA ships most in two, and mods
+        /// ship their own. The copy kept is the editable pack's, which a save writes to, else the one the game plays: the copy in the
+        /// animpack whose file name sorts first, CA's ranked the same way (measured in game 2026-11-19, docs/MOD_STRUCTURE.md, "Which
+        /// copy of an animation table wins"). Of copies in animpacks of one name, the last loaded.</summary>
+        // ponytail: the editable pack's copy is kept even where the game would play another, so that an edit goes on from the last save.
+        // Copies in two packs' animpacks of one name are taken last loaded first; the game's rule for those is not measured.
         public static List<IAnimationBinGenericFormat> OneCopyEach(IPackFileService pfs, IEnumerable<IAnimationBinGenericFormat> tables)
         {
             var editable = pfs.GetEditablePack();
@@ -34,7 +38,8 @@ namespace Editors.Shared.Core.Common
 
             return tables.GroupBy(x => x.FullPath)
                 .Select(copies => copies.Count() == 1 ? copies.First()
-                    : copies.Select(x => InEditable(x.PackFileReference?.FileName)?.FirstOrDefault(y => y.FullPath == copies.Key)).FirstOrDefault(x => x != null) ?? copies.Last())
+                    : copies.Select(x => InEditable(x.PackFileReference?.FileName)?.FirstOrDefault(y => y.FullPath == copies.Key)).FirstOrDefault(x => x != null)
+                        ?? copies.Reverse().OrderBy(x => Path.GetFileName(x.PackFileReference?.FileName ?? ""), StringComparer.Ordinal).First())
                 .ToList();
         }
 
