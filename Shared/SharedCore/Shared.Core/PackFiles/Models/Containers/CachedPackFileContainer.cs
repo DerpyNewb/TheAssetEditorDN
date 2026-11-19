@@ -20,8 +20,20 @@ namespace Shared.Core.PackFiles.Models.Containers
         private static readonly ILogger _logger = Logging.CreateStatic(typeof(CachedPackFileContainer));
         private const int CurrentSchemaVersion = 4;
 
-        private CacheDbContext _db;
+        private CacheDbContext _context;
         private readonly DbContextOptions<CacheDbContext> _dbOptions;
+
+        // EF closes a connection it opened itself after every query, and with pooling off the next one opened the cache's file
+        // again: 5 ms a lookup, and 3 s of the bin grid's checks on every edit. Opened here, it stays open until Save or Dispose.
+        private CacheDbContext Db
+        {
+            get
+            {
+                if (_context.Database.GetDbConnection().State != System.Data.ConnectionState.Open)
+                    _context.Database.OpenConnection();
+                return _context;
+            }
+        }
         private readonly object _dbLock = new();
         private SqliteConnection? _keepAliveConnection;
 
@@ -53,8 +65,8 @@ namespace Shared.Core.PackFiles.Models.Containers
             _dbOptions = new DbContextOptionsBuilder<CacheDbContext>()
                 .UseSqlite($"Data Source={dbFilePath};Pooling=False")
                 .Options;
-            _db = new CacheDbContext(_dbOptions);
-            _db.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
+            _context = new CacheDbContext(_dbOptions);
+            _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
         }
 
         /// <summary>
@@ -68,8 +80,8 @@ namespace Shared.Core.PackFiles.Models.Containers
             PackFileSettings.SaveLocationPath = DbFilePath;
             StorageMode = DbFilePath == null ? CacheStorageMode.InMemory : CacheStorageMode.File;
             _dbOptions = dbOptions;
-            _db = new CacheDbContext(dbOptions);
-            _db.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
+            _context = new CacheDbContext(dbOptions);
+            _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
         }
 
         /// <summary>
@@ -78,6 +90,9 @@ namespace Shared.Core.PackFiles.Models.Containers
         public void Save(string fingerprint, PackFileContainer source)
         {
             _logger.Here().Information($"Saving cache for '{source.Name}' with {source.GetFileCount()} files");
+
+            // The kept connection would hold the file the schema is about to delete.
+            _context.Database.CloseConnection();
 
             // Use EF to create the schema
             using (var db = new CacheDbContext(_dbOptions))
@@ -167,12 +182,12 @@ namespace Shared.Core.PackFiles.Models.Containers
             SourcePackFilePaths = new HashSet<string>(source.SourcePackFilePaths);
             PackFileSettings.GameVersion = source.PackFileSettings.GameVersion;
 
-            // Recreate _db so this instance can be queried after Save()
+            // Recreate the context so this instance can be queried after Save()
             _filesByFolder = null;
             _lastSearch = null;
-            _db.Dispose();
-            _db = new CacheDbContext(_dbOptions);
-            _db.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
+            _context.Dispose();
+            _context = new CacheDbContext(_dbOptions);
+            _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
         }
 
         /// <summary>
@@ -345,7 +360,7 @@ namespace Shared.Core.PackFiles.Models.Containers
 
         public void Dispose()
         {
-            _db.Dispose();
+            _context.Dispose();
             _keepAliveConnection?.Dispose();
             _keepAliveConnection = null;
         }
@@ -354,7 +369,7 @@ namespace Shared.Core.PackFiles.Models.Containers
         {
             lock (_dbLock)
             {
-                return _db.Files.Count();
+                return Db.Files.Count();
             }
         }
 
@@ -364,7 +379,7 @@ namespace Shared.Core.PackFiles.Models.Containers
             CachedFileEntity? entry;
             lock (_dbLock)
             {
-                entry = _db.Files.FirstOrDefault(f => f.RelativePath == lowerPath);
+                entry = Db.Files.FirstOrDefault(f => f.RelativePath == lowerPath);
             }
 
             return entry != null ? ToPackFile(entry) : null;
@@ -375,7 +390,7 @@ namespace Shared.Core.PackFiles.Models.Containers
             var lowerPath = PathNormalization.NormalizeFileName(path);
             lock (_dbLock)
             {
-                return _db.Files.Any(f => f.RelativePath == lowerPath);
+                return Db.Files.Any(f => f.RelativePath == lowerPath);
             }
         }
 
@@ -390,7 +405,7 @@ namespace Shared.Core.PackFiles.Models.Containers
                 CachedFileEntity? entry;
                 lock (_dbLock)
                 {
-                    entry = _db.Files.FirstOrDefault(f =>
+                    entry = Db.Files.FirstOrDefault(f =>
                         f.FileName == name &&
                         f.SourcePackFilePath == source.Parent.FilePath &&
                         f.Offset == source.Offset &&
@@ -408,7 +423,7 @@ namespace Shared.Core.PackFiles.Models.Containers
             List<string> matchingPaths;
             lock (_dbLock)
             {
-                matchingPaths = _db.Files
+                matchingPaths = Db.Files
                     .Where(f => f.FileName == name)
                     .Select(f => f.RelativePath)
                     .Take(2)
@@ -424,7 +439,7 @@ namespace Shared.Core.PackFiles.Models.Containers
             List<CachedFileEntity> entries;
             lock (_dbLock)
             {
-                entries = _db.Files
+                entries = Db.Files
                     .Where(f => f.Extension == extention)
                     .ToList();
             }
@@ -444,7 +459,7 @@ namespace Shared.Core.PackFiles.Models.Containers
                 if (_lastSearch is { } last && last.Key == key)
                     return last.Files;
 
-                IQueryable<CachedFileEntity> query = _db.Files;
+                IQueryable<CachedFileEntity> query = Db.Files;
 
                 if (extensions != null && extensions.Count > 0)
                 {
@@ -476,7 +491,7 @@ namespace Shared.Core.PackFiles.Models.Containers
                 if (_filesByFolder != null)
                     return _filesByFolder;
 
-                var rows = _db.Files
+                var rows = Db.Files
                     .Select(f => new { f.FolderPath, f.FileName })
                     .ToList();
 
@@ -499,7 +514,7 @@ namespace Shared.Core.PackFiles.Models.Containers
             List<CachedFileEntity> entries;
             lock (_dbLock)
             {
-                entries = _db.Files.ToList();
+                entries = Db.Files.ToList();
             }
             _logger.Here().Information("Getting all files from cached container took {ElapsedMilliseconds} ms", time.ElapsedMilliseconds);
 
@@ -534,7 +549,7 @@ namespace Shared.Core.PackFiles.Models.Containers
             List<DirectoryFileRow> directFileRows;
             lock (_dbLock)
             {
-                directFileRows = _db.Files
+                directFileRows = Db.Files
                     .Where(f => f.FolderPath == directoryPath)
                     .Select(f => new DirectoryFileRow
                     {

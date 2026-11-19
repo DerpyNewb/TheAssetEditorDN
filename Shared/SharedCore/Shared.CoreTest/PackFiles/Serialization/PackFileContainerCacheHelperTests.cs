@@ -352,8 +352,8 @@ namespace Shared.CoreTest.PackFiles.Serialization
             var oldResult = CachedPackFileContainer.CreateFromFingerPrint(dbOptions, "fp1");
             Assert.That(oldResult, Is.Null);
 
-            // New fingerprint should work
-            var newResult = CachedPackFileContainer.CreateFromFingerPrint(dbOptions, "fp2");
+            // New fingerprint should work. A loaded cache keeps its file open until it is disposed.
+            using var newResult = CachedPackFileContainer.CreateFromFingerPrint(dbOptions, "fp2");
             Assert.That(newResult, Is.Not.Null);
             Assert.That(newResult.Name, Is.EqualTo("Version2"));
             Assert.That(newResult.GetFileCount(), Is.EqualTo(1));
