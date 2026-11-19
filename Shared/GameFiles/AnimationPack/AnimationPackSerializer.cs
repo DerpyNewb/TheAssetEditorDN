@@ -58,7 +58,10 @@ namespace Shared.GameFormats.AnimationPack
             {
                 if (fullPath.Contains(".frg", StringComparison.InvariantCultureIgnoreCase))
                     return new AnimationSetFileSerializer();
-                else if (fullPath.Contains("matched_combat", StringComparison.InvariantCultureIgnoreCase))
+                // Only a .bin is a matched-combat table (animations/matched_combat/attila_generated.bin). default__.animpack
+                // keeps 225 clips and metas in matched_combat folders; read as tables, each failed only after allocating
+                // a list as long as whatever its bytes said, and the pack took a minute and 20 GB to open (2026-11-19).
+                else if (fullPath.Contains("matched_combat", StringComparison.InvariantCultureIgnoreCase) && fullPath.EndsWith(".bin", StringComparison.InvariantCultureIgnoreCase))
                     return new MatchedAnimFileSerializer();
                 else if (fullPath.Contains(".bin", StringComparison.InvariantCultureIgnoreCase))
                     return new AnimationDbFileSerializer();
