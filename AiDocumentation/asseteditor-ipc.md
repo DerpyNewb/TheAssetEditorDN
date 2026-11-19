@@ -102,6 +102,40 @@ The work runs on the UI thread. A command that opens a modal dialog holds that t
 5 seconds the reply is `{"ok":true,"pending":true}` and the work carries on. The dialog's own message loop keeps serving
 the pipe, so the next request is answered while it is open.
 
+### `vm`: any editor's view model
+Reads and drives any open tab through its view model, the way the tab's own controls do, so it reaches the editors with
+no 3D scene too: the meta, audio, VFX, texture, animation pack, BMD, CSC, music and text editors among them. `name` is
+the operation, `path` a member path, and `value` the text to set or the one argument to pass.
+
+```json
+{"action":"vm","name":"tree","depth":2}
+{"action":"vm","name":"get","path":"Tags[0].DisplayName"}
+{"action":"vm","name":"set","path":"Tags[IsDecodedCorrectly=true].Variables[FieldName=Start Time].ValueAsString","value":"0.5"}
+{"action":"vm","name":"set","path":"SelectedTag","value":"@Tags[1]"}
+{"action":"vm","name":"invoke","path":"DeleteActionCommand"}
+```
+- A path is property names joined by `.`, with `[3]` for a list item, `[Name=x]` for the first item whose `Name` reads
+  `x` (case ignored), and `[key]` for a dictionary entry. A `NotifyAttr<T>` reads and sets as its value.
+- `tree`: the members under `path` (the editor itself when it is left out), `depth` levels down (default 1), at most
+  `limit` (default 400, then `truncated`). Each is `{path, kind, type, value, writable, count, canExecute}`, and `kind` is
+  `value`, `null`, `object`, `list`, `command`, `method` or `error` (a getter that threw). A list shows its `count` and
+  opens up to 100 items a level further down. Only the app's own objects are opened, so a WPF control or a
+  `GraphicsDevice` shows as its type.
+- `get`: one member, in the same shape.
+- `set`: writes a property with a public setter, or a list item, as a two-way binding writes it, so the editor reacts
+  as it does to its own control, and lands it on its undo stack only where typing in that control would. `value` is
+  converted to the property's type: numbers in invariant culture, enums by name, vectors as `"x,y,z"`, `"null"`, and
+  `"@path"` for an object the path reaches. `"@@"` starts a literal `@`.
+- `invoke`: runs a command, refused while its `CanExecute` is false, or a public method taking nothing, or one value
+  when `value` is given. A command's `value` goes in as text, or as an object with `"@path"`. A method returning a
+  `Task` answers `"started"` without waiting for it.
+- A bad path, a value that will not convert, or anything the editor throws comes back as `ok: false` with the reason.
+- Paths are the editor's internal names, so they move when the code does. Find them with `tree`.
+
+Checked in the Release exe on 2026-11-19: `tree` read every editor the shipped exe can open, 24 of the 26, each in under
+half a second. The Twui editor is registered only while a debugger is attached, and the Mount Tool's menu entry is
+disabled, so neither can be opened there.
+
 ## Response Format
 AssetEditor returns one JSON response line and closes the connection.
 
