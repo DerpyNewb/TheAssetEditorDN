@@ -82,6 +82,11 @@ namespace Shared.Core.PackFiles.Utility
 
         public IPackFileContainer CreateFromPackFile(PackFileContainerType type, string packFilePath, bool loadAsReadOnly)
         {
+            // A folder is a project, whoever passed it. Read as a pack it was an empty read-only pack, and Open Recent then
+            // remembered it that way in the project's place.
+            if (Directory.Exists(packFilePath))
+                return CreateFromSystemFolder(packFilePath);
+
             var packfileName = Path.GetFileNameWithoutExtension(packFilePath);
             using var busy = BusyWork.Doing($"Opening {Path.GetFileName(packFilePath)}");
             var container = CreateFromCollection(type, packFilePath, [packFilePath], packfileName, loadAsReadOnly, new CustomPackDuplicateFileResolver());

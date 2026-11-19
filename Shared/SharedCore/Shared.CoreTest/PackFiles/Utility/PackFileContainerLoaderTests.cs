@@ -65,6 +65,27 @@ namespace Shared.CoreTest.PackFiles.Utility
             _dialogs.Verify(d => d.ShowDialogBox(It.Is<string>(m => m.Contains("Karl_and_celestialgeneral")), It.IsAny<string>()), Times.Once);
         }
 
+        // The IPC pipe and Open Recent pass whatever path they hold. A project folder opened as a pack was an empty read-only
+        // pack, "not found, loading skipped", and Open Recent then remembered it that way in the project's place.
+        [Test]
+        public void AFolderOpenedAsAPack_OpensAsTheFolderProject()
+        {
+            var folder = Path.Combine(_tempGameDir, "derpy_project");
+            Directory.CreateDirectory(Path.Combine(folder, "animations"));
+            File.WriteAllBytes(Path.Combine(folder, "animations", "derpy.anim"), [7]);
+
+            var pack = CreateLoader().CreateFromPackFile(PackFileContainerType.Normal, folder, true);
+            try
+            {
+                // The test factory builds a plain container from the folder; the app's builds a SystemFolderContainer.
+                Assert.That((pack.IsReadOnly, pack.FindFile(@"animations\derpy.anim") != null), Is.EqualTo((false, true)));
+            }
+            finally
+            {
+                (pack as IDisposable)?.Dispose();
+            }
+        }
+
         [Test]
         public void AWholePackOpenedForEditing_IsEditable_AndSaysNothing()
         {
