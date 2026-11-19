@@ -7,7 +7,8 @@ namespace Shared.Core.PackFiles.Events
     public record PackFileLookUpEvent(string FileName, IPackFileContainer? Container, bool Found);
 
     public abstract record PackFileContainerManipulationEvent();
-    public record PackFileContainerAddedEvent(IPackFileContainer Container) : PackFileContainerManipulationEvent;
+    /// <param name="AddToRecent">False for a pack a tool loaded (the IPC pipe): File > Open Recent lists what the user opened, and how.</param>
+    public record PackFileContainerAddedEvent(IPackFileContainer Container, bool AddToRecent = true) : PackFileContainerManipulationEvent;
     public record PackFileContainerRemovedEvent(IPackFileContainer Container) : PackFileContainerManipulationEvent;
     public record PackFileContainerSetAsMainEditableEvent(IPackFileContainer? Container);
     public record PackFileContainerFilesUpdatedEvent(IPackFileContainer Container, List<PackFile> ChangedFiles) : PackFileContainerManipulationEvent;

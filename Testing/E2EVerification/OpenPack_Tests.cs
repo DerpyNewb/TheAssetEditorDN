@@ -1,5 +1,7 @@
-﻿using AssetEditor.UiCommands;
+﻿using AssetEditor.Services;
+using AssetEditor.UiCommands;
 using AssetEditor.ViewModels;
+using Editors.Ipc;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Shared.Core.PackFiles.Models;
@@ -45,6 +47,23 @@ namespace Test.E2EVerification
         {
             var loader = new AssetEditorTestRunner().ServiceProvider.GetService(typeof(IPackFileContainerLoader)) as IPackFileContainerLoader;
             return loader!.CreateFromPackFile(PackFileContainerType.Normal, _path, true).GetAllFiles().ToDictionary(x => x.Key, x => x.Value.DataSource.ReadData());
+        }
+
+        // A tool that looks into a pack through the IPC pipe loads it read-only. That load used to replace the user's own
+        // Open Recent entry, so the pack they edit reopened from the menu as "[Read Only]".
+        [Test]
+        public async Task APackThePipeLoads_LeavesOpenRecentAsTheUserLeftIt()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            _ = runner.ServiceProvider.GetRequiredService<RecentFilesTracker>();
+            var settings = runner.ServiceProvider.GetRequiredService<ApplicationSettingsService>();
+            settings.AddRecentlyOpenedPackFile(_path, PackFileContainerType.Normal, false);
+
+            var loaded = await runner.ServiceProvider.GetRequiredService<IExternalPackLoader>().EnsureLoadedAsync(_path, CancellationToken.None);
+
+            Assert.That((loaded.Success, settings.CurrentSettings.RecentPackFiles.Single()),
+                Is.EqualTo((true, new RecentPackFileInfo(_path, PackFileContainerType.Normal, false))));
         }
 
         [Test]

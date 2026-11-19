@@ -8,7 +8,7 @@ namespace Shared.Core.PackFiles
         bool EnableFileLookUpEvents { get; set; }
         bool EnforceGameFilesMustBeLoaded { get; set; }
 
-        IPackFileContainer? AddContainer(IPackFileContainer container, bool setToMainPackIfFirst = false);
+        IPackFileContainer? AddContainer(IPackFileContainer container, bool setToMainPackIfFirst = false, bool addToRecent = true);
         void AddFilesToPack(IPackFileContainer container, List<NewPackFileEntry> newFiles);
         void CopyFileFromOtherPackFile(IPackFileContainer source, string path, IPackFileContainer target);
         IPackFileContainer CreateNewPackFileContainer(string name, PackFileVersion packFileVersion, PackFileCAType type, bool setEditablePack = false);

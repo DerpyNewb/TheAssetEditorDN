@@ -58,7 +58,7 @@ namespace Shared.Core.PackFiles
             return false;
         }
 
-        public IPackFileContainer? AddContainer(IPackFileContainer container, bool setToMainPackIfFirst = false)
+        public IPackFileContainer? AddContainer(IPackFileContainer container, bool setToMainPackIfFirst = false, bool addToRecent = true)
         {
             var pf = CastContainer(container);
             if (EnforceGameFilesMustBeLoaded)
@@ -91,11 +91,11 @@ namespace Shared.Core.PackFiles
                 }
             }
 
-            AddContainerInternal(pf, setToMainPackIfFirst);
+            AddContainerInternal(pf, setToMainPackIfFirst, addToRecent);
             return pf;
         }
 
-        void AddContainerInternal(IPackFileContainerInternal container, bool setToMainPackIfFirst = false)
+        void AddContainerInternal(IPackFileContainerInternal container, bool setToMainPackIfFirst = false, bool addToRecent = true)
         {
             _packFileContainers.Add(container);
             if (container is SystemFolderContainer systemFolderContainer)
@@ -106,7 +106,7 @@ namespace Shared.Core.PackFiles
 
             var notCaPacksLoaded = _packFileContainers.Count(x => !x.IsCaPackFile);
             _logger.Here().Information($"Added pack file container '{DescribeContainer(container)}' (CA:{container.IsCaPackFile}). Loaded containers: {_packFileContainers.Count}, editable containers: {notCaPacksLoaded}");
-            _globalEventHub?.PublishGlobalEvent(new PackFileContainerAddedEvent(container));
+            _globalEventHub?.PublishGlobalEvent(new PackFileContainerAddedEvent(container, addToRecent));
 
             // A read-only pack (a reference pack, or a damaged one: PackFileContainer.DamagedFiles) is added as it is.
             if (container.IsCaPackFile == false && container.IsReadOnly == false && setToMainPackIfFirst)

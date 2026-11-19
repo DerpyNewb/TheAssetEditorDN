@@ -5,7 +5,7 @@ using Shared.Core.Settings;
 
 namespace AssetEditor.Services
 {
-    class RecentFilesTracker : IDisposable
+    public class RecentFilesTracker : IDisposable
     {
         private readonly IGlobalEventHub _globalEventHub;
         private readonly ApplicationSettingsService _applicationSettingsService;
@@ -19,7 +19,7 @@ namespace AssetEditor.Services
 
         private void Handler(PackFileContainerAddedEvent e)
         {
-            if (e.Container.IsCaPackFile)
+            if (e.Container.IsCaPackFile || e.AddToRecent == false)
                 return;
 
             if (string.IsNullOrEmpty(e.Container.SystemFilePath))

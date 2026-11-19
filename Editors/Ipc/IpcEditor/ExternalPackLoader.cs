@@ -57,7 +57,9 @@ namespace Editors.Ipc
             if (container == null)
                 return PackLoadResult.Fail("Pack file could not be loaded");
 
-            var added = _packFileService.AddContainer(container, false);
+            // Not added to Open Recent: the pack is loaded read-only, and that entry replaced the user's own, so a pack they
+            // edit reopened from the menu as "[Read Only]" after a tool had looked into it once.
+            var added = _packFileService.AddContainer(container, false, addToRecent: false);
             if (added == null)
                 return PackLoadResult.Fail("Pack file could not be added");
 

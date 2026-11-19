@@ -28,7 +28,7 @@ namespace Test.Ipc
                     return container;
                 });
             packFileService
-                .Setup(x => x.AddContainer(container, false))
+                .Setup(x => x.AddContainer(container, false, false))
                 .Returns(() =>
                 {
                     Assert.That(dispatcher.IsExecuting, Is.True);
@@ -44,7 +44,7 @@ namespace Test.Ipc
             containerLoader.Verify(
                 x => x.CreateFromPackFile(PackFileContainerType.Normal, packPath, true),
                 Times.Once);
-            packFileService.Verify(x => x.AddContainer(container, false), Times.Once);
+            packFileService.Verify(x => x.AddContainer(container, false, false), Times.Once);
         }
 
         [Test]
@@ -69,7 +69,7 @@ namespace Test.Ipc
                 x => x.CreateFromPackFile(It.IsAny<PackFileContainerType>(), It.IsAny<string>(), It.IsAny<bool>()),
                 Times.Never);
             packFileService.Verify(
-                x => x.AddContainer(It.IsAny<IPackFileContainer>(), It.IsAny<bool>()),
+                x => x.AddContainer(It.IsAny<IPackFileContainer>(), It.IsAny<bool>(), It.IsAny<bool>()),
                 Times.Never);
         }
 
