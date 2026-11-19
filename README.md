@@ -7,7 +7,7 @@
 
 A fork of [donkeyProgramming's AssetEditor](https://github.com/donkeyProgramming/TheAssetEditor), the modding tool for Total War games with editors for 3D models, animations, audio, textures and more in one desktop app. It is built on upstream v0.78, with upstream's later master merged in, and adds a VFX editor, a Unit Simulator, a particle preview much closer to the game's, better LOD generation and a long list of fixes.
 
-Releases are numbered DN v1, v1.1, v1.2 and so on, with a third number for a hotfix such as v1.8.1, and the title bar shows both numbers, as in "AssetEditor v0.78 - DN v1.9.1".
+Releases are numbered DN v1, v1.1 and so on up to the current DN v2.0, with a third number for a hotfix such as v1.9.1. The title bar shows both numbers, as in "AssetEditor v0.78 - DN v2.0".
 
 **[Latest Release](https://github.com/DerpyNewb/TheAssetEditorDN/releases/latest)** · **[Documentation](https://donkeyprogramming.github.io/TheAssetEditor/)** · **[Video Tutorial](https://www.youtube.com/watch?v=ZlmG2AVL5-g)** · **[Upstream](https://github.com/donkeyProgramming/TheAssetEditor)**
 
@@ -21,13 +21,13 @@ The headline items. Every change is listed in the [release notes](https://github
 In the Tools menu. Opens `vfx/*.xml` and edits it in place: quality tiers, curve keys, properties, modifiers, emitters and references, with undo and a live preview you can fly like a projectile to see its trail. Its guide and a tutorial are in [docs/Documentation/VfxEditor.html](docs/Documentation/VfxEditor.html), which the upstream documentation site does not have. GitHub shows that file as source; the release zip carries it in `AssetEditor/docs/Documentation/`, so open it from there.
 
 ### Unit Simulator
-In the Tools menu. Plays a rider on its mount the way the game pairs them, edits both battle tables and saves them back into their animpack, and adds `battle_personalities` riders on the mount's attach bones, with TSV export for RPFM.
+In the Tools menu. Plays a rider on its mount the way the game pairs them, edits both battle tables and saves them back into their animpack, and adds `battle_personalities` riders on the mount's attach bones, with TSV export for RPFM. It can also bake a rider's battle table onto another mount.
 
 ### Particle preview
 Flipbooks, trails, decals, HDR glow at the game's bloom threshold, light particles lighting the ground and models, distortion and heat haze, rigid-model particles, terrain spawning, vector fields. A chain with no Ultra block draws nothing at Ultra, as in the game.
 
 ### SuperView and the Anm.Meta editor
-Vanilla `.anm.meta` files re-save byte-identical. Tag descriptions, a New dialog, PROP_10 and above, EFFECT particles, hand poses and animated props drawn in place, and `.variantmeshdefinition` files open and play. In SuperView, the Slot files panel changes the animation, meta and sound a slot plays and saves the battle table or campaign animation set it belongs to, and Save meta as gives a slot its own copy of a shared meta.
+Vanilla `.anm.meta` files re-save byte-identical. Tag descriptions, a New dialog, PROP_10 and above, EFFECT particles, hand poses and animated props drawn in place, and `.variantmeshdefinition` files open and play. In SuperView, a grid under the player lists the picked set's slots. An edit plays at once and can be undone until Ctrl+S saves the battle table or campaign animation set it belongs to, and Save meta as gives a slot its own copy of a shared meta.
 
 ### Grids for battle tables and variant meshes
 A WH3 battle animation table in an animpack, and a `.variantmeshdefinition`, each open as a grid with a row per slot entry. Paths have Browse and Open, slots can be added, removed, copied and pasted, find and replace works across paths, every edit can be undone, and problems are marked on their own row. Show as XML at the top right switches to the text and back.
@@ -37,6 +37,9 @@ In SuperView, the Unit Simulator and the Skeleton, Campaign Animation Creator, A
 
 ### Blender and OBJ import and export
 Right-click a `.rigid_model_v2` and pick Export to > Blender (.blend), glTF (.glb) or OBJ (.obj). The `.blend` keeps every LOD, the skeleton and the textures. To bring a model back, use File > Import 3D model, right-click a folder and pick Import 3D model or image, or drag a `.blend`, `.obj`, `.gltf` or `.glb` onto a folder in the Pack Explorer. Every RMV2 collection in a `.blend` comes back with all of its LODs, and a `.blend` exported from AssetEditor offers to go back to the path it came from. The `.blend` and `.obj` routes run Blender in the background, so they need Blender 4.2 or later with ChaosRobie's [io_scene_rmv2](https://github.com/robert-d-schultz/rmv2_anim_blender_import_export) extension installed. AssetEditor only calls that add-on and ships none of its code. An OBJ carries LOD0 only, with no skeleton, weights or pivot. [AiDocumentation/blender-import-export.md](AiDocumentation/blender-import-export.md) covers the details.
+
+### Driving it from a script
+Other programs can drive AssetEditor through a named pipe: find and open files, list and edit a 3D scene, save, and read or change any open editor's fields by path. [AiDocumentation/asseteditor-ipc.md](AiDocumentation/asseteditor-ipc.md) lists the requests.
 
 ### LOD generation
 LODs and "Reduce mesh by 10%" use [meshoptimizer](https://github.com/zeux/meshoptimizer). It lands close to the triangle count you ask for and keeps UV seams, open edges, skin weights and mirrored tangent frames. The old Fast Quadric decimator is still in the save dialog as "Fast Quadric (old)", with three of its bugs fixed.
