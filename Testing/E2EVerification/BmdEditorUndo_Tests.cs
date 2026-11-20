@@ -53,5 +53,32 @@ namespace Test.E2EVerification
             Assert.That(Now(), Is.EqualTo((2, x + 5, place)));
             Assert.That(vm.HasUnsavedChanges, Is.True);
         }
+
+        // A delete is a step of its own: undoing the add after it leaves the deleted light deleted.
+        [Test]
+        public void Delete_IsAStepOfItsOwn()
+        {
+            var runner = new AssetEditorTestRunner();
+            runner.CreateCaContainer();
+            var pack = runner.CreateOutputPack();
+            var empty = BmdWriter.Write(new BmdFile { Header = { FastBinVersion = 27 } });
+            runner.PackFileService.AddFilesToPack(pack, [new NewPackFileEntry("prefabs", PackFile.CreateFromBytes("delete.bmd", empty))]);
+            runner.CommandFactory.Create<OpenEditorCommand>().Execute(runner.PackFileService.FindFile(@"prefabs\delete.bmd")!);
+            var vm = runner.GetRequiredServiceInCurrentEditorScope<BmdEditorViewModel>();
+
+            vm.AddPointLightCommand.Execute(null);
+            vm.AddPointLightCommand.Execute(null);
+            vm.SelectComponent(vm.PointLights[0]);
+            vm.DeleteSelectedCommand.Execute(null);
+            Assert.That(vm.PointLights.Count, Is.EqualTo(1), "deleted");
+
+            vm.AddSpotLightCommand.Execute(null);
+            vm.Undo();
+            Assert.That((vm.PointLights.Count, vm.SpotLights.Count), Is.EqualTo((1, 0)), "the add is undone and the delete stays");
+            vm.Undo();
+            Assert.That(vm.PointLights.Count, Is.EqualTo(2), "then the delete is undone");
+            vm.Redo();
+            Assert.That(vm.PointLights.Count, Is.EqualTo(1), "and redone");
+        }
     }
 }
