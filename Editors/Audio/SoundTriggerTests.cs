@@ -5,6 +5,8 @@ using Shared.GameFormats.Wwise.Enums;
 using Shared.GameFormats.Wwise.Hirc;
 using Shared.GameFormats.Wwise.Hirc.V136;
 using Shared.GameFormats.Wwise.Hirc.V136.Shared;
+using Shared.GameFormats.Wwise.Wem.V132;
+using Shared.GameFormats.Wwise.Wem.V132.Encoding;
 
 namespace Test.Audio
 {
@@ -825,6 +827,264 @@ namespace Test.Audio
             run.Frames(0, 200);
 
             Assert.That(run.Played, Is.Empty);
+        }
+
+        // A 0.2 s, 1000 Hz sine at 44.1 kHz, encoded the way the editor's WAV-to-WEM does it: one channel per amplitude, mono at 0.5 when none is given.
+        static byte[] SineWem(params double[] amplitudes)
+        {
+            if (amplitudes.Length == 0)
+                amplitudes = [0.5];
+
+            const int rate = 44100;
+            var channels = amplitudes.Length;
+            var frames = rate / 5;
+            var samples = new short[frames * channels];
+            for (var i = 0; i < frames; i++)
+            {
+                for (var c = 0; c < channels; c++)
+                    samples[i * channels + c] = (short)(amplitudes[c] * short.MaxValue * Math.Sin(2 * Math.PI * 1000 * i / rate));
+            }
+
+            using var wav = new MemoryStream();
+            using (var writer = new NAudio.Wave.WaveFileWriter(wav, new NAudio.Wave.WaveFormat(rate, 16, channels)))
+                writer.WriteSamples(samples, 0, samples.Length);
+            return WemFile.CreateFromWavBytes(wav.ToArray(), new WemEncodingSettings()).WriteData();
+        }
+
+        const int FiftyMs = 4800; // floats, so 2,400 stereo frames
+
+        static float[] Read(SoundTriggerMixer mixer, int count)
+        {
+            var buffer = new float[count];
+            Assert.That(mixer.Output.Read(buffer, 0, count), Is.EqualTo(count), "the output always fills the request");
+            return buffer;
+        }
+
+        static double Rms(float[] samples) => Math.Sqrt(samples.Sum(x => (double)x * x) / samples.Length);
+
+        static float[] Channel(float[] interleaved, int channel) => interleaved.Where((_, i) => i % 2 == channel).ToArray();
+
+        static SoundTriggerMixer MixerWith(uint id, byte[]? wem = null)
+        {
+            var mixer = new SoundTriggerMixer(openDevice: false);
+            Assert.That(mixer.Prepare(id, () => wem ?? SineWem()), Is.True);
+            return mixer;
+        }
+
+        [Test]
+        public void Mixer_PlaysAPreparedSound()
+        {
+            using var mixer = MixerWith(7);
+
+            mixer.Play(7);
+
+            Assert.That(Rms(Read(mixer, FiftyMs)), Is.GreaterThan(0.05));
+        }
+
+        [Test]
+        public void Mixer_MonoSource_PlaysOnBothChannels_At1000Hz()
+        {
+            using var mixer = MixerWith(7);
+
+            mixer.Play(7);
+            var read = Read(mixer, FiftyMs);
+            var left = Channel(read, 0);
+            var right = Channel(read, 1);
+            var crossings = left.Zip(left.Skip(1)).Count(pair => pair.First < 0 != pair.Second < 0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(right, Is.EqualTo(left), "a mono source plays the same on both channels");
+                // 50 ms of 1000 Hz is 50 cycles, 100 zero crossings. A source left at 44.1 kHz and played at 48 kHz would give 109.
+                Assert.That(crossings, Is.InRange(97, 103));
+            });
+        }
+
+        [Test]
+        public void Mixer_StereoSource_KeepsItsChannels()
+        {
+            using var mixer = MixerWith(7, SineWem(0.5, 0));
+
+            mixer.Play(7);
+            var read = Read(mixer, FiftyMs);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Rms(Channel(read, 0)), Is.GreaterThan(0.05));
+                Assert.That(Rms(Channel(read, 1)), Is.LessThan(0.02));
+            });
+        }
+
+        // The encoder may put the channels in another order than the WAV's, so the channels' levels are read back off the decoder as the reference.
+        // Each channel has its own level, so a mixer that took a different pair than the decoder's first two would not match.
+        [TestCase(3)]
+        [TestCase(4)]
+        [TestCase(6)]
+        public void Mixer_MoreThanTwoChannels_KeepsTheFirstTwo(int channels)
+        {
+            var wem = SineWem(Enumerable.Range(0, channels).Select(c => 0.1 + 0.15 * c).ToArray());
+            var decoded = DecodedChannelRms(wem, frames: 4410);
+            using var mixer = MixerWith(7, wem);
+
+            mixer.Play(7);
+            var read = Read(mixer, 2 * FiftyMs);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Math.Abs(decoded[0] - decoded[2]), Is.GreaterThan(0.04), "the third channel is told apart from the first");
+                Assert.That(Math.Abs(decoded[1] - decoded[2]), Is.GreaterThan(0.04), "and from the second");
+                Assert.That(Rms(Channel(read, 0)), Is.EqualTo(decoded[0]).Within(0.02));
+                Assert.That(Rms(Channel(read, 1)), Is.EqualTo(decoded[1]).Within(0.02));
+            });
+        }
+
+        // The RMS of each channel over the first frames of the WEM, decoded the way SoundEngine does it.
+        static double[] DecodedChannelRms(byte[] wem, int frames)
+        {
+            using var reader = new NAudio.Vorbis.VorbisWaveReader(new MemoryStream(Shared.GameFormats.Audio.Containers.Ogg.OggFile.CreateFromWemBytes(wem).WriteData(), writable: false));
+            var channels = reader.WaveFormat.Channels;
+            var buffer = new float[frames * channels];
+            Assert.That(reader.Read(buffer, 0, buffer.Length), Is.EqualTo(buffer.Length));
+            return Enumerable.Range(0, channels).Select(c => Rms(buffer.Where((_, i) => i % channels == c).ToArray())).ToArray();
+        }
+
+        [Test]
+        public void Mixer_AVoice_PlaysItsSoundOnceAndEnds()
+        {
+            using var mixer = MixerWith(7);
+
+            mixer.Play(7);
+            var chunks = Enumerable.Range(0, 6).Select(_ => Rms(Read(mixer, FiftyMs))).ToList();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(chunks.Take(4), Is.All.GreaterThan(0.05), "the sound plays through its 0.2 s");
+                Assert.That(chunks[5], Is.EqualTo(0), "and is silent from 0.25 s on");
+            });
+        }
+
+        // A sine in phase with itself 50 cycles later doubles, so the overlap measures about twice one voice. 1.5 sits well under that.
+        [Test]
+        public void Mixer_SameSoundTwice_IsTwoVoices()
+        {
+            using var mixer = MixerWith(7);
+
+            mixer.Play(7);
+            var alone = Rms(Read(mixer, FiftyMs));
+            mixer.Play(7);
+            var overlap = Rms(Read(mixer, FiftyMs));
+            Read(mixer, 2 * FiftyMs); // out to 0.2 s from the first play, where the first voice ends
+            var pastTheFirst = Rms(Read(mixer, FiftyMs));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(alone, Is.GreaterThan(0.05));
+                Assert.That(overlap, Is.GreaterThan(alone * 1.5));
+                Assert.That(pastTheFirst, Is.GreaterThan(0.05), "the second voice is still sounding after the first has ended");
+            });
+        }
+
+        [Test]
+        public void Mixer_StopAll_Silences()
+        {
+            using var mixer = MixerWith(7);
+            mixer.Play(7);
+            Assert.That(Rms(Read(mixer, FiftyMs)), Is.GreaterThan(0.05), "the sound was playing");
+
+            mixer.StopAll();
+
+            Assert.That(Read(mixer, FiftyMs), Is.All.EqualTo(0f));
+        }
+
+        [Test]
+        public void Mixer_UnpreparedOrBadBytes()
+        {
+            using var mixer = new SoundTriggerMixer(openDevice: false);
+
+            var results = new bool[2];
+            Assert.DoesNotThrow(() => results[0] = mixer.Prepare(8, () => null));
+            Assert.DoesNotThrow(() => results[1] = mixer.Prepare(9, () => [1, 2, 3]));
+            mixer.Play(8);
+            mixer.Play(9);
+            mixer.Play(10);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(results, Is.All.False);
+                Assert.That(Read(mixer, FiftyMs), Is.All.EqualTo(0f));
+            });
+        }
+
+        [Test]
+        public void Mixer_Keep_DropsOthers()
+        {
+            using var mixer = MixerWith(7);
+            Assert.That(mixer.Prepare(10, () => SineWem()), Is.True);
+
+            mixer.Keep([7]);
+            mixer.Play(10);
+            var dropped = Read(mixer, FiftyMs);
+            mixer.Play(7);
+            var kept = Read(mixer, FiftyMs);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(dropped, Is.All.EqualTo(0f));
+                Assert.That(Rms(kept), Is.GreaterThan(0.05));
+            });
+        }
+
+        [Test]
+        public void Mixer_Keep_LetsAPlayingVoiceFinish()
+        {
+            using var mixer = MixerWith(7);
+            mixer.Play(7);
+
+            mixer.Keep([]);
+
+            Assert.That(Rms(Read(mixer, FiftyMs)), Is.GreaterThan(0.05));
+        }
+
+        [Test]
+        public void Mixer_PreparedAgain_DoesNotDecodeAgain()
+        {
+            using var mixer = MixerWith(7);
+
+            var asked = false;
+            var again = mixer.Prepare(7, () => { asked = true; return SineWem(); });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(again, Is.True);
+                Assert.That(asked, Is.False);
+            });
+        }
+
+        [Test]
+        public void Mixer_AfterDispose_PlaysNothing()
+        {
+            var mixer = MixerWith(7);
+            mixer.Dispose();
+
+            mixer.Play(7);
+            var preparedAfter = true;
+            Assert.DoesNotThrow(() => preparedAfter = mixer.Prepare(8, () => SineWem()));
+            mixer.Play(8);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(preparedAfter, Is.False);
+                Assert.That(Read(mixer, FiftyMs), Is.All.EqualTo(0f));
+            });
+        }
+
+        // NAudio's mixer takes at most 1,024 inputs and throws past that. A device that is not reading never finishes a voice.
+        [Test]
+        public void Mixer_MoreVoicesThanTheMixerTakes_DoesNotThrow()
+        {
+            using var mixer = MixerWith(7);
+
+            Assert.DoesNotThrow(() => { for (var i = 0; i < 1100; i++) mixer.Play(7); });
         }
     }
 }
