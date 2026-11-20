@@ -47,10 +47,8 @@ namespace Editors.Audio.SoundTriggers
     /// containers, and the containers lead down to WEM files. Pure lookups through delegates, so it needs no audio repository.</summary>
     /// <param name="tagRow">The audio_metadata_tags_tables row for a tag, or null when it has none.</param>
     /// <param name="hirc">The Wwise object with an id, or null when no loaded bank has it.</param>
-    /// <param name="nameOf">The name behind an id. Not read yet: the result carries ids, and the caller names them.</param>
     /// <param name="wemExists">Whether the WEM for a source id can be found. WH3's WEMs are all streamed, so this is the only source check.</param>
-    public sealed class SoundTriggerResolver(Func<string, AudioTagEvents?> tagRow, Func<uint, HircItem?> hirc,
-        Func<uint, string> nameOf, Func<uint, bool> wemExists)
+    public sealed class SoundTriggerResolver(Func<string, AudioTagEvents?> tagRow, Func<uint, HircItem?> hirc, Func<uint, bool> wemExists)
     {
         /// <param name="switchChoices">The switch case to play, by group id. A group not in it plays its default.</param>
         public SoundTriggerResult Resolve(string tag, bool campaign, IReadOnlyDictionary<uint, uint> switchChoices)

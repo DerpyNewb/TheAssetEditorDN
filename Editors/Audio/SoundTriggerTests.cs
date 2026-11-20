@@ -48,7 +48,6 @@ namespace Test.Audio
             public SoundTriggerResolver Resolver() => new(
                 tag => Rows.GetValueOrDefault(tag),
                 id => Items.GetValueOrDefault(id),
-                id => id.ToString(),
                 Wems.Contains);
 
             public Bank Row(string tag, string battleEvent, string campaignEvent = "")
