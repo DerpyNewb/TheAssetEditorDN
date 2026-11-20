@@ -430,5 +430,321 @@ namespace Test.Audio
                 Assert.That(Leaves(Resolve(bank, campaign: true)), Is.EqualTo(new uint[] { 2 }));
             });
         }
+
+        // The crossing rule, against a 2.0 s clip.
+        const double ClipLength = 2.0;
+
+        static (double From, double To, bool Wrapped) StepOf(double previous, double now, double elapsed, double speed = 1) =>
+            SoundTriggerCrossing.Step(previous, now, ClipLength, elapsed, speed);
+
+        static bool Crosses(double start, (double From, double To, bool Wrapped) step) => SoundTriggerCrossing.Crossed(start, step, ClipLength);
+
+        [Test]
+        public void Step_Playback_FiresTagsInTheSpanCovered()
+        {
+            var step = StepOf(0.50, 0.52, 0.02);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(step.Wrapped, Is.False);
+                Assert.That(Crosses(0.51, step), Is.True);
+                Assert.That(Crosses(0.50, step), Is.False);
+                Assert.That(Crosses(0.53, step), Is.False);
+            });
+        }
+
+        [Test]
+        public void Step_LoopWrap_FiresBothSides()
+        {
+            var step = StepOf(1.99, 0.01, 0.02);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(step.Wrapped, Is.True);
+                Assert.That(Crosses(1.995, step), Is.True);
+                Assert.That(Crosses(0.0, step), Is.True);
+                Assert.That(Crosses(0.005, step), Is.True);
+                Assert.That(Crosses(1.98, step), Is.False);
+                Assert.That(Crosses(0.02, step), Is.False);
+            });
+        }
+
+        [Test]
+        public void Step_Jump_FiresOnlyTheLastFrame()
+        {
+            var forward = StepOf(0.2, 1.5, 0.02);
+            var back = StepOf(1.5, 0.2, 0.02);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(forward.Wrapped, Is.False);
+                Assert.That(Crosses(1.0, forward), Is.False);
+                Assert.That(Crosses(1.49, forward), Is.True);
+                Assert.That(back.Wrapped, Is.False);
+                Assert.That(Crosses(1.8, back), Is.False);
+                Assert.That(Crosses(0.1, back), Is.False);
+                Assert.That(Crosses(0.19, back), Is.True);
+            });
+        }
+
+        [Test]
+        public void Step_ElapsedIsCapped_AndScaledBySpeed()
+        {
+            var resume = StepOf(1.0, 0.016, 30);
+            var normal = StepOf(0.5, 0.56, 0.02);
+            var slow = StepOf(0.5, 0.56, 0.02, speed: 0.25);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(resume.Wrapped, Is.False);
+                Assert.That(Crosses(1.5, resume), Is.False);
+                Assert.That(Crosses(1.99, resume), Is.False);
+                Assert.That(Crosses(0.0, resume), Is.True);
+                Assert.That(normal, Is.EqualTo((0.5, 0.56, false)));
+                Assert.That(slow.Wrapped, Is.False);
+                Assert.That(slow.From, Is.EqualTo(0.555).Within(0.001));
+                Assert.That(Crosses(0.51, slow), Is.False);
+            });
+        }
+
+        [Test]
+        public void Crossed_TagOutsideTheClip_NeverFires()
+        {
+            // The jump's span starts before zero so a tag at 0.0 can fire; a tag before the clip must still not.
+            var steps = new[] { StepOf(0.5, 0.52, 0.02), StepOf(1.99, 0.01, 0.02), StepOf(1.0, 0.016, 30), StepOf(0.2, 1.99, 0.02) };
+
+            Assert.Multiple(() =>
+            {
+                foreach (var step in steps)
+                {
+                    Assert.That(Crosses(-0.1, step), Is.False);
+                    Assert.That(Crosses(-0.05, step), Is.False);
+                    Assert.That(Crosses(2.1, step), Is.False);
+                }
+            });
+        }
+
+        // The session, over a bank where each named tag plays one sound.
+        static Bank Sounding(params (string Tag, uint Source)[] tags)
+        {
+            var bank = new Bank();
+            foreach (var (tag, source) in tags)
+            {
+                bank.Row(tag, tag + "_Event");
+                bank.Event(tag + "_Event", bank.Play(bank.Sound(source)));
+            }
+            return bank;
+        }
+
+        static SoundTriggerTag Trigger(string tag, float start) => new(tag, start, "slot .snd.meta");
+
+        sealed class SessionRun
+        {
+            public List<uint> Played { get; } = [];
+            public List<uint> Prepared { get; } = [];
+            public SoundTriggerSession Session { get; }
+
+            public SessionRun(Bank bank, bool prepareResult = true) =>
+                Session = new SoundTriggerSession(bank.Resolver(), id => { Prepared.Add(id); return prepareResult; }, Played.Add, new Random(1));
+
+            public SessionRun Rebuild(params SoundTriggerTag[] tags)
+            {
+                Session.Rebuild(tags, campaign: false);
+                return this;
+            }
+
+            public SessionRun Advance(double now, double elapsed = 0.02, bool playing = true, double speed = 1)
+            {
+                Session.Advance(now, playing, elapsed, speed, ClipLength);
+                return this;
+            }
+
+            /// <summary>One frame of 0.02 s per index, looping the 2.0 s clip.</summary>
+            public SessionRun Frames(int first, int count)
+            {
+                foreach (var i in Enumerable.Range(first, count))
+                    Advance(i % 100 / 50.0);
+                return this;
+            }
+        }
+
+        [Test]
+        public void Session_PlayStartAtZero_FiresTagAtZero()
+        {
+            // Two tags, so a stale position that wrongly counts as a wrap would also fire the one at 1.5.
+            var run = new SessionRun(Sounding(("Start", 1), ("Late", 2))).Rebuild(Trigger("Start", 0f), Trigger("Late", 1.5f));
+            run.Advance(1.3, playing: false).Advance(0.016, elapsed: 5);
+
+            var resumed = new SessionRun(Sounding(("Tag", 3))).Rebuild(Trigger("Tag", 0.9f));
+            resumed.Advance(1.0, elapsed: 0.016).Advance(1.016, elapsed: 30);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
+                Assert.That(resumed.Played, Is.Empty);
+            });
+        }
+
+        [Test]
+        public void Session_NotPlaying_FiresNothing_ButRemembersTheTime()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 1.0f));
+
+            run.Advance(1.0, playing: false);
+            var whilePaused = run.Played.ToList();
+            run.Advance(1.02);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(whilePaused, Is.Empty);
+                Assert.That(run.Played, Is.Empty);
+            });
+        }
+
+        [Test]
+        public void Session_FiresEachTagOncePerPass()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 1.0f));
+
+            run.Frames(48, 4);
+            var firstPass = run.Played.ToList();
+            run.Frames(52, 100);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(firstPass, Is.EqualTo(new uint[] { 1 }));
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1, 1 }));
+            });
+        }
+
+        [Test]
+        public void Session_UnsavedEdit_FiresAtTheNewTime()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 0.5f)).Rebuild(Trigger("Tag", 1.0f));
+
+            run.Frames(23, 5);
+            var throughOldTime = run.Played.ToList();
+            run.Frames(28, 25);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(throughOldTime, Is.Empty);
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
+            });
+        }
+
+        [Test]
+        public void Session_Rebuild_KeepsThePlayheadTime()
+        {
+            // The frame reports almost no elapsed time, so the step from the remembered 0.50 is a forward span only if Rebuild kept it.
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild();
+            run.Advance(0.50);
+            run.Rebuild(Trigger("Tag", 0.51f));
+            run.Advance(0.52, elapsed: 0.001);
+
+            Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
+        }
+
+        [Test]
+        public void Session_AdvanceBeforeRebuild_DoesNothing()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1)));
+
+            Assert.DoesNotThrow(() => run.Advance(0.5));
+            Assert.That(run.Played, Is.Empty);
+        }
+
+        [Test]
+        public void Session_Status_SummaryThenOneLinePerSilentTag()
+        {
+            var run = new SessionRun(Sounding(("A", 1), ("B", 2)));
+            run.Rebuild(Trigger("A", 0.1f), Trigger("Derpy_Swing_01", 0.2f), Trigger("B", 0.3f));
+
+            Assert.That(run.Session.StatusLines, Is.EqualTo(new[]
+            {
+                "3 triggers: 2 play, 1 silent in game",
+                "Derpy_Swing_01 (slot .snd.meta): no audio_metadata_tags_tables row",
+            }));
+        }
+
+        [Test]
+        public void Session_Status_NoTags_OneTag_AndAllSilent()
+        {
+            var run = new SessionRun(Sounding(("A", 1)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(run.Rebuild().Session.StatusLines, Is.EqualTo(new[] { "0 triggers" }));
+                Assert.That(run.Rebuild(Trigger("A", 0.1f)).Session.StatusLines, Is.EqualTo(new[] { "1 trigger: 1 play, 0 silent in game" }));
+                Assert.That(run.Rebuild(Trigger("X", 0.1f), Trigger("Y", 0.2f)).Session.StatusLines, Has.Count.EqualTo(3));
+                Assert.That(run.Session.StatusLines[0], Is.EqualTo("2 triggers: 0 play, 2 silent in game"));
+            });
+        }
+
+        [Test]
+        public void Session_FailedPrepare_StillCountsAsPlayable()
+        {
+            var run = new SessionRun(Sounding(("A", 1)), prepareResult: false).Rebuild(Trigger("A", 0.1f));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(run.Session.StatusLines, Is.EqualTo(new[] { "1 trigger: 1 play, 0 silent in game" }));
+                Assert.That(run.Prepared, Is.EqualTo(new uint[] { 1 }));
+            });
+        }
+
+        [Test]
+        public void Session_LeavesAndSwitches_AreDistinctAcrossTags()
+        {
+            var bank = new Bank().Row("A", "Ea").Row("B", "Eb");
+            var grass = bank.Sound(201);
+            var stone = bank.Sound(202);
+            var shared = bank.Sound(300);
+            bank.Event("Ea", bank.Play(bank.Switch("Surface", "Grass", ("Grass", grass), ("Stone", stone))), bank.Play(shared));
+            bank.Event("Eb", bank.Play(bank.Switch("Surface", "Stone", ("Stone", stone), ("Grass", grass))), bank.Play(shared));
+            var run = new SessionRun(bank).Rebuild(Trigger("A", 0.1f), Trigger("B", 0.2f));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(run.Session.Leaves, Is.EqualTo(new uint[] { 201, 300, 202 }));
+                Assert.That(run.Prepared, Is.EqualTo(new uint[] { 201, 300, 202 }));
+                Assert.That(run.Session.Switches, Has.Count.EqualTo(1));
+                Assert.That(run.Session.Switches[0].DefaultSwitch, Is.EqualTo(Hash("Grass")));
+            });
+        }
+
+        [Test]
+        public void Session_SwitchChoice_SurvivesRebuild()
+        {
+            var bank = new Bank().Row("Tag", "Step");
+            bank.Event("Step", bank.Play(bank.Switch("Surface", "Grass", ("Grass", bank.Sound(201)), ("Stone", bank.Sound(202)))));
+            var run = new SessionRun(bank);
+            run.Session.SwitchChoices[Hash("Surface")] = Hash("Stone");
+
+            run.Rebuild(Trigger("Tag", 0.5f)).Rebuild(Trigger("Tag", 0.5f)).Advance(0.5);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(run.Session.Leaves, Is.EqualTo(new uint[] { 202 }));
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 202 }));
+            });
+        }
+
+        [Test]
+        public void Session_Offset_FiresEarly()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 0.50f));
+            run.Session.OffsetSeconds = 0.03;
+
+            run.Advance(0.46);
+            var before = run.Played.ToList();
+            run.Advance(0.48);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(before, Is.Empty);
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
+            });
+        }
     }
 }
