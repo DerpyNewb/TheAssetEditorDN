@@ -47,6 +47,7 @@ namespace Editors.AnimationMeta.SuperView
         [ObservableProperty] string _persistentMetaSource = "";
         [ObservableProperty] string _metaSource = "";
         [ObservableProperty] string _soundMetaSource = "";
+        [ObservableProperty] string _soundMetaChangedOnDisk = "";
         [ObservableProperty] string _slotMetaSource = "";
         [ObservableProperty] bool _slotHasNoMeta;
 
@@ -150,13 +151,40 @@ namespace Editors.AnimationMeta.SuperView
 
         void OnPackFilesChanged(IPackFileContainer container, List<PackFile> files)
         {
-            var paths = files.Select(x => _packFileService.GetFullPath(x, container))
+            var all = files.Select(x => _packFileService.GetFullPath(x, container)).ToList();
+            if (_soundMetaPath.Length != 0 && all.Any(x => CustomMeta.Normalise(x) == _soundMetaPath))
+                OnSoundMetaWritten();
+            var paths = all
                 .Where(x => x.StartsWith("vfx", StringComparison.OrdinalIgnoreCase) || s_reloaded.Any(e => x.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
             if (paths.Count == 0)
                 return;
             _metaDataFactory.Forget(paths);
             RecreateMetaDataInformation();
+        }
+
+        // The Sound tab's file, as its path was when the tab loaded it: a pack closed since then no longer knows the file's path.
+        string _soundMetaPath = "";
+
+        // The Sound tab's file was written, from outside SuperView or by a save of the tab's own. A tab with no edits shows it as
+        // written. One with edits keeps them and says so, and the tab's own save then clears that.
+        void OnSoundMetaWritten()
+        {
+            if (SoundMetaEditor.HasUnsavedChanges)
+            {
+                SoundMetaChangedOnDisk = "The .snd.meta changed on disk. Your unsaved edits are kept.";
+                return;
+            }
+            // Written in place, it is the PackFile the tab holds, which LoadFile would not read again.
+            SoundMetaEditor.CurrentFile = null!;
+            ShowSoundMeta(_packFileService.FindFile(_soundMetaPath));
+        }
+
+        // The Sound tab's file in the scene, as a slot's play sets it, republished with the other two.
+        void ShowSoundMeta(PackFile? file)
+        {
+            _asset.Data.SoundMetaData = file;
+            _sceneObjectBuilder.SetMetaFile(_asset.Data, _asset.Data.MetaData, _asset.Data.PersistMetaData);
         }
 
         private void OnSelectedMetaDataAttributeChanged(SelecteMetaDataAttributeChangedEvent @event) => RecreateMetaDataInformation();
@@ -184,6 +212,11 @@ namespace Editors.AnimationMeta.SuperView
                 _sceneObjectBuilder.SetMetaFile(_asset.Data, _asset.Data.MetaData, newFile);
             else if (evnt.FileOwner == MetaEditor)
                 _sceneObjectBuilder.SetMetaFile(_asset.Data, newFile, _asset.Data.PersistMetaData);
+            else if (evnt.FileOwner == SoundMetaEditor)
+            {
+                SoundMetaChangedOnDisk = "";
+                ShowSoundMeta(newFile);
+            }
             else
                 throw new Exception($"Unable to determine file owner when reciving a file save event in SuperView. Owner:{evnt.FileOwner}, File:{evnt.NewPath}");
         }
@@ -201,6 +234,7 @@ namespace Editors.AnimationMeta.SuperView
             // A save that would override someone else's meta can make a custom copy instead, which this points the slot at.
             PersistentMetaEditor.SaveAsCustom = () => SaveCustomCopy(PersistentMetaEditor);
             MetaEditor.SaveAsCustom = () => SaveCustomCopy(MetaEditor);
+            SoundMetaEditor.SaveAsCustom = () => SaveCustomCopy(SoundMetaEditor);
 
             var assetViewModel = _sceneObjectViewModelBuilder.CreateAsset("SuperViewRoot", true, "Root", Color.Black,null);
             SceneObjects.Add(assetViewModel);
@@ -257,12 +291,41 @@ namespace Editors.AnimationMeta.SuperView
 
         private void OnSceneObjectUpdated(SceneObjectUpdateEvent e)
         {
+            if (_pointingRow)
+                return;
             PersistentMetaEditor.LoadFile(e.Owner.PersistMetaData);
             MetaEditor.LoadFile(e.Owner.MetaData);
-            SoundMetaEditor.LoadFile(e.Owner.SoundMetaData);
+
+            // A .snd.meta that does not parse is left out and named, so a bad one breaks nothing else. Another file in the Sound
+            // tab clears what it said about the last one changing on disk.
+            if (e.Owner.SoundMetaData != SoundMetaEditor.CurrentFile)
+                SoundMetaChangedOnDisk = "";
+            _unreadableSound = [];
+            try
+            {
+                SoundMetaEditor.LoadFile(e.Owner.SoundMetaData);
+            }
+            catch (Exception ex)
+            {
+                Unreadable("Slot", e.Owner.SoundMetaData!, ex);
+                SoundMetaEditor.LoadFile(null);
+            }
+            if (e.Owner.PersistSoundMetaData is { } persist)
+            {
+                try
+                {
+                    _metaDataFileParser.ParseFile(persist.DataSource.ReadData());
+                }
+                catch (Exception ex)
+                {
+                    Unreadable("Persistent", persist, ex);
+                }
+            }
+
             PersistentMetaSource = Describe(PersistentMetaEditor.CurrentFile);
             MetaSource = Describe(MetaEditor.CurrentFile);
             SoundMetaSource = Describe(SoundMetaEditor.CurrentFile);
+            _soundMetaPath = SoundMetaEditor.CurrentFile == null ? "" : CustomMeta.Normalise(_packFileService.GetFullPath(SoundMetaEditor.CurrentFile));
             OnPropertyChanged(nameof(SoundFileProblems));
             // Only the label: the field is the selected row's, and a row picked in the grid plays before the panel shows it, so
             // writing the field back would give that row the previous one's meta.
@@ -271,18 +334,23 @@ namespace Editors.AnimationMeta.SuperView
             RecreateMetaDataInformation();
         }
 
-        /// <summary>A .snd.meta the played slot or the persistent row names that no loaded pack has.</summary>
+        /// <summary>A .snd.meta the played slot or the persistent row names that no loaded pack has, and one that does not parse.</summary>
         public IReadOnlyList<string> SoundFileProblems
         {
             get
             {
                 var selection = _asset.FragAndSlotSelection;
-                return [.. Missing("Slot", selection.SoundMetaName), .. Missing("Persistent", selection.SoundMetaPersistName)];
+                return [.. Missing("Slot", selection.SoundMetaName), .. Missing("Persistent", selection.SoundMetaPersistName), .. _unreadableSound];
 
                 IEnumerable<string> Missing(string which, string? path) => string.IsNullOrWhiteSpace(path) || _packFileService.FindFile(path) != null
                     ? [] : [$"{which} .snd.meta {path} is in no loaded pack."];
             }
         }
+
+        List<string> _unreadableSound = [];
+
+        void Unreadable(string which, PackFile file, Exception ex) =>
+            _unreadableSound.Add($"{which} .snd.meta {CustomMeta.Normalise(_packFileService.GetFullPath(file))} could not be read: {ex.Message}");
 
         string Describe(PackFile? file)
         {
@@ -347,8 +415,9 @@ namespace Editors.AnimationMeta.SuperView
         {
             var res0 = !PersistentMetaEditor.HasUnsavedChanges || PersistentMetaEditor.Save();
             var res1 = !MetaEditor.HasUnsavedChanges || MetaEditor.Save();
-            var res2 = !SlotGrid.HasUnsavedChanges || Said(SaveSlotGrid());
-            return res0 && res1 && res2;
+            var res2 = !SoundMetaEditor.HasUnsavedChanges || SoundMetaEditor.Save();
+            var res3 = !SlotGrid.HasUnsavedChanges || Said(SaveSlotGrid());
+            return res0 && res1 && res2 && res3;
         }
 
         bool Said(string? problem)
@@ -368,6 +437,7 @@ namespace Editors.AnimationMeta.SuperView
         [ObservableProperty] string _slotMeta = "";
         [ObservableProperty] string _slotSound = "";
         bool _showingRow;
+        bool _pointingRow;
 
         void ShowSelectedRow()
         {
@@ -427,11 +497,7 @@ namespace Editors.AnimationMeta.SuperView
                 BrowseSlotSound();
                 return;
             }
-            Browse(".snd.meta", null, x =>
-            {
-                _asset.Data.SoundMetaData = _packFileService.FindFile(x);
-                _sceneObjectBuilder.SetMetaFile(_asset.Data, _asset.Data.MetaData, _asset.Data.PersistMetaData);
-            });
+            Browse(".snd.meta", null, x => ShowSoundMeta(_packFileService.FindFile(x)));
         }
 
         static string Key(string path) => path.Replace('\\', '/').ToLowerInvariant();
@@ -444,26 +510,38 @@ namespace Editors.AnimationMeta.SuperView
         }
 
         // Save writes a meta back over the file it was read from, which every set naming that file shares. This writes the open
-        // tab's meta to a new file instead and points the slot that tab shows at it.
+        // tab's meta to a new file instead and points the slot that tab shows at it: its Meta, or its Sound for the Sound tab.
         [RelayCommand]
-        void SaveMetaAs() => SaveCustomCopy(SelectedTabControllerIndex == 0 ? PersistentMetaEditor : MetaEditor);
+        void SaveMetaAs() => SaveCustomCopy(EditorOf((MetaTab)SelectedTabControllerIndex));
 
         // The save dialog offers the original's name with the custom prefix, beside it. True when saved.
         bool SaveCustomCopy(MetaDataEditorViewModel editor)
         {
+            var sound = editor == SoundMetaEditor;
             var selection = _asset.FragAndSlotSelection;
             var slot = editor == PersistentMetaEditor
                 ? selection.FragmentSlotList.PossibleValues.FirstOrDefault(x => x.SlotName.StartsWith("PERSISTENT_METADATA_") && x.MetaFile == selection.MetaDataPersistName)
                 : selection.FragmentSlotList.SelectedItem;
-            var problem = slot == null || editor.ParsedFile == null ? "This tab has no meta file open to save."
+            var problem = sound && slot == null && editor.ParsedFile != null ? "No slot is picked to point at a copy of the Sound tab's .snd.meta. Pick an animation set and a slot first."
+                : slot == null || editor.ParsedFile == null ? "This tab has no meta file open to save."
                 : editor.Tags.Select(x => x.HasError()).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
             if (problem == null)
             {
-                var original = editor.CurrentFile != null ? _packFileService.GetFullPath(editor.CurrentFile) : slot!.MetaFile;
-                var path = CustomMeta.Ask(_standardDialogs, _packFileService, _settings, original, CustomMeta.Offered(original, CustomMeta.Prefix(_settings)));
+                var original = editor.CurrentFile != null ? _packFileService.GetFullPath(editor.CurrentFile) : sound ? slot!.SoundFile : slot!.MetaFile;
+                var path = CustomMeta.Ask(_standardDialogs, _packFileService, _settings, original, CustomMeta.Offered(original, CustomMeta.Prefix(_settings)),
+                    sound ? ".snd.meta" : CustomMeta.Extension);
                 if (path == null)
                     return false;
-                problem = SaveRowMeta(SlotGrid.RowOf(slot)!, path, _metaDataFileParser.GenerateBytes(editor.MetaDataFileVersion, editor.ParsedFile!));
+                problem = SaveRowMeta(SlotGrid.RowOf(slot)!, sound ? (row, x) => row.Sound = x : (row, x) => row.Meta = x, path,
+                    _metaDataFileParser.GenerateBytes(editor.MetaDataFileVersion, editor.ParsedFile!));
+                // A copy saved over the tab's own file (the offered path, once the tab shows a custom copy) loads nothing new, and
+                // what the tab shows is what was written.
+                if (problem == null)
+                {
+                    editor.HasUnsavedChanges = false;
+                    if (sound)
+                        SoundMetaChangedOnDisk = "";
+                }
             }
             if (problem != null)
                 _standardDialogs.ShowDialogBox(problem);
@@ -489,7 +567,7 @@ namespace Editors.AnimationMeta.SuperView
                 if (path == null)
                     return;
                 problem = _packFileService.FindFile(path) != null ? $"{path} is already in a loaded pack. To use it, type it into the slot's Meta field."
-                    : SaveRowMeta(row!, path, _metaDataFileParser.GenerateBytes(2, new ParsedMetadataFile { Version = 2 }));
+                    : SaveRowMeta(row!, (r, x) => r.Meta = x, path, _metaDataFileParser.GenerateBytes(2, new ParsedMetadataFile { Version = 2 }));
             }
             if (problem != null)
                 _standardDialogs.ShowDialogBox(problem);
@@ -497,10 +575,21 @@ namespace Editors.AnimationMeta.SuperView
 
         // Points a row at a new meta, as an edit, and saves the set with every other edit of the grid, then writes the meta. The edit
         // is taken back when the save is refused.
-        string? SaveRowMeta(SlotGridRow row, string metaPath, byte[] metaBytes)
+        string? SaveRowMeta(SlotGridRow row, Action<SlotGridRow, string> point, string metaPath, byte[] metaBytes)
         {
             var before = row.Values;
-            row.Meta = metaPath;
+            // The picked row plays its edit at once. A Sound edit plays even though the new file is not written yet, which would empty
+            // the Sound tab, so the tabs are left as they are until the save loads the new file or a refusal plays the row as it was.
+            // A refused save then loses no unsaved edit.
+            _pointingRow = true;
+            try
+            {
+                point(row, metaPath);
+            }
+            finally
+            {
+                _pointingRow = false;
+            }
             var problem = SaveSlotGrid(Key(metaPath.Trim()), metaBytes);
             if (problem != null && row.Values != before)
                 SlotGrid.UndoCommand.Execute(null);

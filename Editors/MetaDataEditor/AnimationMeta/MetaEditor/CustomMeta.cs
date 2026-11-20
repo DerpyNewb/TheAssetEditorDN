@@ -35,16 +35,16 @@ namespace Editors.AnimationMeta.MetaEditor
         }
 
         /// <summary>The save dialog, starting at <paramref name="offered"/>: the path picked, lower-case with forward slashes and
-        /// ending in .anm.meta, or null when cancelled. A file name of the form prefix_name, name being <paramref name="original"/>'s,
-        /// makes that prefix the one offered next time.</summary>
-        public static string? Ask(IStandardDialogs dialogs, IPackFileService pfs, ApplicationSettingsService settings, string original, string offered)
+        /// ending in .meta, <paramref name="extension"/> added when it does not, or null when cancelled. A file name of the form
+        /// prefix_name, name being <paramref name="original"/>'s, makes that prefix the one offered next time.</summary>
+        public static string? Ask(IStandardDialogs dialogs, IPackFileService pfs, ApplicationSettingsService settings, string original, string offered, string extension = Extension)
         {
-            var pick = dialogs.DisplaySaveDialog(pfs, [Extension], offered);
+            var pick = dialogs.DisplaySaveDialog(pfs, [extension], offered);
             if (pick == null || !pick.Result || string.IsNullOrWhiteSpace(pick.SelectedFilePath))
                 return null;
             var path = Normalise(pick.SelectedFilePath);
             if (!path.EndsWith(".meta", StringComparison.Ordinal))
-                path += Extension;
+                path += extension;
 
             var name = path[(path.LastIndexOf('/') + 1)..];
             var originalName = Normalise(original)[(Normalise(original).LastIndexOf('/') + 1)..];
