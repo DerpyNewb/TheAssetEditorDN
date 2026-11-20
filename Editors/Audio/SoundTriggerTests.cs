@@ -218,7 +218,23 @@ namespace Test.Audio
             Assert.Multiple(() =>
             {
                 Assert.That(Leaves(Resolve(bank, "Tag")), Is.EqualTo(new uint[] { 11 }));
-                Assert.That(Resolve(bank, "OnlyBad").Silent, Is.EqualTo("event Event_B has no Play action"));
+                Assert.That(Resolve(bank, "OnlyBad").Silent, Is.EqualTo("event Event_B plays nothing found in the loaded banks"));
+            });
+        }
+
+        [Test]
+        public void Resolve_PlayActionsThatReachNothing_AreNotTheSameAsNoPlayAction()
+        {
+            var bank = new Bank().Row("EmptyContainer", "Event_C").Row("StopAndUnloaded", "Event_D").Row("WemWins", "Event_E");
+            bank.Event("Event_C", bank.Play(bank.Random()));
+            bank.Event("Event_D", bank.Action(AkActionType.Stop_E_O, bank.Sound(7)), bank.Play(404));
+            bank.Event("Event_E", bank.Play(404), bank.Play(bank.Sound(8, wemExists: false)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Resolve(bank, "EmptyContainer").Silent, Is.EqualTo("event Event_C plays nothing found in the loaded banks"));
+                Assert.That(Resolve(bank, "StopAndUnloaded").Silent, Is.EqualTo("event Event_D plays nothing found in the loaded banks"));
+                Assert.That(Resolve(bank, "WemWins").Silent, Is.EqualTo("WEM not found: 8.wem"));
             });
         }
 

@@ -69,16 +69,23 @@ namespace Editors.Audio.SoundTriggers
 
             var walk = new Walk(hirc, wemExists, switchChoices);
             var plays = new List<SoundNode>();
+            var playActions = 0;
             foreach (var actionId in actionEvent.GetActionIds())
             {
-                if (hirc(actionId) is ICAkAction action && action.GetActionType() == AkActionType.Play && walk.Visit(action.GetChildId()) is { } node)
+                if (hirc(actionId) is not ICAkAction action || action.GetActionType() != AkActionType.Play)
+                    continue;
+
+                playActions++;
+                if (walk.Visit(action.GetChildId()) is { } node)
                     plays.Add(node);
             }
 
-            // The first thing that went wrong (a type we do not play, or a missing WEM) is the reason when nothing is left.
-            // When nothing went wrong either, no Play action reached a sound: there was none, or its target is not loaded.
+            // When nothing is left, the first thing that went wrong (a type we do not play, or a missing WEM) is the reason.
+            // With nothing wrong either, the event has no Play action, or its Play actions lead to nothing that is loaded.
             var sound = Combine(plays, oneOf: false);
-            var silent = sound == null ? walk.Problem ?? $"event {eventName} has no Play action" : null;
+            var silent = sound != null ? null : walk.Problem ?? (playActions == 0
+                ? $"event {eventName} has no Play action"
+                : $"event {eventName} plays nothing found in the loaded banks");
             return new SoundTriggerResult(tag, sound, silent, walk.Switches);
         }
 
