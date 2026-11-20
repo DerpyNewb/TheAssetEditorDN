@@ -56,15 +56,21 @@ namespace Editors.AnimationMeta.SuperView
         /// <summary>Opens the output the default delegates play through, on the first Sound on. It throws when no audio device opens.</summary>
         public Func<SoundTriggerMixer> OpenMixer { get; set; } = () => new SoundTriggerMixer();
 
-        /// <summary>Finishes when every source queued so far is decoded, or skipped as no longer wanted.</summary>
+        /// <summary>Finishes when the background work queued so far has ended: each rebuild's first resolves, then its decodes, or their
+        /// skipping once a later rebuild, Sound off or Close has made them stale.</summary>
         public Task SoundDecoding { get; private set; } = Task.CompletedTask;
 
         SoundTriggerMixer? _mixer;
         IAudioRepository _audio = null!;
         readonly List<uint> _toDecode = [];
-        // The sources the current triggers can play. A decode still queued for any other, left by a clip played before, is skipped.
-        volatile HashSet<uint> _wantedSources = [];
+        SoundTriggerResolver? _resolver;
         SoundTriggerSession? _session;
+        // The UI thread, where the background work hands its results back, and the session lives.
+        SynchronizationContext? _ui;
+        // Counts the rebuilds asked for. Work for an older one is skipped. Written on the UI thread only.
+        volatile int _rebuilds;
+        // Background jobs queued and not yet back on the UI thread, for the status. UI thread only.
+        int _backgroundJobs;
         CancellationTokenSource? _soundLoad;
         // Why sound could not be turned on, shown while it is off.
         string? _soundRefused;
@@ -73,19 +79,26 @@ namespace Editors.AnimationMeta.SuperView
         IReadOnlyList<SwitchGroupSeen> _shownSwitches = [];
         // The crossing rule caps the time since the last Advance itself; a play after a pause relies on it being long.
         readonly Stopwatch _sinceAdvance = Stopwatch.StartNew();
-        // A repository loads one way at a time, and Sound off then on again can start a second load before the first ends.
+        // A repository loads one way at a time, and Sound off then on again can start a second load before the first ends. Each GetHircs
+        // takes it too, as it fills a plain Dictionary that the UI thread and the background both reach; one call at a time, so the UI
+        // thread waits for one at most. FindWem only reads the pack service.
         static readonly object s_audioLoad = new();
 
         void InitSound(IAudioRepository audio)
         {
             _audio = audio;
+            _ui = SynchronizationContext.Current;
             LoadSounds = token => Task.Run(() =>
             {
                 lock (s_audioLoad)
                     audio.Load([Wh3LanguageInformation.GetLanguageAsString(Wh3Language.EnglishUK)]);
                 token.ThrowIfCancellationRequested();
                 var tags = AudioMetadataTags.Read(_packFileService);
-                return new SoundTriggerResolver(tags.Find, id => audio.GetHircs(id).FirstOrDefault(), id => audio.FindWem(id.ToString()) != null);
+                return new SoundTriggerResolver(tags.Find, id =>
+                {
+                    lock (s_audioLoad)
+                        return audio.GetHircs(id).FirstOrDefault();
+                }, id => audio.FindWem(id.ToString()) != null);
             }, token);
             PrepareSound = id =>
             {
@@ -116,6 +129,7 @@ namespace Editors.AnimationMeta.SuperView
             {
                 _soundLoad?.Cancel();
                 _soundLoad = null;
+                _rebuilds++;
                 StopSounds();
                 ShowSwitchPickers([]);
                 ShowSoundStatus();
@@ -167,42 +181,88 @@ namespace Editors.AnimationMeta.SuperView
                 return;
 
             _soundLoad = null;
+            _resolver = resolver;
             _session = new SoundTriggerSession(resolver, id => PrepareSound(id), id => PlaySound(id), new Random());
             RebuildSounds();
         }
 
+        // The tags are resolved twice. First off the UI thread, only to fill the repository's cache: a new clip's first resolves read the
+        // banks, which took 1.25 s for a vanilla attack. Then on it, by the session, against that cache. The second pass reads the tags
+        // again and is skipped when a later rebuild was asked for, so what plays always follows the latest tags.
         void RebuildSounds()
         {
             if (SoundOn && _session != null)
             {
-                _session.Rebuild(SoundTriggers(), SlotGrid.Set is CampaignAnimationSet);
-                DecodeQueued(_session.Leaves.ToHashSet());
-                ShowSwitchPickers(_session.Switches);
+                var (request, tags, campaign, choices, resolver) = (++_rebuilds, SoundTriggers(), SlotGrid.Set is CampaignAnimationSet, new Dictionary<uint, uint>(_session.SwitchChoices), _resolver!);
+                Background(() =>
+                {
+                    foreach (var tag in tags)
+                        resolver.Resolve(tag.SoundEvent, campaign, choices);
+                    OnUi(() => ApplyRebuild(request));
+                });
             }
             ShowSoundStatus();
         }
 
-        // The sources PrepareSound queued, decoded off the UI thread one batch at a time, in order, into the mixer's lock-guarded cache. Each
-        // batch ends by dropping what the triggers no longer play, so a batch from before cannot put back a source a later one dropped.
-        void DecodeQueued(HashSet<uint> wanted)
+        void ApplyRebuild(int request)
+        {
+            if (request != _rebuilds || !SoundOn || _session == null)
+                return;
+            _session.Rebuild(SoundTriggers(), SlotGrid.Set is CampaignAnimationSet);
+            DecodeQueued(request, _session.Leaves.ToHashSet());
+            ShowSwitchPickers(_session.Switches);
+            ShowSoundStatus();
+        }
+
+        // The sources PrepareSound queued, decoded off the UI thread into the mixer's lock-guarded cache. A batch ends by dropping what the
+        // triggers no longer play. A stale batch stops, and as batches run one at a time, it cannot put back a source a later one dropped.
+        void DecodeQueued(int request, HashSet<uint> wanted)
         {
             var (mixer, ids, audio) = (_mixer, _toDecode.ToList(), _audio);
             _toDecode.Clear();
-            _wantedSources = wanted;
             if (mixer == null)
                 return;
-            SoundDecoding = SoundDecoding.ContinueWith(_ =>
+            Background(() =>
             {
                 foreach (var id in ids)
                 {
-                    // Closed: the mixer is gone.
-                    if (mixer != _mixer)
+                    if (request != _rebuilds)
                         return;
-                    if (_wantedSources.Contains(id))
-                        mixer.Prepare(id, () => ReadWem(audio, id));
+                    mixer.Prepare(id, () => ReadWem(audio, id));
                 }
                 mixer.Keep(wanted);
+            });
+        }
+
+        // One job on the background chain, which runs its jobs one at a time, in order. The status counts it until its end is back on the
+        // UI thread.
+        void Background(Action job)
+        {
+            _backgroundJobs++;
+            SoundDecoding = SoundDecoding.ContinueWith(_ =>
+            {
+                try
+                {
+                    job();
+                }
+                finally
+                {
+                    OnUi(() =>
+                    {
+                        _backgroundJobs--;
+                        ShowSoundStatus();
+                    });
+                }
             }, TaskScheduler.Default);
+        }
+
+        // With no UI thread to post to (a test that set no context), the work runs where it is, as BinGridViewModel's does.
+        void OnUi(Action action)
+        {
+            if (_ui == null)
+                action();
+            else
+                _ui.Post(_ => action(), null);
         }
 
         // A read that fails is a WEM that cannot be played, which Prepare reports as false.
@@ -250,11 +310,14 @@ namespace Editors.AnimationMeta.SuperView
             if (!lines.SequenceEqual(SoundStatus))
                 SoundStatus = lines;
 
+            // Loading lasts until the first resolve is back, and decoding while any background work is.
             IEnumerable<string> SessionLines()
             {
-                if (SoundOn)
-                    return _session?.StatusLines ?? ["Loading sounds..."];
-                return _soundRefused == null ? [] : [_soundRefused];
+                if (!SoundOn)
+                    return _soundRefused == null ? [] : [_soundRefused];
+                if (_session == null || _session.StatusLines.Count == 0)
+                    return ["Loading sounds..."];
+                return _backgroundJobs == 0 ? _session.StatusLines : [.. _session.StatusLines, "Decoding sounds..."];
             }
         }
 
@@ -280,11 +343,12 @@ namespace Editors.AnimationMeta.SuperView
             }
         }
 
-        // A decode still queued then finds no mixer and is skipped.
+        // Work still queued is then stale and skipped.
         void CloseSound()
         {
             _soundLoad?.Cancel();
             _soundLoad = null;
+            _rebuilds++;
             _mixer?.Dispose();
             _mixer = null;
         }

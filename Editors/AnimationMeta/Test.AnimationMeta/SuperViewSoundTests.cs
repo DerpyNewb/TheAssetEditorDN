@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
@@ -27,10 +28,40 @@ using Test.TestingUtility.TestUtility;
 
 namespace Test.AnimationMeta
 {
+    // The UI thread's queue, run by hand: what SuperView's sound work posts back runs when a test says so. Installed before SuperView
+    // opens, as SuperView takes the context it opens on.
+    sealed class UiThread : SynchronizationContext
+    {
+        readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _posted = new();
+
+        public override void Post(SendOrPostCallback d, object? state) => _posted.Enqueue((d, state));
+
+        /// <summary>Runs what was posted, and what that posts, and says whether anything ran.</summary>
+        public bool RunPosted()
+        {
+            var ran = false;
+            while (_posted.TryDequeue(out var item))
+            {
+                item.Callback(item.State);
+                ran = true;
+            }
+            return ran;
+        }
+
+        /// <summary>Until the background work has ended and all it posted has run.</summary>
+        public void Settle(SuperViewViewModel superView)
+        {
+            do
+                Assert.That(superView.SoundDecoding.Wait(TimeSpan.FromMinutes(2)), Is.True, "the background work ended");
+            while (RunPosted());
+        }
+    }
+
     // SuperView's Sound toggle on Throt's ATTACK_5. The game's audio is replaced by a small in-memory bank, and the four sound
     // delegates by recorders: no audio device opens and no repository loads.
     public class SuperViewSoundTests
     {
+        const string Decoding = "Decoding sounds...";
         const string ThrotVmd = @"variantmeshes\variantmeshdefinitions\skv_throt.variantmeshdefinition";
         const string ThrotTable = @"animations/database/battle/bin/hu17_dlc16_throt.bin";
         const string SndMeta = "animations/derpy/throt_attack_5.snd.meta";
@@ -44,10 +75,15 @@ namespace Test.AnimationMeta
         readonly List<TaskCompletionSource<SoundTriggerResolver>> _loads = [];
         readonly List<uint> _played = [], _prepared = [];
         int _stops;
+        UiThread _ui = null!;
+        SynchronizationContext? _before;
 
         [SetUp]
         public void Setup()
         {
+            _before = SynchronizationContext.Current;
+            _ui = new UiThread();
+            SynchronizationContext.SetSynchronizationContext(_ui);
             _loads.Clear();
             _played.Clear();
             _prepared.Clear();
@@ -74,6 +110,11 @@ namespace Test.AnimationMeta
             _stops = 0;
         }
 
+        [TearDown]
+        public void RestoreTheContext() => SynchronizationContext.SetSynchronizationContext(_before);
+
+        void Settle() => _ui.Settle(_superView);
+
         SuperViewViewModel Open()
         {
             var superView = (SuperViewViewModel)_runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.SuperView_Editor);
@@ -95,8 +136,12 @@ namespace Test.AnimationMeta
             return superView;
         }
 
-        // The last load, or the one given, finishes with the bank.
-        void Finish(int? load = null) => _loads[load ?? _loads.Count - 1].SetResult(_bank.Resolver());
+        // The last load, or the one given, finishes with the bank, and what that sets going runs to its end.
+        void Finish(int? load = null)
+        {
+            _loads[load ?? _loads.Count - 1].SetResult(_bank.Resolver());
+            Settle();
+        }
 
         SceneObject Main => _superView.SceneObjects[0].Data;
         MetaDataFileParser Parser => _runner.GetRequiredServiceInCurrentEditorScope<MetaDataFileParser>();
@@ -194,6 +239,7 @@ namespace Test.AnimationMeta
             var path = WriteSndMeta("animations/derpy/throt_persistent.snd.meta", "Derpy_PersistSnd", 0.1f);
             _superView.SlotGrid.Rows.First(x => x.Slot.SlotName == "PERSISTENT_METADATA_ALIVE").Sound = path;
             Assert.That(_superView.Save(), Is.True);
+            Settle();
 
             PlayTo(0.15f);
 
@@ -209,9 +255,31 @@ namespace Test.AnimationMeta
             Finish();
 
             AddTag(_superView.MetaEditor, "Derpy_Clip", 0.2f);
+            Settle();
             PlayTo(0.25f);
 
             Assert.That(_played, Is.EqualTo(new[] { ClipLeaf }));
+        }
+
+        // Ruling 13: while the background work for the triggers is still running, the status's last line says so, and the line goes
+        // when the work ends. The bank holds every lookup made off this thread, so the work is held where the first resolves run.
+        [Test]
+        public void Decoding_ShowsUntilTheBackgroundWorkEnds()
+        {
+            _superView.SoundOn = true;
+            Finish();
+            Assert.That(_superView.SoundStatus, Has.None.EqualTo(Decoding));
+
+            using var hold = new ManualResetEventSlim();
+            _bank.Hold = hold;
+            AddTag(_superView.MetaEditor, "Derpy_Clip", 0.2f);
+            _ui.RunPosted();
+            Assert.That((_superView.SoundDecoding.IsCompleted, _superView.SoundStatus[^1]), Is.EqualTo((false, Decoding)));
+
+            hold.Set();
+            Settle();
+            Assert.That(_superView.SoundStatus, Has.None.EqualTo(Decoding));
+            Assert.That(_superView.SoundStatus[_superView.SoundFileProblems.Count], Does.Contain(" 1 plays,"), "the added tag is in the status");
         }
 
         // Review Focus 3: a load that finishes after sound was turned off builds nothing, and turning sound on again loads afresh.
@@ -266,6 +334,7 @@ namespace Test.AnimationMeta
             Assert.That(_played, Is.EqualTo(new[] { Dirt }));
 
             picker.Selected = picker.Options.Single(x => x.Name == "Stone");
+            Settle();
             PlayTo(0.15f);
 
             Assert.That(_played, Is.EqualTo(new[] { Dirt, Stone }));
@@ -400,7 +469,17 @@ namespace Test.AnimationMeta
             public Dictionary<string, AudioTagEvents> Rows { get; } = new(StringComparer.Ordinal);
             public Dictionary<uint, string> Names { get; } = [];
 
-            public SoundTriggerResolver Resolver() => new(tag => Rows.GetValueOrDefault(tag), id => Items.GetValueOrDefault(id), _ => true);
+            readonly int _thread = Environment.CurrentManagedThreadId;
+
+            /// <summary>When set, a lookup made off the thread that made the bank waits for it.</summary>
+            public ManualResetEventSlim? Hold { get; set; }
+
+            public SoundTriggerResolver Resolver() => new(tag => Rows.GetValueOrDefault(tag), id =>
+            {
+                if (Environment.CurrentManagedThreadId != _thread)
+                    Hold?.Wait(TimeSpan.FromSeconds(30));
+                return Items.GetValueOrDefault(id);
+            }, _ => true);
 
             uint Hash(string name)
             {

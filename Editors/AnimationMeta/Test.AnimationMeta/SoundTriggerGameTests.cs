@@ -89,48 +89,75 @@ namespace Test.AnimationMeta
         PackFile? FindWem(uint sourceId) => _runner.PackFileService.FindFile($"audio\\wwise\\{sourceId}.wem")
             ?? _runner.PackFileService.FindFile($"audio\\wwise\\english(uk)\\{sourceId}.wem");
 
-        // A real clip's .snd.meta opened in the Sound tab: SuperView's own PrepareSound queues what its triggers can play, and it is decoded
-        // off the UI thread into a mixer with no device. The times are printed for the dispatch's 200 ms rule.
+        // A real clip's .snd.meta opened in the Sound tab with Sound on, on a clip whose tags nothing has resolved yet: its first resolves
+        // read the banks, and its sources need decoding. Both must happen off the UI thread, which this test's thread stands for. Its share
+        // is the browse and what the background work posts back. The times are printed for the 200 ms rule.
         [Test]
-        public void RealClip_DecodesItsSounds_OffTheUiThread()
+        public void RealClip_ResolvesAndDecodes_OffTheUiThread()
         {
             var file = _runner.PackFileService.GetAllPackfileContainers().SelectMany(x => x.SearchFiles(AttackSndMeta, [".snd.meta"]))
                 .Where(x => x.Path.Replace('\\', '/').Contains(AttackFolder)).MinBy(x => x.Path);
-            var superView = (SuperViewViewModel)_runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.SuperView_Editor);
-            var mixer = new SoundTriggerMixer(openDevice: false);
-            superView.OpenMixer = () => mixer;
-            superView.LoadSounds = _ => Task.FromResult(_resolver);
-            var (prepare, onThisThread, queued) = (superView.PrepareSound, new Stopwatch(), new List<uint>());
-            superView.PrepareSound = id =>
+            var (ui, before) = (new UiThread(), SynchronizationContext.Current);
+            SynchronizationContext.SetSynchronizationContext(ui);
+            try
             {
-                onThisThread.Start();
-                var result = prepare(id);
+                var superView = (SuperViewViewModel)_runner.CommandFactory.Create<OpenEditorCommand>().Execute(EditorEnums.SuperView_Editor);
+                var mixer = new SoundTriggerMixer(openDevice: false);
+                superView.OpenMixer = () => mixer;
+                superView.LoadSounds = _ => Task.FromResult(_resolver);
+                var (prepare, queued) = (superView.PrepareSound, new List<uint>());
+                superView.PrepareSound = id =>
+                {
+                    queued.Add(id);
+                    return prepare(id);
+                };
+                superView.SoundOn = true;
+                ui.Settle(superView);
+                _runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>(), It.IsAny<Func<string, bool>?>())).Returns(new BrowseDialogResultFile(true, file.File));
+                var memory = GC.GetTotalMemory(true);
+
+                var onThisThread = Stopwatch.StartNew();
+                superView.BrowseSoundTabCommand.Execute(null);
                 onThisThread.Stop();
-                queued.Add(id);
-                return result;
-            };
-            superView.SoundOn = true;
-            _runner.Dialogs.Setup(x => x.DisplayBrowseDialog(It.IsAny<List<string>>(), It.IsAny<Func<string, bool>?>())).Returns(new BrowseDialogResultFile(true, file.File));
-            var memory = GC.GetTotalMemory(true);
+                var firstResolves = Stopwatch.StartNew();
+                Assert.That(superView.SoundDecoding.Wait(TimeSpan.FromMinutes(2)), Is.True, "resolved within two minutes");
+                firstResolves.Stop();
+                // The session's rebuild, against the warm cache, which queues the decodes.
+                Pump();
+                var whileDecoding = superView.SoundStatus.LastOrDefault();
+                var decoding = Stopwatch.StartNew();
+                do
+                    Assert.That(superView.SoundDecoding.Wait(TimeSpan.FromMinutes(2)), Is.True, "decoded within two minutes");
+                while (Pump());
+                decoding.Stop();
 
-            var shown = Stopwatch.StartNew();
-            superView.BrowseSoundTabCommand.Execute(null);
-            shown.Stop();
-            var decoding = Stopwatch.StartNew();
-            Assert.That(superView.SoundDecoding.Wait(TimeSpan.FromMinutes(2)), Is.True, "decoded within two minutes");
-            decoding.Stop();
+                var sources = queued.Distinct().ToList();
+                var decoded = sources.Count(id => mixer.Prepare(id, () => null));    // true only for a source already in the cache
+                var triggers = superView.SoundMetaEditor.ParsedFile!.Attributes.Count(x => x is SoundTrigger_v10 or SoundTrigger_v4);
+                TestContext.Out.WriteLine($"The fixture's LoadSounds took {_loadTime.TotalSeconds:0.0} s. {file.Path}: {triggers} triggers, {sources.Count} sources. " +
+                    $"On the UI thread: {onThisThread.Elapsed.TotalMilliseconds:0} ms. Off it: the first resolves {firstResolves.Elapsed.TotalMilliseconds:0} ms, " +
+                    $"{decoded} decoded in {decoding.Elapsed.TotalMilliseconds:0} ms, {(GC.GetTotalMemory(true) - memory) / 1_048_576.0:0} MB. " +
+                    string.Join(" | ", superView.SoundStatus));
+                Assert.That(triggers, Is.GreaterThan(0));
+                Assert.That(decoded, Is.GreaterThan(0), "real WEMs decode");
+                Assert.That(onThisThread.Elapsed.TotalMilliseconds, Is.LessThan(200), "the first resolves and the decoding are not on the UI thread");
+                Assert.That((firstResolves.Elapsed + onThisThread.Elapsed).TotalMilliseconds, Is.GreaterThan(200), "the clip was cold, or this measures nothing");
+                Assert.That(whileDecoding, Is.EqualTo("Decoding sounds..."), "the status says so while the decoding runs");
+                Assert.That(superView.SoundStatus, Has.None.EqualTo("Decoding sounds..."), "and not after");
+                GC.KeepAlive(mixer);
 
-            var sources = queued.Distinct().ToList();
-            var decoded = sources.Count(id => mixer.Prepare(id, () => null));    // true only for a source already in the cache
-            var triggers = superView.SoundMetaEditor.ParsedFile!.Attributes.Count(x => x is SoundTrigger_v10 or SoundTrigger_v4);
-            TestContext.Out.WriteLine($"The fixture's LoadSounds took {_loadTime.TotalSeconds:0.0} s. {file.Path}: {triggers} triggers, {sources.Count} sources. " +
-                $"On the UI thread: PrepareSound {onThisThread.Elapsed.TotalMilliseconds:0} ms, the whole browse {shown.Elapsed.TotalMilliseconds:0} ms. " +
-                $"Off it: {decoded} decoded in {decoding.Elapsed.TotalMilliseconds:0} ms, {(GC.GetTotalMemory(true) - memory) / 1_048_576.0:0} MB. " +
-                string.Join(" | ", superView.SoundStatus));
-            Assert.That(triggers, Is.GreaterThan(0));
-            Assert.That(decoded, Is.GreaterThan(0), "real WEMs decode");
-            Assert.That(onThisThread.Elapsed.TotalMilliseconds, Is.LessThan(200), "the decoding is not on the UI thread");
-            GC.KeepAlive(mixer);
+                bool Pump()
+                {
+                    onThisThread.Start();
+                    var ran = ui.RunPosted();
+                    onThisThread.Stop();
+                    return ran;
+                }
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(before);
+            }
         }
     }
 }
