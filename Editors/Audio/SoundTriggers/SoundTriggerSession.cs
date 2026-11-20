@@ -48,12 +48,9 @@ namespace Editors.Audio.SoundTriggers
             Switches = resolved.SelectMany(x => x.Result.Switches).DistinctBy(x => x.GroupId).ToList();
 
             var silent = resolved.Where(x => x.Result.Silent != null).ToList();
-            var summary = resolved.Count switch
-            {
-                0 => "0 triggers",
-                1 => $"1 trigger: {_playable.Count} play, {silent.Count} silent in game",
-                _ => $"{resolved.Count} triggers: {_playable.Count} play, {silent.Count} silent in game",
-            };
+            var summary = resolved.Count == 0
+                ? "0 triggers"
+                : $"{resolved.Count} {(resolved.Count == 1 ? "trigger" : "triggers")}: {_playable.Count} {(_playable.Count == 1 ? "plays" : "play")}, {silent.Count} silent in game";
             StatusLines = [summary, .. silent.Select(x => $"{x.Tag.SoundEvent} ({x.Tag.File}): {x.Result.Silent}")];
         }
 
@@ -72,12 +69,30 @@ namespace Editors.Audio.SoundTriggers
             var step = SoundTriggerCrossing.Step(previous, now, length, elapsedSeconds, speed);
             foreach (var (start, sound) in _playable)
             {
-                if (!SoundTriggerCrossing.Crossed(start - OffsetSeconds, step, length))
+                if (!Fires(start, step, length))
                     continue;
 
                 foreach (var id in SoundNodes.Pick(sound, random))
                     play(id);
             }
+        }
+
+        /// <summary>A tag that lies outside the clip never fires. Otherwise it fires when the time it is due, its start less the offset,
+        /// lies in the step. The clip loops, so a due time past either end counts at the other end: a tag at 0.0 started early is due
+        /// just before the loop, and one at the clip's end started late is due just after it.</summary>
+        bool Fires(double tagStart, (double From, double To, bool Wrapped) step, double length)
+        {
+            if (tagStart < 0 || tagStart > length)
+                return false;
+
+            var due = tagStart - OffsetSeconds;
+            var dueInClip = due < 0 ? due + length : due > length ? due - length : due;
+            if (SoundTriggerCrossing.Crossed(dueInClip, step, length))
+                return true;
+
+            // Only a jump landing within a frame of the clip's start has a span that reaches back before zero, which is where an early tag at
+            // 0.0 is due. The pass it belongs to never happened (play just started, or the playhead was moved), so it fires with the jump.
+            return due < 0 && due > step.From;
         }
     }
 }

@@ -675,9 +675,23 @@ namespace Test.Audio
             Assert.Multiple(() =>
             {
                 Assert.That(run.Rebuild().Session.StatusLines, Is.EqualTo(new[] { "0 triggers" }));
-                Assert.That(run.Rebuild(Trigger("A", 0.1f)).Session.StatusLines, Is.EqualTo(new[] { "1 trigger: 1 play, 0 silent in game" }));
+                Assert.That(run.Rebuild(Trigger("A", 0.1f)).Session.StatusLines, Is.EqualTo(new[] { "1 trigger: 1 plays, 0 silent in game" }));
+                Assert.That(run.Rebuild(Trigger("X", 0.1f)).Session.StatusLines[0], Is.EqualTo("1 trigger: 0 play, 1 silent in game"));
                 Assert.That(run.Rebuild(Trigger("X", 0.1f), Trigger("Y", 0.2f)).Session.StatusLines, Has.Count.EqualTo(3));
                 Assert.That(run.Session.StatusLines[0], Is.EqualTo("2 triggers: 0 play, 2 silent in game"));
+            });
+        }
+
+        [Test]
+        public void Session_Status_AgreesInNumber_OnBothCounts()
+        {
+            var run = new SessionRun(Sounding(("A", 1), ("B", 2)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(run.Rebuild(Trigger("A", 0.1f), Trigger("X", 0.2f), Trigger("Y", 0.3f)).Session.StatusLines[0], Is.EqualTo("3 triggers: 1 plays, 2 silent in game"));
+                Assert.That(run.Rebuild(Trigger("A", 0.1f), Trigger("B", 0.2f), Trigger("X", 0.3f)).Session.StatusLines[0], Is.EqualTo("3 triggers: 2 play, 1 silent in game"));
+                Assert.That(run.Rebuild(Trigger("A", 0.1f), Trigger("B", 0.2f)).Session.StatusLines[0], Is.EqualTo("2 triggers: 2 play, 0 silent in game"));
             });
         }
 
@@ -688,7 +702,7 @@ namespace Test.Audio
 
             Assert.Multiple(() =>
             {
-                Assert.That(run.Session.StatusLines, Is.EqualTo(new[] { "1 trigger: 1 play, 0 silent in game" }));
+                Assert.That(run.Session.StatusLines, Is.EqualTo(new[] { "1 trigger: 1 plays, 0 silent in game" }));
                 Assert.That(run.Prepared, Is.EqualTo(new uint[] { 1 }));
             });
         }
@@ -745,6 +759,72 @@ namespace Test.Audio
                 Assert.That(before, Is.Empty);
                 Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
             });
+        }
+
+        [Test]
+        public void Session_EarlyOffset_FiresATagAtZeroBeforeTheLoop_Once()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 0f));
+            run.Session.OffsetSeconds = 0.03;
+
+            run.Advance(1.96);
+            var before = run.Played.ToList();
+            run.Advance(1.98);
+            var early = run.Played.ToList();
+            run.Advance(1.99).Advance(0.01);
+            var acrossTheWrap = run.Played.ToList();
+            run.Frames(1, 99);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(before, Is.Empty);
+                Assert.That(early, Is.EqualTo(new uint[] { 1 }));
+                Assert.That(acrossTheWrap, Is.EqualTo(new uint[] { 1 }));
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1, 1 }));
+            });
+        }
+
+        [Test]
+        public void Session_EarlyOffset_TagAtZeroStillFiresOnThePlayStartJump()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 0f));
+            run.Session.OffsetSeconds = 0.03;
+
+            run.Advance(1.3, playing: false).Advance(0.016, elapsed: 5);
+
+            Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
+        }
+
+        [Test]
+        public void Session_LateOffset_FiresATagAtTheEndAfterTheWrap_NotBefore()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 1.99f));
+            run.Session.OffsetSeconds = -0.03;
+
+            run.Advance(1.98).Advance(2.0);
+            var atTheEnd = run.Played.ToList();
+            run.Advance(0.01);
+            var wrapped = run.Played.ToList();
+            run.Advance(0.03);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(atTheEnd, Is.Empty);
+                Assert.That(wrapped, Is.Empty);
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
+            });
+        }
+
+        [TestCase(0.03)]
+        [TestCase(-0.03)]
+        public void Session_TagOutsideTheClip_NeverFires_WhateverTheOffset(double offset)
+        {
+            var run = new SessionRun(Sounding(("Before", 1), ("After", 2))).Rebuild(Trigger("Before", -0.1f), Trigger("After", 2.1f));
+            run.Session.OffsetSeconds = offset;
+
+            run.Frames(0, 200);
+
+            Assert.That(run.Played, Is.Empty);
         }
     }
 }
