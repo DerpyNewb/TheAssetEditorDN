@@ -46,6 +46,7 @@ namespace Editors.AnimationMeta.SuperView
         // another mod's pack name. A vanilla or other mod's meta saved at its own path overrides it for every bin that names it.
         [ObservableProperty] string _persistentMetaSource = "";
         [ObservableProperty] string _metaSource = "";
+        [ObservableProperty] string _soundMetaSource = "";
         [ObservableProperty] string _slotMetaSource = "";
         [ObservableProperty] bool _slotHasNoMeta;
 
@@ -53,6 +54,8 @@ namespace Editors.AnimationMeta.SuperView
         [ObservableProperty] string _metaFilePath = "";
         [ObservableProperty] MetaDataEditorViewModel _persistentMetaEditor;
         [ObservableProperty] MetaDataEditorViewModel _metaEditor;
+        /// <summary>The played slot's .snd.meta, the third tab. The persistent row's is loaded for sound but has no tab.</summary>
+        [ObservableProperty] MetaDataEditorViewModel _soundMetaEditor;
         [ObservableProperty] int _selectedTabControllerIndex = 0;
         [ObservableProperty] bool _showVfx = true;
 
@@ -67,20 +70,22 @@ namespace Editors.AnimationMeta.SuperView
         { 
             get 
             {
-                return PersistentMetaEditor.HasUnsavedChanges || MetaEditor.HasUnsavedChanges || SlotGrid?.HasUnsavedChanges == true;
+                return PersistentMetaEditor.HasUnsavedChanges || MetaEditor.HasUnsavedChanges || SoundMetaEditor.HasUnsavedChanges || SlotGrid?.HasUnsavedChanges == true;
             }
             set
             {
                 PersistentMetaEditor.HasUnsavedChanges = value;
                 MetaEditor.HasUnsavedChanges = value;
+                SoundMetaEditor.HasUnsavedChanges = value;
                 if (!value)
                     SlotGrid?.Discard();
             }
         }
 
-        // The tab is red while either editor has unsaved changes, so it hears when either's change.
+        // The tab is red while any editor has unsaved changes, so it hears when any one's change.
         partial void OnPersistentMetaEditorChanged(MetaDataEditorViewModel? oldValue, MetaDataEditorViewModel newValue) => Follow(oldValue, newValue);
         partial void OnMetaEditorChanged(MetaDataEditorViewModel? oldValue, MetaDataEditorViewModel newValue) => Follow(oldValue, newValue);
+        partial void OnSoundMetaEditorChanged(MetaDataEditorViewModel? oldValue, MetaDataEditorViewModel newValue) => Follow(oldValue, newValue);
 
         void Follow(MetaDataEditorViewModel? oldValue, MetaDataEditorViewModel newValue)
         {
@@ -128,7 +133,8 @@ namespace Editors.AnimationMeta.SuperView
             _metaDataFileParser = metaDataFileParser;
             _metaDataFactory = metaDataFactory;
             Initialize();
-            metaTagGizmo.Follow(() => MetaEditor.SelectedTag, MetaTagGizmoComponent.FrameOf(metaDataFactory, _asset.Data));
+            metaTagGizmo.Follow(() => SelectedTabControllerIndex == (int)MetaTab.Sound ? SoundMetaEditor.SelectedTag : MetaEditor.SelectedTag,
+                MetaTagGizmoComponent.FrameOf(metaDataFactory, _asset.Data));
             eventHub.Register<ScopedFileSavedEvent>(this, OnFileSaved);
             eventHub.Register<SceneObjectUpdateEvent>(this, OnSceneObjectUpdated);
             eventHub.Register<MetaDataAttributeChangedEvent>(this, OnMetaDataAttributeChanged);
@@ -186,9 +192,11 @@ namespace Editors.AnimationMeta.SuperView
         {
             PersistentMetaEditor = new MetaDataEditorViewModel(_uiCommandFactory, _metaDataFileParser, _eventHub);
             MetaEditor = new MetaDataEditorViewModel(_uiCommandFactory, _metaDataFileParser, _eventHub);
+            SoundMetaEditor = new MetaDataEditorViewModel(_uiCommandFactory, _metaDataFileParser, _eventHub);
             // Check meta checks against the playing clip and the skeleton. A persistent meta plays under every clip of the set,
             // so its tab gets no clip length to check start times against.
             MetaEditor.CheckScene = () => new MetaCheckScene(_asset.Data.Player.AnimationClip?.PlayTimeInSec, _asset.Data.Skeleton?.BoneNames);
+            SoundMetaEditor.CheckScene = MetaEditor.CheckScene;
             PersistentMetaEditor.CheckScene = () => new MetaCheckScene(null, _asset.Data.Skeleton?.BoneNames);
             // A save that would override someone else's meta can make a custom copy instead, which this points the slot at.
             PersistentMetaEditor.SaveAsCustom = () => SaveCustomCopy(PersistentMetaEditor);
@@ -226,9 +234,14 @@ namespace Editors.AnimationMeta.SuperView
             }
 
             var persist = PersistentMetaEditor.ParsedFile;
-            var meta = MetaEditor.ParsedFile;
+            // The slot's .snd.meta plays with the clip, so the builder takes its tags after the clip meta's, as one file. The tags
+            // are the editors' own, so a selected one is still known by reference.
+            var (clip, sound) = (MetaEditor.ParsedFile, SoundMetaEditor.ParsedFile);
+            var meta = clip == null && sound == null ? null
+                : new ParsedMetadataFile { Version = (clip ?? sound)!.Version, Attributes = [.. clip?.Attributes ?? [], .. sound?.Attributes ?? []] };
+            var selected = SelectedTabControllerIndex == (int)MetaTab.Sound ? SoundMetaEditor.SelectedAttribute : MetaEditor.SelectedAttribute;
 
-            _asset.Data.MetaDataItems = _metaDataFactory.Create(persist, meta, MetaEditor.SelectedAttribute, _asset.Data.MainNode, _asset.Data, _asset.Data.Player, _asset.FragAndSlotSelection.FragmentList.SelectedItem);
+            _asset.Data.MetaDataItems = _metaDataFactory.Create(persist, meta, selected, _asset.Data.MainNode, _asset.Data, _asset.Data.Player, _asset.FragAndSlotSelection.FragmentList.SelectedItem);
             foreach (var t in old.Except(_asset.Data.MetaDataItems))
                 t.CleanUp();
             _asset.Data.Player.Refresh();
@@ -246,13 +259,29 @@ namespace Editors.AnimationMeta.SuperView
         {
             PersistentMetaEditor.LoadFile(e.Owner.PersistMetaData);
             MetaEditor.LoadFile(e.Owner.MetaData);
+            SoundMetaEditor.LoadFile(e.Owner.SoundMetaData);
             PersistentMetaSource = Describe(PersistentMetaEditor.CurrentFile);
             MetaSource = Describe(MetaEditor.CurrentFile);
+            SoundMetaSource = Describe(SoundMetaEditor.CurrentFile);
+            OnPropertyChanged(nameof(SoundFileProblems));
             // Only the label: the field is the selected row's, and a row picked in the grid plays before the panel shows it, so
             // writing the field back would give that row the previous one's meta.
             SlotMetaSource = SourceOf(Key(SlotMeta.Trim()));
 
             RecreateMetaDataInformation();
+        }
+
+        /// <summary>A .snd.meta the played slot or the persistent row names that no loaded pack has.</summary>
+        public IReadOnlyList<string> SoundFileProblems
+        {
+            get
+            {
+                var selection = _asset.FragAndSlotSelection;
+                return [.. Missing("Slot", selection.SoundMetaName), .. Missing("Persistent", selection.SoundMetaPersistName)];
+
+                IEnumerable<string> Missing(string which, string? path) => string.IsNullOrWhiteSpace(path) || _packFileService.FindFile(path) != null
+                    ? [] : [$"{which} .snd.meta {path} is in no loaded pack."];
+            }
         }
 
         string Describe(PackFile? file)
@@ -387,6 +416,23 @@ namespace Editors.AnimationMeta.SuperView
 
         [RelayCommand] void BrowseSlotMeta() => Browse(".anm.meta", null, x => SlotMeta = x);
         [RelayCommand] void BrowseSlotSound() => Browse(".snd.meta", null, x => SlotSound = x);
+
+        // The Sound tab's own browse. A slot picked in the grid has its Sound set, as the slot panel's browse does. With none, as
+        // when playing from "Any animation", the file opens in the tab and holds until another clip or slot plays.
+        [RelayCommand]
+        void BrowseSoundTab()
+        {
+            if (SlotGrid.SelectedRow != null)
+            {
+                BrowseSlotSound();
+                return;
+            }
+            Browse(".snd.meta", null, x =>
+            {
+                _asset.Data.SoundMetaData = _packFileService.FindFile(x);
+                _sceneObjectBuilder.SetMetaFile(_asset.Data, _asset.Data.MetaData, _asset.Data.PersistMetaData);
+            });
+        }
 
         static string Key(string path) => path.Replace('\\', '/').ToLowerInvariant();
 

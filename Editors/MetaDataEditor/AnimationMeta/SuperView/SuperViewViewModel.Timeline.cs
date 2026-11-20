@@ -6,9 +6,12 @@ using Shared.GameFormats.AnimationMeta.Parsing;
 
 namespace Editors.AnimationMeta.SuperView
 {
+    /// <summary>SuperView's meta tabs, by their index.</summary>
+    public enum MetaTab { Persistent = 0, Clip = 1, Sound = 2 }
+
     /// <summary>A tag on SuperView's timeline strip. From and To are its start and end as fractions of the clip, clamped into
-    /// 0 to 1, so a tag outside the clip sits at the nearer edge; Outside says its start was moved there.</summary>
-    public sealed record TimelineTick(ParsedMetadataAttribute Tag, bool Persistent, float StartTime, double From, double To,
+    /// 0 to 1, so a tag outside the clip sits at the nearer edge; Outside says its start was moved there. Tab is the one showing it.</summary>
+    public sealed record TimelineTick(ParsedMetadataAttribute Tag, MetaTab Tab, float StartTime, double From, double To,
         bool IsWindow, bool Outside, bool IsSelected, string Tooltip);
 
     public partial class SuperViewViewModel
@@ -28,10 +31,11 @@ namespace Editors.AnimationMeta.SuperView
         void InitTimeline()
         {
             float Now() => _asset.Data.Player.GetTimeUs() / 1_000_000f;
-            PersistentMetaEditor.Now = Now;
-            MetaEditor.Now = Now;
-            PersistentMetaEditor.PropertyChanged += OnTimelineSourceChanged;
-            MetaEditor.PropertyChanged += OnTimelineSourceChanged;
+            foreach (var editor in new[] { PersistentMetaEditor, MetaEditor, SoundMetaEditor })
+            {
+                editor.Now = Now;
+                editor.PropertyChanged += OnTimelineSourceChanged;
+            }
             // The playback bar's readout moves on every frame the player shows, and with every jump made here.
             Player.SelectedAnimationCurrentTime.PropertyChanged += (_, _) => UpdatePlayhead();
         }
@@ -66,18 +70,27 @@ namespace Editors.AnimationMeta.SuperView
                 RebuildTimeline();
         }
 
-        partial void OnSelectedTabControllerIndexChanged(int value) => RebuildTimeline();
+        // The highlighted marker is the shown tab's tag, so the scene is rebuilt too, which rebuilds the strip.
+        partial void OnSelectedTabControllerIndexChanged(int value) => RecreateMetaDataInformation();
+
+        MetaDataEditorViewModel EditorOf(MetaTab tab) => tab switch
+        {
+            MetaTab.Persistent => PersistentMetaEditor,
+            MetaTab.Sound => SoundMetaEditor,
+            _ => MetaEditor,
+        };
 
         void RebuildTimeline()
         {
             var length = _asset.Data.Player.GetAnimationLengthUs() / 1_000_000f;
-            var shown = SelectedTabControllerIndex == 0 ? PersistentMetaEditor : MetaEditor;
+            var shown = EditorOf((MetaTab)SelectedTabControllerIndex);
             HasTimeline = length > 0;
-            TimelineTicks = length > 0 ? [.. Ticks(PersistentMetaEditor, true), .. Ticks(MetaEditor, false)] : [];
+            TimelineTicks = length > 0 ? [.. Ticks(MetaTab.Persistent), .. Ticks(MetaTab.Clip), .. Ticks(MetaTab.Sound)] : [];
             UpdatePlayhead();
 
-            IEnumerable<TimelineTick> Ticks(MetaDataEditorViewModel editor, bool persistent)
+            IEnumerable<TimelineTick> Ticks(MetaTab tab)
             {
+                var editor = EditorOf(tab);
                 foreach (var tag in editor.ParsedFile?.Attributes ?? [])
                 {
                     if (Times(tag) is not (var start, var end))
@@ -85,8 +98,8 @@ namespace Editors.AnimationMeta.SuperView
                     var from = Math.Clamp(start / length, 0, 1);
                     var to = end > start ? Math.Clamp(end / length, 0, 1) : from;
                     var outside = start < -EdgeSeconds || start > length + EdgeSeconds;
-                    yield return new TimelineTick(tag, persistent, start, from, to, end > start, outside,
-                        editor == shown && tag == editor.SelectedAttribute, TickTooltip(tag, start, end, length, persistent));
+                    yield return new TimelineTick(tag, tab, start, from, to, end > start, outside,
+                        editor == shown && tag == editor.SelectedAttribute, TickTooltip(tag, start, end, length, tab));
                 }
             }
         }
@@ -99,7 +112,7 @@ namespace Editors.AnimationMeta.SuperView
             _ => null,
         };
 
-        static string TickTooltip(ParsedMetadataAttribute tag, float start, float end, float length, bool persistent)
+        static string TickTooltip(ParsedMetadataAttribute tag, float start, float end, float length, MetaTab tab)
         {
             var text = end > start
                 ? FormattableString.Invariant($"{tag.DisplayName} runs from {start:0.00#} s to {end:0.00#} s.")
@@ -108,7 +121,12 @@ namespace Editors.AnimationMeta.SuperView
                 text += " That's before the clip starts, so its tick sits at the left edge.";
             else if (start > length + EdgeSeconds)
                 text += FormattableString.Invariant($" That's after the clip ends at {length:0.00#} s, so its tick sits at the right edge.");
-            return persistent ? text + " It's in the persistent meta." : text;
+            return tab switch
+            {
+                MetaTab.Persistent => text + " It's in the persistent meta.",
+                MetaTab.Sound => text + " It's in the slot's .snd.meta.",
+                _ => text,
+            };
         }
 
         [RelayCommand]
@@ -122,8 +140,8 @@ namespace Editors.AnimationMeta.SuperView
 
             // The tab first, so the rebuild the selection sets off highlights the tag in the tab that shows it. Delete acts on every
             // row marked selected, which the list keeps in step with its own clicks but not with this one.
-            SelectedTabControllerIndex = tick.Persistent ? 0 : 1;
-            var editor = tick.Persistent ? PersistentMetaEditor : MetaEditor;
+            SelectedTabControllerIndex = (int)tick.Tab;
+            var editor = EditorOf(tick.Tab);
             var row = editor.Tags.FirstOrDefault(x => x._input == tick.Tag);
             foreach (var tag in editor.Tags)
                 tag.IsSelected = tag == row;

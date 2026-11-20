@@ -27,6 +27,8 @@ namespace Editors.Shared.Core.Common.ReferenceModel
         [ObservableProperty] FilterCollection<AnimationReference> _animationList;
         [ObservableProperty] string? _metaDataName;
         [ObservableProperty] string? _metaDataPersistName;
+        [ObservableProperty] string? _soundMetaName;
+        [ObservableProperty] string? _soundMetaPersistName;
         [ObservableProperty] string? _animationFileName;
 
         public BinAnimationViewModel(SceneObjectEditor sceneObjectEditor, IPackFileService pfs, ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper, SceneObject sceneObject, IUiCommandFactory uiCommandFactory)
@@ -133,11 +135,13 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             if (string.IsNullOrWhiteSpace(value?.MetaFile) == false)
                 meta = _pfs.FindFile(value.MetaFile);
 
+            AnimationBinEntryGenericFormat? persistRow = null;
             var persist = FragmentSlotList.PossibleValues.FirstOrDefault(x => x.SlotName == "PERSISTENT_METADATA_ALIVE");
             if (persist != null && string.IsNullOrWhiteSpace(persist.MetaFile) == false)
             {
                 persistMeta = _pfs.FindFile(persist.MetaFile);
                 persistFullpath = persist.MetaFile;
+                persistRow = persist;
             }
 
             if (persistMeta == null)
@@ -147,8 +151,16 @@ namespace Editors.Shared.Core.Common.ReferenceModel
                 { 
                     persistMeta = _pfs.FindFile(persistFlying.MetaFile);
                     persistFullpath = persistFlying.MetaFile;
+                    persistRow = persistFlying;
                 }
             }
+
+            // The slot's .snd.meta, and the one on the row the persistent meta came from. Set before SetMetaFile, so its one update
+            // carries them, and with their names, so a file in no loaded pack can be named.
+            SoundMetaName = value?.SoundFile;
+            SoundMetaPersistName = persistRow?.SoundFile;
+            _sceneObject.SoundMetaData = string.IsNullOrWhiteSpace(SoundMetaName) ? null : _pfs.FindFile(SoundMetaName);
+            _sceneObject.PersistSoundMetaData = string.IsNullOrWhiteSpace(SoundMetaPersistName) ? null : _pfs.FindFile(SoundMetaPersistName);
 
             // The slot shows only the weapon bones it flags (bit N, be_prop_N), as in game: STAND_NO_WEAPON none, a Doomseeker's
             // STAND_IDLE_1 his left flail, the right one replaced by the flail his animated prop swings.

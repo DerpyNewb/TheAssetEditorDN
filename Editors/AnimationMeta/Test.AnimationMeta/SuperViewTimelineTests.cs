@@ -86,7 +86,7 @@ namespace Test.AnimationMeta
             Assert.That(_superView.HasTimeline, Is.True);
             Assert.That(_superView.TimelineTicks.Select(x => x.Tag), Is.EqualTo(timed), "one tick per timed tag, persistent first");
             Assert.That(_superView.TimelineTicks.Select(x => x.Tag), Does.Not.Contain(untimed), "FIRE_POS_0 has no times");
-            Assert.That(_superView.TimelineTicks.Count(x => x.Persistent), Is.EqualTo(Timed(_superView.PersistentMetaEditor).Count()));
+            Assert.That(_superView.TimelineTicks.Count(x => x.Tab == MetaTab.Persistent), Is.EqualTo(Timed(_superView.PersistentMetaEditor).Count()));
             Assert.That(Tick(quarter).From, Is.EqualTo(0.25).Within(1e-4), "a quarter of the way along");
             Assert.That(_superView.TimelineTicks.Single(x => x.Tag == version2).From, Is.EqualTo(0.5).Within(1e-4), "FIRE_POS_2, a version-2 tag");
         }
@@ -157,7 +157,7 @@ namespace Test.AnimationMeta
             Assert.That(_superView.TimelineTicks.Where(x => x.IsSelected).Select(x => x.Tag), Is.EqualTo(new[] { row._input }));
 
             _superView.SelectedTabControllerIndex = 0;
-            Assert.That(_superView.TimelineTicks.Where(x => x.IsSelected && !x.Persistent), Is.Empty, "the animation tab is not shown");
+            Assert.That(_superView.TimelineTicks.Where(x => x.IsSelected && x.Tab != MetaTab.Persistent), Is.Empty, "the animation tab is not shown");
         }
 
         [Test]
@@ -198,7 +198,7 @@ namespace Test.AnimationMeta
         [Test]
         public void ClickingAPersistentTick_ShowsThePersistentTab()
         {
-            var persistent = _superView.TimelineTicks.FirstOrDefault(x => x.Persistent);
+            var persistent = _superView.TimelineTicks.FirstOrDefault(x => x.Tab == MetaTab.Persistent);
             Assert.That(persistent, Is.Not.Null, "Throt's persistent meta has no tag with times");
             _superView.SelectedTabControllerIndex = 1;
 

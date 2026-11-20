@@ -561,6 +561,7 @@
   "MetadataEditor.Buttons.SetEndToNow.Tooltip": "将所选标签的 End Time 设为播放器的当前时间。",
   "MetadataEditor.Tabs.Persistent": "持久",
   "MetadataEditor.Tabs.Animation": "动画",
+  "MetadataEditor.Tabs.Sound": "声音",
   "MetadataEditor.Entry.HeaderPrefix": "元数据 (v",
   "MetadataEditor.Entry.HeaderSuffix": ") 条目:",
   "MetadataEditor.Attribute.Description": "描述:",

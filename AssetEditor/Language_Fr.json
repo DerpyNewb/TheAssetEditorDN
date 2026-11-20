@@ -537,6 +537,7 @@
     "MetadataEditor.Buttons.SetEndToNow.Tooltip":  "Règle le End Time de la balise sélectionnée sur le temps actuel du lecteur.",
     "MetadataEditor.Tabs.Persistent":  "Persistent",
     "MetadataEditor.Tabs.Animation":  "Animation",
+    "MetadataEditor.Tabs.Sound":  "Son",
     "MetadataEditor.Entry.HeaderPrefix":  "Meta Data (v",
     "MetadataEditor.Entry.HeaderSuffix":  ") Entries:",
     "MetadataEditor.Attribute.Description":  "Description:",

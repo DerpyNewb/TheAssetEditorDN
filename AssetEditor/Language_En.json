@@ -561,6 +561,7 @@
   "MetadataEditor.Buttons.SetEndToNow.Tooltip": "Sets the selected tag's End Time to the player's current time.",
   "MetadataEditor.Tabs.Persistent": "Persistent",
   "MetadataEditor.Tabs.Animation": "Animation",
+  "MetadataEditor.Tabs.Sound": "Sound",
   "MetadataEditor.Entry.HeaderPrefix": "Meta Data (v",
   "MetadataEditor.Entry.HeaderSuffix": ") Entries:",
   "MetadataEditor.Attribute.Description": "Description:",

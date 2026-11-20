@@ -68,6 +68,15 @@
                     <view:MainEditorView DataContext="{Binding MetaEditor}" DockPanel.Dock="Top"/>
                 </DockPanel>
             </TabItem>
+            <TabItem Header="{loc:Loc MetadataEditor.Tabs.Sound}">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="2,2,2,4">
+                        <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSoundTabCommand}" AutomationProperties.AutomationId="BrowseSoundTab"/>
+                        <TextBlock Text="{Binding SoundMetaSource}" Style="{StaticResource MetaSource}" VerticalAlignment="Center" AutomationProperties.AutomationId="SoundMetaSource"/>
+                    </DockPanel>
+                    <view:MainEditorView DataContext="{Binding SoundMetaEditor}" DockPanel.Dock="Top"/>
+                </DockPanel>
+            </TabItem>
         </TabControl>
         
         

@@ -39,6 +39,9 @@ namespace Editors.Shared.Core.Common
         public AnimationClip AnimationClip { get; set; }
         public PackFile? MetaData { get; set; }
         public PackFile? PersistMetaData { get; set; }
+        /// <summary>The .snd.meta the played slot names, and the one named on the row the persistent meta came from.</summary>
+        public PackFile? SoundMetaData { get; set; }
+        public PackFile? PersistSoundMetaData { get; set; }
         public Matrix Offset { get; set; } = Matrix.Identity;
         public string Id { get; private set; }
 
