@@ -5,6 +5,7 @@ using Editors.AnimationMeta.MetaEditor;
 using Editors.AnimationMeta.MetaEditor.Check;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.SuperView.Visualisation;
+using Editors.Audio.Shared.Storage;
 using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.BaseControl;
 using Editors.Shared.Core.Common.ReferenceModel;
@@ -118,7 +119,8 @@ namespace Editors.AnimationMeta.SuperView
             IFileSaveService fileSaveService,
             ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper,
             MetaTagGizmoComponent metaTagGizmo,
-            ApplicationSettingsService settings)
+            ApplicationSettingsService settings,
+            IAudioRepository audioRepository)
             : base(editorHostParameters)
         {
             DisplayName = "Super view";
@@ -142,6 +144,7 @@ namespace Editors.AnimationMeta.SuperView
             eventHub.Register<SelecteMetaDataAttributeChangedEvent>(this, OnSelectedMetaDataAttributeChanged);
             globalEventHub.Register<PackFileContainerFilesAddedEvent>(this, x => OnPackFilesChanged(x.Container, x.AddedFiles));
             globalEventHub.Register<PackFileContainerFilesUpdatedEvent>(this, x => OnPackFilesChanged(x.Container, x.ChangedFiles));
+            InitSound(audioRepository);
         }
 
         // A vfx file, a texture, or a model, material or animation a rigid particle may draw changed in a pack (the VFX editor
@@ -301,6 +304,7 @@ namespace Editors.AnimationMeta.SuperView
             if (e.Owner.SoundMetaData != SoundMetaEditor.CurrentFile)
                 SoundMetaChangedOnDisk = "";
             _unreadableSound = [];
+            _persistSoundMeta = null;
             try
             {
                 SoundMetaEditor.LoadFile(e.Owner.SoundMetaData);
@@ -314,7 +318,7 @@ namespace Editors.AnimationMeta.SuperView
             {
                 try
                 {
-                    _metaDataFileParser.ParseFile(persist.DataSource.ReadData());
+                    _persistSoundMeta = _metaDataFileParser.ParseFile(persist.DataSource.ReadData());
                 }
                 catch (Exception ex)
                 {
@@ -404,6 +408,7 @@ namespace Editors.AnimationMeta.SuperView
 
         public override void Close()
         {
+            CloseSound();
             _eventHub?.UnRegister(this);
             _globalEventHub.UnRegister(this);
             base.Close();
@@ -462,8 +467,8 @@ namespace Editors.AnimationMeta.SuperView
                 SlotGrid.Status = "Pick an animation set and a slot first.";
         }
 
-        // Why a row's files cannot play: a file in no loaded pack, or an animation for another skeleton. Not the sound: SuperView plays
-        // no slot's .snd.meta, and CA's slots name ones no loaded pack has.
+        // Why a row's files cannot play: a file in no loaded pack, or an animation for another skeleton. Not the sound: a row whose .snd.meta
+        // no loaded pack has still plays, with an empty Sound tab, because CA's slots name many such files.
         string? CannotPlay(SlotGridRow row)
         {
             var (anim, meta) = (Key(row.Animation.Trim()), Key(row.Meta.Trim()));
