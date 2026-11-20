@@ -96,6 +96,27 @@ namespace Test.UnitSimulator
             });
         }
 
+        // The extract's only F64 column is persistent_one_shot_duration_override (audio_metadata_tags_tables v21 and v22); v22 has a text column after it.
+        // A reader that took the double for four bytes would land the next cell in the middle of it and fail the length check.
+        [Test]
+        public void ReadsAnF64Column()
+        {
+            const string Tags = "audio_metadata_tags_tables";
+            object[] Tag(string name) => [.. DbSchema.Versions(Tags)[22].Select<DbField, object>(x => x.Name switch
+            {
+                "key" => "derpy_tag",
+                "persistent_one_shot_duration_override" => 1.25d,
+                "vocalisation_bank_split" => "derpy_bank",
+                _ => x.Type switch { "Boolean" => false, "I32" => 0, "F32" => 0f, _ => "" },
+            })];
+
+            var (version, rows) = DbTableReader.Read(MadeUpDb.File(Tags, 22, Tag("derpy_tag")), Tags, "test/derpy_f64");
+
+            Assert.That(version, Is.EqualTo(22));
+            Assert.That(rows.Single()["persistent_one_shot_duration_override"], Is.EqualTo(1.25d));
+            Assert.That(rows.Single()["vocalisation_bank_split"], Is.EqualTo("derpy_bank"));
+        }
+
         static void Pack(AssetEditorTestRunner runner, string name, params (string File, object[][] Rows)[] files)
         {
             var pack = runner.CreateEmptyPackFile(name, false);

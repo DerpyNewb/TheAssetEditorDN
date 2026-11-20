@@ -66,8 +66,11 @@ namespace Shared.GameFormats.DB
                 case "F32":
                     p += 4;
                     return BitConverter.ToSingle(data, p - 4);
+                case "F64":
+                    p += 8;
+                    return BitConverter.ToDouble(data, p - 8);
                 default:
-                    throw new NotSupportedException($"{table}: the field type {type} is not read; DbTableReader reads the five the extract's tables use.");
+                    throw new NotSupportedException($"{table}: the field type {type} is not read; DbTableReader reads the six the extract's tables use.");
             }
         }
 

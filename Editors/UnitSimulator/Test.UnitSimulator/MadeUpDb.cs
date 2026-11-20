@@ -41,6 +41,7 @@ namespace Test.UnitSimulator
                 case "Boolean": writer.Write((bool)value); break;
                 case "I32": writer.Write((int)value); break;
                 case "F32": writer.Write((float)value); break;
+                case "F64": writer.Write((double)value); break;
                 default: throw new NotSupportedException(type);
             }
         }
