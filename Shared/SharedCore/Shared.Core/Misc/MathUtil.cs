@@ -277,11 +277,14 @@ namespace Shared.Core.Misc
             return new Vector3((float)heading, (float)attitude, (float)bank);
         }
 
-        /// <summary>Degrees as the X, Y and Z boxes show them, each turning about its own axis.</summary>
+        // Degrees about X, Y and Z. QuaternionToEuler returns (heading = Y, attitude = Z, bank = X)
         public static Vector3 QuaternionToEulerDegree(Quaternion quaternions)
         {
             var euler = QuaternionToEuler(quaternions);
-            return new Vector3(MathHelper.ToDegrees(euler.Z), MathHelper.ToDegrees(euler.X), MathHelper.ToDegrees(euler.Y));
+            var heading = MathHelper.ToDegrees(euler.X);
+            var attitude = MathHelper.ToDegrees(euler.Y);
+            var bank = MathHelper.ToDegrees(euler.Z);
+            return new Vector3(bank, heading, attitude);
         }
 
         /// <summary>Radians: heading about Y, then attitude about Z, then bank about X.</summary>
@@ -301,9 +304,13 @@ namespace Shared.Core.Misc
             return new Quaternion((float)(sign * x), (float)(sign * y), (float)(sign * z), (float)(sign * w));
         }
 
-        /// <summary>Degrees from the X, Y and Z boxes, each turning about its own axis.</summary>
-        public static Quaternion EulerDegreesToQuaternion(Vector3 eulerDegrees) =>
-            EulerToQuaternions(MathHelper.ToRadians(eulerDegrees.Y), MathHelper.ToRadians(eulerDegrees.Z), MathHelper.ToRadians(eulerDegrees.X));
+        public static Quaternion EulerDegreesToQuaternion(Vector3 eulerDegrees)
+        {
+            var bank = MathHelper.ToRadians(eulerDegrees.X);
+            var heading = MathHelper.ToRadians(eulerDegrees.Y);
+            var attitude = MathHelper.ToRadians(eulerDegrees.Z);
+            return EulerToQuaternions(heading, attitude, bank);
+        }
 
 
     }

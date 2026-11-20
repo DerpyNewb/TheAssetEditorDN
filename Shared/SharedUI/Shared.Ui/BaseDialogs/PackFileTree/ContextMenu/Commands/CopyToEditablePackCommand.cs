@@ -11,7 +11,7 @@ namespace Shared.Ui.BaseDialogs.PackFileTree.ContextMenu.Commands
     {
         private readonly ILogger _logger = scopedLogger.ForContext<CopyToEditablePackCommand>();
 
-        public string GetDisplayName(TreeNode node) => "Copy to editable pack";
+        public string GetDisplayName(TreeNode node) => "Copy to active project";
         public bool ShouldAdd(TreeNode node)
         {
             var container = TreeNodeHelper.GetPackFileContainer(node);

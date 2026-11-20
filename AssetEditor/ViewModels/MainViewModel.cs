@@ -65,7 +65,7 @@ namespace AssetEditor.ViewModels
 
             // "DN v1.1" marks this fork's build and its own version apart from the main repo's; the upstream number stays numeric for the updater's comparison.
             ApplicationTitle = $"AssetEditor v{VersionChecker.GetCurrentVersion()} - DN v{ForkRelease.Current}";
-            CurrentGame = $"Current Game: {GameInformationDatabase.GetGameById(applicationSettingsService.CurrentSettings.CurrentGame).DisplayName}";
+            CurrentGame = $"Current game: {GameInformationDatabase.GetGameById(applicationSettingsService.CurrentSettings.CurrentGame).DisplayName}";
         }
 
         /// <summary>Ctrl+S by default; the Hotkeys tab in Settings changes it.</summary>
@@ -117,7 +117,7 @@ namespace AssetEditor.ViewModels
 
         private void SetStatusBarEditablePackFile(PackFileContainerSetAsMainEditableEvent e)
         {
-            EditablePackFile = e.Container != null ? $"Editable Pack: {e.Container.Name}" : "Editable Pack: None Set";
+            EditablePackFile = e.Container != null ? $"Active project: {e.Container.Name}" : "Active project: None set";
         }
     }
 }

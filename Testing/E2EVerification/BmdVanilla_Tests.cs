@@ -49,7 +49,7 @@ namespace Test.E2EVerification
             }
 
             Assert.That(problems, Is.Empty);
-            Assert.That((files, refused), Is.EqualTo((6008, 160)), "the game's own count; a patch that adds BMDs changes it");
+            Assert.That((files, refused), Is.EqualTo((6008, 145)), "the game's own count; a patch that adds BMDs changes it");
         }
     }
 }

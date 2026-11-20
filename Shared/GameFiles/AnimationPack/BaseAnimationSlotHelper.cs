@@ -19,8 +19,7 @@ namespace Shared.GameFormats.AnimationPack
                     break;
 
                 case GameTypeEnum.Warhammer3:
-                    // 9.0's numbering, from RPFM's anim_ids_warhammer_3.csv. dlc24's predates 7.0 and names every id from 1183 up wrongly.
-                    Load("Resources.AnimationSlots.Warhammer3AnimationSlots_9_0.txt");
+                    Load("Resources.AnimationSlots.Warhammer3AnimationSlots_patch9.txt");
                     break;
 
                 case GameTypeEnum.Troy:
