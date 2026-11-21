@@ -324,6 +324,60 @@ namespace Test.AnimationMeta
             });
         }
 
+        // Follow-up P1: with Loop off, a tag at 0.0 sounds once at each Play from the start. The lead used to put it 26 ms before the
+        // clip's end, as if a loop followed, so it sounded there as well.
+        [Test]
+        public void LoopOff_ATagAtZeroSoundsOnceAtEachPlay_AndNotAtTheEnd()
+        {
+            AddTag(_superView.MetaEditor, "Derpy_Persist", 0f);
+            _superView.SoundOn = true;
+            Finish();
+            _superView.Player.LoopAnimation.Value = false;
+
+            _superView.Player.SetAnimationNextFrame();
+            _superView.Player.SetAnimationFirstFrame();
+            _superView.Player.ToggleAnimationPausePlay();
+            for (var i = 0; Main.Player.IsPlaying && i < 10_000; i++)
+                Frames(1);
+            var thePass = _played.ToList();
+            _superView.Player.ToggleAnimationPausePlay();
+            Frames(10);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Main.Player.GetTimeUs(), Is.LessThan(Main.Player.GetAnimationLengthUs()), "Play at the end started the clip again");
+                Assert.That(thePass, Is.EqualTo(new[] { PersistLeaf }), "once, at the start of the pass");
+                Assert.That(_played, Is.EqualTo(new[] { PersistLeaf, PersistLeaf }), "and once more at the next Play");
+            });
+        }
+
+        // Follow-up P2: with Loop off, the player clamps the step that passes the clip's end and reports it paused. A tag due inside
+        // that step sounds on it. The frames are picked so the last playing one lands more than the lead before the end, which leaves a
+        // tag at the end due inside the step that reaches it. They stay under the 50 ms of slack, as the real time between them is nil.
+        [Test]
+        public void LoopOff_ATagDueInTheStepThatReachesTheEnd_Sounds()
+        {
+            var lengthUs = Main.Player.GetAnimationLengthUs();
+            var leadUs = (long)(SuperViewViewModel.SoundLeadSeconds * 1_000_000);
+            var frameMs = Enumerable.Range(30, 20).First(ms => lengthUs - (lengthUs - 1) / (ms * 1000L) * ms * 1000L > leadUs + 2000);
+            var end = (float)(lengthUs / 1_000_000d);
+            if (end > lengthUs / 1_000_000d)
+                end = MathF.BitDecrement(end);
+            AddTag(_superView.MetaEditor, "Derpy_Slot", end);
+            _superView.SoundOn = true;
+            Finish();
+            _superView.Player.LoopAnimation.Value = false;
+
+            _superView.Player.SetAnimationNextFrame();
+            _superView.Player.SetAnimationFirstFrame();
+            _superView.Player.ToggleAnimationPausePlay();
+            for (var i = 0; Main.Player.IsPlaying && i < 10_000; i++)
+                Main.Player.Update(new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(frameMs)));
+
+            Assert.That(Main.Player.GetTimeUs(), Is.EqualTo(lengthUs), "the clip ran out");
+            Assert.That(_played, Is.EqualTo(new[] { SlotLeaf }));
+        }
+
         // Final review, minor 4: replaying a slot puts the new clip back on the last one's frame index, which raises a frame while the
         // last clip's triggers are still in the session. They must not fire on it. The tag is due just before that frame's start, inside
         // the span a jump back to it covers. An edit to the playing row's Sound is what replays it.

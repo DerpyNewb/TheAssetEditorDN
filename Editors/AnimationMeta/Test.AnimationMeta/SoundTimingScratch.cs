@@ -95,7 +95,7 @@ namespace Test.AnimationMeta
             for (var frame = 1; fires.Count < Firings; frame++)
             {
                 var now = Wait(clock, start + frame * FrameSeconds);
-                session.Advance((now - start) * speed % ClipLength, true, now - last, speed, ClipLength);
+                session.Advance((now - start) * speed % ClipLength, true, now - last, speed, ClipLength, true);
                 frameTimes.Add(now - last);
                 last = now;
             }

@@ -547,6 +547,44 @@ namespace Test.Audio
             });
         }
 
+        // Deferred item D4: no frame before (NaN) is a jump, so the span is the last frame before where the playhead is, and near the
+        // start it reaches back over 0.
+        [Test]
+        public void Step_FromNoFrame_IsAJump()
+        {
+            var mid = StepOf(double.NaN, 0.5, 0.02);
+            var start = StepOf(double.NaN, 0.01, 0.02);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(mid.Wrapped, Is.False);
+                Assert.That(mid.From, Is.EqualTo(0.48).Within(1e-5));
+                Assert.That(Crosses(0.49, mid), Is.True);
+                Assert.That(Crosses(0.47, mid), Is.False);
+                Assert.That(Crosses(0.0, start), Is.True);
+            });
+        }
+
+        // Deferred item D6: what counts as a loop and how far back a jump reaches both scale with speed. From 1.95 to 0.08 is 0.13 s
+        // of clip: a loop in one 0.05 s frame at double speed (0.1 s of clip, plus the slack), a jump at speed 1.
+        [Test]
+        public void Step_WrapAndJump_AtAnotherSpeed()
+        {
+            var fastWrap = StepOf(1.95, 0.08, 0.05, speed: 2);
+            var slowJump = StepOf(1.95, 0.08, 0.05, speed: 1);
+            var fastJump = StepOf(0.5, 0.9, 0.05, speed: 2);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(fastWrap, Is.EqualTo((1.95, 0.08, true)));
+                Assert.That(slowJump.Wrapped, Is.False);
+                Assert.That(Crosses(1.99, slowJump), Is.False);
+                Assert.That(fastJump.From, Is.EqualTo(0.8).Within(1e-5), "a jump reaches back one frame of clip time at double speed");
+                Assert.That(Crosses(0.82, fastJump), Is.True);
+                Assert.That(Crosses(0.78, fastJump), Is.False);
+            });
+        }
+
         [Test]
         public void Crossed_TagOutsideTheClip_NeverFires()
         {
@@ -593,17 +631,17 @@ namespace Test.Audio
                 return this;
             }
 
-            public SessionRun Advance(double now, double elapsed = 0.02, bool playing = true, double speed = 1)
+            public SessionRun Advance(double now, double elapsed = 0.02, bool playing = true, double speed = 1, bool loop = true)
             {
-                Session.Advance(now, playing, elapsed, speed, ClipLength);
+                Session.Advance(now, playing, elapsed, speed, ClipLength, loop);
                 return this;
             }
 
             /// <summary>One frame of 0.02 s per index, looping the 2.0 s clip.</summary>
-            public SessionRun Frames(int first, int count)
+            public SessionRun Frames(int first, int count, bool loop = true)
             {
                 foreach (var i in Enumerable.Range(first, count))
-                    Advance(i % 100 / 50.0);
+                    Advance(i % 100 / 50.0, loop: loop);
                 return this;
             }
         }
@@ -747,13 +785,123 @@ namespace Test.Audio
             Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
         }
 
+        // Frames before the first Rebuild cross the tag's time with nothing to fire. They are not fired late: the first frame after the
+        // Rebuild starts from where they left the playhead, so a session that forgot it would take that frame as a jump and reach back
+        // over the tag.
         [Test]
         public void Session_AdvanceBeforeRebuild_DoesNothing()
         {
             var run = new SessionRun(Sounding(("Tag", 1)));
 
-            Assert.DoesNotThrow(() => run.Advance(0.5));
+            Assert.DoesNotThrow(() => run.Advance(0.48).Advance(0.52));
+            run.Rebuild(Trigger("Tag", 0.5f)).Advance(0.52);
+
             Assert.That(run.Played, Is.Empty);
+        }
+
+        // Loop off: the player plays the clip once and stops at its end. A tag at 0.0 started early is not due just before the end, as
+        // no loop follows; it fires at each Play from the start. Play at the end puts the playhead on frame 0, paused, and plays on.
+        [TestCase(0.0)]
+        [TestCase(0.03)]
+        public void Session_LoopOff_ATagAtZeroFiresOnceAtEachPlay_AndNotAtTheEnd(double offset)
+        {
+            var run = new SessionRun(Sounding(("Start", 1))).Rebuild(Trigger("Start", 0f));
+            run.Session.OffsetSeconds = offset;
+
+            run.Advance(0, playing: false, loop: false);
+            run.Frames(1, 10, loop: false);
+            var atPlay = run.Played.ToList();
+            run.Frames(11, 89, loop: false);
+            run.Advance(2.0, playing: false, loop: false);
+            var throughThePass = run.Played.ToList();
+            run.Advance(0, playing: false, loop: false);
+            run.Frames(1, 10, loop: false);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(atPlay, Is.EqualTo(new uint[] { 1 }));
+                Assert.That(throughThePass, Is.EqualTo(new uint[] { 1 }), "nothing more by the end");
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1, 1 }), "once more at the next Play");
+            });
+        }
+
+        // Loop off, the player clamps the step that passes the clip's end to the end and reports it paused. It is still the last of the
+        // pass, so what is due in it fires. A pause or frame step by hand never lands on the end, so a paused frame mid-clip fires nothing.
+        [Test]
+        public void Session_LoopOff_TheStepThatReachesTheEnd_FiresWhatIsDueInIt()
+        {
+            var run = new SessionRun(Sounding(("LastStep", 1), ("End", 2), ("Paused", 3))).Rebuild(Trigger("LastStep", 1.99f), Trigger("End", 2.0f), Trigger("Paused", 0.99f));
+
+            run.Frames(40, 9, loop: false);
+            run.Advance(1.0, playing: false, loop: false);
+            var pausedMidClip = run.Played.ToList();
+            run.Frames(51, 48, loop: false);
+            run.Advance(2.0, playing: false, loop: false);
+            var atTheEnd = run.Played.ToList();
+            run.Advance(2.0, playing: false, loop: false);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(pausedMidClip, Is.Empty, "a frame step onto 1.0 fires nothing");
+                Assert.That(atTheEnd, Is.EqualTo(new uint[] { 1, 2 }));
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1, 2 }), "a second paused frame there fires nothing more");
+            });
+        }
+
+        // A late lead with Loop off: a tag at the end is due past it, which counts at the end, as nothing plays after it.
+        [Test]
+        public void Session_LoopOff_LateOffset_FiresATagAtTheEnd_OnTheLastStep()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 1.99f));
+            run.Session.OffsetSeconds = -0.03;
+
+            run.Frames(95, 4, loop: false);
+            var before = run.Played.ToList();
+            run.Advance(2.0, playing: false, loop: false);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(before, Is.Empty);
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
+            });
+        }
+
+        // Deferred item D5: the offset is taken into the clip by whole lengths. A clip shorter than the offset (a one-frame clip at 2x)
+        // still fires its tag once a pass. The clip is 0.04 s, the frames 0.01 s, and the tag at 0.03 s is due at 0.01 s of each pass.
+        [Test]
+        public void Session_OffsetLongerThanTheClip_StillFiresOncePerPass()
+        {
+            const double Length = 0.04;
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 0.03f));
+            run.Session.OffsetSeconds = 0.1;
+
+            foreach (var i in Enumerable.Range(1, 32))
+                run.Session.Advance(i % 4 * 0.01, true, 0.01, 1, Length, true);
+
+            Assert.That(run.Played, Has.Count.EqualTo(8));
+        }
+
+        // Deferred item D6: the lead wraps at the clip's end in clip time at the frame's speed. A tag at 0.0 with 0.03 s of lead is due
+        // 0.015 s before the end at half speed and 0.06 s before it at double speed, so it fires on the frame that crosses that time.
+        // Taken unscaled, it would be due at 1.97 and fire on the frame before at half speed, and two frames late at double speed.
+        [TestCase(0.5, 0.01, 1.98, 1.99)]
+        [TestCase(2.0, 0.02, 1.92, 1.94)]
+        public void Session_EarlyOffset_WrapsByTheClipTimeAtTheFramesSpeed(double speed, double step, double lastWithout, double firing)
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 0f));
+            run.Session.OffsetSeconds = 0.03;
+            var frame = step / speed;
+
+            for (var at = 1.80; at < lastWithout + 1e-9; at += step)
+                run.Advance(Math.Round(at, 2), elapsed: frame, speed: speed);
+            var before = run.Played.ToList();
+            run.Advance(firing, elapsed: frame, speed: speed);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(before, Is.Empty, $"nothing up to {lastWithout}");
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }), $"fired by the frame landing at {firing}");
+            });
         }
 
         [Test]

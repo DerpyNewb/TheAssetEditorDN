@@ -68,12 +68,16 @@ namespace Editors.Audio.SoundTriggers
         /// <param name="elapsedSeconds">Real time since the last frame.</param>
         /// <param name="speed">Playback speed, 1 being normal.</param>
         /// <param name="length">The clip's length in seconds.</param>
-        public void Advance(double now, bool playing, double elapsedSeconds, double speed, double length)
+        /// <param name="loop">Whether the clip starts again at its end. Without it, a due time is never wrapped to the other end.</param>
+        public void Advance(double now, bool playing, double elapsedSeconds, double speed, double length, bool loop)
         {
             var (previous, paused, looped) = (_previous, _paused, _looped);
             _previous = now;
             _paused = !playing;
-            if (!playing)
+            // The player stops at the clip's end and reports the step that reached it as paused, but that step is the last of the
+            // pass. A pause or a frame step by hand never lands on the end itself.
+            var reachedTheEnd = !playing && !paused && !looped && now >= length;
+            if (!playing && !reachedTheEnd)
                 return;
             _looped = false;
 
@@ -81,7 +85,7 @@ namespace Editors.Audio.SoundTriggers
             var step = looped ? (length, now, true) : SoundTriggerCrossing.Step(previous, now, length, elapsedSeconds, speed);
             if (paused && !looped && step == (previous, now, false))
                 step = (previous - 1e-6, now, false);
-            Fire(step, OffsetSeconds * speed, length);
+            Fire(step, OffsetSeconds * speed, length, loop);
         }
 
         /// <summary>The player has started the clip again by itself: playback entered the last frame, short of the clip's end, and the
@@ -90,16 +94,16 @@ namespace Editors.Audio.SoundTriggers
         public void Loop(double speed, double length)
         {
             if (!double.IsNaN(_previous))
-                Fire((_paused ? _previous - 1e-6 : _previous, length, false), OffsetSeconds * speed, length);
+                Fire((_paused ? _previous - 1e-6 : _previous, length, false), OffsetSeconds * speed, length, true);
             _previous = 0;
             _looped = true;
         }
 
-        void Fire((double From, double To, bool Wrapped) step, double offset, double length)
+        void Fire((double From, double To, bool Wrapped) step, double offset, double length, bool loop)
         {
             foreach (var (start, sound) in _playable)
             {
-                if (!Fires(start, offset, step, length))
+                if (!Fires(start, offset, step, length, loop))
                     continue;
 
                 foreach (var id in SoundNodes.Pick(sound, random))
@@ -108,16 +112,19 @@ namespace Editors.Audio.SoundTriggers
         }
 
         /// <summary>A tag that lies outside the clip never fires. Otherwise it fires when the time it is due, its start less the offset,
-        /// lies in the step. The clip loops, so a due time past either end counts at the other end: a tag at 0.0 started early is due
-        /// just before the loop, and one at the clip's end started late is due just after it.</summary>
+        /// lies in the step. When the clip loops, a due time past either end counts at the other end, however far past: a tag at 0.0
+        /// started early is due just before the loop, and one at the clip's end started late is due just after it. When it plays once,
+        /// a due time before 0 counts at the start and one past the end at the end.</summary>
         /// <param name="offset">The offset in clip seconds, at this frame's speed.</param>
-        static bool Fires(double tagStart, double offset, (double From, double To, bool Wrapped) step, double length)
+        static bool Fires(double tagStart, double offset, (double From, double To, bool Wrapped) step, double length, bool loop)
         {
             if (tagStart < 0 || tagStart > length)
                 return false;
 
             var due = tagStart - offset;
-            var dueInClip = due < 0 ? due + length : due > length ? due - length : due;
+            var dueInClip = !loop ? Math.Clamp(due, 0, length)
+                : due >= 0 && due <= length ? due
+                : due - length * Math.Floor(due / length);
             if (SoundTriggerCrossing.Crossed(dueInClip, step, length))
                 return true;
 

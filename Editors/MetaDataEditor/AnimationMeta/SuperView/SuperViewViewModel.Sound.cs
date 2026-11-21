@@ -340,7 +340,8 @@ namespace Editors.AnimationMeta.SuperView
             var player = _asset.Data.Player;
             var elapsed = _sinceAdvance.Elapsed.TotalSeconds;
             _sinceAdvance.Restart();
-            _session!.Advance(player.GetTimeUs() / 1_000_000d, player.IsPlaying, elapsed, Player.Speed.Value, player.GetAnimationLengthUs() / 1_000_000d);
+            _session!.Advance(player.GetTimeUs() / 1_000_000d, player.IsPlaying, elapsed, Player.Speed.Value, player.GetAnimationLengthUs() / 1_000_000d,
+                Player.LoopAnimation.Value);
         }
 
         // Loop jumps back to frame 0 as playback enters the last frame, by a paused frame set. Without this the session would never see
