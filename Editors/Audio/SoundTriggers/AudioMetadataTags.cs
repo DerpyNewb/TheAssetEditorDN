@@ -1,3 +1,4 @@
+#nullable enable
 using Shared.Core.PackFiles;
 using Shared.GameFormats.DB;
 

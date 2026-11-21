@@ -28,7 +28,8 @@ namespace Editors.Audio.SoundTriggers
             if (!openDevice)
                 return;
 
-            // The same fallback as SoundEngine: WASAPI, then WaveOut when WASAPI cannot start.
+            // WASAPI, then WaveOut when WASAPI cannot start, as SoundEngine does. SoundEngine's WaveOut runs at 150 ms; this one's 60 ms
+            // floor, with SoundEngine's 3 buffers, was never measured, so whether it plays without dropouts is not known.
             try
             {
                 _device = new WasapiOut(AudioClientShareMode.Shared, true, latencyMs);

@@ -254,6 +254,101 @@ namespace Test.AnimationMeta
             });
         }
 
+        void Frames(int count)
+        {
+            for (var i = 0; i < count; i++)
+                Main.Player.Update(new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(20)));
+        }
+
+        // Final review, Critical 1: with Loop on, the view model starts the clip again by itself as playback enters the last frame, by
+        // a paused jump to frame 0, so the session never saw the clip's end. Over three loops of the real view model's loop, from First
+        // Frame and Play: a tag at 0.0, one in the last animation frame and one at the clip's length each fire once a pass, and the one
+        // at 0.0 once more, at the start.
+        [Test]
+        public void Looping_FiresTheTagsAtBothEnds_OncePerPass()
+        {
+            var player = Main.Player;
+            var length = player.GetAnimationLengthUs() / 1_000_000d;
+            var frame = length / player.FrameCount();
+            var end = (float)length;
+            if (end > length)
+                end = MathF.BitDecrement(end);
+            AddTag(_superView.MetaEditor, "Derpy_Persist", 0f);
+            AddTag(_superView.MetaEditor, "Derpy_Clip", (float)(length - frame / 2));
+            AddTag(_superView.MetaEditor, "Derpy_Slot", end);
+            _superView.SoundOn = true;
+            Finish();
+            var loops = 0;
+            _superView.Player.Looping += () => loops++;
+            Assert.That(_superView.Player.LoopAnimation.Value, Is.True, "Loop is on");
+
+            _superView.Player.SetAnimationNextFrame();
+            _superView.Player.SetAnimationFirstFrame();
+            _superView.Player.ToggleAnimationPausePlay();
+            for (var i = 0; loops < 3 && i < 10_000; i++)
+                Frames(1);
+
+            Assert.That(loops, Is.EqualTo(3));
+            Assert.That(_played.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count()),
+                Is.EqualTo(new Dictionary<uint, int> { [PersistLeaf] = 4, [ClipLeaf] = 3, [SlotLeaf] = 3 }));
+        }
+
+        // Critical 1's other two cases start from a paused frame 0: First Frame then Play, and Play once the clip has run out with Loop
+        // off. Each fires a tag at 0.0 once.
+        [Test]
+        public void FirstFrameThenPlay_AndPlayAtTheEnd_FireATagAtZeroOnce()
+        {
+            AddTag(_superView.MetaEditor, "Derpy_Persist", 0f);
+            _superView.SoundOn = true;
+            Finish();
+            PlayTo(1.0f);
+            _played.Clear();
+
+            _superView.Player.SetAnimationFirstFrame();
+            _superView.Player.ToggleAnimationPausePlay();
+            Frames(10);
+            var firstFrame = _played.ToList();
+
+            _superView.Player.LoopAnimation.Value = false;
+            for (var i = 0; Main.Player.IsPlaying && i < 10_000; i++)
+                Frames(1);
+            // What the end of the pass fired is not this test's question.
+            _played.Clear();
+            _superView.Player.ToggleAnimationPausePlay();
+            Frames(10);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(firstFrame, Is.EqualTo(new[] { PersistLeaf }), "First Frame, then Play");
+                Assert.That(_played, Is.EqualTo(new[] { PersistLeaf }), "Play at the end");
+            });
+        }
+
+        // Final review, minor 4: replaying a slot puts the new clip back on the last one's frame index, which raises a frame while the
+        // last clip's triggers are still in the session. They must not fire on it. The tag is due just before that frame's start, inside
+        // the span a jump back to it covers. An edit to the playing row's Sound is what replays it.
+        [Test]
+        public void ASlotReplay_FiresNothingOfTheLastClip_OnTheFrameItPutsBack()
+        {
+            var player = Main.Player;
+            var frameUs = player.GetAnimationLengthUs() / player.FrameCount();
+            var at = 0.30f;
+            if ((long)(at * 1_000_000) % frameUs == 0)
+                at = 0.32f;
+            var restored = (long)(at * 1_000_000) / frameUs * frameUs / 1_000_000d;
+            AddTag(_superView.MetaEditor, "Derpy_Clip", (float)(restored + SuperViewViewModel.SoundLeadSeconds - 5e-7));
+            _superView.SoundOn = true;
+            Finish();
+            PlayTo(at);
+            Assert.That(_played, Is.EqualTo(new[] { ClipLeaf }), "the tag fires on its own pass");
+            _played.Clear();
+
+            _superView.SlotSound = WriteSndMeta(SndMeta, "Derpy_Slot", 3.0f);
+
+            Assert.That(player.GetTimeUs() / 1_000_000d, Is.EqualTo(restored).Within(1e-6), "the replay put the clip back on its frame");
+            Assert.That(_played, Is.Empty);
+        }
+
         // The fourth file: the .snd.meta of the row the persistent meta comes from, which has no tab. Set in the slot grid and saved
         // while sound is on, as only the saved set's persistent row is read. No tab's file changes, so only the scene update rebuilds.
         [Test]
@@ -582,7 +677,7 @@ namespace Test.AnimationMeta
                         throw Throw;
                     OffThread.Enqueue(id);
                 }
-                return Items.GetValueOrDefault(id);
+                return Items.TryGetValue(id, out var item) ? [item] : [];
             }, _ => true);
 
             uint Hash(string name)

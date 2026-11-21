@@ -19,6 +19,10 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
         public NotifyAttr<bool> IsEnabled { get; set; } = new();
         public NotifyAttr<bool> LoopAnimation { get; set; } = new(true);
 
+        /// <summary>Raised when Loop starts the clip again, before the jump back to frame 0. The loop comes as playback enters the last
+        /// frame, short of the clip's end, and the jump is a paused frame set, so a listener cannot tell it from the frames alone.</summary>
+        public event Action? Looping;
+
         // Meta tags need no speed of their own: SceneObject.Update gives them the main player's time.
         public double[] Speeds { get; } = [1, 0.5, 0.25];
         public NotifyAttr<double> Speed { get; } = new(1);
@@ -114,6 +118,7 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
             {
                 if (LoopAnimation.Value)
                 {
+                    Looping?.Invoke();
                     SetAnimationFirstFrame();
                     ToggleAnimationPausePlay();
                 }

@@ -262,7 +262,7 @@ namespace Test.AnimationMeta
                 [actionId] = new CAkAction_V136 { Id = actionId, HircType = AkBkHircType.Action, ActionType = AkActionType.Play, IdExt = soundId },
                 [eventId] = new CAkEvent_V136 { Id = eventId, HircType = AkBkHircType.Event, Actions = [new CAkEvent_V136.Action_V136 { ActionId = actionId }] },
             };
-            return new SoundTriggerResolver(tag => tag == "Timing_Tone" ? new AudioTagEvents("Timing_Tone_Event", "") : null, id => items.GetValueOrDefault(id), _ => true);
+            return new SoundTriggerResolver(tag => tag == "Timing_Tone" ? new AudioTagEvents("Timing_Tone_Event", "") : null, id => items.TryGetValue(id, out var item) ? [item] : [], _ => true);
         }
     }
 }

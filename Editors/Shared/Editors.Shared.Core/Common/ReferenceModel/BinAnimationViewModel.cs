@@ -31,6 +31,9 @@ namespace Editors.Shared.Core.Common.ReferenceModel
         [ObservableProperty] string? _soundMetaPersistName;
         [ObservableProperty] string? _animationFileName;
 
+        /// <summary>Whether what plays came from a slot. "Any animation" plays with no slot, even while a slot is still picked.</summary>
+        public bool PlayingSlot { get; private set; }
+
         public BinAnimationViewModel(SceneObjectEditor sceneObjectEditor, IPackFileService pfs, ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper, SceneObject sceneObject, IUiCommandFactory uiCommandFactory)
         {
             _sceneObjectEditor = sceneObjectEditor;
@@ -119,6 +122,7 @@ namespace Editors.Shared.Core.Common.ReferenceModel
         /// a copy of the picked slot naming other files, which plays them without writing the set.</summary>
         public void PlaySlot(AnimationBinEntryGenericFormat? value)
         {
+            PlayingSlot = !string.IsNullOrEmpty(value?.SlotName);
             AnimationReference? animationReference = null;
             PackFile? meta = null;
             PackFile? persistMeta = null;

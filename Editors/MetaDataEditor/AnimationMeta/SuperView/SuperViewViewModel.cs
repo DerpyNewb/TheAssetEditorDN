@@ -492,12 +492,13 @@ namespace Editors.AnimationMeta.SuperView
         [RelayCommand] void BrowseSlotMeta() => Browse(".anm.meta", null, x => SlotMeta = x);
         [RelayCommand] void BrowseSlotSound() => Browse(".snd.meta", null, x => SlotSound = x);
 
-        // The Sound tab's own browse. A slot picked in the grid has its Sound set, as the slot panel's browse does. With none, as
-        // when playing from "Any animation", the file opens in the tab and holds until another clip or slot plays.
+        // The Sound tab's own browse. While a slot plays, its Sound is set, as the slot panel's browse does. While a clip from "Any
+        // animation" plays, the file opens in the tab and holds until another clip or slot plays: the slot still picked in the grid is
+        // not what plays, and setting its Sound would play it in place of the clip.
         [RelayCommand]
         void BrowseSoundTab()
         {
-            if (SlotGrid.SelectedRow != null)
+            if (SlotGrid.SelectedRow != null && _asset.FragAndSlotSelection.PlayingSlot)
             {
                 BrowseSlotSound();
                 return;

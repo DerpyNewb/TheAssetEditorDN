@@ -47,9 +47,12 @@ namespace Test.Audio
             public HashSet<uint> Wems { get; } = [];
             public Dictionary<string, AudioTagEvents> Rows { get; } = new(StringComparer.Ordinal);
 
+            /// <summary>Objects that share an id with one in Items, listed after it, as a bank can have them.</summary>
+            public List<HircItem> SameIds { get; } = [];
+
             public SoundTriggerResolver Resolver() => new(
                 tag => Rows.GetValueOrDefault(tag),
-                id => Items.GetValueOrDefault(id),
+                id => [.. Items.TryGetValue(id, out var item) ? [item] : Array.Empty<HircItem>(), .. SameIds.Where(x => x.Id == id)],
                 Wems.Contains);
 
             public Bank Row(string tag, string battleEvent, string campaignEvent = "")
@@ -196,8 +199,10 @@ namespace Test.Audio
             });
         }
 
+        // Only an event with no actions at all has no Play action. One with actions of another type is not supported, as those may be
+        // what sounds in game.
         [Test]
-        public void Resolve_EventWithNoPlayAction_IsSilent()
+        public void Resolve_EventWithNoActions_HasNoPlayAction_OtherActionsAreNotSupported()
         {
             var bank = new Bank().Row("Stopper", "Stop_Event").Row("Nothing", "Empty_Event");
             bank.Event("Stop_Event", bank.Action(AkActionType.Stop_E_O, bank.Sound(7)));
@@ -205,9 +210,42 @@ namespace Test.Audio
 
             Assert.Multiple(() =>
             {
-                Assert.That(Resolve(bank, "Stopper").Silent, Is.EqualTo("event Stop_Event has no Play action"));
+                Assert.That(Resolve(bank, "Stopper").Silent, Is.EqualTo("not supported: Stop_E_O action -> Sound"));
                 Assert.That(Resolve(bank, "Nothing").Silent, Is.EqualTo("event Empty_Event has no Play action"));
             });
+        }
+
+        // Battle_Individual_Melee_Weapon_Hit_Primary's one action has type 0x2303, which Wwise's list as the editor knows it lacks. It
+        // targets an event whose own 0x2303 action reaches a dialogue event with that inner event's id, as in CA's bank. The line names
+        // the type in hex and what it reaches.
+        [Test]
+        public void Resolve_UnknownActionToAnEvent_IsNotSupported_AndNamesTheDialogueEvent()
+        {
+            const AkActionType Unknown = (AkActionType)0x2303;
+            Assert.That(Enum.IsDefined(Unknown), Is.False, "0x2303 has no name in the enum");
+            var bank = new Bank().Row("Hit", "Hit_Event");
+            const uint Shared = 77;
+            bank.Items[Shared] = new CAkEvent_V136 { Id = Shared, HircType = AkBkHircType.Event, Actions = [new CAkEvent_V136.Action_V136 { ActionId = bank.Action(Unknown, Shared) }] };
+            bank.SameIds.Add(new CAkDialogueEvent_V136 { Id = Shared, HircType = AkBkHircType.Dialogue_Event });
+            bank.Event("Hit_Event", bank.Action(Unknown, Shared));
+
+            var result = Resolve(bank, "Hit");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Sound, Is.Null);
+                Assert.That(result.Silent, Is.EqualTo("not supported: 0x2303 action -> Event -> 0x2303 action -> Dialogue_Event"));
+            });
+        }
+
+        // Deferred item L52: an action id no loaded bank has is not an event with no Play action.
+        [Test]
+        public void Resolve_ActionInNoLoadedBank_SaysSo()
+        {
+            var bank = new Bank().Row("Tag", "Event_A");
+            bank.Event("Event_A", 404);
+
+            Assert.That(Resolve(bank).Silent, Is.EqualTo("action 404 of event Event_A is in no loaded bank"));
         }
 
         [Test]
@@ -235,7 +273,7 @@ namespace Test.Audio
             Assert.Multiple(() =>
             {
                 Assert.That(Resolve(bank, "EmptyContainer").Silent, Is.EqualTo("event Event_C plays nothing found in the loaded banks"));
-                Assert.That(Resolve(bank, "StopAndUnloaded").Silent, Is.EqualTo("event Event_D plays nothing found in the loaded banks"));
+                Assert.That(Resolve(bank, "StopAndUnloaded").Silent, Is.EqualTo("not supported: Stop_E_O action -> Sound"), "an action of another type is named first");
                 Assert.That(Resolve(bank, "WemWins").Silent, Is.EqualTo("WEM not found: 8.wem"));
             });
         }
@@ -587,20 +625,82 @@ namespace Test.Audio
             });
         }
 
+        // Play from a paused frame starts from the remembered time: a jump would reach back a whole 0.1 s frame to 0.92 and fire the tag
+        // at 0.95. It includes the frame it starts on, so the tag at 1.0 fires (before the final review it did not).
         [Test]
         public void Session_NotPlaying_FiresNothing_ButRemembersTheTime()
         {
-            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 1.0f));
+            var run = new SessionRun(Sounding(("Before", 1), ("AtThePause", 2))).Rebuild(Trigger("Before", 0.95f), Trigger("AtThePause", 1.0f));
 
             run.Advance(1.0, playing: false);
             var whilePaused = run.Played.ToList();
-            run.Advance(1.02);
+            run.Advance(1.02, elapsed: 0.1);
 
             Assert.Multiple(() =>
             {
                 Assert.That(whilePaused, Is.Empty);
-                Assert.That(run.Played, Is.Empty);
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 2 }));
             });
+        }
+
+        // First Frame, then Play: the first playing frame includes 0, so a tag there fires, once. With a lead it is due before 0, which
+        // counts as the start.
+        [TestCase(0.0)]
+        [TestCase(0.03)]
+        public void Session_FirstFrameThenPlay_FiresATagAtZero_Once(double offset)
+        {
+            var run = new SessionRun(Sounding(("Start", 1))).Rebuild(Trigger("Start", 0f));
+            run.Session.OffsetSeconds = offset;
+
+            run.Frames(30, 10);
+            run.Advance(0, playing: false);
+            run.Frames(1, 10);
+
+            Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }));
+        }
+
+        // The view model's Loop, on a clip whose last frame starts at 1.96 s: on entering it, Loop is called, the playhead is put on 0 by
+        // a paused frame, and play goes on. SuperView's frame handler runs after the view model's, so it sees 0 playing at once
+        // (afterTheLoop); the other order sees the last frame first. Either way each tag at the clip's ends, and the one in its last
+        // frame, fires once a pass, with the lead or without it. The pass starts with First Frame and Play.
+        [TestCase(0.0, true)]
+        [TestCase(0.0, false)]
+        [TestCase(0.03, true)]
+        [TestCase(0.03, false)]
+        public void Session_Loop_FiresTheTagsAtBothEnds_OncePerPass(double offset, bool afterTheLoop)
+        {
+            var run = new SessionRun(Sounding(("Start", 1), ("LastFrame", 2), ("End", 3))).Rebuild(Trigger("Start", 0f), Trigger("LastFrame", 1.97f), Trigger("End", 2.0f));
+            run.Session.OffsetSeconds = offset;
+
+            run.Advance(0, playing: false);
+            foreach (var _ in Enumerable.Range(0, 3))
+            {
+                run.Frames(1, 97);
+                if (!afterTheLoop)
+                    run.Advance(1.96);
+                run.Session.Loop(1, ClipLength);
+                run.Advance(0, playing: false);
+                if (afterTheLoop)
+                    run.Advance(0, elapsed: 0);
+            }
+            run.Advance(0.02);
+
+            Assert.That(run.Played.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count()), Is.EqualTo(new Dictionary<uint, int> { [1] = 4, [2] = 3, [3] = 3 }));
+        }
+
+        [Test]
+        public void Session_Status_CountsWhatIsNotSupported_ApartFromWhatIsSilentInGame()
+        {
+            var bank = Sounding(("A", 1)).Row("Stopper", "Stop_Event");
+            bank.Event("Stop_Event", bank.Action(AkActionType.Stop_E_O, bank.Sound(7)));
+            var run = new SessionRun(bank).Rebuild(Trigger("A", 0.1f), Trigger("Stopper", 0.2f), Trigger("X", 0.3f));
+
+            Assert.That(run.Session.StatusLines, Is.EqualTo(new[]
+            {
+                "3 triggers: 1 plays, 1 silent in game, 1 not supported",
+                "Stopper (slot .snd.meta): not supported: Stop_E_O action -> Sound",
+                "X (slot .snd.meta): no audio_metadata_tags_tables row",
+            }));
         }
 
         [Test]

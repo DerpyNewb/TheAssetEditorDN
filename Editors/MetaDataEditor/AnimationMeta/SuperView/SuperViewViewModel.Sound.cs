@@ -29,13 +29,15 @@ namespace Editors.AnimationMeta.SuperView
         partial void OnSelectedChanged(SoundSwitchOption value) => picked(value);
     }
 
-    // Sound: with the Sound box on, every SOUND_TRIGGER of the four files plays its sound when the playhead crosses it, resolved as the
-    // game resolves it (spec 2026-11-20). Off by default, as turning it on loads the game's audio, which takes minutes after a game update.
+    // Sound: with the Sound box on, the SOUND_TRIGGERs of the four files play their sounds as the playhead crosses them, Loop's restart
+    // included, resolved as the game resolves them (spec 2026-11-20). A trigger whose event goes through a Wwise type SuperView does not
+    // play is listed as not supported. Off by default, as turning it on loads the game's audio, which takes minutes after a game update.
     public partial class SuperViewViewModel
     {
         [ObservableProperty] bool _soundOn;
 
-        /// <summary>The .snd.meta problems, then, while Sound is on, the triggers' summary and a line for each one silent in game.</summary>
+        /// <summary>The .snd.meta problems, then, while Sound is on, the triggers' summary and a line for each one that plays nothing here:
+        /// silent in game, or not supported.</summary>
         [ObservableProperty] IReadOnlyList<string> _soundStatus = [];
 
         public ObservableCollection<SoundSwitchPicker> SoundSwitchPickers { get; } = [];
@@ -111,7 +113,7 @@ namespace Editors.AnimationMeta.SuperView
                 return new SoundTriggerResolver(tags.Find, id =>
                 {
                     lock (_audioLoad)
-                        return audio.GetHircs(id).FirstOrDefault();
+                        return audio.GetHircs(id).ToList();
                 }, id => audio.FindWem(id.ToString()) != null);
             }, token);
             PrepareSound = id =>
@@ -131,9 +133,15 @@ namespace Editors.AnimationMeta.SuperView
                         RebuildSounds();
                 };
             _eventHub.Register<SceneObjectUpdateEvent>(this, _ => RebuildSounds());
-            // A new clip or slot stops what the last one left ringing.
-            _asset.Data.AnimationChanged += _ => StopSounds();
+            // A new clip or slot stops what the last one left ringing. Its rebuild is asked for at once, before the player puts the new
+            // clip back on the last one's frame index, which raises a frame that must not fire the last clip's triggers.
+            _asset.Data.AnimationChanged += _ =>
+            {
+                RebuildSounds();
+                StopSounds();
+            };
             _asset.Data.Player.OnFrameChanged += _ => AdvanceSounds();
+            Player.Looping += LoopSounds;
             ShowSoundStatus();
         }
 
@@ -229,8 +237,8 @@ namespace Editors.AnimationMeta.SuperView
         {
             if (request != _rebuilds || !SoundOn || _session == null)
                 return;
-            _applied = request;
             _session.Rebuild(SoundTriggers(), SlotGrid.Set is CampaignAnimationSet);
+            _applied = request;
             DecodeQueued(request, _session.Leaves.ToHashSet());
             ShowSwitchPickers(_session.Switches);
             ShowSoundStatus();
@@ -323,14 +331,24 @@ namespace Editors.AnimationMeta.SuperView
 
         // Until the latest rebuild has landed, the session holds the last clip's triggers, which must not fire on this one. The frames
         // skipped make the first one after it a jump, so a trigger at the clip's start still fires.
+        bool SoundsLive => SoundOn && _session != null && _applied == _rebuilds;
+
         void AdvanceSounds()
         {
-            if (!SoundOn || _session == null || _applied != _rebuilds)
+            if (!SoundsLive)
                 return;
             var player = _asset.Data.Player;
             var elapsed = _sinceAdvance.Elapsed.TotalSeconds;
             _sinceAdvance.Restart();
-            _session.Advance(player.GetTimeUs() / 1_000_000d, player.IsPlaying, elapsed, Player.Speed.Value, player.GetAnimationLengthUs() / 1_000_000d);
+            _session!.Advance(player.GetTimeUs() / 1_000_000d, player.IsPlaying, elapsed, Player.Speed.Value, player.GetAnimationLengthUs() / 1_000_000d);
+        }
+
+        // Loop jumps back to frame 0 as playback enters the last frame, by a paused frame set. Without this the session would never see
+        // the rest of the clip, nor the jump as a loop, and the triggers at either end would not sound.
+        void LoopSounds()
+        {
+            if (SoundsLive)
+                _session!.Loop(Player.Speed.Value, _asset.Data.Player.GetAnimationLengthUs() / 1_000_000d);
         }
 
         void ShowSoundStatus()

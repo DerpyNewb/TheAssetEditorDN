@@ -86,6 +86,17 @@ namespace Test.AnimationMeta
             Assert.That(_resolver.Resolve("Derpy_Made_Up_Tag", false, NoChoices).Silent, Is.EqualTo("no audio_metadata_tags_tables row"));
         }
 
+        // Final review: Battle_Individual_Melee_Weapon_Hit_Primary's one action has type 0x2303, and it reaches a dialogue event, through
+        // which the hit sounds in game. SuperView does not play it, and says so instead of calling it silent in game.
+        [Test]
+        public void MeleeWeaponHitPrimary_IsNotSupported_AndSaysWhatItReaches()
+        {
+            var result = _resolver.Resolve("Melee_Weapon_Hit_Primary", false, NoChoices);
+            TestContext.Out.WriteLine(result.Silent);
+
+            Assert.That(result.Silent, Does.StartWith("not supported: 0x2303 action -> ").And.EndWith("Dialogue_Event"));
+        }
+
         PackFile? FindWem(uint sourceId) => _runner.PackFileService.FindFile($"audio\\wwise\\{sourceId}.wem")
             ?? _runner.PackFileService.FindFile($"audio\\wwise\\english(uk)\\{sourceId}.wem");
 

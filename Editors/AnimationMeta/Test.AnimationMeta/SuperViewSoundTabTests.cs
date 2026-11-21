@@ -171,6 +171,29 @@ namespace Test.AnimationMeta
             Assert.That(_superView.SoundMetaEditor.ParsedFile, Is.Null, "another clip");
         }
 
+        // Final review: "Any animation" leaves the slot picked in the grid. What plays decides: the pick opens in the tab, the slot keeps
+        // its Sound, and the clip the user picked goes on playing.
+        [Test]
+        public void AnyAnimation_WithTheSlotStillPicked_OpensThePickInTheTab_AndEditsNoSlot()
+        {
+            var selection = _superView.SceneObjects[0].FragAndSlotSelection;
+            var row = _superView.SlotGrid.SelectedRow!;
+            var (slotClip, sound) = (Key(row.Animation), row.Sound);
+            var clip = selection.AnimationList.PossibleValues.First(x => Key(x.AnimationFile) != slotClip);
+            selection.AnimationList.SelectedItem = clip;
+            Assert.That(_superView.SlotGrid.SelectedRow, Is.SameAs(row), "the slot stays picked");
+            AnswerBrowse(WriteSndMeta(SndMeta));
+
+            _superView.BrowseSoundTabCommand.Execute(null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(_superView.SoundMetaEditor.ParsedFile?.Attributes, Has.Count.EqualTo(2), "the pick is in the tab");
+                Assert.That((row.Sound, _superView.SlotGrid.HasUnsavedChanges), Is.EqualTo((sound, false)), "no slot was edited");
+                Assert.That(Key(_superView.SceneObjects[0].Data.AnimationName.Value), Is.EqualTo(Key(clip.AnimationFile)), "the picked clip still plays");
+            });
+        }
+
         const string ChangedOnDisk = "The .snd.meta changed on disk. Your unsaved edits are kept.";
 
         static AttributeViewModel Field(MetaDataEntry row, string name) => row.Variables.Single(x => x.FieldName == name);
