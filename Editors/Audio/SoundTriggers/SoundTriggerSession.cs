@@ -68,7 +68,8 @@ namespace Editors.Audio.SoundTriggers
         /// <param name="elapsedSeconds">Real time since the last frame.</param>
         /// <param name="speed">Playback speed, 1 being normal.</param>
         /// <param name="length">The clip's length in seconds.</param>
-        /// <param name="loop">Whether the clip starts again at its end. Without it, a due time is never wrapped to the other end.</param>
+        /// <param name="loop">Whether the clip starts again at its end. Without it, a due time is never wrapped to the other end, and
+        /// neither is one in the step that reaches the end, as the player has stopped there.</param>
         public void Advance(double now, bool playing, double elapsedSeconds, double speed, double length, bool loop)
         {
             var (previous, paused, looped) = (_previous, _paused, _looped);
@@ -85,7 +86,9 @@ namespace Editors.Audio.SoundTriggers
             var step = looped ? (length, now, true) : SoundTriggerCrossing.Step(previous, now, length, elapsedSeconds, speed);
             if (paused && !looped && step == (previous, now, false))
                 step = (previous - 1e-6, now, false);
-            Fire(step, OffsetSeconds * speed, length, loop);
+            // The step that reached the end is followed by no loop, even with Loop on (a hitch past the last frame stops the player), so
+            // a tag at 0.0 started early waits for the next Play.
+            Fire(step, OffsetSeconds * speed, length, loop && !reachedTheEnd);
         }
 
         /// <summary>The player has started the clip again by itself: playback entered the last frame, short of the clip's end, and the

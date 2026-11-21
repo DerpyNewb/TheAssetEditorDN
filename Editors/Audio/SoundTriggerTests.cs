@@ -908,6 +908,31 @@ namespace Test.Audio
             });
         }
 
+        // Review fix, minor 1: with Loop on, a hitch that carries one update past the whole last frame stops the player at the end, which
+        // reports that step paused, as with Loop off. No loop follows, so a tag at 0.0 started early waits for the next Play and sounds
+        // once there. A tag due in that last step still sounds in it.
+        [Test]
+        public void Session_LoopOn_AHitchThatStopsAtTheEnd_LeavesATagAtZeroForTheNextPlay()
+        {
+            var run = new SessionRun(Sounding(("Start", 1), ("LastStep", 2))).Rebuild(Trigger("Start", 0f), Trigger("LastStep", 1.995f));
+            run.Session.OffsetSeconds = 0.03;
+
+            run.Advance(0, playing: false);
+            run.Frames(1, 98);
+            var atPlay = run.Played.ToList();
+            run.Advance(2.0, playing: false);
+            var atTheEnd = run.Played.ToList();
+            run.Advance(0, playing: false);
+            run.Frames(1, 10);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(atPlay, Is.EqualTo(new uint[] { 1 }));
+                Assert.That(atTheEnd, Is.EqualTo(new uint[] { 1, 2 }), "only the tag due in the last step");
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1, 2, 1 }), "the tag at 0.0 once more, at the next Play");
+            });
+        }
+
         // Deferred item D5: the offset is taken into the clip by whole lengths. A clip shorter than the offset (a one-frame clip at 2x)
         // still fires its tag once a pass. The clip is 0.04 s, the frames 0.01 s, and the tag at 0.03 s is due at 0.01 s of each pass.
         [Test]
