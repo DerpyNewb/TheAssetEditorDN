@@ -201,6 +201,16 @@ namespace Test.Audio
             });
         }
 
+        // An event that a bank has but that holds no actions at all is not missing: it has no Play action.
+        [Test]
+        public void Resolve_AnEventWithNoActions_HasNoPlayAction()
+        {
+            var bank = new Bank().Row("Tag", "Empty_Event");
+            bank.Event("Empty_Event");
+
+            Assert.That(Resolve(bank).Silent, Is.EqualTo("event Empty_Event has no Play action"));
+        }
+
         // An action that can start a sound or post an event, and that SuperView does not play, is not supported, as it may be what
         // sounds in game: PlayAndContinue, PlayEvent, the four Triggers, and a type the enum has no name for. Stop, Pause, Seek,
         // Release, Break, Set and the like cannot start a sound, so an event of only those has no Play action. One case per type.
