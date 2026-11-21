@@ -188,7 +188,7 @@ namespace KitbasherEditor.ViewModels.MenuBarViews
             builder.CreateButton<CreateStaticMeshCommand>(IconLibrary.FreezeAnimationIcon, ButtonVisibilityRule.ObjectMode);
             builder.CreateButtonSeparator();
             builder.CreateButton<ReduceMeshCommand>(IconLibrary.ReduceMeshIcon, ButtonVisibilityRule.ObjectMode);
-            //builder.CreateButton<OpenBmiToolCommand>(ResourceController.BmiToolIcon, ButtonVisibilityRule.ObjectMode);    <-- Disabled to see if anyone complains. Plan is to delete it
+            builder.CreateButton<OpenBmiToolCommand>(IconLibrary.BmiToolIcon, ButtonVisibilityRule.ObjectMode);
             builder.CreateButton<OpenMeshFitterToolCommand>(IconLibrary.SkeletonReshaperIcon, ButtonVisibilityRule.ObjectMode);
             builder.CreateButton<OpenReriggingToolCommand>(IconLibrary.ReRiggingIcon, ButtonVisibilityRule.ObjectMode);
             builder.CreateButton<OpenPinToolCommand>(IconLibrary.PinIcon, ButtonVisibilityRule.ObjectMode);

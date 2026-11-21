@@ -62,7 +62,7 @@ namespace KitbasherEditor.ViewModels.BmiEditor
         public void Apply()
         {
             _commandFactory.CreateWithBuilder<GrowMeshCommand>()
-                .Configure(x => x.Configure(_skeleton, _meshNode, (float)_scaleFactor.Value, Bones.First().GetAllCheckedChildBoneIndexes()))
+                .Configure(x => x.Configure(_skeleton, _meshNode, (float)_scaleFactor.Value, Bones.SelectMany(root => root.GetAllCheckedChildBoneIndexes()).ToList()))
                 .BuildAndExecute();
         }
 

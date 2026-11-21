@@ -21,7 +21,9 @@ using Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes;
 using Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.MeshSubViews;
 using Editors.KitbasherEditor.ViewModels.SceneExplorer.Nodes.Rmv2;
 using Editors.KitbasherEditor.ViewModels.SceneNodeEditor;
+using KitbasherEditor.ViewModels.BmiEditor;
 using KitbasherEditor.ViewModels.MenuBarViews;
+using KitbasherEditor.Views.EditorViews;
 using KitbasherEditor.ViewModels.SaveDialog;
 using KitbasherEditor.ViewModels.SceneExplorerNodeViews;
 using KitbasherEditor.Views;
@@ -85,6 +87,10 @@ namespace Editors.KitbasherEditor
             // Snap tool
             serviceCollection.AddScoped<SnapToolViewModel>();
             RegisterWindow<SnapToolWindow>(serviceCollection);
+
+            // BMI tool
+            serviceCollection.AddTransient<BmiViewModel>();
+            RegisterWindow<BmiWindow>(serviceCollection);
 
             // Pin tool
             serviceCollection.AddTransient<PinToolViewModel>();

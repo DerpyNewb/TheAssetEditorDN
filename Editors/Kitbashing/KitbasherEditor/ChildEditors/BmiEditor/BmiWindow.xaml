@@ -1,0 +1,14 @@
+﻿<windowhandling:AssetEditorWindow  xmlns:windowhandling="clr-namespace:WindowHandling;assembly=Shared.Ui"
+        x:Class="KitbasherEditor.Views.EditorViews.BmiWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:KitbasherEditor.Views.EditorViews"
+        xmlns:loc="clr-namespace:Shared.Ui.Common;assembly=Shared.Ui"
+        mc:Ignorable="d"
+        Style="{StaticResource CustomWindowStyle}"
+        HelpDocumentPath="docs\Documentation\Kitbash_Tools.html"
+        Title="{loc:Loc KitbashTool.Bmi.Title}" Height="700" Width="450">
+    <local:BmiView/>
+</windowhandling:AssetEditorWindow>

@@ -1,43 +1,79 @@
 ﻿using Editors.KitbasherEditor.Core.MenuBarViews;
+using GameWorld.Core.Animation;
 using GameWorld.Core.Components.Selection;
+using GameWorld.Core.SceneNodes;
 using GameWorld.Core.Services;
-using Shared.Core.PackFiles;
+using KitbasherEditor.Views.EditorViews;
+using Shared.Core.Misc;
+using Shared.Core.Services;
+using Shared.GameFormats.RigidModel;
 using Shared.Ui.Common.MenuSystem;
 
 namespace Editors.KitbasherEditor.UiCommands
 {
-    public class OpenBmiToolCommand : ITransientKitbasherUiCommand
+    // One BMI window per Kitbash tab, for the mesh selected when it opened.
+    public class OpenBmiToolCommand : IScopedKitbasherUiCommand, IDisposable
     {
-        public string ToolTip { get; set; } = "Open the Bmi tool";
+        public string ToolTip { get; set; } = "BMI tool: grow or shrink the selected mesh along its normals, by bone";
         public ActionEnabledRule EnabledRule => ActionEnabledRule.OneObjectSelected;
         public Hotkey? HotKey { get; } = null;
 
-        private readonly IPackFileService _packFileService;
+        private readonly IStandardDialogs _standardDialogs;
         private readonly ISkeletonAnimationLookUpHelper _skeletonHelper;
         private readonly SelectionManager _selectionManager;
+        private readonly IAbstractFormFactory<BmiWindow> _windowFactory;
+        BmiWindow? _windowHandle;
 
-        public OpenBmiToolCommand(IPackFileService packFileService, ISkeletonAnimationLookUpHelper skeletonHelper, SelectionManager selectionManager)
+        public OpenBmiToolCommand(IStandardDialogs standardDialogs, ISkeletonAnimationLookUpHelper skeletonHelper, SelectionManager selectionManager, IAbstractFormFactory<BmiWindow> windowFactory)
         {
-            _packFileService = packFileService;
+            _standardDialogs = standardDialogs;
             _skeletonHelper = skeletonHelper;
             _selectionManager = selectionManager;
+            _windowFactory = windowFactory;
         }
 
         public void Execute()
         {
-            //var state = _selectionManager.GetState<ObjectSelectionState>();
-            //var meshNode = state.GetSingleSelectedObject() as Rmv2MeshNode;
-            //
-            //if (meshNode != null)
-            //{
-            //    var skeletonName = meshNode.Geometry.SkeletonName;
-            //    var newSkeletonFile = _skeletonHelper.GetSkeletonFileFromName(skeletonName);
-            //    var skeleton = new GameSkeleton(newSkeletonFile, null);
-            //
-            //    var window = _windowFactory.Create<BmiViewModel, BmiView>("BMI tool", 1200, 1100);
-            //    window.TypedContext.Initialize(skeleton, meshNode);
-            //    window.ShowWindow();
-            //}
+            if (_windowHandle != null)
+            {
+                _windowHandle.Activate();
+                return;
+            }
+
+            var state = _selectionManager.GetState<ObjectSelectionState>();
+            if (state?.GetSingleSelectedObject() is not Rmv2MeshNode meshNode)
+                return;
+
+            if (meshNode.Geometry.VertexFormat == UiVertexFormat.Static)
+            {
+                _standardDialogs.ShowDialogBox("The BMI tool moves a mesh by its bone weights, and a static mesh has none.", "BMI tool");
+                return;
+            }
+
+            var skeletonFile = _skeletonHelper.GetSkeletonFileFromName(meshNode.Geometry.SkeletonName);
+            if (skeletonFile == null)
+            {
+                _standardDialogs.ShowDialogBox($"The mesh's skeleton '{meshNode.Geometry.SkeletonName}' was not found in the loaded packs.", "BMI tool");
+                return;
+            }
+
+            _windowHandle = _windowFactory.Create();
+            _windowHandle.ViewModel.Initialize(new GameSkeleton(skeletonFile, null), meshNode);
+            _windowHandle.Show();
+            _windowHandle.Closed += OnWindowClosed;
+        }
+
+        private void OnWindowClosed(object? sender, EventArgs e)
+        {
+            if (_windowHandle != null)
+                _windowHandle.Closed -= OnWindowClosed;
+            _windowHandle = null;
+        }
+
+        public void Dispose()
+        {
+            _windowHandle?.Close();
+            _windowHandle = null;
         }
     }
 }

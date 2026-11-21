@@ -42,6 +42,7 @@ namespace Test.KitbashEditor.MenuBar
             (typeof(RecalculateNormalsCommand), ButtonVisibilityRule.ObjectMode),
             (typeof(FlipFacesCommand), ButtonVisibilityRule.ObjectMode),
             (typeof(BakePivotCommand), ButtonVisibilityRule.ObjectMode),
+            (typeof(OpenBmiToolCommand), ButtonVisibilityRule.ObjectMode),
             (typeof(OpenReplaceTexturePathsCommand), ButtonVisibilityRule.Always),
             (typeof(OpenSnapToolCommand), ButtonVisibilityRule.Always),
             (typeof(CheckModelCommand), ButtonVisibilityRule.Always),
@@ -68,7 +69,7 @@ namespace Test.KitbashEditor.MenuBar
             IconLibrary.Load();
 
             foreach (var icon in new[] { IconLibrary.MirrorIcon, IconLibrary.RecalculateNormalsIcon, IconLibrary.FlipFacesIcon, IconLibrary.BakePivotIcon,
-                IconLibrary.ReplaceTexturePathsIcon, IconLibrary.SnapIcon, IconLibrary.CheckModelIcon, IconLibrary.PickBoneIcon })
+                IconLibrary.ReplaceTexturePathsIcon, IconLibrary.SnapIcon, IconLibrary.CheckModelIcon, IconLibrary.PickBoneIcon, IconLibrary.BmiToolIcon })
                 Assert.That(icon?.PixelWidth, Is.GreaterThan(0));
         }
 

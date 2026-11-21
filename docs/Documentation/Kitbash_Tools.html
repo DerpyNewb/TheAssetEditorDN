@@ -116,6 +116,17 @@
         from a left one. <strong>Mirror left to right, keep bones</strong> mirrors the shape but leaves the weights where they are.
     </p>
 
+    <h3>BMI tool</h3>
+
+    <p>
+        This makes one part of a rigged mesh thicker or thinner, such as a belly, an arm or a whole body. Select one mesh
+        and open the tool. Tick the bones whose part should change; the bones the mesh uses are listed, and
+        <strong>Check all children</strong> ticks a bone and everything under it. Apply pushes each vertex out along its
+        normal by the scale factor, multiplied by how much weight the vertex gives the ticked bones, so the edge of the area
+        blends into the rest. A negative factor shrinks the area instead. Vertices that share a position move together, so
+        seams stay closed. Each Apply is one undo step. A static mesh has no bone weights, so the tool refuses it.
+    </p>
+
     <h3>Snap to bone or vertex</h3>
 
     <p>

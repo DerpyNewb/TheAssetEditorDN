@@ -1055,6 +1055,7 @@
     "KitbashTool.MainView.PivotAtOrigin":  "Pivot à l'origine du monde",
     "KitbashTool.MainView.PivotAtOrigin.Tooltip":  "Tourner et redimensionner autour de l'origine du monde, là où une arme pend à son os, au lieu du centre de la sélection",
     "KitbashTool.MainView.VertexFalloff":  "Atténuation des sommets :",
+    "KitbashTool.Bmi.Title":  "BMI Tool",
     "KitbashTool.Bmi.CheckAllChildren":  "Check all children",
     "KitbashTool.Bmi.UncheckAllChildren":  "Un-check all children",
     "KitbashTool.Bmi.ScaleFactor":  "Scale factor:",
