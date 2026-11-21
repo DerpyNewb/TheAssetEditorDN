@@ -53,6 +53,12 @@ namespace Editors.AnimationMeta.SuperView
         /// <summary>A switch group's or case's name, for the pickers.</summary>
         public Func<uint, string> SoundName { get; set; } = null!;
 
+        /// <summary>How long before its tag a sound starts, to make up for the time the audio device takes to play it. A sound fired by the
+        /// session reached WASAPI loopback a median 23.1 to 27.9 ms later in six runs of 20 firings at the mixer's 30 ms latency
+        /// (SoundTimingScratch, 2026-11-21). The marker lights on the frame that fires the sound, so this lines the sound up with that frame.
+        /// How late the picture reaches the screen was not measured, so the sound may land ahead of the lit marker by that much.</summary>
+        public const double SoundLeadSeconds = 0.026;
+
         /// <summary>Opens the output the default delegates play through, on the first Sound on. It throws when no audio device opens.</summary>
         public Func<SoundTriggerMixer> OpenMixer { get; set; } = () => new SoundTriggerMixer();
 
@@ -188,7 +194,7 @@ namespace Editors.AnimationMeta.SuperView
 
             _soundLoad = null;
             _resolver = resolver;
-            _session = new SoundTriggerSession(resolver, id => PrepareSound(id), id => PlaySound(id), new Random());
+            _session = new SoundTriggerSession(resolver, id => PrepareSound(id), id => PlaySound(id), new Random()) { OffsetSeconds = SoundLeadSeconds };
             RebuildSounds();
         }
 
