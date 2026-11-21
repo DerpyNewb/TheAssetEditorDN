@@ -468,22 +468,52 @@ namespace Test.AnimationMeta
             Assert.That(_superView.SoundFileProblems, Has.None.StartsWith($"Slot .snd.meta {Bad}"));
         }
 
-        // Deferred item D15: the Sound tab saves a .snd.meta. A name typed with another meta's ending gets .snd.meta added, where the
-        // Animation tab keeps any name ending in .meta.
-        [Test]
-        public void SaveMetaAs_OnTheSoundTab_AddsSndMetaToAnyOtherEnding()
+        // Deferred item D15, as the review settled it: the Sound tab saves a .snd.meta. A name typed with another meta's ending has it
+        // replaced, and a name with no ending gets one, where the Animation tab keeps any name ending in .meta.
+        [TestCase("animations/derpy/custom_x.anm.meta")]
+        [TestCase("animations/derpy/custom_x.meta")]
+        [TestCase("animations/derpy/custom_x")]
+        [TestCase("animations/derpy/custom_x.snd.meta")]
+        public void SaveMetaAs_OnTheSoundTab_EndsTheNameInSndMeta(string typed)
         {
+            const string Saved = "animations/derpy/custom_x.snd.meta";
             _superView.SlotSound = WriteSndMeta(SndMeta);
             _superView.SelectedTabControllerIndex = (int)MetaTab.Sound;
-            AnswerSave("animations/derpy/custom_x.anm.meta");
+            AnswerSave(typed);
             var said = Said();
 
             _superView.SaveMetaAsCommand.Execute(null);
 
-            Assert.That(said, Is.Empty);
-            Assert.That(_superView.SlotGrid.SelectedRow!.Sound, Is.EqualTo("animations/derpy/custom_x.anm.meta.snd.meta"));
-            Assert.That((_runner.PackFileService.FindFile("animations/derpy/custom_x.anm.meta.snd.meta") != null, _runner.PackFileService.FindFile("animations/derpy/custom_x.anm.meta")),
-                Is.EqualTo((true, (PackFile?)null)));
+            Assert.That((said.Count, _superView.SlotGrid.SelectedRow!.Sound, _runner.PackFileService.FindFile(Saved) != null), Is.EqualTo((0, Saved, true)));
+            if (typed != Saved)
+                Assert.That(_runner.PackFileService.FindFile(typed), Is.Null, "nothing is written under the name typed");
+        }
+
+        // Review fix, minor 4: a tag the tab shows that cannot be written, here one with no event name, does not stop a change on disk
+        // from loading. Before, comparing the file with what the tab shows threw.
+        [Test]
+        public void ExternalSave_OverATagThatCannotBeWritten_ReloadsACleanTab()
+        {
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            ((SoundTrigger_v11)_superView.SoundMetaEditor.ParsedFile!.Attributes[0]).SoundEvent = null!;
+
+            Assert.DoesNotThrow(() => SaveFromOutside(SndMeta, SndMetaBytes(0.1f, 0.4f, 0.8f)));
+
+            Assert.That(_superView.SoundMetaEditor.ParsedFile!.Attributes, Has.Count.EqualTo(3));
+        }
+
+        // Review fix, minor 5: a pack loaded later with the same bytes at the tab's path is now the file the tab reads, so the tab
+        // loads it and names where it is from, though what it shows does not change.
+        [Test]
+        public void AnotherPacksCopy_WithTheSameBytes_BecomesTheTabsFile()
+        {
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            Assert.That(_superView.SoundMetaSource, Is.EqualTo($"From your pack: {SndMeta}"));
+
+            _runner.PackFileService.AddFilesToPack(_runner.CreateEmptyPackFile("OtherMod", false),
+                [new NewPackFileEntry(@"animations\derpy", PackFile.CreateFromBytes(Path.GetFileName(SndMeta), SndMetaBytes(0.2f, 0.6f)))]);
+
+            Assert.That(_superView.SoundMetaSource, Is.EqualTo($"From OtherMod: {SndMeta}"));
         }
 
         // Deferred item D16: Save meta as never writes over another pack's file, which would override it for every set naming it. It

@@ -169,14 +169,13 @@ namespace Editors.AnimationMeta.SuperView
         // The Sound tab's file, as its path was when the tab loaded it: a pack closed since then no longer knows the file's path.
         string _soundMetaPath = "";
 
-        // The Sound tab's file was written, from outside SuperView or by a save of the tab's own. What the tab already shows is nothing
-        // new, so the tab keeps its undo history. Otherwise a tab with no edits shows the file as written, and one with edits keeps them
-        // and says so; the tab's own save then clears that.
+        // The Sound tab's file was written, from outside SuperView or by a save of the tab's own. The file the tab holds, written with
+        // what the tab already shows, is nothing new, so the tab keeps its undo history. Otherwise a tab with no edits shows the file as
+        // written, and one with edits keeps them and says so; the tab's own save then clears that.
         void OnSoundMetaWritten()
         {
             var file = _packFileService.FindFile(_soundMetaPath);
-            if (file != null && SoundMetaEditor.ParsedFile is { } shown
-                && file.DataSource.ReadData().AsSpan().SequenceEqual(_metaDataFileParser.GenerateBytes(SoundMetaEditor.MetaDataFileVersion, shown)))
+            if (file != null && file == _asset.Data.SoundMetaData && Shown() is { } shown && file.DataSource.ReadData().AsSpan().SequenceEqual(shown))
                 return;
             if (SoundMetaEditor.HasUnsavedChanges)
             {
@@ -186,6 +185,22 @@ namespace Editors.AnimationMeta.SuperView
             // Written in place, it is the PackFile the tab holds, which LoadFile would not read again.
             SoundMetaEditor.CurrentFile = null!;
             ShowSoundMeta(file);
+        }
+
+        // What the Sound tab shows, as bytes; null when it shows nothing or has a tag that cannot be written, as the editor's own
+        // undo snapshot treats it.
+        byte[]? Shown()
+        {
+            if (SoundMetaEditor.ParsedFile is not { } shown)
+                return null;
+            try
+            {
+                return _metaDataFileParser.GenerateBytes(SoundMetaEditor.MetaDataFileVersion, shown);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         // The Sound tab's file in the scene, as a slot's play sets it, republished with the other two.

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.Services;
@@ -35,17 +36,22 @@ namespace Editors.AnimationMeta.MetaEditor
         }
 
         /// <summary>The save dialog, starting at <paramref name="offered"/>: the path picked, lower-case with forward slashes, or null
-        /// when cancelled. <paramref name="extension"/> is added when the path does not end in it, except that for a meta any path ending
-        /// in .meta is kept. A file name of the form prefix_name, name being <paramref name="original"/>'s, makes that prefix the one
-        /// offered next time.</summary>
+        /// when cancelled. The path is made to end in <paramref name="extension"/>. For an .anm.meta any path ending in .meta is kept;
+        /// for another extension (a .snd.meta) a trailing .anm.meta or .meta is replaced, and any other ending is added to. A file name
+        /// of the form prefix_name, name being <paramref name="original"/>'s, makes that prefix the one offered next time.</summary>
         public static string? Ask(IStandardDialogs dialogs, IPackFileService pfs, ApplicationSettingsService settings, string original, string offered, string extension = Extension)
         {
             var pick = dialogs.DisplaySaveDialog(pfs, [extension], offered);
             if (pick == null || !pick.Result || string.IsNullOrWhiteSpace(pick.SelectedFilePath))
                 return null;
             var path = Normalise(pick.SelectedFilePath);
-            if (!path.EndsWith(extension == Extension ? ".meta" : extension, StringComparison.Ordinal))
-                path += extension;
+            if (extension == Extension)
+            {
+                if (!path.EndsWith(".meta", StringComparison.Ordinal))
+                    path += extension;
+            }
+            else if (!path.EndsWith(extension, StringComparison.Ordinal))
+                path = Regex.Replace(path, @"(\.anm)?\.meta$", "") + extension;
 
             var name = path[(path.LastIndexOf('/') + 1)..];
             var originalName = Normalise(original)[(Normalise(original).LastIndexOf('/') + 1)..];
