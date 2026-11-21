@@ -16,7 +16,8 @@ namespace Editors.Audio.SoundTriggers
         // NaN until the first frame, which makes that frame a jump.
         double _previous = double.NaN;
 
-        /// <summary>Seconds to start sounds ahead of their tag: positive starts them early, negative late.</summary>
+        /// <summary>Real seconds to start sounds ahead of their tag: positive starts them early, negative late. It makes up for a delay
+        /// in real time, so it covers more of the clip at a faster speed: each frame turns it into clip time at that frame's speed.</summary>
         public double OffsetSeconds { get; set; }
 
         /// <summary>The switch case to play, by group id. Kept across Rebuilds; a Rebuild is what applies a change.</summary>
@@ -67,9 +68,10 @@ namespace Editors.Audio.SoundTriggers
                 return;
 
             var step = SoundTriggerCrossing.Step(previous, now, length, elapsedSeconds, speed);
+            var offset = OffsetSeconds * speed;
             foreach (var (start, sound) in _playable)
             {
-                if (!Fires(start, step, length))
+                if (!Fires(start, offset, step, length))
                     continue;
 
                 foreach (var id in SoundNodes.Pick(sound, random))
@@ -80,12 +82,13 @@ namespace Editors.Audio.SoundTriggers
         /// <summary>A tag that lies outside the clip never fires. Otherwise it fires when the time it is due, its start less the offset,
         /// lies in the step. The clip loops, so a due time past either end counts at the other end: a tag at 0.0 started early is due
         /// just before the loop, and one at the clip's end started late is due just after it.</summary>
-        bool Fires(double tagStart, (double From, double To, bool Wrapped) step, double length)
+        /// <param name="offset">The offset in clip seconds, at this frame's speed.</param>
+        static bool Fires(double tagStart, double offset, (double From, double To, bool Wrapped) step, double length)
         {
             if (tagStart < 0 || tagStart > length)
                 return false;
 
-            var due = tagStart - OffsetSeconds;
+            var due = tagStart - offset;
             var dueInClip = due < 0 ? due + length : due > length ? due - length : due;
             if (SoundTriggerCrossing.Crossed(dueInClip, step, length))
                 return true;

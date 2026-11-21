@@ -763,6 +763,26 @@ namespace Test.Audio
             });
         }
 
+        // The offset is real time. At half speed, 0.05 s of it is 0.025 s of the clip: a tag at 0.50 is due at 0.475, which the frame
+        // landing at 0.48 crosses. Taken as clip time, it would be due at 0.45 and fire two frames sooner.
+        [Test]
+        public void Session_Offset_IsRealTime_SoAtHalfSpeedItIsHalfAsMuchOfTheClip()
+        {
+            var run = new SessionRun(Sounding(("Tag", 1))).Rebuild(Trigger("Tag", 0.50f));
+            run.Session.OffsetSeconds = 0.05;
+
+            foreach (var i in Enumerable.Range(40, 8))
+                run.Advance(i / 100.0, speed: 0.5);
+            var before = run.Played.ToList();
+            run.Advance(0.48, speed: 0.5);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(before, Is.Empty, "nothing up to the frame at 0.47");
+                Assert.That(run.Played, Is.EqualTo(new uint[] { 1 }), "fired by the frame crossing 0.475");
+            });
+        }
+
         [Test]
         public void Session_EarlyOffset_FiresATagAtZeroBeforeTheLoop_Once()
         {

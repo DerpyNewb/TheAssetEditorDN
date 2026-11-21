@@ -42,7 +42,12 @@ namespace Test.AnimationMeta
             Measure(30, SuperViewViewModel.SoundLeadSeconds);
         }
 
-        static void Measure(int latencyMs, double offsetSeconds)
+        // The lead is real time, so at half speed a sound should still land as near the tag's crossing as at speed 1. One measurement,
+        // as it plays 20 tones a second apart.
+        [Test, Explicit]
+        public void AudioOffsetAtHalfSpeed() => Measure(30, SuperViewViewModel.SoundLeadSeconds, speed: 0.5);
+
+        static void Measure(int latencyMs, double offsetSeconds, double speed = 1)
         {
             var clock = Stopwatch.StartNew();
             using var mixer = new SoundTriggerMixer(openDevice: true, latencyMs: latencyMs);
@@ -83,14 +88,14 @@ namespace Test.AnimationMeta
             capture.StartRecording();
             Wait(clock, clock.Elapsed.TotalSeconds + 0.5);
 
-            // Play at speed 1: one Advance per display frame, the playhead following the clock.
+            // One Advance per display frame, the playhead following the clock at the speed given.
             var start = clock.Elapsed.TotalSeconds;
             var last = start;
             var frameTimes = new List<double>();
             for (var frame = 1; fires.Count < Firings; frame++)
             {
                 var now = Wait(clock, start + frame * FrameSeconds);
-                session.Advance((now - start) % ClipLength, true, now - last, 1, ClipLength);
+                session.Advance((now - start) * speed % ClipLength, true, now - last, speed, ClipLength);
                 frameTimes.Add(now - last);
                 last = now;
             }
@@ -134,7 +139,7 @@ namespace Test.AnimationMeta
                     continue;
                 }
 
-                var crossing = start + k * ClipLength + TagStart;
+                var crossing = start + (k * ClipLength + TagStart) / speed;
                 afterFire.Add(TimeOf(onset) - fires[k]);
                 afterCrossing.Add(TimeOf(onset) - crossing);
 
@@ -148,7 +153,7 @@ namespace Test.AnimationMeta
                 }
             }
 
-            TestContext.Out.WriteLine($"latency {latencyMs} ms, OffsetSeconds {offsetSeconds * 1000:0.0} ms: {afterFire.Count} of {fires.Count} firings heard, "
+            TestContext.Out.WriteLine($"latency {latencyMs} ms, OffsetSeconds {offsetSeconds * 1000:0.0} ms, speed {speed:0.##}: {afterFire.Count} of {fires.Count} firings heard, "
                 + $"frames {Median(frameTimes) * 1000:0.00} ms apart");
             TestContext.Out.WriteLine($"  onset after the session fired:     median {Median(afterFire) * 1000:0.0} ms, {afterFire.Min() * 1000:0.0} to {afterFire.Max() * 1000:0.0}");
             TestContext.Out.WriteLine($"  onset after the clock crossed tag: median {Median(afterCrossing) * 1000:0.0} ms, {afterCrossing.Min() * 1000:0.0} to {afterCrossing.Max() * 1000:0.0}");

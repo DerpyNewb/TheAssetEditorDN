@@ -229,6 +229,31 @@ namespace Test.AnimationMeta
             Assert.That(_prepared, Is.SupersetOf(new[] { PersistLeaf, ClipLeaf, SlotLeaf }), "decoded ahead of the firing");
         }
 
+        // SuperView starts each sound SoundLeadSeconds early, for the audio device's lag. With 20 ms frames, a tag at 1.0 s is due at
+        // 0.974 s, so it fires on the frame landing at 0.98 s and not on the one landing at 1.0 s.
+        [Test]
+        public void Playing_StartsEachSoundTheLeadEarly()
+        {
+            Assert.That(1.0 - SuperViewViewModel.SoundLeadSeconds, Is.InRange(0.96, 0.98), "the lead puts the tag's due time in the frame landing at 0.98 s");
+            Assert.That(Main.Player.GetAnimationLengthUs(), Is.GreaterThan(1_000_000), "the clip is long enough not to loop");
+            AddTag(_superView.MetaEditor, "Derpy_Clip", 1.0f);
+            _superView.SoundOn = true;
+            Finish();
+
+            PlayTo(0.96f);
+            var before = _played.ToList();
+            Main.Player.Update(new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(20)));
+            var atTheLead = _played.ToList();
+            Main.Player.Update(new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(20)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(before, Is.Empty);
+                Assert.That(atTheLead, Is.EqualTo(new[] { ClipLeaf }), "fired by the frame crossing 0.974 s");
+                Assert.That(_played, Is.EqualTo(new[] { ClipLeaf }), "not again at 1.0 s");
+            });
+        }
+
         // The fourth file: the .snd.meta of the row the persistent meta comes from, which has no tab. Set in the slot grid and saved
         // while sound is on, as only the saved set's persistent row is read. No tab's file changes, so only the scene update rebuilds.
         [Test]
