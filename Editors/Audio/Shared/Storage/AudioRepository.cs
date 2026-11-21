@@ -58,6 +58,15 @@ namespace Editors.Audio.Shared.Storage
         private readonly IEventHub _eventHub;
         private readonly ILogger _logger = Logging.Create<AudioRepository>();
 
+        // Guards the lookups' lazily filled dictionaries and the swap a load ends with, as SuperView looks up off the UI thread while
+        // the UI thread may look up or load. A load reads its caches outside it, so a lookup waits for another lookup or for the swap,
+        // never for a whole load.
+        private readonly object _gate = new();
+        // One load at a time.
+        private readonly object _loadGate = new();
+        // Set by Dispose. A load that ends after it lets go of what it opened.
+        private bool _disposed;
+
         private readonly List<string> _loadedBnkDataLanguages = [];
         private readonly List<LoadedLayer> _loadedLayers = [];
         private string _loadedFingerprint = "";
@@ -116,33 +125,43 @@ namespace Editors.Audio.Shared.Storage
 
         public void Load(List<string> languages)
         {
-            var requestedLanguages = _loadedBnkDataLanguages
-                .Union(languages, StringComparer.OrdinalIgnoreCase)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            lock (_loadGate)
+            {
+                List<string> requestedLanguages;
+                lock (_gate)
+                {
+                    requestedLanguages = _loadedBnkDataLanguages
+                        .Union(languages, StringComparer.OrdinalIgnoreCase)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                }
 
-            var gameInformation = GameInformationDatabase.GetGameById(_applicationSettingsService.CurrentSettings.CurrentGame);
-            if (gameInformation.BankGeneratorVersion == GameBnkVersion.Unsupported)
-                return;
+                var gameInformation = GameInformationDatabase.GetGameById(_applicationSettingsService.CurrentSettings.CurrentGame);
+                if (gameInformation.BankGeneratorVersion == GameBnkVersion.Unsupported)
+                    return;
 
-            var cacheSources = CreateCacheSources();
-            if (cacheSources.Count == 0)
-                return;
+                var cacheSources = CreateCacheSources();
+                if (cacheSources.Count == 0)
+                    return;
 
-            LoadCacheSources(cacheSources, requestedLanguages);
+                LoadCacheSources(cacheSources, requestedLanguages);
+            }
         }
 
         internal void LoadCacheSources(List<AudioCacheSource> cacheSources, List<string> requestedLanguages)
         {
             var fingerprint = CreateCombinedFingerprint(cacheSources);
-            if (_loadedLayers.Count != 0
-                && fingerprint == _loadedFingerprint
-                && requestedLanguages.All(
-                    language => _loadedBnkDataLanguages.Contains(
-                        language,
-                        StringComparer.OrdinalIgnoreCase)))
+            lock (_gate)
             {
-                return;
+                if (_loadedLayers.Count != 0
+                    && fingerprint == _loadedFingerprint
+                    && requestedLanguages.All(
+                        language => _loadedBnkDataLanguages.Contains(
+                            language,
+                            StringComparer.OrdinalIgnoreCase)))
+                {
+                    return;
+                }
             }
 
             var layers = LoadLayers(cacheSources);
@@ -153,12 +172,20 @@ namespace Editors.Audio.Shared.Storage
                     bnk.Layer.ResolvedBnkPaths.Add(bnk.Bnk.Path);
 
                 var datData = MergeDatData(layers.Select(layer => layer.AudioCache.LoadDatData()));
-                ApplyLoadedLayers(
-                    layers,
-                    resolvedBnks.Keys.ToList(),
-                    datData,
-                    requestedLanguages,
-                    fingerprint);
+                lock (_gate)
+                {
+                    if (_disposed)
+                    {
+                        DisposeLayers(layers);
+                        return;
+                    }
+                    ApplyLoadedLayers(
+                        layers,
+                        resolvedBnks.Keys.ToList(),
+                        datData,
+                        requestedLanguages,
+                        fingerprint);
+                }
             }
             catch
             {
@@ -197,145 +224,159 @@ namespace Editors.Audio.Shared.Storage
 
         public void Clear()
         {
-            DisposeLayers(_loadedLayers);
-            _loadedLayers.Clear();
-            _loadedBnkDataLanguages.Clear();
-            _loadedFingerprint = "";
-            _allCachedHircsLoaded = false;
-            _allCachedDidxLoaded = false;
-            _hircsById = [];
-            _hircByBnkPathById = [];
-            _resolvedHircByReferringBnkPathById = [];
-            _hircsByType = [];
-            _didxAudioListById = [];
-            PackFileByBnkName = [];
-            NameById = [];
-            StateGroupsByDialogueEvent = [];
-            QualifiedStateGroupByStateGroupByDialogueEvent = [];
-            StatesByStateGroup = [];
-
+            lock (_gate)
+            {
+                DisposeLayers(_loadedLayers);
+                _loadedLayers.Clear();
+                _loadedBnkDataLanguages.Clear();
+                _loadedFingerprint = "";
+                _allCachedHircsLoaded = false;
+                _allCachedDidxLoaded = false;
+                _hircsById = [];
+                _hircByBnkPathById = [];
+                _resolvedHircByReferringBnkPathById = [];
+                _hircsByType = [];
+                _didxAudioListById = [];
+                PackFileByBnkName = [];
+                NameById = [];
+                StateGroupsByDialogueEvent = [];
+                QualifiedStateGroupByStateGroupByDialogueEvent = [];
+                StatesByStateGroup = [];
+            }
         }
 
         public List<HircItem> GetHircs(AkBkHircType hircType)
         {
-            if (_loadedLayers.Count != 0 && !_allCachedHircsLoaded)
+            lock (_gate)
             {
-                if (_hircsByType.TryGetValue(hircType, out var cachedHircs))
-                    return cachedHircs;
-
-                var references = new List<BnkHircReference>();
-                foreach (var layer in _loadedLayers)
+                if (_loadedLayers.Count != 0 && !_allCachedHircsLoaded)
                 {
-                    references.AddRange(
-                        layer.AudioCache.FindHircs(
-                            hircType,
-                            layer.ResolvedBnkPaths));
+                    if (_hircsByType.TryGetValue(hircType, out var cachedHircs))
+                        return cachedHircs;
+
+                    var references = new List<BnkHircReference>();
+                    foreach (var layer in _loadedLayers)
+                    {
+                        references.AddRange(
+                            layer.AudioCache.FindHircs(
+                                hircType,
+                                layer.ResolvedBnkPaths));
+                    }
+
+                    var hircs = _bnkLoader.LoadHircs(references);
+                    _hircsByType[hircType] = hircs;
+                    return hircs;
                 }
 
-                var hircs = _bnkLoader.LoadHircs(references);
-                _hircsByType[hircType] = hircs;
-                return hircs;
+                return _hircsById
+                    .SelectMany(entry => entry.Value)
+                    .Where(hirc => hirc.HircType == hircType)
+                    .ToList();
             }
-
-            return _hircsById
-                .SelectMany(entry => entry.Value)
-                .Where(hirc => hirc.HircType == hircType)
-                .ToList();
         }
 
         public List<HircItem> GetHircs(uint id)
         {
-            if (_hircsById.TryGetValue(id, out var hircs))
-                return hircs;
-
-            if (_loadedLayers.Count != 0 && !_allCachedHircsLoaded)
+            lock (_gate)
             {
-                var references = new List<BnkHircReference>();
-                foreach (var layer in _loadedLayers)
+                if (_hircsById.TryGetValue(id, out var hircs))
+                    return hircs;
+
+                if (_loadedLayers.Count != 0 && !_allCachedHircsLoaded)
                 {
-                    references.AddRange(
-                        layer.AudioCache.FindHircs(
-                            id,
-                            layer.ResolvedBnkPaths));
+                    var references = new List<BnkHircReference>();
+                    foreach (var layer in _loadedLayers)
+                    {
+                        references.AddRange(
+                            layer.AudioCache.FindHircs(
+                                id,
+                                layer.ResolvedBnkPaths));
+                    }
+
+                    hircs = _bnkLoader.LoadHircs(references);
+                    _hircsById[id] = hircs;
+                    return hircs;
                 }
 
-                hircs = _bnkLoader.LoadHircs(references);
-                _hircsById[id] = hircs;
-                return hircs;
+                return [];
             }
-
-            return [];
         }
 
         public List<HircItem> GetHircs(uint id, string owningFileName) => GetHircs(id).Where(x => x.BnkFilePath == owningFileName).ToList();
 
         public Dictionary<HircReferenceRequest, HircItem> ResolveHircReferences(IReadOnlyCollection<HircReferenceRequest> requests)
         {
-            var result = new Dictionary<HircReferenceRequest, HircItem>();
-            var unresolvedRequests = new List<HircReferenceRequest>();
-
-            foreach (var request in (requests ?? []).Where(request => request != null && request.HircId != 0).Distinct())
+            lock (_gate)
             {
-                if (TryGetResolvedHirc(request.HircId, request.ReferringBnkFilePath, out var resolvedHirc))
+                var result = new Dictionary<HircReferenceRequest, HircItem>();
+                var unresolvedRequests = new List<HircReferenceRequest>();
+
+                foreach (var request in (requests ?? []).Where(request => request != null && request.HircId != 0).Distinct())
                 {
-                    result[request] = resolvedHirc;
-                    continue;
+                    if (TryGetResolvedHirc(request.HircId, request.ReferringBnkFilePath, out var resolvedHirc))
+                    {
+                        result[request] = resolvedHirc;
+                        continue;
+                    }
+
+                    if (TryGetCachedHirc(request.HircId, request.ReferringBnkFilePath, out var sameBankHirc))
+                    {
+                        CacheResolvedHirc(request.HircId, request.ReferringBnkFilePath, sameBankHirc);
+                        result[request] = sameBankHirc;
+                        continue;
+                    }
+
+                    if (_hircsById.TryGetValue(request.HircId, out var cachedCandidates) && cachedCandidates.Count != 0)
+                    {
+                        var selectedHirc = SelectCachedFallback(request, cachedCandidates);
+                        CacheResolvedHirc(request.HircId, request.ReferringBnkFilePath, selectedHirc);
+                        result[request] = selectedHirc;
+                        continue;
+                    }
+
+                    unresolvedRequests.Add(request);
                 }
 
-                if (TryGetCachedHirc(request.HircId, request.ReferringBnkFilePath, out var sameBankHirc))
-                {
-                    CacheResolvedHirc(request.HircId, request.ReferringBnkFilePath, sameBankHirc);
-                    result[request] = sameBankHirc;
-                    continue;
-                }
+                if (unresolvedRequests.Count != 0 && _loadedLayers.Count != 0 && !_allCachedHircsLoaded)
+                    ResolveUncachedHircReferences(unresolvedRequests, result);
 
-                if (_hircsById.TryGetValue(request.HircId, out var cachedCandidates) && cachedCandidates.Count != 0)
-                {
-                    var selectedHirc = SelectCachedFallback(request, cachedCandidates);
-                    CacheResolvedHirc(request.HircId, request.ReferringBnkFilePath, selectedHirc);
-                    result[request] = selectedHirc;
-                    continue;
-                }
-
-                unresolvedRequests.Add(request);
+                return result;
             }
-
-            if (unresolvedRequests.Count != 0 && _loadedLayers.Count != 0 && !_allCachedHircsLoaded)
-                ResolveUncachedHircReferences(unresolvedRequests, result);
-
-            return result;
         }
 
         public Dictionary<uint, List<HircItem>> GetHircs(IReadOnlyCollection<uint> ids)
         {
-            var resolvedHircsById = new Dictionary<uint, List<HircItem>>();
-            var uncachedIds = new HashSet<uint>();
-
-            foreach (var id in ids)
+            lock (_gate)
             {
-                if (_hircsById.TryGetValue(id, out var cachedHircs))
-                    resolvedHircsById[id] = cachedHircs;
-                else
-                    uncachedIds.Add(id);
-            }
+                var resolvedHircsById = new Dictionary<uint, List<HircItem>>();
+                var uncachedIds = new HashSet<uint>();
 
-            if (uncachedIds.Count != 0 && _loadedLayers.Count != 0 && !_allCachedHircsLoaded)
-            {
-                var references = new List<BnkHircReference>();
-                foreach (var layer in _loadedLayers)
-                    references.AddRange(layer.AudioCache.FindHircs(uncachedIds, layer.ResolvedBnkPaths));
-
-                var loadedHircs = _bnkLoader.LoadHircs(references);
-                foreach (var hircsForId in loadedHircs.GroupBy(hirc => hirc.Id))
+                foreach (var id in ids)
                 {
-                    var groupedHircs = hircsForId.ToList();
-                    CacheHircsByBnkPath(groupedHircs);
-                    _hircsById[hircsForId.Key] = groupedHircs;
-                    resolvedHircsById[hircsForId.Key] = groupedHircs;
+                    if (_hircsById.TryGetValue(id, out var cachedHircs))
+                        resolvedHircsById[id] = cachedHircs;
+                    else
+                        uncachedIds.Add(id);
                 }
-            }
 
-            return resolvedHircsById;
+                if (uncachedIds.Count != 0 && _loadedLayers.Count != 0 && !_allCachedHircsLoaded)
+                {
+                    var references = new List<BnkHircReference>();
+                    foreach (var layer in _loadedLayers)
+                        references.AddRange(layer.AudioCache.FindHircs(uncachedIds, layer.ResolvedBnkPaths));
+
+                    var loadedHircs = _bnkLoader.LoadHircs(references);
+                    foreach (var hircsForId in loadedHircs.GroupBy(hirc => hirc.Id))
+                    {
+                        var groupedHircs = hircsForId.ToList();
+                        CacheHircsByBnkPath(groupedHircs);
+                        _hircsById[hircsForId.Key] = groupedHircs;
+                        resolvedHircsById[hircsForId.Key] = groupedHircs;
+                    }
+                }
+
+                return resolvedHircsById;
+            }
         }
 
         public string GetNameFromId(uint value) => GetNameFromId(value, out var _);
@@ -358,26 +399,29 @@ namespace Editors.Audio.Shared.Storage
 
         public HashSet<uint> GetUsedVanillaHircIdsByLanguageId(uint languageId)
         {
-            if (_loadedLayers.Count != 0 && !_allCachedHircsLoaded)
+            lock (_gate)
             {
-                var result = new HashSet<uint>();
-                foreach (var layer in _loadedLayers)
+                if (_loadedLayers.Count != 0 && !_allCachedHircsLoaded)
                 {
-                    result.UnionWith(
-                        layer.AudioCache.FindHircIds(
-                            languageId,
-                            true,
-                            layer.ResolvedBnkPaths));
+                    var result = new HashSet<uint>();
+                    foreach (var layer in _loadedLayers)
+                    {
+                        result.UnionWith(
+                            layer.AudioCache.FindHircIds(
+                                languageId,
+                                true,
+                                layer.ResolvedBnkPaths));
+                    }
+                    return result;
                 }
-                return result;
-            }
 
-            return HircsById
-                .SelectMany(
-                    entry => entry.Value
-                        .Where(hirc => hirc.LanguageId == languageId && hirc.IsCA == true)
-                        .Select(_ => entry.Key))
-                .ToHashSet();
+                return HircsById
+                    .SelectMany(
+                        entry => entry.Value
+                            .Where(hirc => hirc.LanguageId == languageId && hirc.IsCA == true)
+                            .Select(_ => entry.Key))
+                    .ToHashSet();
+            }
         }
 
         public HashSet<uint> GetUsedVanillaSourceIdsByLanguageId(uint languageId)
@@ -573,15 +617,17 @@ namespace Editors.Audio.Shared.Storage
             }
         }
 
+        // Filled before it is published, as FindDataWem reads it without the lock.
         private void SetCurrentBnkFiles(List<string> bnkPaths)
         {
-            PackFileByBnkName = [];
+            var packFileByBnkName = new Dictionary<string, PackFile>();
             foreach (var bnkPath in bnkPaths)
             {
                 var bnk = _packFileService.FindFile(bnkPath);
                 if (bnk != null)
-                    PackFileByBnkName.TryAdd(bnk.Name, bnk);
+                    packFileByBnkName.TryAdd(bnk.Name, bnk);
             }
+            PackFileByBnkName = packFileByBnkName;
         }
 
         private static Dictionary<string, ResolvedBnk> CreateEffectiveBnks(List<LoadedLayer> layers, List<string> languages)
@@ -617,8 +663,11 @@ namespace Editors.Audio.Shared.Storage
 
         private Dictionary<uint, List<HircItem>> GetAllCachedHircs()
         {
-            EnsureAllCachedHircsLoaded();
-            return _hircsById;
+            lock (_gate)
+            {
+                EnsureAllCachedHircsLoaded();
+                return _hircsById;
+            }
         }
 
         private void EnsureAllCachedDidxLoaded()
@@ -652,8 +701,11 @@ namespace Editors.Audio.Shared.Storage
 
         private Dictionary<uint, List<DidxAudio>> GetAllCachedDidx()
         {
-            EnsureAllCachedDidxLoaded();
-            return _didxAudioListById;
+            lock (_gate)
+            {
+                EnsureAllCachedDidxLoaded();
+                return _didxAudioListById;
+            }
         }
 
         private static string CreateCombinedFingerprint(List<AudioCacheSource> sources)
@@ -847,10 +899,15 @@ namespace Editors.Audio.Shared.Storage
                 $"Using '{paths[0]}'. Candidates: {string.Join(", ", paths)}");
         }
 
+        // Takes only the lookups' lock, so a load in progress is not waited for. It lets go of what it opened when it ends.
         public void Dispose()
         {
             _eventHub.UnRegister(this);
-            Clear();
+            lock (_gate)
+            {
+                _disposed = true;
+                Clear();
+            }
         }
 
         private sealed class LoadedLayer(AudioCache audioCache)

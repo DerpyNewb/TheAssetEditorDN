@@ -93,28 +93,19 @@ namespace Editors.AnimationMeta.SuperView
         IReadOnlyList<SwitchGroupSeen> _shownSwitches = [];
         // The crossing rule caps the time since the last Advance itself; a play after a pause relies on it being long.
         readonly Stopwatch _sinceAdvance = Stopwatch.StartNew();
-        // A repository loads one way at a time, and Sound off then on again can start a second load before the first ends. Each GetHircs
-        // takes it too, as it fills a plain Dictionary that the UI thread and the background both reach; one call at a time, so the UI
-        // thread waits for one at most. FindWem only reads the pack service. Per SuperView, as the repository is (it is scoped): the
-        // cache file all repositories share is AudioCacheHelper's to guard, under its own static lock, so another SuperView's load,
-        // which takes minutes after a game update, never holds this one's UI thread.
-        readonly object _audioLoad = new();
 
+        // The repository takes one load at a time and guards its own lookups, as the UI thread and the background both look up. A lookup
+        // waits for another lookup or a load's last step, never for a whole load. The list is copied, as the repository keeps its own.
         void InitSound(IAudioRepository audio)
         {
             _audio = audio;
             _ui = SynchronizationContext.Current;
             LoadSounds = token => Task.Run(() =>
             {
-                lock (_audioLoad)
-                    audio.Load([Wh3LanguageInformation.GetLanguageAsString(Wh3Language.EnglishUK)]);
+                audio.Load([Wh3LanguageInformation.GetLanguageAsString(Wh3Language.EnglishUK)]);
                 token.ThrowIfCancellationRequested();
                 var tags = AudioMetadataTags.Read(_packFileService);
-                return new SoundTriggerResolver(tags.Find, id =>
-                {
-                    lock (_audioLoad)
-                        return audio.GetHircs(id).ToList();
-                }, id => audio.FindWem(id.ToString()) != null);
+                return new SoundTriggerResolver(tags.Find, id => audio.GetHircs(id).ToList(), id => audio.FindWem(id.ToString()) != null);
             }, token);
             PrepareSound = id =>
             {
