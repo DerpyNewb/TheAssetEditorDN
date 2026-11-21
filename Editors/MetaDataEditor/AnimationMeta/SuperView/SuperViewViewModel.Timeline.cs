@@ -159,8 +159,14 @@ namespace Editors.AnimationMeta.SuperView
             var editor = EditorOf(tick.Tab);
             var row = editor.Tags.FirstOrDefault(x => x._input == tick.Tag);
             _tickSwitchingTab = editor.SelectedTag != row;
-            SelectedTabControllerIndex = (int)tick.Tab;
-            _tickSwitchingTab = false;
+            try
+            {
+                SelectedTabControllerIndex = (int)tick.Tab;
+            }
+            finally
+            {
+                _tickSwitchingTab = false;
+            }
             foreach (var tag in editor.Tags)
                 tag.IsSelected = tag == row;
             editor.SelectedTag = row;

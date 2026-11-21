@@ -13,6 +13,7 @@ namespace Editors.Audio.SoundTriggers
     public sealed class SoundTriggerMixer : IDisposable
     {
         public static readonly WaveFormat Format = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
+        static readonly ILogger s_logger = Logging.Create<SoundTriggerMixer>();
 
         // Guards the cache, the disposed flag and every change to the mixer's inputs. Decoding and the device's own calls stay outside it.
         readonly object _gate = new();
@@ -147,14 +148,20 @@ namespace Editors.Audio.SoundTriggers
             }
 
             // Outside the lock, so Play and Prepare do not wait while WasapiOut joins its thread. The device thread reads Output under the
-            // mixer's own lock, never this one. A Stop that throws still lets the device go.
-            try
+            // mixer's own lock, never this one. Dispose never throws, as Close runs it: a Stop that throws (WaveOutEvent's, when
+            // waveOutReset fails) still lets the device go, and what either throws is logged.
+            if (device == null)
+                return;
+            foreach (var step in new Action[] { device.Stop, device.Dispose })
             {
-                device?.Stop();
-            }
-            finally
-            {
-                device?.Dispose();
+                try
+                {
+                    step();
+                }
+                catch (Exception e)
+                {
+                    s_logger.Here().Warning($"SuperView sound: the output device failed to close: {e.Message}");
+                }
             }
         }
 

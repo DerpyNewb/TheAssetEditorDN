@@ -414,10 +414,16 @@ namespace Editors.AnimationMeta.SuperView
 
         public override void Close()
         {
-            CloseSound();
-            _eventHub?.UnRegister(this);
-            _globalEventHub.UnRegister(this);
-            base.Close();
+            try
+            {
+                CloseSound();
+            }
+            finally
+            {
+                _eventHub?.UnRegister(this);
+                _globalEventHub.UnRegister(this);
+                base.Close();
+            }
         }
 
         // Only an edited tab is saved: writing an untouched vanilla meta would override it for nothing. The slot grid's edits are

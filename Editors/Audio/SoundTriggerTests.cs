@@ -1469,21 +1469,23 @@ namespace Test.Audio
             second.Verify(x => x.Dispose(), Times.Once);
         }
 
-        // Deferred items D8 and D11: a second Dispose does nothing, and a device that throws on Stop is still disposed.
+        // Deferred items D8 and D11, and review fix minor 2: a second Dispose does nothing, and Dispose never throws. A device that
+        // throws on Stop, as WaveOutEvent does when waveOutReset fails, is still disposed, and one that throws on Dispose is let go.
         [Test]
-        public void Mixer_Dispose_StopsAndDisposesTheDeviceOnce_EvenWhenStopThrows()
+        public void Mixer_Dispose_StopsAndDisposesTheDeviceOnce_AndNeverThrows()
         {
-            var (quiet, failing) = (Device(), Device("Stop"));
+            var (quiet, failingStop, failingDispose) = (Device(), Device("Stop"), Device("Dispose"));
             var mixer = new SoundTriggerMixer([() => quiet.Object]);
-            var other = new SoundTriggerMixer([() => failing.Object]);
 
             mixer.Dispose();
             Assert.DoesNotThrow(mixer.Dispose);
-            Assert.Throws<InvalidOperationException>(other.Dispose);
+            Assert.DoesNotThrow(new SoundTriggerMixer([() => failingStop.Object]).Dispose);
+            Assert.DoesNotThrow(new SoundTriggerMixer([() => failingDispose.Object]).Dispose);
 
             quiet.Verify(x => x.Stop(), Times.Once);
             quiet.Verify(x => x.Dispose(), Times.Once);
-            failing.Verify(x => x.Dispose(), Times.Once);
+            failingStop.Verify(x => x.Dispose(), Times.Once);
+            failingDispose.Verify(x => x.Stop(), Times.Once);
         }
 
         // Deferred item D11: Prepare, Play and Keep from two threads while a third reads the output as the device's thread does. In
