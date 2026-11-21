@@ -10,6 +10,8 @@ using Editors.Audio.SoundTriggers;
 using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.BaseControl;
 using Microsoft.Xna.Framework;
+using Moq;
+using NAudio.Wave;
 using Shared.Core.Commands;
 using Shared.Core.PackFiles;
 using Shared.Core.PackFiles.Models;
@@ -684,6 +686,35 @@ namespace Test.AnimationMeta
 
             Assert.That((_superView.SoundOn, _loads.Count), Is.EqualTo((false, 0)));
             Assert.That(_superView.SoundStatus, Is.EqualTo(Status("No audio device could be opened: no device here")));
+        }
+
+        // Review fix, important 1: NAudio starts a device on its own thread, so one that opens and then cannot start reports it through
+        // PlaybackStopped, never from Play. Sound goes off and the status says why, and the next Sound on opens a new device.
+        [Test]
+        public void ADeviceThatStops_SaysSo_AndSoundGoesOff()
+        {
+            var devices = new List<Mock<IWavePlayer>>();
+            _superView.OpenMixer = () => new SoundTriggerMixer([() =>
+            {
+                devices.Add(new Mock<IWavePlayer>());
+                return devices[^1].Object;
+            }]);
+            _superView.SoundOn = true;
+            Finish();
+
+            devices[0].Raise(x => x.PlaybackStopped += null, new StoppedEventArgs(new InvalidOperationException("the endpoint went away")));
+            Settle();
+
+            Assert.That(_superView.SoundOn, Is.False);
+            Assert.That(_superView.SoundStatus, Is.EqualTo(Status("The sound device stopped: the endpoint went away")));
+            devices[0].Verify(x => x.Dispose(), Times.Once);
+
+            _superView.SoundOn = true;
+            Assert.That((devices.Count, _superView.SoundOn), Is.EqualTo((2, true)), "a new device");
+
+            devices[0].Raise(x => x.PlaybackStopped += null, new StoppedEventArgs(new InvalidOperationException("late")));
+            Settle();
+            Assert.That(_superView.SoundOn, Is.True, "the device let go of is no longer heard from");
         }
 
         // Ruling 6: a .snd.meta problem shows whether sound is on or off, and the trigger lines only while it is on.

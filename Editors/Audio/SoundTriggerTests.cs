@@ -1417,11 +1417,14 @@ namespace Test.Audio
                 device.Setup(x => x.Init(It.IsAny<IWaveProvider>())).Throws(fail);
             if (failAt == "Stop")
                 device.Setup(x => x.Stop()).Throws(fail);
+            if (failAt == "Dispose")
+                device.Setup(x => x.Dispose()).Throws(fail);
             return device;
         }
 
-        // Deferred item D9: a device that opens but cannot play is let go, and the next one in line is tried. WASAPI can fail at Play
-        // as well as at Init, and Play used to sit outside the fallback.
+        // Deferred item D9: a device whose Init or Play throws is let go, and the next one in line is tried. With NAudio's own devices
+        // only Init throws: WASAPI that cannot open falls back to WaveOut there. Play only starts the device's thread, so a device that
+        // cannot start says so later, through PlaybackStopped (the next test).
         [TestCase("Init")]
         [TestCase("Play")]
         public void Mixer_ADeviceThatCannotStart_IsDisposed_AndTheNextOneIsUsed(string failAt)
@@ -1435,6 +1438,23 @@ namespace Test.Audio
                 second.Verify(x => x.Dispose(), Times.Never);
             }
             second.Verify(x => x.Dispose(), Times.Once);
+        }
+
+        // Review fix, important 1: WasapiOut and WaveOutEvent start on their own thread, and a device that cannot start raises
+        // PlaybackStopped with the failure instead of throwing from Play. The mixer passes that failure on. A stop with none is not one.
+        [Test]
+        public void Mixer_ADeviceThatStopsWithAFailure_SaysSo()
+        {
+            var device = Device();
+            using var mixer = new SoundTriggerMixer([() => device.Object]);
+            var stopped = new List<Exception>();
+            mixer.DeviceStopped += stopped.Add;
+            var failure = new InvalidOperationException("the endpoint went away");
+
+            device.Raise(x => x.PlaybackStopped += null, new StoppedEventArgs());
+            device.Raise(x => x.PlaybackStopped += null, new StoppedEventArgs(failure));
+
+            Assert.That(stopped, Is.EqualTo(new[] { failure }));
         }
 
         [Test]

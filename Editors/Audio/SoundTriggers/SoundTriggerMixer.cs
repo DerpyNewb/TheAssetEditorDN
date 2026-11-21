@@ -31,8 +31,9 @@ namespace Editors.Audio.SoundTriggers
         {
         }
 
-        /// <summary>Plays through the first device that opens and starts. One that fails is disposed; when none starts, the last one's
-        /// failure is thrown.</summary>
+        /// <summary>Plays through the first device whose Init and Play do not throw. One that throws is disposed; when every one throws,
+        /// the last one's failure is thrown. NAudio's devices throw from Init when they cannot open, and never from Play, which only
+        /// starts their thread: a device that cannot start reports it later, through <see cref="DeviceStopped"/>.</summary>
         internal SoundTriggerMixer(IReadOnlyList<Func<IWavePlayer>> devices)
         {
             for (var i = 0; i < devices.Count; i++)
@@ -42,6 +43,12 @@ namespace Editors.Audio.SoundTriggers
                 {
                     device = devices[i]();
                     device.Init(_mixer);
+                    // Before Play: the device's thread reads the handlers when it fails, so a failure that comes first would be lost.
+                    device.PlaybackStopped += (_, e) =>
+                    {
+                        if (e.Exception != null)
+                            DeviceStopped?.Invoke(e.Exception);
+                    };
                     device.Play();
                     _device = device;
                     return;
@@ -57,6 +64,10 @@ namespace Editors.Audio.SoundTriggers
                 }
             }
         }
+
+        /// <summary>The device stopped by itself, with this failure, as WasapiOut and WaveOutEvent report a device that cannot start.
+        /// Raised on the thread NAudio raises PlaybackStopped on: the device's own, or the context the device was made on.</summary>
+        public event Action<Exception>? DeviceStopped;
 
         /// <summary>What the device plays. Always fills a read, with silence when no voice is sounding.</summary>
         public ISampleProvider Output => _mixer;

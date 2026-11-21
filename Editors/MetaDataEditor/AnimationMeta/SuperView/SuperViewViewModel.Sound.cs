@@ -63,7 +63,8 @@ namespace Editors.AnimationMeta.SuperView
         /// measured, so the sound may land ahead of the lit marker by that much.</summary>
         public const double SoundLeadSeconds = 0.026;
 
-        /// <summary>Opens the output the default delegates play through, on the first Sound on. It throws when no audio device opens.</summary>
+        /// <summary>Opens the output the default delegates play through, on the first Sound on. It throws when no audio device opens. A
+        /// device that opens and then cannot start turns Sound off later, through the mixer's DeviceStopped.</summary>
         public Func<SoundTriggerMixer> OpenMixer { get; set; } = () => new SoundTriggerMixer();
 
         /// <summary>Finishes when the background work queued so far has ended: each rebuild's first resolves, then its decodes, or their
@@ -154,7 +155,11 @@ namespace Editors.AnimationMeta.SuperView
             _soundRefused = null;
             try
             {
-                _mixer ??= OpenMixer();
+                if (_mixer == null)
+                {
+                    var mixer = _mixer = OpenMixer();
+                    mixer.DeviceStopped += e => OnUi(() => DeviceStopped(mixer, e));
+                }
             }
             catch (Exception e)
             {
@@ -164,6 +169,17 @@ namespace Editors.AnimationMeta.SuperView
             if (_session == null)
                 LoadSession();
             RebuildSounds();
+        }
+
+        // The device stopped by itself, which is how one that opened and then could not start says so. Sound goes off, and the next
+        // Sound on opens a new device. A mixer that Close or an earlier stop let go is no longer heard from.
+        void DeviceStopped(SoundTriggerMixer mixer, Exception e)
+        {
+            if (mixer != _mixer)
+                return;
+            _mixer = null;
+            mixer.Dispose();
+            Refuse($"The sound device stopped: {e.Message}");
         }
 
         // Sound goes back off and says why.
