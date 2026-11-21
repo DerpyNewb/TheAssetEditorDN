@@ -7,7 +7,7 @@
 
 A fork of [donkeyProgramming's AssetEditor](https://github.com/donkeyProgramming/TheAssetEditor), the modding tool for Total War games with editors for 3D models, animations, audio, textures and more in one desktop app. It is built on upstream v0.79, and adds a VFX editor, a Unit Simulator, a particle preview much closer to the game's, better LOD generation and a long list of fixes.
 
-Releases are numbered DN v1, v1.1 and so on up to the current DN v2.1, with a third number for a hotfix such as v1.9.1. The title bar shows both numbers, as in "AssetEditor v0.79 - DN v2.1".
+Releases are numbered DN v1, v1.1 and so on up to the current DN v2.2, with a third number for a hotfix such as v1.9.1. The title bar shows both numbers, as in "AssetEditor v0.79 - DN v2.2".
 
 **[Latest Release](https://github.com/DerpyNewb/TheAssetEditorDN/releases/latest)** · **[Documentation](https://donkeyprogramming.github.io/TheAssetEditor/)** · **[Video Tutorial](https://www.youtube.com/watch?v=ZlmG2AVL5-g)** · **[Upstream](https://github.com/donkeyProgramming/TheAssetEditor)**
 
@@ -27,7 +27,7 @@ In the Tools menu. Plays a rider on its mount the way the game pairs them, edits
 Flipbooks, trails, decals, HDR glow at the game's bloom threshold, light particles lighting the ground and models, distortion and heat haze, rigid-model particles, terrain spawning, vector fields. A chain with no Ultra block draws nothing at Ultra, as in the game.
 
 ### SuperView and the Anm.Meta editor
-Vanilla `.anm.meta` files re-save byte-identical. Tag descriptions, a New dialog, PROP_10 and above, EFFECT particles, hand poses and animated props drawn in place, and `.variantmeshdefinition` files open and play. In SuperView, a grid under the player lists the picked set's slots. An edit plays at once and can be undone until Ctrl+S saves the battle table or campaign animation set it belongs to, and Save meta as gives a slot its own copy of a shared meta.
+Vanilla `.anm.meta` files re-save byte-identical. Tag descriptions, a New dialog, PROP_10 and above, EFFECT particles, hand poses and animated props drawn in place, and `.variantmeshdefinition` files open and play. In SuperView, a grid under the player lists the picked set's slots. An edit plays at once and can be undone until Ctrl+S saves the battle table or campaign animation set it belongs to, and Save meta as gives a slot its own copy of a shared meta. Tick Sound and the `SOUND_TRIGGER` tags play the sounds the game resolves them to as the playhead crosses them, with the slot's `.snd.meta` in a tab of its own, so you can time your own tags by ear.
 
 ### Grids for battle tables and variant meshes
 A WH3 battle animation table in an animpack, and a `.variantmeshdefinition`, each open as a grid with a row per slot entry. Paths have Browse and Open, slots can be added, removed, copied and pasted, find and replace works across paths, every edit can be undone, and problems are marked on their own row. Show as XML at the top right switches to the text and back.
