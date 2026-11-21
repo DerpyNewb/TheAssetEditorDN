@@ -282,6 +282,74 @@ namespace Test.AnimationMeta
             Assert.That(_superView.SoundStatus[_superView.SoundFileProblems.Count], Does.Contain(" 1 plays,"), "the added tag is in the status");
         }
 
+        // Fix round 1: another slot's clip plays nothing of the last clip's triggers while its own rebuild is on its way, and the status
+        // drops the last clip's summary meanwhile. The rebuild's apply waits in the UI thread's queue, as it does behind a cold warm-up.
+        [Test]
+        public void ANewSlot_PlaysNoneOfTheLastClipsTriggers_UntilItsRebuildLands()
+        {
+            AddTag(_superView.MetaEditor, "Derpy_Clip", 0.2f);
+            _superView.SoundOn = true;
+            Finish();
+            PlayTo(0.25f);
+            Assert.That(_played, Is.EqualTo(new[] { ClipLeaf }), "the tag fires on its own clip");
+            _played.Clear();
+
+            var slots = _superView.SceneObjects[0].FragAndSlotSelection.FragmentSlotList;
+            // Another attack, long enough to play to 0.25 s.
+            slots.SelectedItem = slots.PossibleValues.First(x => x.SlotName.StartsWith("ATTACK_") && x.SlotName != "ATTACK_5" && _runner.PackFileService.FindFile(x.AnimationFile) != null);
+            PlayTo(0.25f);
+
+            Assert.That(_played, Is.Empty, "the last clip's trigger did not fire on this one");
+            Assert.That(_superView.SoundStatus, Is.EqualTo(Status(Decoding)), "the last clip's summary is gone");
+            Settle();
+            PlayTo(0.25f);
+            Assert.That(_played, Is.Empty, "and the new clip's own triggers do not have it");
+        }
+
+        // Ruling 14: a warm-up that a later rebuild made stale stops at its next tag. Sound off and on twice: the first warm-up is held
+        // at its first lookup, and by the time it goes on, it is stale.
+        [Test]
+        public void AStaleWarmUp_StopsAtItsNextTag()
+        {
+            AddATriggerToEachFile();
+            _superView.SoundOn = true;
+            Finish();
+            using var hold = new ManualResetEventSlim();
+            _bank.Hold = hold;
+            _bank.OffThread.Clear();
+
+            _superView.SoundOn = false;
+            _superView.SoundOn = true;
+            _superView.SoundOn = false;
+            _superView.SoundOn = true;
+            hold.Set();
+            Settle();
+
+            var lastTag = WwiseHash.Compute("Derpy_Slot_Event");
+            Assert.That(_bank.OffThread.Count(x => x == lastTag), Is.EqualTo(1), "only the latest warm-up reached the last tag");
+        }
+
+        // Ruling 15: a background job that throws ends cleanly, so SoundDecoding does not fault, and the status says why until the next
+        // rebuild.
+        [Test]
+        public void AJobThatThrows_EndsCleanly_AndSaysWhy()
+        {
+            _superView.SoundOn = true;
+            Finish();
+            _bank.Throw = new InvalidOperationException("the bank is gone");
+
+            AddTag(_superView.MetaEditor, "Derpy_Clip", 0.2f);
+            Settle();
+
+            Assert.That(_superView.SoundDecoding.IsFaulted, Is.False);
+            Assert.That(_superView.SoundStatus, Is.EqualTo(Status("Sounds could not be prepared: the bank is gone")));
+            _bank.Throw = null;
+            _superView.SoundOn = false;
+            _superView.SoundOn = true;
+            Settle();
+            Assert.That(_superView.SoundStatus, Has.None.StartsWith("Sounds could not be prepared"));
+        }
+
         // Review Focus 3: a load that finishes after sound was turned off builds nothing, and turning sound on again loads afresh.
         // Closing SuperView before a load finishes throws nothing when it does.
         [Test]
@@ -474,10 +542,21 @@ namespace Test.AnimationMeta
             /// <summary>When set, a lookup made off the thread that made the bank waits for it.</summary>
             public ManualResetEventSlim? Hold { get; set; }
 
+            /// <summary>When set, a lookup made off the thread that made the bank throws it.</summary>
+            public Exception? Throw { get; set; }
+
+            /// <summary>The ids looked up off the thread that made the bank, in order.</summary>
+            public ConcurrentQueue<uint> OffThread { get; } = new();
+
             public SoundTriggerResolver Resolver() => new(tag => Rows.GetValueOrDefault(tag), id =>
             {
                 if (Environment.CurrentManagedThreadId != _thread)
+                {
                     Hold?.Wait(TimeSpan.FromSeconds(30));
+                    if (Throw != null)
+                        throw Throw;
+                    OffThread.Enqueue(id);
+                }
                 return Items.GetValueOrDefault(id);
             }, _ => true);
 

@@ -69,11 +69,15 @@ namespace Editors.AnimationMeta.SuperView
         SynchronizationContext? _ui;
         // Counts the rebuilds asked for. Work for an older one is skipped. Written on the UI thread only.
         volatile int _rebuilds;
+        // The rebuild the session last took. Until it is the latest, the session holds the last clip's triggers. UI thread only.
+        int _applied;
         // Background jobs queued and not yet back on the UI thread, for the status. UI thread only.
         int _backgroundJobs;
         CancellationTokenSource? _soundLoad;
         // Why sound could not be turned on, shown while it is off.
         string? _soundRefused;
+        // Why the latest rebuild's background work failed, shown while sound is on, until the next rebuild.
+        string? _soundFailed;
         // The persistent row's .snd.meta, as OnSceneObjectUpdated parsed it; null when there is none or it does not parse.
         ParsedMetadataFile? _persistSoundMeta;
         IReadOnlyList<SwitchGroupSeen> _shownSwitches = [];
@@ -81,8 +85,10 @@ namespace Editors.AnimationMeta.SuperView
         readonly Stopwatch _sinceAdvance = Stopwatch.StartNew();
         // A repository loads one way at a time, and Sound off then on again can start a second load before the first ends. Each GetHircs
         // takes it too, as it fills a plain Dictionary that the UI thread and the background both reach; one call at a time, so the UI
-        // thread waits for one at most. FindWem only reads the pack service.
-        static readonly object s_audioLoad = new();
+        // thread waits for one at most. FindWem only reads the pack service. Per SuperView, as the repository is (it is scoped): the
+        // cache file all repositories share is AudioCacheHelper's to guard, under its own static lock, so another SuperView's load,
+        // which takes minutes after a game update, never holds this one's UI thread.
+        readonly object _audioLoad = new();
 
         void InitSound(IAudioRepository audio)
         {
@@ -90,13 +96,13 @@ namespace Editors.AnimationMeta.SuperView
             _ui = SynchronizationContext.Current;
             LoadSounds = token => Task.Run(() =>
             {
-                lock (s_audioLoad)
+                lock (_audioLoad)
                     audio.Load([Wh3LanguageInformation.GetLanguageAsString(Wh3Language.EnglishUK)]);
                 token.ThrowIfCancellationRequested();
                 var tags = AudioMetadataTags.Read(_packFileService);
                 return new SoundTriggerResolver(tags.Find, id =>
                 {
-                    lock (s_audioLoad)
+                    lock (_audioLoad)
                         return audio.GetHircs(id).FirstOrDefault();
                 }, id => audio.FindWem(id.ToString()) != null);
             }, token);
@@ -194,10 +200,17 @@ namespace Editors.AnimationMeta.SuperView
             if (SoundOn && _session != null)
             {
                 var (request, tags, campaign, choices, resolver) = (++_rebuilds, SoundTriggers(), SlotGrid.Set is CampaignAnimationSet, new Dictionary<uint, uint>(_session.SwitchChoices), _resolver!);
-                Background(() =>
+                _soundFailed = null;
+                // A warm-up a later rebuild made stale stops at its next tag, so clicking through slots resolves only the last one's,
+                // and after Close nothing reaches the repository the editor's scope disposed.
+                Background(request, () =>
                 {
                     foreach (var tag in tags)
+                    {
+                        if (request != _rebuilds)
+                            return;
                         resolver.Resolve(tag.SoundEvent, campaign, choices);
+                    }
                     OnUi(() => ApplyRebuild(request));
                 });
             }
@@ -208,6 +221,7 @@ namespace Editors.AnimationMeta.SuperView
         {
             if (request != _rebuilds || !SoundOn || _session == null)
                 return;
+            _applied = request;
             _session.Rebuild(SoundTriggers(), SlotGrid.Set is CampaignAnimationSet);
             DecodeQueued(request, _session.Leaves.ToHashSet());
             ShowSwitchPickers(_session.Switches);
@@ -222,7 +236,7 @@ namespace Editors.AnimationMeta.SuperView
             _toDecode.Clear();
             if (mixer == null)
                 return;
-            Background(() =>
+            Background(request, () =>
             {
                 foreach (var id in ids)
                 {
@@ -235,24 +249,29 @@ namespace Editors.AnimationMeta.SuperView
         }
 
         // One job on the background chain, which runs its jobs one at a time, in order. The status counts it until its end is back on the
-        // UI thread.
-        void Background(Action job)
+        // UI thread. A job that throws ends like any other, so SoundDecoding never faults, and the status says why while its rebuild is
+        // the latest.
+        void Background(int request, Action job)
         {
             _backgroundJobs++;
             SoundDecoding = SoundDecoding.ContinueWith(_ =>
             {
+                string? failure = null;
                 try
                 {
                     job();
                 }
-                finally
+                catch (Exception e)
                 {
-                    OnUi(() =>
-                    {
-                        _backgroundJobs--;
-                        ShowSoundStatus();
-                    });
+                    failure = e.Message;
                 }
+                OnUi(() =>
+                {
+                    _backgroundJobs--;
+                    if (failure != null && request == _rebuilds)
+                        _soundFailed = $"Sounds could not be prepared: {failure}";
+                    ShowSoundStatus();
+                });
             }, TaskScheduler.Default);
         }
 
@@ -294,9 +313,11 @@ namespace Editors.AnimationMeta.SuperView
             _ => null,
         }).OfType<SoundTriggerTag>();
 
+        // Until the latest rebuild has landed, the session holds the last clip's triggers, which must not fire on this one. The frames
+        // skipped make the first one after it a jump, so a trigger at the clip's start still fires.
         void AdvanceSounds()
         {
-            if (!SoundOn || _session == null)
+            if (!SoundOn || _session == null || _applied != _rebuilds)
                 return;
             var player = _asset.Data.Player;
             var elapsed = _sinceAdvance.Elapsed.TotalSeconds;
@@ -310,14 +331,20 @@ namespace Editors.AnimationMeta.SuperView
             if (!lines.SequenceEqual(SoundStatus))
                 SoundStatus = lines;
 
-            // Loading lasts until the first resolve is back, and decoding while any background work is.
+            // Loading lasts until the first resolve is back, and decoding while any background work is. The session's own lines describe
+            // the rebuild it last took, so they are left out until that is the latest.
             IEnumerable<string> SessionLines()
             {
                 if (!SoundOn)
                     return _soundRefused == null ? [] : [_soundRefused];
                 if (_session == null || _session.StatusLines.Count == 0)
-                    return ["Loading sounds..."];
-                return _backgroundJobs == 0 ? _session.StatusLines : [.. _session.StatusLines, "Decoding sounds..."];
+                    return [_soundFailed ?? "Loading sounds..."];
+                List<string> lines = _applied == _rebuilds ? [.. _session.StatusLines] : [];
+                if (_backgroundJobs != 0)
+                    lines.Add("Decoding sounds...");
+                if (_soundFailed != null)
+                    lines.Add(_soundFailed);
+                return lines;
             }
         }
 
