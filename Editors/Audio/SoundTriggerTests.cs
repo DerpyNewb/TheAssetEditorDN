@@ -199,19 +199,59 @@ namespace Test.Audio
             });
         }
 
-        // Only an event with no actions at all has no Play action. One with actions of another type is not supported, as those may be
-        // what sounds in game.
+        // An action that can start a sound or post an event, and that SuperView does not play, is not supported, as it may be what
+        // sounds in game: PlayAndContinue, PlayEvent and the Triggers. Stop, Pause, Resume, Set, Reset and Mute actions cannot start a
+        // sound, so an event of only those, like one with no actions at all, has no Play action.
         [Test]
-        public void Resolve_EventWithNoActions_HasNoPlayAction_OtherActionsAreNotSupported()
+        public void Resolve_OnlyActionsThatCanStartASound_AreNotSupported()
         {
-            var bank = new Bank().Row("Stopper", "Stop_Event").Row("Nothing", "Empty_Event");
+            var bank = new Bank().Row("Stopper", "Stop_Event").Row("Nothing", "Empty_Event").Row("Setters", "Set_Event")
+                .Row("PlayEvent", "Play_Event_Event").Row("Continue", "Continue_Event").Row("Trigger", "Trigger_Event");
             bank.Event("Stop_Event", bank.Action(AkActionType.Stop_E_O, bank.Sound(7)));
             bank.Event("Empty_Event");
+            bank.Event("Set_Event", bank.Action(AkActionType.Pause_E_O, bank.Sound(7)), bank.Action(AkActionType.Resume_E_O, bank.Sound(7)),
+                bank.Action(AkActionType.SetVolume_O, bank.Sound(7)), bank.Action(AkActionType.ResetPitch_O, bank.Sound(7)),
+                bank.Action(AkActionType.Mute_O, bank.Sound(7)), bank.Action(AkActionType.SetSwitch, 0), bank.Action(AkActionType.SetState, 0));
+            bank.Event("Play_Event_Event", bank.Action(AkActionType.PlayEvent, bank.Event("Inner_Event", bank.Play(bank.Sound(8)))));
+            bank.Event("Continue_Event", bank.Action(AkActionType.PlayAndContinue, bank.Sound(9)));
+            bank.Event("Trigger_Event", bank.Action(AkActionType.Trigger_O, 0));
 
             Assert.Multiple(() =>
             {
-                Assert.That(Resolve(bank, "Stopper").Silent, Is.EqualTo("not supported: Stop_E_O action -> Sound"));
+                Assert.That(Resolve(bank, "Stopper").Silent, Is.EqualTo("event Stop_Event has no Play action"));
                 Assert.That(Resolve(bank, "Nothing").Silent, Is.EqualTo("event Empty_Event has no Play action"));
+                Assert.That(Resolve(bank, "Setters").Silent, Is.EqualTo("event Set_Event has no Play action"));
+                Assert.That(Resolve(bank, "PlayEvent").Silent, Is.EqualTo("not supported: PlayEvent action -> Event -> Play action -> Sound"));
+                Assert.That(Resolve(bank, "Continue").Silent, Is.EqualTo("not supported: PlayAndContinue action -> Sound"));
+                Assert.That(Resolve(bank, "Trigger").Silent, Is.EqualTo("not supported: Trigger_O action"));
+            });
+        }
+
+        // A Stop beside a Play does not hide what went wrong under the Play.
+        [Test]
+        public void Resolve_AStopBesideAPlay_LeavesThePlaysProblemAsTheReason()
+        {
+            var bank = new Bank().Row("Tag", "Event_A");
+            bank.Event("Event_A", bank.Action(AkActionType.Stop_E_O, bank.Sound(7)), bank.Play(bank.Sound(8, wemExists: false)));
+
+            Assert.That(Resolve(bank).Silent, Is.EqualTo("WEM not found: 8.wem"));
+        }
+
+        // Deferred item D2: under one Play, the first problem met is the reason, whichever kind it is.
+        [Test]
+        public void Resolve_MusicObjectAndMissingWem_TheFirstMetIsTheReason()
+        {
+            var bank = new Bank().Row("WemFirst", "Event_A").Row("MusicFirst", "Event_B");
+            var segment = new CAkMusicSegment_V136 { Id = 5, HircType = AkBkHircType.Music_Segment };
+            bank.Items[segment.Id] = segment;
+            var missing = bank.Sound(8, wemExists: false);
+            bank.Event("Event_A", bank.Play(bank.Random(missing, segment.Id)));
+            bank.Event("Event_B", bank.Play(bank.Random(segment.Id, missing)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Resolve(bank, "WemFirst").Silent, Is.EqualTo("WEM not found: 8.wem"));
+                Assert.That(Resolve(bank, "MusicFirst").Silent, Is.EqualTo("not supported: Music_Segment"));
             });
         }
 
@@ -273,7 +313,7 @@ namespace Test.Audio
             Assert.Multiple(() =>
             {
                 Assert.That(Resolve(bank, "EmptyContainer").Silent, Is.EqualTo("event Event_C plays nothing found in the loaded banks"));
-                Assert.That(Resolve(bank, "StopAndUnloaded").Silent, Is.EqualTo("not supported: Stop_E_O action -> Sound"), "an action of another type is named first");
+                Assert.That(Resolve(bank, "StopAndUnloaded").Silent, Is.EqualTo("event Event_D plays nothing found in the loaded banks"), "a Stop cannot start a sound");
                 Assert.That(Resolve(bank, "WemWins").Silent, Is.EqualTo("WEM not found: 8.wem"));
             });
         }
@@ -729,14 +769,14 @@ namespace Test.Audio
         [Test]
         public void Session_Status_CountsWhatIsNotSupported_ApartFromWhatIsSilentInGame()
         {
-            var bank = Sounding(("A", 1)).Row("Stopper", "Stop_Event");
-            bank.Event("Stop_Event", bank.Action(AkActionType.Stop_E_O, bank.Sound(7)));
-            var run = new SessionRun(bank).Rebuild(Trigger("A", 0.1f), Trigger("Stopper", 0.2f), Trigger("X", 0.3f));
+            var bank = Sounding(("A", 1)).Row("Continue", "Continue_Event");
+            bank.Event("Continue_Event", bank.Action(AkActionType.PlayAndContinue, bank.Sound(7)));
+            var run = new SessionRun(bank).Rebuild(Trigger("A", 0.1f), Trigger("Continue", 0.2f), Trigger("X", 0.3f));
 
             Assert.That(run.Session.StatusLines, Is.EqualTo(new[]
             {
                 "3 triggers: 1 plays, 1 silent in game, 1 not supported",
-                "Stopper (slot .snd.meta): not supported: Stop_E_O action -> Sound",
+                "Continue (slot .snd.meta): not supported: PlayAndContinue action -> Sound",
                 "X (slot .snd.meta): no audio_metadata_tags_tables row",
             }));
         }

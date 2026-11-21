@@ -19,7 +19,8 @@ namespace Editors.Audio.SoundTriggers
 
     public static class SoundNodes
     {
-        /// <summary>Every source id under the node, for decoding ahead of time.</summary>
+        /// <summary>Every source id under the node, for decoding ahead of time. An id under two parents comes twice, so a caller that
+        /// wants each once takes Distinct, as the session does.</summary>
         public static IEnumerable<uint> Leaves(SoundNode node) => node switch
         {
             SoundLeaf leaf => [leaf.SourceId],
@@ -91,15 +92,15 @@ namespace Editors.Audio.SoundTriggers
                         if (walk.Visit(action.GetChildId()) is { } node)
                             plays.Add(node);
                         break;
-                    case { } other:
+                    case { } other when MayStartASound(other):
                         unsupported ??= Describe(other, actionEvent);
                         break;
                 }
             }
 
-            // When nothing plays, the reason is the first of: an action of a type SuperView does not play, which may be the very thing
-            // that sounds in game; what went wrong under a Play action (a type SuperView does not play, or a missing WEM); an action no
-            // loaded bank has; Play actions that lead to nothing loaded. Only an event with no actions at all has no Play action.
+            // When nothing plays, the reason is the first of: an action SuperView does not play that may start a sound, which may be the
+            // very thing that sounds in game; what went wrong under a Play action (a type SuperView does not play, or a missing WEM); an
+            // action no loaded bank has; Play actions that lead to nothing loaded. An event with none of these has no Play action.
             var sound = Combine(plays, oneOf: false);
             var silent = sound != null ? null
                 : unsupported != null ? NotSupported + unsupported
@@ -111,6 +112,12 @@ namespace Editors.Audio.SoundTriggers
         }
 
         static SoundTriggerResult Silent(string tag, string reason) => new(tag, null, reason, []);
+
+        /// <summary>Whether an action other than Play could be what sounds: one that starts a sound or posts an event (PlayAndContinue,
+        /// PlayEvent, the Triggers), or one of a type the enum lacks, which could be anything. Stop, Pause, Resume, Set, Reset, Mute and
+        /// the rest cannot start a sound. An id that names no action at all is odd enough to count.</summary>
+        static bool MayStartASound(HircItem item) => item is not ICAkAction action || action.GetActionType() is var type && (!Enum.IsDefined(type)
+            || type is AkActionType.PlayAndContinue or AkActionType.PlayEvent or AkActionType.Trigger or AkActionType.Trigger_O or AkActionType.Trigger_E or AkActionType.Trigger_E_O);
 
         /// <summary>An action's type, in hex when Wwise's list as the editor knows it has no name for it, then the type of what it
         /// targets, other than the event it belongs to. An action that targets another event is followed one level down, to say what
