@@ -125,11 +125,13 @@ namespace Editors.AnimationMeta.SuperView
                 };
             _eventHub.Register<SceneObjectUpdateEvent>(this, _ => RebuildSounds());
             // A new clip or slot stops what the last one left ringing. Its rebuild is asked for at once, before the player puts the new
-            // clip back on the last one's frame index, which raises a frame that must not fire the last clip's triggers.
+            // clip back on the last one's frame index, which raises a frame that must not fire the last clip's triggers. The last clip's
+            // pickers go with its status lines, and the rebuild puts back what the new clip's triggers reach.
             _asset.Data.AnimationChanged += _ =>
             {
                 RebuildSounds();
                 StopSounds();
+                ShowSwitchPickers([]);
             };
             _asset.Data.Player.OnFrameChanged += _ => AdvanceSounds();
             Player.Looping += LoopSounds;
@@ -282,7 +284,8 @@ namespace Editors.AnimationMeta.SuperView
             }, TaskScheduler.Default);
         }
 
-        // With no UI thread to post to (a test that set no context), the work runs where it is, as BinGridViewModel's does.
+        // SuperView always opens on the UI thread, which has a context. The fallback is for tests that set none: the work then runs
+        // where it is, as BinGridViewModel's does.
         void OnUi(Action action)
         {
             if (_ui == null)

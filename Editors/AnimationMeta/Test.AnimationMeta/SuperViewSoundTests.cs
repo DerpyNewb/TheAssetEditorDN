@@ -524,6 +524,62 @@ namespace Test.AnimationMeta
             Assert.That(_superView.SoundStatus, Has.None.StartsWith("Sounds could not be prepared"));
         }
 
+        // Deferred item D25: when the first warm-up fails, its failure takes the place of "Loading sounds...", which would otherwise stay
+        // up for good, as the session never takes a rebuild.
+        [Test]
+        public void TheFirstWarmUpsFailure_ReplacesLoadingSounds()
+        {
+            AddTag(_superView.MetaEditor, "Derpy_Clip", 0.2f);
+            _bank.Throw = new InvalidOperationException("the bank is gone");
+
+            _superView.SoundOn = true;
+            Finish();
+
+            Assert.That(_superView.SoundStatus, Is.EqualTo(Status("Sounds could not be prepared: the bank is gone")));
+        }
+
+        // Deferred item D25: a job that a later rebuild made stale says nothing when it fails, as its rebuild is no longer the one the
+        // status describes. The stale job is held inside its first lookup, so the later rebuild is asked for while it is still running.
+        [Test]
+        public void AStaleJobsFailure_IsDropped()
+        {
+            AddTag(_superView.MetaEditor, "Derpy_Clip", 0.2f);
+            _superView.SoundOn = true;
+            Finish();
+            using var hold = new ManualResetEventSlim();
+            _bank.Hold = hold;
+            _bank.Throw = new InvalidOperationException("the bank is gone");
+
+            AddTag(_superView.MetaEditor, "Derpy_Slot", 0.3f);
+            Assert.That(SpinWait.SpinUntil(() => _bank.Held > 0, TimeSpan.FromSeconds(30)), Is.True, "the first job is inside a lookup");
+            _bank.Hold = null;
+            AddTag(_superView.MetaEditor, "Derpy_Persist", 0.1f);
+            hold.Set();
+            Settle();
+
+            Assert.That(_superView.SoundStatus, Has.None.StartsWith("Sounds could not be prepared"));
+            Assert.That(_superView.SoundStatus[_superView.SoundFileProblems.Count], Does.Contain(" 3 play,"), "the later rebuild landed");
+        }
+
+        // Deferred item D22: another slot's clip shows none of the last clip's switch pickers while its own rebuild is on its way, as the
+        // status already drops the last clip's lines then.
+        [Test]
+        public void ANewSlot_HidesTheLastClipsPickers_UntilItsRebuildLands()
+        {
+            _bank.Rows["Derpy_Step"] = new AudioTagEvents(_bank.Event("Derpy_Step_Event", _bank.Switch("Surface", "Dirt", ("Dirt", _bank.Sound(Dirt)), ("Stone", _bank.Sound(Stone)))), "");
+            AddTag(_superView.MetaEditor, "Derpy_Step", 0.1f);
+            _superView.SoundOn = true;
+            Finish();
+            Assert.That(_superView.SoundSwitchPickers, Has.Count.EqualTo(1));
+
+            var slots = _superView.SceneObjects[0].FragAndSlotSelection.FragmentSlotList;
+            slots.SelectedItem = slots.PossibleValues.First(x => x.SlotName.StartsWith("ATTACK_") && x.SlotName != "ATTACK_5" && _runner.PackFileService.FindFile(x.AnimationFile) != null);
+
+            Assert.That(_superView.SoundSwitchPickers, Is.Empty, "while the rebuild is on its way");
+            Settle();
+            Assert.That(_superView.SoundSwitchPickers, Is.Empty, "the new clip's triggers reach no switch");
+        }
+
         // Review Focus 3: a load that finishes after sound was turned off builds nothing, and turning sound on again loads afresh.
         // Closing SuperView before a load finishes throws nothing when it does.
         [Test]
@@ -716,8 +772,13 @@ namespace Test.AnimationMeta
             /// <summary>When set, a lookup made off the thread that made the bank waits for it.</summary>
             public ManualResetEventSlim? Hold { get; set; }
 
-            /// <summary>When set, a lookup made off the thread that made the bank throws it.</summary>
-            public Exception? Throw { get; set; }
+            /// <summary>How many lookups off the thread that made the bank have reached Hold.</summary>
+            public int Held => Volatile.Read(ref _held);
+            int _held;
+
+            /// <summary>When set, the next lookup made off the thread that made the bank throws it, once.</summary>
+            public Exception? Throw { get => _throw; set => _throw = value; }
+            Exception? _throw;
 
             /// <summary>The ids looked up off the thread that made the bank, in order.</summary>
             public ConcurrentQueue<uint> OffThread { get; } = new();
@@ -726,9 +787,13 @@ namespace Test.AnimationMeta
             {
                 if (Environment.CurrentManagedThreadId != _thread)
                 {
-                    Hold?.Wait(TimeSpan.FromSeconds(30));
-                    if (Throw != null)
-                        throw Throw;
+                    if (Hold is { } hold)
+                    {
+                        Interlocked.Increment(ref _held);
+                        hold.Wait(TimeSpan.FromSeconds(30));
+                    }
+                    if (Interlocked.Exchange(ref _throw, null) is { } thrown)
+                        throw thrown;
                     OffThread.Enqueue(id);
                 }
                 return Items.TryGetValue(id, out var item) ? [item] : [];
