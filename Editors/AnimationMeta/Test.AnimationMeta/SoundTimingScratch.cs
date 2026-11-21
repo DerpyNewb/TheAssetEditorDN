@@ -20,7 +20,8 @@ using Test.TestingUtility.Shared;
 
 namespace Test.AnimationMeta
 {
-    // Scratch: how late a SuperView sound reaches the audio device, measured on one Stopwatch. A 1000 Hz tone takes the path a trigger
+    // Scratch: how late a SuperView sound reaches WASAPI loopback, measured on one Stopwatch. Loopback is the mix Windows sends to the
+    // device, so the time the device itself takes after that is not in it. A 1000 Hz tone takes the path a trigger
     // takes (the session fires it, the mixer starts a voice over its cached samples, WASAPI plays it) and WASAPI loopback records it. No
     // WEM is made: that needs Wwise, so the tone goes straight into the mixer's cache. Explicit, as AudioOffset plays tones on the PC's
     // audio device for about 35 s.
@@ -170,7 +171,8 @@ namespace Test.AnimationMeta
         [Test, Explicit]
         public void ExportFootstepSounds()
         {
-            var data = Environment.GetEnvironmentVariable("WH3_DATA")!;
+            var data = Environment.GetEnvironmentVariable("WH3_DATA");
+            Assume.That(data != null && Directory.Exists(data), "set WH3_DATA to the game's data folder");
             var output = Environment.GetEnvironmentVariable("SOUND_TIMING_OUT") ?? Path.Combine(Path.GetTempPath(), "sound_timing");
             Directory.CreateDirectory(output);
             var runner = new AssetEditorTestRunner();

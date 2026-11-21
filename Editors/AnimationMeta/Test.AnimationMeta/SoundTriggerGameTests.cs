@@ -108,6 +108,8 @@ namespace Test.AnimationMeta
         {
             var file = _runner.PackFileService.GetAllPackfileContainers().SelectMany(x => x.SearchFiles(AttackSndMeta, [".snd.meta"]))
                 .Where(x => x.Path.Replace('\\', '/').Contains(AttackFolder)).MinBy(x => x.Path);
+            // MinBy of no files is the default tuple, whose File is null.
+            Assert.That(file.File, Is.Not.Null, $"the game has a .snd.meta named {AttackSndMeta}* under {AttackFolder}");
             var (ui, before) = (new UiThread(), SynchronizationContext.Current);
             SynchronizationContext.SetSynchronizationContext(ui);
             try

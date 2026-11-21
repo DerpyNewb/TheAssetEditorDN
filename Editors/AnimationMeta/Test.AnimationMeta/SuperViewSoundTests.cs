@@ -229,7 +229,7 @@ namespace Test.AnimationMeta
             Assert.That(_prepared, Is.SupersetOf(new[] { PersistLeaf, ClipLeaf, SlotLeaf }), "decoded ahead of the firing");
         }
 
-        // SuperView starts each sound SoundLeadSeconds early, for the audio device's lag. With 20 ms frames, a tag at 1.0 s is due at
+        // SuperView starts each sound SoundLeadSeconds early, for the time a fired sound takes to reach WASAPI loopback. With 20 ms frames, a tag at 1.0 s is due at
         // 0.974 s, so it fires on the frame landing at 0.98 s and not on the one landing at 1.0 s.
         [Test]
         public void Playing_StartsEachSoundTheLeadEarly()
