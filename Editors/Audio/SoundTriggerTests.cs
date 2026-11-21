@@ -1,4 +1,6 @@
 using Editors.Audio.SoundTriggers;
+using Moq;
+using NAudio.Wave;
 using Shared.GameFormats.DB;
 using Shared.GameFormats.Wwise;
 using Shared.GameFormats.Wwise.Enums;
@@ -1368,6 +1370,7 @@ namespace Test.Audio
             });
         }
 
+        // Deferred item D7: after Dispose, Prepare refuses before it asks for the bytes, so nothing is read or decoded for nothing.
         [Test]
         public void Mixer_AfterDispose_PlaysNothing()
         {
@@ -1375,24 +1378,127 @@ namespace Test.Audio
             mixer.Dispose();
 
             mixer.Play(7);
-            var preparedAfter = true;
-            Assert.DoesNotThrow(() => preparedAfter = mixer.Prepare(8, () => SineWem()));
+            var (preparedAfter, asked) = (true, false);
+            Assert.DoesNotThrow(() => preparedAfter = mixer.Prepare(8, () => { asked = true; return SineWem(); }));
             mixer.Play(8);
 
             Assert.Multiple(() =>
             {
                 Assert.That(preparedAfter, Is.False);
+                Assert.That(asked, Is.False, "the bytes were not asked for");
                 Assert.That(Read(mixer, FiftyMs), Is.All.EqualTo(0f));
             });
         }
 
-        // NAudio's mixer takes at most 1,024 inputs and throws past that. A device that is not reading never finishes a voice.
+        // NAudio's mixer takes at most 1,024 inputs and throws past that. A device that is not reading never finishes a voice. The
+        // voices play one sine in phase, so the output is 1,024 times one voice: the extra ones were dropped and the rest still sound.
         [Test]
-        public void Mixer_MoreVoicesThanTheMixerTakes_DoesNotThrow()
+        public void Mixer_MoreVoicesThanTheMixerTakes_PlaysTheFirst1024()
         {
             using var mixer = MixerWith(7);
+            mixer.Play(7);
+            var one = Rms(Read(mixer, FiftyMs));
+            mixer.StopAll();
 
             Assert.DoesNotThrow(() => { for (var i = 0; i < 1100; i++) mixer.Play(7); });
+            var many = Rms(Read(mixer, FiftyMs));
+
+            Assert.That(many / one, Is.EqualTo(1024).Within(1).Percent);
+        }
+
+        // An output device that does as it is told, and one whose step named by failAt throws.
+        static Mock<IWavePlayer> Device(string? failAt = null)
+        {
+            var device = new Mock<IWavePlayer>();
+            var fail = new InvalidOperationException("the device refused: " + failAt);
+            if (failAt == "Play")
+                device.Setup(x => x.Play()).Throws(fail);
+            if (failAt == "Init")
+                device.Setup(x => x.Init(It.IsAny<IWaveProvider>())).Throws(fail);
+            if (failAt == "Stop")
+                device.Setup(x => x.Stop()).Throws(fail);
+            return device;
+        }
+
+        // Deferred item D9: a device that opens but cannot play is let go, and the next one in line is tried. WASAPI can fail at Play
+        // as well as at Init, and Play used to sit outside the fallback.
+        [TestCase("Init")]
+        [TestCase("Play")]
+        public void Mixer_ADeviceThatCannotStart_IsDisposed_AndTheNextOneIsUsed(string failAt)
+        {
+            var (first, second) = (Device(failAt), Device());
+
+            using (new SoundTriggerMixer([() => first.Object, () => second.Object]))
+            {
+                first.Verify(x => x.Dispose(), Times.Once);
+                second.Verify(x => x.Play(), Times.Once);
+                second.Verify(x => x.Dispose(), Times.Never);
+            }
+            second.Verify(x => x.Dispose(), Times.Once);
+        }
+
+        [Test]
+        public void Mixer_WhenNoDeviceStarts_EachIsDisposed_AndTheLastFailureIsThrown()
+        {
+            var (first, second) = (Device("Play"), Device("Init"));
+
+            var thrown = Assert.Throws<InvalidOperationException>(() => new SoundTriggerMixer([() => first.Object, () => second.Object]));
+
+            Assert.That(thrown!.Message, Does.EndWith("Init"));
+            first.Verify(x => x.Dispose(), Times.Once);
+            second.Verify(x => x.Dispose(), Times.Once);
+        }
+
+        // Deferred items D8 and D11: a second Dispose does nothing, and a device that throws on Stop is still disposed.
+        [Test]
+        public void Mixer_Dispose_StopsAndDisposesTheDeviceOnce_EvenWhenStopThrows()
+        {
+            var (quiet, failing) = (Device(), Device("Stop"));
+            var mixer = new SoundTriggerMixer([() => quiet.Object]);
+            var other = new SoundTriggerMixer([() => failing.Object]);
+
+            mixer.Dispose();
+            Assert.DoesNotThrow(mixer.Dispose);
+            Assert.Throws<InvalidOperationException>(other.Dispose);
+
+            quiet.Verify(x => x.Stop(), Times.Once);
+            quiet.Verify(x => x.Dispose(), Times.Once);
+            failing.Verify(x => x.Dispose(), Times.Once);
+        }
+
+        // Deferred item D11: Prepare, Play and Keep from two threads while a third reads the output as the device's thread does. In
+        // SuperView they run one at a time, on the background chain and the UI thread, and the device reads throughout. Nothing throws,
+        // and the output still reads a full buffer.
+        [Test]
+        public void Mixer_UsedFromSeveralThreads_KeepsWorking()
+        {
+            using var mixer = new SoundTriggerMixer(openDevice: false);
+            var wem = SineWem();
+            using var stop = new CancellationTokenSource();
+            var reader = Task.Run(() =>
+            {
+                var buffer = new float[FiftyMs];
+                while (!stop.IsCancellationRequested)
+                    Assert.That(mixer.Output.Read(buffer, 0, buffer.Length), Is.EqualTo(buffer.Length));
+            });
+            var users = Enumerable.Range(0, 2).Select(t => Task.Run(() =>
+            {
+                for (var i = 0; i < 100; i++)
+                {
+                    var id = (uint)(t * 1000 + i % 5);
+                    mixer.Prepare(id, () => wem);
+                    mixer.Play(id);
+                    mixer.Keep([id, (uint)((1 - t) * 1000 + i % 5)]);
+                }
+            })).ToArray();
+
+            Assert.That(Task.WaitAll(users, TimeSpan.FromSeconds(15)), Is.True, "the two threads finished");
+            stop.Cancel();
+            Assert.That(reader.Wait(TimeSpan.FromSeconds(5)), Is.True);
+            Assert.That(mixer.Prepare(7, () => wem), Is.True);
+            mixer.StopAll();
+            mixer.Play(7);
+            Assert.That(Rms(Read(mixer, FiftyMs)), Is.GreaterThan(0.05));
         }
     }
 }

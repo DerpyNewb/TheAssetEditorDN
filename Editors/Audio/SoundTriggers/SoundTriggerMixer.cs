@@ -24,34 +24,52 @@ namespace Editors.Audio.SoundTriggers
         /// <param name="openDevice">False builds the mixer with no output device, for tests that read <see cref="Output"/> themselves.</param>
         /// <param name="latencyMs">The device's buffer length. A shorter one starts a sound sooner and is likelier to crackle.</param>
         public SoundTriggerMixer(bool openDevice = true, int latencyMs = 30)
+            // WASAPI first. WaveOut is the fallback, at 60 ms or more, a floor that was chosen and not measured.
+            : this(openDevice
+                ? [() => new WasapiOut(AudioClientShareMode.Shared, true, latencyMs), () => new WaveOutEvent { DesiredLatency = Math.Max(latencyMs, 60), NumberOfBuffers = 3 }]
+                : [])
         {
-            if (!openDevice)
-                return;
+        }
 
-            // WASAPI, then WaveOut when WASAPI cannot start, as SoundEngine does. SoundEngine's WaveOut runs at 150 ms; this one's 60 ms
-            // floor, with SoundEngine's 3 buffers, was never measured, so whether it plays without dropouts is not known.
-            try
+        /// <summary>Plays through the first device that opens and starts. One that fails is disposed; when none starts, the last one's
+        /// failure is thrown.</summary>
+        internal SoundTriggerMixer(IReadOnlyList<Func<IWavePlayer>> devices)
+        {
+            for (var i = 0; i < devices.Count; i++)
             {
-                _device = new WasapiOut(AudioClientShareMode.Shared, true, latencyMs);
-                _device.Init(_mixer);
+                IWavePlayer? device = null;
+                try
+                {
+                    device = devices[i]();
+                    device.Init(_mixer);
+                    device.Play();
+                    _device = device;
+                    return;
+                }
+                catch when (i < devices.Count - 1)
+                {
+                    device?.Dispose();
+                }
+                catch
+                {
+                    device?.Dispose();
+                    throw;
+                }
             }
-            catch
-            {
-                _device?.Dispose();
-                _device = new WaveOutEvent { DesiredLatency = Math.Max(latencyMs, 60), NumberOfBuffers = 3 };
-                _device.Init(_mixer);
-            }
-            _device.Play();
         }
 
         /// <summary>What the device plays. Always fills a read, with silence when no voice is sounding.</summary>
         public ISampleProvider Output => _mixer;
 
-        /// <summary>Decodes the source and keeps it. False when the bytes are null or do not decode. A source that is already prepared is not asked for again.</summary>
+        /// <summary>Decodes the source and keeps it. False when the bytes are null or do not decode, or the mixer is disposed, which asks
+        /// for no bytes. A source that is already prepared is not asked for again. In SuperView, Prepare and Keep run only on its background
+        /// chain, one job at a time, so two calls never decode the same source at once.</summary>
         public bool Prepare(uint sourceId, Func<byte[]?> wemBytes)
         {
             lock (_gate)
             {
+                if (_disposed)
+                    return false;
                 if (_cache.ContainsKey(sourceId))
                     return true;
             }
@@ -117,9 +135,16 @@ namespace Editors.Audio.SoundTriggers
                 _device = null;
             }
 
-            // Outside the lock: stopping the device waits for its thread, which may be reading Output.
-            device?.Stop();
-            device?.Dispose();
+            // Outside the lock, so Play and Prepare do not wait while WasapiOut joins its thread. The device thread reads Output under the
+            // mixer's own lock, never this one. A Stop that throws still lets the device go.
+            try
+            {
+                device?.Stop();
+            }
+            finally
+            {
+                device?.Dispose();
+            }
         }
 
         // WEM -> Ogg -> float PCM, as SoundEngine decodes it, then to 48 kHz stereo. Null when it does not decode.
