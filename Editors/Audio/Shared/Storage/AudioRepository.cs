@@ -381,12 +381,11 @@ namespace Editors.Audio.Shared.Storage
 
         public string GetNameFromId(uint value) => GetNameFromId(value, out var _);
 
+        // NameById is read once: a load swaps in a new dictionary, which between two reads could lack the name the first one found.
         public string GetNameFromId(uint value, out bool found)
         {
-            found = NameById.ContainsKey(value);
-            if (found)
-                return NameById[value];
-            return value.ToString();
+            found = NameById.TryGetValue(value, out var name);
+            return found ? name! : value.ToString();
         }
 
         public string GetNameFromId(uint? key)

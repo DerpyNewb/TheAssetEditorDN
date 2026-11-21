@@ -202,31 +202,31 @@ namespace Test.Audio
         }
 
         // An action that can start a sound or post an event, and that SuperView does not play, is not supported, as it may be what
-        // sounds in game: PlayAndContinue, PlayEvent and the Triggers. Stop, Pause, Resume, Set, Reset and Mute actions cannot start a
-        // sound, so an event of only those, like one with no actions at all, has no Play action.
-        [Test]
-        public void Resolve_OnlyActionsThatCanStartASound_AreNotSupported()
+        // sounds in game: PlayAndContinue, PlayEvent, the four Triggers, and a type the enum has no name for. Stop, Pause, Seek,
+        // Release, Break, Set and the like cannot start a sound, so an event of only those has no Play action. One case per type.
+        [TestCase(AkActionType.PlayAndContinue, "PlayAndContinue")]
+        [TestCase(AkActionType.PlayEvent, "PlayEvent")]
+        [TestCase(AkActionType.Trigger, "Trigger")]
+        [TestCase(AkActionType.Trigger_O, "Trigger_O")]
+        [TestCase(AkActionType.Trigger_E, "Trigger_E")]
+        [TestCase(AkActionType.Trigger_E_O, "Trigger_E_O")]
+        [TestCase((AkActionType)0x2303, "0x2303")]
+        [TestCase(AkActionType.Stop_E_O, null)]
+        [TestCase(AkActionType.StopEvent, null)]
+        [TestCase(AkActionType.Pause_E_O, null)]
+        [TestCase(AkActionType.Resume_E_O, null)]
+        [TestCase(AkActionType.Seek_E_O, null)]
+        [TestCase(AkActionType.Release, null)]
+        [TestCase(AkActionType.Break_E_O, null)]
+        [TestCase(AkActionType.SetVolume_O, null)]
+        [TestCase(AkActionType.ResetPitch_O, null)]
+        [TestCase(AkActionType.Mute_O, null)]
+        public void Resolve_OnlyActionsThatCanStartASound_AreNotSupported(AkActionType type, string? named)
         {
-            var bank = new Bank().Row("Stopper", "Stop_Event").Row("Nothing", "Empty_Event").Row("Setters", "Set_Event")
-                .Row("PlayEvent", "Play_Event_Event").Row("Continue", "Continue_Event").Row("Trigger", "Trigger_Event");
-            bank.Event("Stop_Event", bank.Action(AkActionType.Stop_E_O, bank.Sound(7)));
-            bank.Event("Empty_Event");
-            bank.Event("Set_Event", bank.Action(AkActionType.Pause_E_O, bank.Sound(7)), bank.Action(AkActionType.Resume_E_O, bank.Sound(7)),
-                bank.Action(AkActionType.SetVolume_O, bank.Sound(7)), bank.Action(AkActionType.ResetPitch_O, bank.Sound(7)),
-                bank.Action(AkActionType.Mute_O, bank.Sound(7)), bank.Action(AkActionType.SetSwitch, 0), bank.Action(AkActionType.SetState, 0));
-            bank.Event("Play_Event_Event", bank.Action(AkActionType.PlayEvent, bank.Event("Inner_Event", bank.Play(bank.Sound(8)))));
-            bank.Event("Continue_Event", bank.Action(AkActionType.PlayAndContinue, bank.Sound(9)));
-            bank.Event("Trigger_Event", bank.Action(AkActionType.Trigger_O, 0));
+            var bank = new Bank().Row("Tag", "Event_A");
+            bank.Event("Event_A", bank.Action(type, bank.Sound(7)));
 
-            Assert.Multiple(() =>
-            {
-                Assert.That(Resolve(bank, "Stopper").Silent, Is.EqualTo("event Stop_Event has no Play action"));
-                Assert.That(Resolve(bank, "Nothing").Silent, Is.EqualTo("event Empty_Event has no Play action"));
-                Assert.That(Resolve(bank, "Setters").Silent, Is.EqualTo("event Set_Event has no Play action"));
-                Assert.That(Resolve(bank, "PlayEvent").Silent, Is.EqualTo("not supported: PlayEvent action -> Event -> Play action -> Sound"));
-                Assert.That(Resolve(bank, "Continue").Silent, Is.EqualTo("not supported: PlayAndContinue action -> Sound"));
-                Assert.That(Resolve(bank, "Trigger").Silent, Is.EqualTo("not supported: Trigger_O action"));
-            });
+            Assert.That(Resolve(bank).Silent, Is.EqualTo(named == null ? "event Event_A has no Play action" : $"not supported: {named} action -> Sound"));
         }
 
         // A Stop beside a Play does not hide what went wrong under the Play.
