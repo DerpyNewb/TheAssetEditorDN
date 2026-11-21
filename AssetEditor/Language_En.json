@@ -516,6 +516,7 @@
   "MetadataEditor.Buttons.Refresh": "Refresh",
   "SuperView.ShowVfx": "Show VFX",
   "SuperView.Sound": "Sound",
+  "SuperView.BrowseSoundTab.Tooltip": "Opens a .snd.meta in this tab. While a slot plays, this sets the slot's Sound, which Save writes into the animation set. While a clip from Any animation plays, the file stays in this tab until another clip or slot plays.",
   "SuperView.VfxFilter": "VFX filter:",
   "SuperView.VfxFilter.Tooltip": "The unit's vfx_filter_id in battle_entities. An effect tag whose id is neither 0 nor this does not play on it: a unit and its Regiment of Renown often share one meta, with id 1 and id 2.",
   "SuperView.SaveMetaAs": "Save meta as... and assign to slot",

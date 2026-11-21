@@ -92,7 +92,7 @@
             <TabItem Header="{loc:Loc MetadataEditor.Tabs.Sound}">
                 <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="2,2,2,4">
-                        <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSoundTabCommand}" AutomationProperties.AutomationId="BrowseSoundTab"/>
+                        <Button DockPanel.Dock="Right" Content="..." Width="26" Margin="4,0,0,0" Command="{Binding BrowseSoundTabCommand}" AutomationProperties.AutomationId="BrowseSoundTab" ToolTip="{loc:Loc SuperView.BrowseSoundTab.Tooltip}"/>
                         <TextBlock Text="{Binding SoundMetaSource}" Style="{StaticResource MetaSource}" VerticalAlignment="Center" AutomationProperties.AutomationId="SoundMetaSource"/>
                     </DockPanel>
                     <TextBlock DockPanel.Dock="Top" Margin="2,0,2,4" Text="{Binding SoundMetaChangedOnDisk}" TextWrapping="Wrap" AutomationProperties.AutomationId="SoundMetaChangedOnDisk">

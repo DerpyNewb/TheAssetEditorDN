@@ -1,6 +1,7 @@
 using System.IO;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.SuperView;
+using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.BaseControl;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -123,6 +124,19 @@ namespace Test.AnimationMeta
             Assert.That(_superView.SlotGrid.SelectedRow?.Slot.SlotName, Is.EqualTo("ATTACK_5"), "the clip played is still ATTACK_5");
             Assert.That(_superView.SoundMetaEditor.ParsedFile, Is.Null);
             Assert.That(_superView.TimelineTicks.Where(x => x.Tab == MetaTab.Sound), Is.Empty);
+            Assert.That(_superView.SoundFileProblems.Where(x => x.StartsWith("Persistent ")), Is.Empty, "a loaded one is no problem");
+        }
+
+        // Deferred item D13: the persistent row's .snd.meta, named by its row and in no loaded pack, has a line of its own.
+        [Test]
+        public void PersistentRowSndMeta_InNoLoadedPack_IsNamed()
+        {
+            const string Missing = "animations/derpy/nowhere_persistent.snd.meta";
+            _superView.SlotGrid.Rows.First(x => x.Slot.SlotName == "PERSISTENT_METADATA_ALIVE").Sound = Missing;
+            Assert.That(_superView.Save(), Is.True);
+
+            Assert.That(_superView.SoundFileProblems, Does.Contain($"Persistent .snd.meta {Missing} is in no loaded pack."));
+            Assert.That(_superView.SceneObjects[0].Data.PersistSoundMetaData, Is.Null);
         }
 
         [Test]
@@ -423,6 +437,256 @@ namespace Test.AnimationMeta
             _superView.LoadFile(_runner.PackFileService.FindFile(@"variantmeshes\variantmeshdefinitions\skv_throt.variantmeshdefinition")!);
 
             Assert.That((data.SoundMetaData, data.PersistSoundMetaData, _superView.SoundMetaEditor.ParsedFile), Is.EqualTo(((PackFile?)null, (PackFile?)null, (ParsedMetadataFile?)null)));
+        }
+
+        // Deferred item D20: a second way a .snd.meta can fail to read, an empty file, which is too short for its version number.
+        [Test]
+        public void EmptySndMeta_IsNamed_AndSuperViewPlaysOn()
+        {
+            const string Empty = "animations/derpy/empty.snd.meta";
+            WriteFile(Empty, []);
+
+            Assert.DoesNotThrow(() => _superView.SlotSound = Empty);
+
+            Assert.That(_superView.SoundFileProblems.Where(x => x.StartsWith($"Slot .snd.meta {Empty} could not be read: ")), Has.Exactly(1).Items);
+            Assert.That((_superView.SoundMetaEditor.ParsedFile, _superView.MetaEditor.ParsedFile != null), Is.EqualTo(((ParsedMetadataFile?)null, true)));
+        }
+
+        // Deferred item D18: a .snd.meta that could not be read, then fixed from outside SuperView, is read again at once, as any change
+        // on disk to the Sound tab's file is.
+        [Test]
+        public void UnreadableSndMeta_FixedOnDisk_IsReadAgain()
+        {
+            const string Bad = "animations/derpy/bad.snd.meta";
+            WriteFile(Bad, [5, 0, 0, 0, 0, 0, 0, 0]);
+            _superView.SlotSound = Bad;
+            Assert.That(_superView.SoundFileProblems, Has.Some.StartsWith($"Slot .snd.meta {Bad} could not be read"));
+
+            SaveFromOutside(Bad, SndMetaBytes(0.2f, 0.6f, 0.9f));
+
+            Assert.That(_superView.SoundMetaEditor.ParsedFile?.Attributes, Has.Count.EqualTo(3));
+            Assert.That(_superView.SoundFileProblems, Has.None.StartsWith($"Slot .snd.meta {Bad}"));
+        }
+
+        // Deferred item D15: the Sound tab saves a .snd.meta. A name typed with another meta's ending gets .snd.meta added, where the
+        // Animation tab keeps any name ending in .meta.
+        [Test]
+        public void SaveMetaAs_OnTheSoundTab_AddsSndMetaToAnyOtherEnding()
+        {
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Sound;
+            AnswerSave("animations/derpy/custom_x.anm.meta");
+            var said = Said();
+
+            _superView.SaveMetaAsCommand.Execute(null);
+
+            Assert.That(said, Is.Empty);
+            Assert.That(_superView.SlotGrid.SelectedRow!.Sound, Is.EqualTo("animations/derpy/custom_x.anm.meta.snd.meta"));
+            Assert.That((_runner.PackFileService.FindFile("animations/derpy/custom_x.anm.meta.snd.meta") != null, _runner.PackFileService.FindFile("animations/derpy/custom_x.anm.meta")),
+                Is.EqualTo((true, (PackFile?)null)));
+        }
+
+        // Deferred item D16: Save meta as never writes over another pack's file, which would override it for every set naming it. It
+        // refuses as New meta does, on every tab, and nothing is written or pointed at.
+        [TestCase(MetaTab.Sound, "animations/derpy/theirs.snd.meta")]
+        [TestCase(MetaTab.Clip, "animations/derpy/theirs.anm.meta")]
+        public void SaveMetaAs_RefusesAPathAnotherPackHas(MetaTab tab, string theirs)
+        {
+            var pfs = _runner.PackFileService;
+            var editable = pfs.GetEditablePack()!;
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            pfs.AddFilesToPack(_runner.CreateEmptyPackFile("OtherMod", false), [new NewPackFileEntry(@"animations\derpy", PackFile.CreateFromBytes(Path.GetFileName(theirs), SndMetaBytes(0.5f)))]);
+            Assert.That(pfs.GetEditablePack(), Is.SameAs(editable));
+            var row = _superView.SlotGrid.SelectedRow!;
+            var before = (row.Meta, row.Sound);
+            _superView.SelectedTabControllerIndex = (int)tab;
+            AnswerSave(theirs);
+            var said = Said();
+
+            _superView.SaveMetaAsCommand.Execute(null);
+
+            Assert.That(said, Is.EqualTo(new[] { $"{theirs} is already in another pack. To use it, type it into the slot's {(tab == MetaTab.Sound ? "Sound" : "Meta")} field." }));
+            Assert.That(((row.Meta, row.Sound), pfs.FindFile(theirs, editable)), Is.EqualTo((before, (PackFile?)null)));
+        }
+
+        // Deferred item D17: Save on a Sound tab with no edits writes the file again, which is the tab's own save and nothing new on
+        // disk, so the tab keeps what it shows and its undo history.
+        [Test]
+        public void ACleanSave_OnTheSoundTab_KeepsTheUndoHistory()
+        {
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            Assert.That(_superView.Save(), Is.True);
+            EditFirstStart(0.35f);
+            Assert.That(_superView.Save(), Is.True);
+            var editor = _superView.SoundMetaEditor;
+            var shown = editor.ParsedFile;
+            Assert.That((editor.HasUnsavedChanges, editor.UndoCommand.CanExecute(null)), Is.EqualTo((false, true)), "saved, and the edit can be undone");
+
+            editor.SaveActionCommand.Execute(null);
+
+            Assert.That((editor.ParsedFile, editor.UndoCommand.CanExecute(null), StartOf(0)), Is.EqualTo((shown, true, 0.35f)));
+        }
+
+        // Deferred item D20: Save meta as over the tab's own custom copy loads nothing new, so the copy's tab is marked saved by hand,
+        // on the Persistent and Animation tabs as on the Sound tab.
+        [TestCase(MetaTab.Persistent)]
+        [TestCase(MetaTab.Clip)]
+        public void SaveMetaAs_OverTheTabsOwnCopy_MarksTheTabSaved(MetaTab tab)
+        {
+            _superView.SelectedTabControllerIndex = (int)tab;
+            var editor = tab == MetaTab.Persistent ? _superView.PersistentMetaEditor : _superView.MetaEditor;
+            const string Copy = "animations/derpy/custom_copy.anm.meta";
+            AnswerSave(Copy);
+            var said = Said();
+            _superView.SaveMetaAsCommand.Execute(null);
+            Assert.That(PathOf(editor.CurrentFile), Is.EqualTo(Copy), "the tab shows the copy");
+            var field = editor.Tags.SelectMany(x => x.Variables).First(x => !x.IsReadOnly && x.Scrub == Shared.Ui.Common.Behaviors.ScrubMode.Integer);
+            field.ValueAsString = (int.Parse(field.ValueAsString) + 1).ToString();
+            var copy = editor.CurrentFile;
+            Assert.That(editor.HasUnsavedChanges, Is.True);
+
+            _superView.SaveMetaAsCommand.Execute(null);
+
+            Assert.That(said, Is.Empty);
+            Assert.That((editor.CurrentFile, editor.HasUnsavedChanges), Is.EqualTo((copy, false)));
+        }
+
+        // Deferred item D12: the scene highlights the shown tab's picked tag (the Sound tab's on the Sound tab, the Animation tab's on
+        // the other two), and the strip highlights the shown tab's. A switch between Persistent and Animation changes nothing in the
+        // scene, so the scene is not built again, but the strip follows.
+        [Test]
+        public void TheShownTab_DecidesWhichTagIsHighlighted_AndPersistentToAnimationLeavesTheSceneAlone()
+        {
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            var data = _superView.SceneObjects[0].Data;
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Clip;
+            _superView.MetaEditor.SelectedTag = null;
+            var persistentTag = _superView.PersistentMetaEditor.Tags.First(x => _superView.TimelineTicks.Any(t => t.Tag == x._input));
+            _superView.PersistentMetaEditor.SelectedTag = persistentTag;
+            _superView.SoundMetaEditor.SelectedTag = _superView.SoundMetaEditor.Tags[1];
+
+            var onClip = RedSoundMarkers(data);
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Sound;
+            var onSound = RedSoundMarkers(data);
+            var selectedOnSound = _superView.TimelineTicks.Single(x => x.IsSelected).Tag;
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Clip;
+            var backOnClip = RedSoundMarkers(data);
+            var scene = data.MetaDataItems;
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Persistent;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((onClip, onSound, backOnClip), Is.EqualTo((0, 1, 0)), "the Sound tab's pick is red on the Sound tab only");
+                Assert.That(selectedOnSound, Is.SameAs(_superView.SoundMetaEditor.Tags[1]._input));
+                Assert.That(data.MetaDataItems, Is.SameAs(scene), "Animation to Persistent did not build the scene again");
+                Assert.That(_superView.TimelineTicks.Single(x => x.IsSelected).Tag, Is.SameAs(persistentTag._input), "the strip highlights the persistent tab's pick");
+            });
+        }
+
+        // The Sound: markers drawn red, the picked tag's colour.
+        static int RedSoundMarkers(SceneObject data) => GameWorld.Core.SceneNodes.SceneNodeHelper.GetChildrenOfType<GameWorld.Core.SceneNodes.SimpleDrawableNode>(data.MainNode)
+            .Where(x => x.Name.StartsWith("Sound:"))
+            .Count(x => ((List<GameWorld.Core.Rendering.RenderItems.WorldTextRenderItem>)typeof(GameWorld.Core.SceneNodes.SimpleDrawableNode)
+                .GetField("_renderList", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(x)!)
+                .Any(label => label.Colour == Microsoft.Xna.Framework.Color.Red));
+
+        // Deferred item D12: a press on a tick in another tab switches the tab and picks the tag, and builds the scene once for both.
+        // The scene build is counted by the VFX filter list it sets every time.
+        [Test]
+        public void SelectTick_InAnotherTab_BuildsTheSceneOnce()
+        {
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Clip;
+            var tick = _superView.TimelineTicks.First(x => x.Tab == MetaTab.Sound);
+            var builds = 0;
+            _superView.PropertyChanged += (_, e) => builds += e.PropertyName == nameof(SuperViewViewModel.VfxFilterIds) ? 1 : 0;
+
+            _superView.SelectTickCommand.Execute(tick);
+
+            Assert.That((_superView.SelectedTabControllerIndex, builds), Is.EqualTo(((int)MetaTab.Sound, 1)));
+            Assert.That(RedSoundMarkers(_superView.SceneObjects[0].Data), Is.EqualTo(1), "and the scene it built shows the pick");
+        }
+
+        // Deferred item D12: the scene's position handles are on the shown tab's picked tag: the Sound tab's on the Sound tab, the
+        // Animation tab's on the others.
+        [Test]
+        public void TheHandles_FollowTheShownTabsPick()
+        {
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            _superView.MetaEditor.SelectedTag = null;
+            _superView.SoundMetaEditor.SelectedTag = _superView.SoundMetaEditor.Tags[0];
+            var gizmo = _runner.GetRequiredServiceInCurrentEditorScope<MetaTagGizmoComponent>();
+            int Handles()
+            {
+                gizmo.Update(new Microsoft.Xna.Framework.GameTime());
+                return gizmo.Handles.Count;
+            }
+
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Sound;
+            var onSound = Handles();
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Clip;
+
+            Assert.That((onSound, Handles()), Is.EqualTo((1, 0)));
+        }
+
+        // Deferred item D14: Sound ticks are drawn in a colour of their own, as ticks from all three tabs share the strip, and red still
+        // marks the picked one. The Sound tab's browse button says what it does.
+        [Test, Apartment(ApartmentState.STA)]
+        public void SoundTicks_HaveAColourOfTheirOwn_AndTheBrowseButtonATooltip()
+        {
+            _superView.SlotSound = WriteSndMeta(SndMeta);
+            AppResources.Load();
+            var view = new MetaTimelineView { DataContext = _superView };
+            var host = new System.Windows.Window { Content = view, ShowInTaskbar = false, ShowActivated = false, WindowStyle = System.Windows.WindowStyle.None, Left = -10000, Width = 400, Height = 120 };
+            try
+            {
+                host.Show();
+                Pump();
+                var marks = Descendants(view).OfType<System.Windows.Controls.Button>()
+                    .Select(x => (Tab: ((TimelineTick)x.DataContext).Tab, Fill: (((System.Windows.Shapes.Rectangle)x.Template.FindName("Tick", x)).Fill as System.Windows.Media.SolidColorBrush)?.Color))
+                    .ToList();
+                Assert.That(marks.Count(x => x.Tab == MetaTab.Sound), Is.EqualTo(2));
+                Assert.That(marks.Where(x => x.Tab == MetaTab.Sound).Select(x => x.Fill), Is.All.EqualTo(System.Windows.Media.Colors.SeaGreen));
+                Assert.That(marks.Where(x => x.Tab != MetaTab.Sound).Select(x => x.Fill), Has.None.EqualTo(System.Windows.Media.Colors.SeaGreen));
+
+                _superView.SelectTickCommand.Execute(_superView.TimelineTicks.First(x => x.Tab == MetaTab.Sound));
+                Pump();
+                var picked = Descendants(view).OfType<System.Windows.Controls.Button>().Single(x => ((TimelineTick)x.DataContext).IsSelected);
+                Assert.That((((System.Windows.Shapes.Rectangle)picked.Template.FindName("Tick", picked)).Fill as System.Windows.Media.SolidColorBrush)?.Color, Is.EqualTo(System.Windows.Media.Colors.Red));
+            }
+            finally
+            {
+                host.Close();
+            }
+
+            var panel = new EditorView { DataContext = _superView };
+            panel.Measure(new System.Windows.Size(1400, 900));
+            panel.Arrange(new System.Windows.Rect(0, 0, 1400, 900));
+            panel.UpdateLayout();
+            var browse = Descendants(panel).OfType<System.Windows.Controls.Button>().Single(x => System.Windows.Automation.AutomationProperties.GetAutomationId(x) == "BrowseSoundTab");
+            Assert.That(browse.ToolTip, Is.EqualTo("SuperView.BrowseSoundTab.Tooltip"), "the key, as tests have no language loaded");
+            foreach (var language in new[] { "En", "Cn", "Fr" })
+            {
+                var strings = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(Path.Combine(TestContext.CurrentContext.TestDirectory, $"Language_{language}.json")))!;
+                Assert.That(strings.GetValueOrDefault("SuperView.BrowseSoundTab.Tooltip"), Is.Not.Empty, language);
+            }
+        }
+
+        static void Pump()
+        {
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
+
+        static IEnumerable<System.Windows.DependencyObject> Descendants(System.Windows.DependencyObject root)
+        {
+            for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+                yield return child;
+                foreach (var below in Descendants(child))
+                    yield return below;
+            }
         }
     }
 }

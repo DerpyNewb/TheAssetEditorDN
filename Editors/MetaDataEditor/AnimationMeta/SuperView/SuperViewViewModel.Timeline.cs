@@ -70,8 +70,19 @@ namespace Editors.AnimationMeta.SuperView
                 RebuildTimeline();
         }
 
-        // The highlighted marker is the shown tab's tag, so the scene is rebuilt too, which rebuilds the strip.
-        partial void OnSelectedTabControllerIndexChanged(int value) => RecreateMetaDataInformation();
+        // The strip highlights the shown tab's pick. The scene is built again only when its highlighted pick moves to another tab's,
+        // which rebuilds the strip too. A tick pressed in another tab builds it once, after its tag is picked.
+        partial void OnSelectedTabControllerIndexChanged(int oldValue, int newValue)
+        {
+            if (_tickSwitchingTab)
+                return;
+            if (SceneEditor(oldValue) != SceneEditor(newValue))
+                RecreateMetaDataInformation();
+            else
+                RebuildTimeline();
+        }
+
+        bool _tickSwitchingTab;
 
         MetaDataEditorViewModel EditorOf(MetaTab tab) => tab switch
         {
@@ -79,6 +90,10 @@ namespace Editors.AnimationMeta.SuperView
             MetaTab.Sound => SoundMetaEditor,
             _ => MetaEditor,
         };
+
+        /// <summary>The editor whose picked tag the scene highlights and the handles move, with a tab shown: the Sound tab's on the Sound
+        /// tab, the Animation tab's on the other two.</summary>
+        MetaDataEditorViewModel SceneEditor(int tab) => tab == (int)MetaTab.Sound ? SoundMetaEditor : MetaEditor;
 
         void RebuildTimeline()
         {
@@ -138,11 +153,14 @@ namespace Editors.AnimationMeta.SuperView
             // A tag outside the clip is gone to at the nearer end. The player stops there, as the bar's frame buttons stop it.
             MoveTo(Math.Clamp((long)Math.Round(tick.StartTime * 1_000_000d), 0, _asset.Data.Player.GetAnimationLengthUs()));
 
-            // The tab first, so the rebuild the selection sets off highlights the tag in the tab that shows it. Delete acts on every
-            // row marked selected, which the list keeps in step with its own clicks but not with this one.
-            SelectedTabControllerIndex = (int)tick.Tab;
+            // The tab first, so the rebuild the selection sets off highlights the tag in the tab that shows it. That rebuild is the only
+            // one when the pick changes, so the tab switch skips its own then. Delete acts on every row marked selected, which the list
+            // keeps in step with its own clicks but not with this one.
             var editor = EditorOf(tick.Tab);
             var row = editor.Tags.FirstOrDefault(x => x._input == tick.Tag);
+            _tickSwitchingTab = editor.SelectedTag != row;
+            SelectedTabControllerIndex = (int)tick.Tab;
+            _tickSwitchingTab = false;
             foreach (var tag in editor.Tags)
                 tag.IsSelected = tag == row;
             editor.SelectedTag = row;

@@ -492,6 +492,7 @@
     "MetadataEditor.Buttons.Refresh":  "Refresh",
     "SuperView.ShowVfx":  "Afficher les VFX",
     "SuperView.Sound":  "Son",
+    "SuperView.BrowseSoundTab.Tooltip":  "Ouvre un .snd.meta dans cet onglet. Pendant qu'un slot joue, cela règle le Son du slot, qu'Enregistrer écrit dans le set d'animation. Pendant qu'un clip de Toute animation joue, le fichier reste dans cet onglet jusqu'à ce qu'un autre clip ou slot joue.",
     "SuperView.VfxFilter":  "Filtre VFX :",
     "SuperView.VfxFilter.Tooltip":  "Le vfx_filter_id de l'unité dans battle_entities. Une balise d'effet dont l'id n'est ni 0 ni celui-ci n'est pas jouée sur elle : une unité et son régiment de renom partagent souvent un même méta, avec les id 1 et 2.",
     "SuperView.SaveMetaAs":  "Enregistrer le méta sous... et l'assigner au slot",

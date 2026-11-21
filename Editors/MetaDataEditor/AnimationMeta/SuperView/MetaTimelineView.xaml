@@ -57,6 +57,12 @@
                                             <DataTrigger Binding="{Binding IsWindow}" Value="True">
                                                 <Setter TargetName="Bar" Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
+                                            <!-- The Sound tab's ticks in a colour of their own, as all three tabs' ticks share the strip.
+                                                 Before the selected trigger, so red still wins. -->
+                                            <DataTrigger Binding="{Binding Tab}" Value="{x:Static local:MetaTab.Sound}">
+                                                <Setter TargetName="Tick" Property="Fill" Value="SeaGreen"/>
+                                                <Setter TargetName="Bar" Property="Fill" Value="SeaGreen"/>
+                                            </DataTrigger>
                                             <!-- Red, as the viewport draws the selected tag. -->
                                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                 <Setter TargetName="Tick" Property="Fill" Value="Red"/>
