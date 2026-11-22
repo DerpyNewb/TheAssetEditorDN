@@ -1,3 +1,4 @@
+using Editors.Audio.SoundTriggers;
 using GameWorld.Core.Vfx;
 using Shared.Core.PackFiles;
 using Shared.GameFormats.AnimationMeta.Definitions;
@@ -27,7 +28,8 @@ namespace Editors.AnimationMeta.MetaEditor.Check
         const float Tolerance = 0.001f;
 
         /// <param name="packs">The loaded packs, where vfx files are looked for. Null skips that check.</param>
-        public static MetaCheckResult Check(ParsedMetadataFile file, IMetaDataDatabase database, MetaCheckScene? scene, IPackFileService? packs)
+        /// <param name="soundTags">audio_metadata_tags_tables from the loaded packs. Null, or a table with no rows, skips the sound check.</param>
+        public static MetaCheckResult Check(ParsedMetadataFile file, IMetaDataDatabase database, MetaCheckScene? scene, IPackFileService? packs, AudioMetadataTags? soundTags = null)
         {
             var problems = new List<MetaProblem>();
             var skipped = new List<string>();
@@ -38,6 +40,9 @@ namespace Editors.AnimationMeta.MetaEditor.Check
                 skipped.Add("No skeleton is known here, so prop bone ids weren't checked. SuperView knows the skeleton.");
             if (!gamePacksLoaded)
                 skipped.Add("No game packs are loaded, so vfx files weren't checked: every vanilla effect would look missing.");
+            var soundTagsLoaded = soundTags is { Count: > 0 };
+            if (!soundTagsLoaded && file.Attributes.Any(x => SoundTriggerName(x) != null))
+                skipped.Add("audio_metadata_tags_tables isn't loaded, so sound triggers weren't checked. It is in the game's db.pack.");
 
             for (var i = 0; i < file.Attributes.Count; i++)
             {
@@ -58,6 +63,15 @@ namespace Editors.AnimationMeta.MetaEditor.Check
                 // The game counts prop ids from 1 (measured in game 2026-11-18). An id of 0 docks nothing (measured 2026-11-19), so it isn't flagged.
                 if (scene?.BoneNames is { } bones && PropBoneId(tag) is int id and > 0 && !HasBone(bones, id - 1))
                     Add(false, $"Its prop bone id is {id}, so it docks be_prop_{id - 1}, but this skeleton has no be_prop_{id - 1}. The game counts these ids from 1: id 1 is be_prop_0.");
+
+                // A tag with no row played nothing in battle, whatever event its name matched (measured 2026-11-19, docs/SOUNDS.md section 3).
+                if (soundTagsLoaded && SoundTriggerName(tag) is { } sound)
+                {
+                    if (string.IsNullOrWhiteSpace(sound))
+                        Add(true, "It names no sound, so it has nothing to play.");
+                    else if (soundTags!.Find(sound) == null)
+                        Add(false, $"No row of audio_metadata_tags_tables has the key {sound}, so the game plays nothing for it. The name is a key in that table, not a Wwise event, and it must match exactly, case included. 111 of vanilla WH3's 273,872 sound triggers do this.");
+                }
 
                 if (gamePacksLoaded && VfxName(tag) is { } vfx)
                 {
@@ -105,6 +119,13 @@ namespace Editors.AnimationMeta.MetaEditor.Check
 
         static bool HasBone(IReadOnlyList<string> bones, int propIndex) =>
             propIndex >= 0 && bones.Contains($"be_prop_{propIndex}", StringComparer.OrdinalIgnoreCase);
+
+        static string? SoundTriggerName(ParsedMetadataAttribute tag) => tag switch
+        {
+            SoundTrigger_v10 x => x.SoundEvent,
+            SoundTrigger_v4 x => x.SoundEvent,
+            _ => null,
+        };
 
         static string? VfxName(ParsedMetadataAttribute tag) => tag switch
         {

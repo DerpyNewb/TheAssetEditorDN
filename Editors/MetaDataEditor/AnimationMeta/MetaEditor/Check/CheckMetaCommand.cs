@@ -1,7 +1,9 @@
 using System.Windows;
+using Editors.Audio.SoundTriggers;
 using Editors.AnimationMeta.Presentation;
 using Shared.Core.Events;
 using Shared.Core.PackFiles;
+using Shared.GameFormats.AnimationMeta.Definitions;
 using Shared.GameFormats.AnimationMeta.Parsing;
 
 namespace Editors.AnimationMeta.MetaEditor.Check
@@ -44,7 +46,8 @@ namespace Editors.AnimationMeta.MetaEditor.Check
         {
             if (editor.ParsedFile == null)
                 return new MetaCheckResult([], ["No meta file is open."]);
-            return MetaChecker.Check(editor.ParsedFile, _database, editor.CheckScene?.Invoke(), _packFileService);
+            var soundTags = editor.ParsedFile.Attributes.Any(x => x is SoundTrigger_v10 or SoundTrigger_v4) ? AudioMetadataTags.Read(_packFileService, []) : null;
+            return MetaChecker.Check(editor.ParsedFile, _database, editor.CheckScene?.Invoke(), _packFileService, soundTags);
         }
     }
 }

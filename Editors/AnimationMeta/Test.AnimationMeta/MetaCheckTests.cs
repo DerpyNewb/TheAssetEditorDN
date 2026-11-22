@@ -1,4 +1,5 @@
 using Editors.AnimationMeta.MetaEditor.Check;
+using Editors.Audio.SoundTriggers;
 using Editors.AnimationMeta.SuperView;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Core.Events;
@@ -6,6 +7,7 @@ using Shared.Core.ToolCreation;
 using Shared.GameFormats.AnimationMeta.Definitions;
 using Shared.GameFormats.AnimationMeta.Parsing;
 using Shared.GameFormats.AnimationPack;
+using Shared.GameFormats.DB;
 using Editors.Shared.Core.Common.BaseControl;
 using Test.TestingUtility.Shared;
 using Test.TestingUtility.TestUtility;
@@ -74,6 +76,36 @@ namespace Test.AnimationMeta
                 Assert.That(result.Problems[0].Message, Does.EndWith("Vanilla uses EFFECT_12 instead, 19,012 times."));
                 Assert.That(result.Problems[1].Message, Does.EndWith("Vanilla doesn't use SOUND_IMPACT in any version."));
             });
+        }
+
+        static SoundTrigger_v11 Sound(string name) => Tag<SoundTrigger_v11>("SOUND_TRIGGER_11", x => x.SoundEvent = name);
+
+        static AudioMetadataTags SoundTable(params string[] keys) =>
+            AudioMetadataTags.From(keys.Select(key => new DbRow(new Dictionary<string, object> { ["key"] = key, ["sound_event_battle_start"] = "Play_" + key }, 22, "db.pack", "db/audio_metadata_tags_tables/data__")));
+
+        // The game plays nothing for a SOUND_TRIGGER whose name has no audio_metadata_tags_tables row (measured 2026-11-19), and the
+        // key has to match exactly: Drop_Weapon_Rest is CA's spelling, drop_weapon_rest is a miss.
+        [Test]
+        public void ASoundTrigger_WithNoTagsTableRow_IsAnError_AndAnEmptyOneAWarning()
+        {
+            var file = File(Sound("Drop_Weapon_Rest"), Sound("drop_weapon_rest"), Sound("Derpy_Test_Tone_F"), Sound(""), Effect(0, 0));
+
+            var result = MetaChecker.Check(file, s_database, null, null, SoundTable("Drop_Weapon_Rest", "Vocalisation_Humanoid_Male_Pain"));
+
+            Assert.That(result.Problems.Select(x => (x.Index, x.IsWarning)), Is.EqualTo(new[] { (1, false), (2, false), (3, true) }));
+            Assert.That(result.Problems[0].Message, Does.StartWith("No row of audio_metadata_tags_tables has the key drop_weapon_rest, so the game plays nothing for it."));
+            Assert.That(result.Skipped, Has.None.Contains("audio_metadata_tags_tables"));
+        }
+
+        [Test]
+        public void SoundTriggers_AreSkipped_WithoutTheTagsTable_AndSaySo()
+        {
+            var withTable = MetaChecker.Check(File(Sound("Derpy_Test_Tone_F")), s_database, null, null, SoundTable());
+            var noSounds = MetaChecker.Check(File(Effect(0, 0)), s_database, null, null);
+
+            Assert.That(withTable.Problems, Is.Empty, "an empty table means the table wasn't found, not that every tag is missing");
+            Assert.That(withTable.Skipped, Has.One.Contains("audio_metadata_tags_tables isn't loaded"));
+            Assert.That(noSounds.Skipped, Has.None.Contains("audio_metadata_tags_tables"));
         }
 
         [Test]

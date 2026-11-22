@@ -175,7 +175,9 @@
         <li>a tag that starts after the animation ends;</li>
         <li>a tag version the game's own files never use, with the version they use most;</li>
         <li>a weapon bone number that names no <code>be_prop</code> bone on the skeleton, whichever way the game counts;</li>
-        <li>an effect whose file isn't in any loaded pack, and an effect with no file named at all.</li>
+        <li>an effect whose file isn't in any loaded pack, and an effect with no file named at all;</li>
+        <li>a sound trigger whose name isn't a key in <code>audio_metadata_tags_tables</code>. The game plays nothing for one,
+            so a new sound needs a row in that table as well as its Wwise event.</li>
     </ul>
 
     <p>
