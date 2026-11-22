@@ -10,6 +10,7 @@ using Shared.Core.ErrorHandling;
 using Shared.Core.PackFiles.Utility;
 using Shared.GameFormats.RigidModel;
 using Shared.GameFormats.RigidModel.LodHeader;
+using Shared.GameFormats.RigidModel.MaterialHeaders;
 using Shared.GameFormats.RigidModel.Types;
 
 namespace GameWorld.Core.Services.SceneSaving.Geometry
@@ -78,6 +79,7 @@ namespace GameWorld.Core.Services.SceneSaving.Geometry
                 {
                     var modelname = meshes[meshIndex].Name;
                     rmvFile.ModelList[lodIndex][meshIndex] = CreateRmvModel(modelname, meshes[meshIndex].PivotPoint, meshes[meshIndex].Material, meshes[meshIndex].Geometry, skeleton, saveSettings.AttachmentPoints, meshes[meshIndex].AnimationMatrixOverride, lodIndex, meshIndex);
+                    KeepPhysics(rmvFile.ModelList[lodIndex][meshIndex], meshes[meshIndex]);
                 }
             }
 
@@ -111,6 +113,23 @@ namespace GameWorld.Core.Services.SceneSaving.Geometry
             
 
             return newModel;
+        }
+
+        // A cloth, cloth-weighted, collision or rope mesh (six vanilla WH3 cloaks carry them) keeps its type and the physics block
+        // after its weighted header, which the scene does not edit, while it has the vertices it loaded with. The block is not
+        // decoded and may index them, so a mesh whose vertex count changed is saved as a plain weighted one and the log says so.
+        void KeepPhysics(RmvModel model, Rmv2MeshNode node)
+        {
+            if (node.RmvMaterial is not WeightedMaterial { PhysicsBlock.Length: > 0 } source || !ModelMaterialEnumHelper.HasPhysicsBlock(source.MaterialId)
+                || model.Material is not WeightedMaterial saved)
+                return;
+            if (node.LoadedVertexCount != node.Geometry.VertexCount())
+            {
+                _logger.Here().Warning($"{node.Name} is a {source.MaterialId} mesh whose vertex count changed from {node.LoadedVertexCount} to {node.Geometry.VertexCount()}, so it is saved as a plain weighted mesh without its physics block");
+                return;
+            }
+            saved.MaterialId = source.MaterialId;
+            saved.PhysicsBlock = source.PhysicsBlock.ToArray();
         }
 
         static RmvLodHeader[] CreateLodHeaders(uint expectedLodCount, List<LodGenerationSettings> lodSettingsPerLod, RmvVersionEnum version)

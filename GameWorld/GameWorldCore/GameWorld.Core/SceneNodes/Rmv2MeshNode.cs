@@ -17,6 +17,9 @@ namespace GameWorld.Core.SceneNodes
     public class Rmv2MeshNode : SceneNode, ITransformable, IEditableGeometry, ISelectable, IDrawableItem
     {
         public IRmvMaterial RmvMaterial { get; set; }
+        /// <summary>How many vertices the mesh had when its file loaded; -1 for a mesh built here. A save keeps a physics
+        /// material's undecoded block only while the mesh still has them, as the block may index them.</summary>
+        public int LoadedVertexCount { get; set; } = -1;
         public MeshObject Geometry { get; set; }
 
         public Vector3 Position { get; set { field = value; UpdateMatrix(); } } = Vector3.Zero;
@@ -169,6 +172,7 @@ namespace GameWorld.Core.SceneNodes
             typedTarget.PivotPoint = PivotPoint;
 
             typedTarget.RmvMaterial = RmvMaterial.Clone();
+            typedTarget.LoadedVertexCount = LoadedVertexCount;
             typedTarget.AnimationMatrixOverride = AnimationMatrixOverride;
             typedTarget.Material = Material.Clone();
            

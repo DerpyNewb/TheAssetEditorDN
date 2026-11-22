@@ -82,7 +82,7 @@ namespace GameWorld.Core.SceneNodes
                     if (string.IsNullOrWhiteSpace(rmvModel.Material.ModelName))
                         rmvModel.Material.ModelName = Path.GetFileNameWithoutExtension(modelFullPath);
 
-                    var node = new Rmv2MeshNode(geometry, rmvModel.Material, shader, null);
+                    var node = new Rmv2MeshNode(geometry, rmvModel.Material, shader, null) { LoadedVertexCount = geometry.VertexCount() };
                     currentNode.AddObject(node);
                 }
 
