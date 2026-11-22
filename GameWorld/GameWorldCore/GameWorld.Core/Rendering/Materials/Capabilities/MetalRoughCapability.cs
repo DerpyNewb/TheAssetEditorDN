@@ -94,14 +94,19 @@ namespace GameWorld.Core.Rendering.Materials.Capabilities
        
         }
 
+        // An empty slot names the texture CA's own WH3 materials use for "none" in it: of 10,909, 873 name default_black for the
+        // faction-colour mask, 69 for the material map, 93 default_normal and 36 default_grey for the base colour, and none names
+        // Kitbash's bare test_mask.dds, which is in no pack: CA's is commontextures/test_mask.dds (counted 2026-11-22). All three
+        // stand-ins are in the game's boot.pack and commontextures.pack.
+        public const string NoMask = "commontextures/default_black.dds", NoMaterialMap = "commontextures/default_black.dds",
+            NoNormal = "commontextures/default_normal.dds", NoBaseColour = "commontextures/default_grey.dds";
+
         public static void SerializeToWsModel(MetalRoughCapability typedCap, WsMaterialTemplateEditor templateHandler)
         {
-
-
-            templateHandler.AddAttribute(WsModelParamters.Texture_BaseColour.TemplateName, typedCap.BaseColour);
-            templateHandler.AddAttribute(WsModelParamters.Texture_Mask.TemplateName, typedCap.Mask);
-            templateHandler.AddAttribute(WsModelParamters.Texture_MaterialMap.TemplateName, typedCap.MaterialMap);
-            templateHandler.AddAttribute(WsModelParamters.Texture_Normal.TemplateName, typedCap.NormalMap);
+            templateHandler.AddAttribute(WsModelParamters.Texture_BaseColour.TemplateName, typedCap.BaseColour, NoBaseColour);
+            templateHandler.AddAttribute(WsModelParamters.Texture_Mask.TemplateName, typedCap.Mask, NoMask);
+            templateHandler.AddAttribute(WsModelParamters.Texture_MaterialMap.TemplateName, typedCap.MaterialMap, NoMaterialMap);
+            templateHandler.AddAttribute(WsModelParamters.Texture_Normal.TemplateName, typedCap.NormalMap, NoNormal);
             templateHandler.AddAttribute(WsModelParamters.Texture_Distortion.TemplateName, typedCap.Distortion);
             templateHandler.AddAttribute(WsModelParamters.Texture_DistortionNoise.TemplateName, typedCap.DistortionNoise);
         }

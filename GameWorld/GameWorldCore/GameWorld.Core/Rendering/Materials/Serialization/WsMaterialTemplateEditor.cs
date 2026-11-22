@@ -136,13 +136,16 @@ namespace GameWorld.Core.Rendering.Materials.Serialization
             _templateBuffer = _templateBuffer.Replace(templateAttributeName, $"{Str(value.X)},{Str(value.Y)},{Str(value.Z)},{Str(value.W)}");
         }
 
-        public void AddAttribute(string templateAttributeName, TextureInput value)
+        public void AddAttribute(string templateAttributeName, TextureInput value) => AddAttribute(templateAttributeName, value, "test_mask.dds");
+
+        /// <param name="standIn">The texture an empty slot names instead.</param>
+        public void AddAttribute(string templateAttributeName, TextureInput value, string standIn)
         {
             if (_templateBuffer.Contains(templateAttributeName) == false)
                 throw new Exception($"Attribute {templateAttributeName} not found in template {_templateName}");
 
             if (string.IsNullOrWhiteSpace(value.TexturePath))
-                _templateBuffer = _templateBuffer.Replace(templateAttributeName, "test_mask.dds");
+                _templateBuffer = _templateBuffer.Replace(templateAttributeName, standIn);
             else
                 _templateBuffer = _templateBuffer.Replace(templateAttributeName, value.TexturePath);
         }

@@ -104,6 +104,24 @@ namespace GameWorld.Core.Test.Rendering.Shaders.MetalRough
             WsMaterialHelper.ValidateMetalRough(generatedMaterial);
         }
 
+        // A slot with no texture names CA's own stand-in for "none" there, as an imported mesh with no mask has.
+        [Test]
+        public void GenerateWsMaterial_EmptySlots_NameCasStandIns()
+        {
+            var material = GetMaterialFactory(GameTypeEnum.Warhammer3).Create(null, WsMaterialHelper.GetDefaultMetalRoughWsModelFile());
+            var metalRough = material.GetCapability<MetalRoughCapability>();
+            foreach (var slot in new[] { metalRough.BaseColour, metalRough.Mask, metalRough.MaterialMap, metalRough.NormalMap })
+                slot.TexturePath = "";
+
+            var path = CreateWsMaterialSerializer(GameTypeEnum.Warhammer3).ProsessMaterial("custompath/materials", "mymesh", UiVertexFormat.Cinematic, material);
+            var generated = new WsModelMaterialFile(_pfs.FindFile(path)!);
+
+            Assert.That(generated.Textures[TextureType.Mask], Is.EqualTo("commontextures/default_black.dds"));
+            Assert.That(generated.Textures[TextureType.MaterialMap], Is.EqualTo("commontextures/default_black.dds"));
+            Assert.That(generated.Textures[TextureType.Normal], Is.EqualTo("commontextures/default_normal.dds"));
+            Assert.That(generated.Textures[TextureType.BaseColour], Is.EqualTo("commontextures/default_grey.dds"));
+        }
+
         [Test]
         public void CreateFromRmvMaterial()
         {

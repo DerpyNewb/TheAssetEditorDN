@@ -90,7 +90,7 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
             foreach (var entry in wsModel.MaterialList)
             {
                 var material = new Shared.GameFormats.WsModel.WsModelMaterialFile(packFileContainer.FindFile(entry.MaterialPath)!);
-                // CA's common textures and Kitbash's "none" placeholder (test_mask.dds) live in the game's packs, not this one.
+                // CA's common textures, which an empty slot names (commontextures/default_black.dds and the like), live in the game's packs, not this one.
                 Assert.That(material.Textures.Values, Has.All.Matches<string>(t => t == t.ToLowerInvariant() && !t.Contains(' ')), entry.MaterialPath);
                 var imported = material.Textures.Values.Where(t => t.StartsWith(settings.DestinationPackPath + "/")).ToList();
                 Assert.That(imported, Is.Not.Empty, $"{entry.MaterialPath} names none of the imported textures");
