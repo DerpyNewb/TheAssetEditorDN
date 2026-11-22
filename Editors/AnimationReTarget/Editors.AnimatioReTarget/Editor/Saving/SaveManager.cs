@@ -217,7 +217,7 @@ namespace Editors.AnimatioReTarget.Editor.Saving
         {
             if (_source?.Skeleton == null)
                 return [];
-            return _skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(_source.Skeleton.SkeletonName)
+            return _skeletonAnimationLookUpHelper.CopyAnimationsForSkeleton(_source.Skeleton.SkeletonName)
                 .Select(x => x.AnimationFile)
                 .Where(x => !x.StartsWith(@"animations\skeletons", StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)

@@ -116,8 +116,8 @@ public class GltfAnimationCatalogTests
         var idleReference = new AnimationReference("animations\\stand_idle.anim", container);
         var lookup = new Mock<ISkeletonAnimationLookUpHelper>();
         lookup.Setup(x => x.GetSkeletonFileFromName("direct_skeleton")).Returns(new Shared.GameFormats.Animation.AnimationFile());
-        lookup.Setup(x => x.GetAnimationsForSkeleton("direct_skeleton"))
-            .Returns(new ObservableCollection<AnimationReference> { firstReference, idleReference });
+        lookup.Setup(x => x.CopyAnimationsForSkeleton("direct_skeleton"))
+            .Returns(new List<AnimationReference> { firstReference, idleReference });
 
         var packFileService = new Mock<IPackFileService>();
         packFileService
@@ -161,8 +161,8 @@ public class GltfAnimationCatalogTests
         var lookup = new Mock<ISkeletonAnimationLookUpHelper>();
         lookup.Setup(x => x.GetSkeletonFileFromName(skeletonName))
             .Returns(new Shared.GameFormats.Animation.AnimationFile());
-        lookup.Setup(x => x.GetAnimationsForSkeleton(skeletonName))
-            .Returns(new ObservableCollection<AnimationReference> { animationReference });
+        lookup.Setup(x => x.CopyAnimationsForSkeleton(skeletonName))
+            .Returns(new List<AnimationReference> { animationReference });
         return lookup;
     }
 

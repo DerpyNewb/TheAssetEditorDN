@@ -502,7 +502,7 @@ namespace Editors.AnimationMeta.SuperView
             var missing = new[] { anim, meta }.FirstOrDefault(x => x.Length != 0 && _packFileService.FindFile(x) == null);
             var set = SlotGrid.Set;
             return missing != null ? $"{missing} is in no loaded pack."
-                : set != null && anim.Length != 0 && !_skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(set.SkeletonName).Any(x => Key(x.AnimationFile) == anim)
+                : set != null && anim.Length != 0 && !_skeletonAnimationLookUpHelper.CopyAnimationsForSkeleton(set.SkeletonName).Any(x => Key(x.AnimationFile) == anim)
                     ? $"{anim} is not an animation for {set.SkeletonName}, the set's skeleton."
                 : null;
         }
@@ -512,7 +512,7 @@ namespace Editors.AnimationMeta.SuperView
         void BrowseSlotAnim()
         {
             var skeleton = _asset.FragAndSlotSelection.FragmentList.SelectedItem?.SkeletonName;
-            var anims = skeleton == null ? null : _skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(skeleton).Select(x => Key(x.AnimationFile)).ToHashSet();
+            var anims = skeleton == null ? null : _skeletonAnimationLookUpHelper.CopyAnimationsForSkeleton(skeleton).Select(x => Key(x.AnimationFile)).ToHashSet();
             Browse(".anim", anims == null ? null : x => anims.Contains(Key(x)), x => SlotAnim = x);
         }
 

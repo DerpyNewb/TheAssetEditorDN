@@ -78,7 +78,7 @@ public sealed class GltfAnimationCatalogResolver : IGltfAnimationCatalogResolver
                 return new GltfAnimationCatalog(skeletonName, false, [], diagnostics);
             }
 
-            var animations = _skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(skeletonName);
+            var animations = _skeletonAnimationLookUpHelper.CopyAnimationsForSkeleton(skeletonName);
             return new GltfAnimationCatalog(skeletonName, true, animations, diagnostics);
         }
         catch (Exception exception)

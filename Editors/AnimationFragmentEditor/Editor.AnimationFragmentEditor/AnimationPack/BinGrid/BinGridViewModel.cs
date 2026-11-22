@@ -317,7 +317,7 @@ namespace Editors.AnimationFragmentEditor.AnimationPack.BinGrid
         {
             if (row == null)
                 return;
-            var anims = AnyAnimation ? null : _skeletons.GetAnimationsForSkeleton(Skeleton).Select(x => Key(x.AnimationFile)).ToHashSet();
+            var anims = AnyAnimation ? null : _skeletons.CopyAnimationsForSkeleton(Skeleton).Select(x => Key(x.AnimationFile)).ToHashSet();
             Browse([".anim"], anims == null ? null : x => anims.Contains(Key(x)), path => row.Animation = path);
         }
 

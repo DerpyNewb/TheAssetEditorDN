@@ -102,7 +102,7 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             }
 
             var skeletonName = Path.GetFileNameWithoutExtension(Data.SkeletonName.Value);
-            var animationsForSkeleton = _skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(skeletonName)
+            var animationsForSkeleton = _skeletonAnimationLookUpHelper.CopyAnimationsForSkeleton(skeletonName)
                 .Select(x => x.AnimationFile)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
