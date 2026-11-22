@@ -125,6 +125,33 @@ namespace Test.AnimationMeta
             Assert.That(states.Max(x => Vector3.Distance(x.Position, new Vector3(1, 1, 0))), Is.LessThan(0.01f));
         }
 
+        // VFX_ALPHA keys from either meta fade every effect on the model: 1 before the first key, a straight line between keys, the
+        // last key's value after it. A kept effect follows keys edited since it was built.
+        [Test]
+        public void VfxAlpha_FadesTheModelsEffects_ByItsKeys()
+        {
+            static VfxAlpha_v10 Key(float time, float alpha) => new() { StartTime = time, EndTime = time, DesiredAlpha = alpha };
+            var effect = Tag("test_smoke", start: 0);
+            var instance = (VfxEffectInstance)Build(Meta(Key(1.5f, 0)), Meta(effect, Key(0.5f, 0.8f))).Single();
+            var render = _root.Children.OfType<VfxEffectNode>().Single().RenderItem;
+
+            float At(float time)
+            {
+                instance.Update(time);
+                return render.AlphaScale;
+            }
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(At(0.2f), Is.EqualTo(1), "before the first key");
+                Assert.That(At(1.0f), Is.EqualTo(0.4f).Within(1e-5f), "halfway from the 0.5 s key at 0.8 to the 1.5 s one at 0");
+                Assert.That(At(1.75f), Is.EqualTo(0), "after the last key");
+            });
+
+            Assert.That(Build(null, Meta(effect, Key(0, 0.25f))).Single(), Is.SameAs(instance), "the effect is kept");
+            Assert.That(At(1.0f), Is.EqualTo(0.25f), "the kept effect reads the new keys");
+        }
+
         [Test]
         public void UntrackedEffect_StaysWhereItsBoneWasAtTheStart()
         {

@@ -26,6 +26,9 @@ namespace GameWorld.Core.Vfx
         private SpriteBatch? _batch;
 
         public Matrix World { get; set; } = Matrix.Identity;
+        /// <summary>Multiplies every particle's alpha, as a VFX_ALPHA tag does to the effects on its model. At 0 nothing is drawn,
+        /// rigid models included; a rigid model can't fade, so it is drawn whole at any value above 0.</summary>
+        public float AlphaScale { get; set; } = 1;
         public bool IsDisposed { get; private set; }
 
         /// <summary>shader: Shaders/Particle, asked for at draw time (ResourceLibrary's ShaderTypes.Particle in the app).
@@ -64,10 +67,12 @@ namespace GameWorld.Core.Vfx
                 _white.SetData(new[] { Color.White });
             }
 
+            if (AlphaScale <= 0)
+                return;
             var camera = CameraAxes.From(parameters, World, device.Viewport.Height);
             // ponytail: emitters are sorted back to front within one effect, not against other effects.
             var emitters = _simulator.AllEmitters.Where(x => x.Particles.Count != 0)
-                .Select(x => (x.Settings, States: ParticleSimulator.States(x).ToList(), Frame: x.World))
+                .Select(x => (x.Settings, States: Scaled(ParticleSimulator.States(x)), Frame: x.World))
                 .OrderByDescending(x => Vector3.DistanceSquared(Centre(x.States), camera.Position))
                 .ToList();
 
@@ -102,8 +107,11 @@ namespace GameWorld.Core.Vfx
         public IEnumerable<PointLight> Lights() => _simulator.AllEmitters.Where(x => x.Settings.Light).SelectMany(e =>
         {
             var brightness = VfxConventions.Blend(e.Settings.AdditiveMul).Brightness;
-            return ParticleSimulator.States(e).Select(p => new PointLight(Vector3.Transform(p.Position, World), p.Size.X, p.Colour * p.Alpha * brightness * VfxConventions.LightShare));
+            return Scaled(ParticleSimulator.States(e)).Select(p => new PointLight(Vector3.Transform(p.Position, World), p.Size.X, p.Colour * p.Alpha * brightness * VfxConventions.LightShare));
         });
+
+        List<ParticleState> Scaled(IEnumerable<ParticleState> states) =>
+            AlphaScale == 1 ? states.ToList() : states.Select(p => p with { Alpha = p.Alpha * Math.Max(AlphaScale, 0) }).ToList();
 
         public static void DrawEmitter(GraphicsDevice device, Effect effect, CommonShaderParameters parameters, Matrix world,
             CameraAxes camera, EmitterSettings settings, Texture2D texture, IReadOnlyList<ParticleState> states, Matrix? frame = null, bool glow = false,

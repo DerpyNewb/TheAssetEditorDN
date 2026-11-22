@@ -357,6 +357,23 @@ namespace GameWorld.Core.Test.Vfx
             Assert.That(pixel.X, Is.EqualTo(red).Within(0.02));
         }
 
+        // VFX_ALPHA's scale on every particle's alpha: a white particle over grey is white at 1, halfway at 0.5, and not drawn at 0.
+        [Test]
+        public void AlphaScale_FadesTheEffect_AndAtZeroDrawsNothing()
+        {
+            using var item = new ParticleRenderItem(OneParticle(null), NoTextures(), () => Shader);
+            float Drawn(float scale)
+            {
+                item.AlphaScale = scale;
+                return Render(() => item.Draw(_device, View, RenderingTechnique.Normal)).X;
+            }
+
+            var (none, half, full) = (Drawn(0), Drawn(0.5f), Drawn(1));
+            Assert.That(none, Is.EqualTo(128 / 255f).Within(0.01), "the grey background");
+            Assert.That(full, Is.GreaterThan(0.95f));
+            Assert.That(half, Is.EqualTo((none + full) / 2).Within(0.03));
+        }
+
         // The app's emissive pass, which it blooms: an effect draws there too, a tint of 10 leaving white.
         [Test]
         public void TheEmissivePass_DrawsTheEffectsGlow()

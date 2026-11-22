@@ -119,6 +119,41 @@ namespace Test.AnimationMeta
             Assert.That(Angle(PoseAt(time, tag), Spine), Is.EqualTo(strength).Within(1e-3f));
         }
 
+        // SPLICE 10, 6 and 5 (18 vanilla uses) draw as SPLICE 11 with no blend out, and version 5 with no blend in either; version 5
+        // keeps its bone depth in a float.
+        [Test]
+        public void OlderSpliceVersions_DrawAsVersion11_WithoutTheBlendsTheyLack()
+        {
+            const string bend = "animations/test/bend.anim";
+            var v10 = new Splice_v10 { Animation = bend, GenericBoneIndex = Spine, GenericBoneDepth = 1, GenericWeight = 1, NeckWeight = 0.5f, StartTime = 0.5f, EndTime = 1, BlendInTime = 0.2f };
+            var v6 = new Splice_v6 { Animation = bend, GenericBoneIndex = Spine, GenericBoneDepth = 1, GenericWeight = 1, NeckWeight = 0.5f, StartTime = 0.5f, EndTime = 1, BlendInTime = 0.2f };
+            var v5 = new Splice_v5 { Animation = bend, GenericBoneIndex = Spine, UnknownFloatOrGenericBoneDepth = 1, GenericWeight = 1, NeckWeight = 0.5f, StartTime = 0.5f, EndTime = 1 };
+            Splice_v12 Same(float blendIn)
+            {
+                var tag = Tag();
+                (tag.GenericBoneDepth, tag.NeckWeight, tag.BlendInTime, tag.BlendOutTime) = (1, 0.5f, blendIn, 0);
+                return tag;
+            }
+
+            float[] At(float time, ParsedMetadataAttribute tag)
+            {
+                var frame = PoseAt(time, tag);
+                return [.. Enumerable.Range(0, s_bones.Length).Select(x => MathF.Round(Angle(frame, x), 3))];
+            }
+
+            Assert.That(At(0.75f, v5), Is.EqualTo(new[] { 0f, 1, 0, 0, 0.5f, 0.5f, 0, 0 }), "depth 1 reaches the spine only, the neck weight the neck and head");
+            Assert.Multiple(() =>
+            {
+                foreach (var time in new[] { 0.35f, 0.75f, 1.1f })
+                {
+                    Assert.That(At(time, v10), Is.EqualTo(At(time, Same(0.2f))), $"SPLICE_10 at {time} s");
+                    Assert.That(At(time, v6), Is.EqualTo(At(time, Same(0.2f))), $"SPLICE_6 at {time} s");
+                    Assert.That(At(time, v5), Is.EqualTo(At(time, Same(0))), $"SPLICE_5 at {time} s");
+                }
+            });
+            Assert.That(At(0.35f, v10)[Spine], Is.EqualTo(0.25f), "the blend in is drawn, not dropped");
+        }
+
         // Neck, arms and legs are the row's nodes and everything under them; the torso is the spine's less those.
         [Test]
         public void BodyPartWeights_DriveTheBonesTheSkeletonsRowNames()

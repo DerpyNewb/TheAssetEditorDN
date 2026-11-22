@@ -52,6 +52,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         // skeleton, which effects asking the same time share. 55 effects on a Bale Taurus took 1.3 s to rebuild.
         readonly Dictionary<(string Name, int Seed), VfxResolveResult> _resolved = [];
         readonly Dictionary<float, Matrix[]> _bones = [];
+        // Each model's VFX_ALPHA keys from both metas, read again on every build, so a kept effect fades by the current keys.
+        readonly Dictionary<SceneNode, List<VfxAlpha_v10>> _vfxAlpha = new(ReferenceEqualityComparer.Instance);
         (AnimationClip? Clip, GameSkeleton? Skeleton) _bonesOf;
 
         // A slider in the meta panel rebuilds on every step, and building every effect and prop again still took 220 ms of
@@ -142,6 +144,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             // DISABLE_PERSISTENT_VFX drops the persistent meta's effects and keeps the rest of it.
             var usePersistentVfx = metaData == null || metaData.GetItemsOfType<DisablePersistantVfx_v10>().Count == 0;
             var vfxFilter = VfxFilterId ?? VfxFilterIds(persistent, metaData).FirstOrDefault();
+            _vfxAlpha[root] = Both<VfxAlpha_v10>(usePersistent ? persistent : null, metaData).OrderBy(x => x.StartTime).ToList();
             if (usePersistent)
             {
                 var metaDataPersistent = ApplyMetaData(persistent, selectedMetaDataAttribute, root, skeleton, rootPlayer, fragment, vfxFilter, usePersistentVfx, persistent: true);
@@ -155,6 +158,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             // Splices run before every other rule: a splice sets its bones afresh, which would undo a TRANSFORM that ran first,
             // and a hand or face pose still has the last word on its bones.
             var splices = Both<Splice_v11>(usePersistent ? persistent : null, metaData).Where(x => x is not (SpliceOverride_v11 or SpliceOverride_v12))
+                .Concat(OlderSplices(usePersistent ? persistent : null, metaData))
                 .Select(x => CreateSplice(x, skeleton)).OfType<IAnimationChangeRule>();
             rootPlayer.AnimationRules.InsertRange(0, splices);
             CreateHandPoses(usePersistent ? persistent : null, metaData, fragment, skeleton, rootPlayer);
@@ -173,6 +177,27 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             }
             return output;
         }
+
+        // SPLICE versions 10, 6 and 5 (12, 3 and 3 vanilla uses) carry version 11's fields less Blend Out Time, and version 5
+        // less Blend In Time too, so they are drawn as a version 11 with those times at 0. Version 5's bone depth is a float
+        // in the file and is read as a whole number, as version 6 stores it.
+        static IEnumerable<Splice_v11> OlderSplices(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData) =>
+        [
+            .. Both<Splice_v10>(persistent, metaData).Select(x => AsSplice(x.StartTime, x.EndTime, x.Filter, x.Animation, x.ReferenceAnimation, x.GenericBoneIndex, x.GenericBoneDepth,
+                x.GenericWeight, x.NeckWeight, x.TorsoWeight, x.LeftArmWeight, x.RightArmWeight, x.LegsWeight, x.BlendInTime, x.Additive, x.WeaponPose, x.Stretch, x.ExcludeStripped)),
+            .. Both<Splice_v6>(persistent, metaData).Select(x => AsSplice(x.StartTime, x.EndTime, x.Filter, x.Animation, x.ReferenceAnimation, x.GenericBoneIndex, x.GenericBoneDepth,
+                x.GenericWeight, x.NeckWeight, x.TorsoWeight, x.LeftArmWeight, x.RightArmWeight, x.LegsWeight, x.BlendInTime, x.Additive, x.WeaponPose, x.Stretch, x.ExcludeStripped)),
+            .. Both<Splice_v5>(persistent, metaData).Select(x => AsSplice(x.StartTime, x.EndTime, x.Filter, x.Animation, x.ReferenceAnimation, x.GenericBoneIndex, (int)x.UnknownFloatOrGenericBoneDepth,
+                x.GenericWeight, x.NeckWeight, x.TorsoWeight, x.LeftArmWeight, x.RightArmWeight, x.LegsWeight, 0, x.Additive, x.WeaponPose, x.Stretch, x.ExcludeStripped)),
+        ];
+
+        static Splice_v11 AsSplice(float start, float end, string filter, string animation, string reference, int bone, int depth, float generic, float neck, float torso,
+            float leftArm, float rightArm, float legs, float blendIn, string additive, string weaponPose, string stretch, string excludeStripped) => new()
+        {
+            Name = "SPLICE", Version = 11, StartTime = start, EndTime = end, Filter = filter, Animation = animation, ReferenceAnimation = reference,
+            GenericBoneIndex = bone, GenericBoneDepth = depth, GenericWeight = generic, NeckWeight = neck, TorsoWeight = torso, LeftArmWeight = leftArm,
+            RightArmWeight = rightArm, LegsWeight = legs, BlendInTime = blendIn, Additive = additive, WeaponPose = weaponPose, Stretch = stretch, ExcludeStripped = excludeStripped,
+        };
 
         static List<T> Both<T>(ParsedMetadataFile? persistent, ParsedMetadataFile? metaData) =>
             [.. persistent?.GetItemsOfType<T>() ?? [], .. metaData?.GetItemsOfType<T>() ?? []];
@@ -200,6 +225,20 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
         // which only means something if the game fades from one key to the next. Read as fades or as snaps, the alpha is 0
         // from a 0 key until the next key, unless that key is above 0, where a fade would already be under way. The preview
         // draws meshes opaque, so it hides the model only where both readings agree it is invisible. Keys sorted by time.
+        // A VFX_ALPHA key's value from its Start Time, fading in a straight line to the next key's: 1 before the first key, the last
+        // key's value after it. A reading of the tag as ALPHA's keys are read, not checked in game; all 10 vanilla uses are 1.
+        public static float VfxAlphaAt(IReadOnlyList<VfxAlpha_v10> keys, float time)
+        {
+            var i = -1;
+            for (var k = 0; k < keys.Count && keys[k].StartTime <= time; k++)
+                i = k;
+            if (i < 0)
+                return 1;
+            if (i + 1 == keys.Count || keys[i + 1].StartTime <= keys[i].StartTime)
+                return keys[i].DesiredAlpha;
+            return MathHelper.Lerp(keys[i].DesiredAlpha, keys[i + 1].DesiredAlpha, (time - keys[i].StartTime) / (keys[i + 1].StartTime - keys[i].StartTime));
+        }
+
         static bool AlphaIsZero(List<Alpha_v10> keys, float time)
         {
             var i = keys.FindLastIndex(x => x.StartTime <= time);
@@ -715,7 +754,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             var particles = root.AddObject(new VfxEffectNode("Vfx:" + effect.VfxName,
                 new ParticleRenderItem(simulator, _vfxTextures, () => _shaders.GetStaticEffect(ShaderTypes.Particle), _vfxMeshes)));
 
-            var instance = new VfxEffectInstance(node, boneAt, startTime, particles, simulator, loop);
+            var instance = new VfxEffectInstance(node, boneAt, startTime, particles, simulator, loop,
+                t => _vfxAlpha.TryGetValue(root, out var keys) ? VfxAlphaAt(keys, t) : 1);
             instance.Update(rootPlayer.GetTimeUs() / 1_000_000f);
             return instance;
         }

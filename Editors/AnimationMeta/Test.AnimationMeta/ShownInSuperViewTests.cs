@@ -86,6 +86,10 @@ namespace Test.AnimationMeta
             {
                 foreach (var type in database.GetDefinition(key))
                 {
+                    // VFX_ALPHA fades the particles of the model's effects, and this scene's effect has no vfx file to play;
+                    // VfxEffectTests.VfxAlpha_FadesTheModelsEffects_ByItsKeys holds it.
+                    if (type == typeof(VfxAlpha_v10))
+                        continue;
                     var tag = Create(key, type);
                     Prime(tag, anim, model);
                     var drawn = Build(tag) != without;
@@ -115,6 +119,12 @@ namespace Test.AnimationMeta
                 prop.ModelName = model;
             if (tag is Splice_v11 splice)
                 (splice.Animation, splice.GenericBoneIndex, splice.GenericWeight) = (animation, 1, 1);
+            if (tag is Splice_v10 v10)
+                (v10.Animation, v10.GenericBoneIndex, v10.GenericWeight) = (animation, 1, 1);
+            if (tag is Splice_v6 v6)
+                (v6.Animation, v6.GenericBoneIndex, v6.GenericWeight) = (animation, 1, 1);
+            if (tag is Splice_v5 v5)
+                (v5.Animation, v5.GenericBoneIndex, v5.GenericWeight) = (animation, 1, 1);
         }
 
         [Test]

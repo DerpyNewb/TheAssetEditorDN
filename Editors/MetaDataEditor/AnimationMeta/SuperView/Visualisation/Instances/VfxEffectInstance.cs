@@ -17,6 +17,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Instances
         private readonly float _startTime;
         private readonly VfxEffectNode? _particles;
         private readonly float _loop;
+        private readonly Func<float, float>? _alphaAt;
         private float? _last;
         private float _clock;
         private bool _hasError;
@@ -25,8 +26,11 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Instances
         public AnimationPlayer Player => null;
         public ParticleSimulator? Simulator { get; }
 
-        public VfxEffectInstance(SceneNode locator, Func<float, Matrix> boneAt, float startTime, VfxEffectNode? particles = null, ParticleSimulator? simulator = null, float loop = 0)
+        /// <param name="alphaAt">The model's VFX_ALPHA at a time on the main clock, which scales every particle's alpha.</param>
+        public VfxEffectInstance(SceneNode locator, Func<float, Matrix> boneAt, float startTime, VfxEffectNode? particles = null, ParticleSimulator? simulator = null, float loop = 0,
+            Func<float, float>? alphaAt = null)
         {
+            _alphaAt = alphaAt;
             _locator = locator;
             _boneAt = boneAt;
             _startTime = startTime;
@@ -44,6 +48,8 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Instances
             {
                 _locator.ModelMatrix = _boneAt(currentTime);
                 Simulator?.AdvanceTo(EffectTime(currentTime));
+                if (_particles != null && _alphaAt != null)
+                    _particles.RenderItem.AlphaScale = _alphaAt(currentTime);
             }
             catch (Exception e)
             {
