@@ -12,6 +12,25 @@ namespace GameWorld.Core.Test.Rendering.Materials
 {
     internal class CapabilityMaterialFactoryTests
     {
+        // A CA material's alpha follows its shader, not its name, which disagree on 291 of CA's 10,909 (2026-11-22). The
+        // capability's UseAlpha is what a Kitbash save writes into the .rigid_model_v2 flag and the new material's shader.
+        [TestCase("vmp_dieter_manticore_body_01_weighted4_alpha_off.xml", "shaders/weighted4_character_alpha.xml.shader", true)]
+        [TestCase("some_body_01_weighted2_alpha_on.xml", "shaders/weighted2_character.xml.shader", false)]
+        [TestCase("emp_griffon_body_01_weighted2_alpha_off.xml", "shaders/weighted2_character_alphatint.xml.shader", false)]
+        [TestCase("some_body_01_weighted2_alpha_on.xml", "shaders/weighted2_character_emissive_ghost_alphatint.xml.shader", false)]
+        [TestCase("some_wing_weighted4.xml", "shaders/weighted4_character_emissive_ghost_alpha.xml.shader", true)]
+        [TestCase("some_body_01_weighted2_alpha_on.xml", null, true)]
+        [TestCase("some_body_01_weighted2_alpha_off.xml", null, false)]
+        public void Create_FromWsFile_AlphaFollowsTheShader(string name, string? shader, bool expectedAlpha)
+        {
+            var xml = $"<material><name>{name}</name>" + (shader == null ? "" : $"<shader>{shader}</shader>") + "</material>";
+            var wsMaterial = new WsModelMaterialFile(xml);
+
+            var material = new CapabilityMaterialFactory(new ApplicationSettingsService(GameTypeEnum.Warhammer3), null).Create(null, wsMaterial);
+
+            Assert.That(material.GetCapability<MaterialBaseCapability>().UseAlpha, Is.EqualTo(expectedAlpha));
+        }
+
 
         [Test]
         public void Create_FromRmv_Wh3_Default()

@@ -56,8 +56,17 @@ namespace Shared.GameFormats.WsModel
             ExtractParameters(doc);
             ExtractShaderName(doc);
             ExtractInformationFromName(doc);
+            if (ShaderPath.Length != 0)
+                Alpha = IsAlphaShader(ShaderPath);
             ExtractTextures(doc);
         }
+
+        // Alpha follows the shader, the program the game draws the material with, and not the material's name (the owner's
+        // call, 2026-11-22). The two disagree on 291 of CA's 10,909 WH3 materials, such as
+        // vmp_dieter_manticore_body_01_weighted4_alpha_off on weighted4_character_alpha. "alpha" must be a whole word of
+        // the shader's name: "alphatint" is not alpha, and CA names 130 of its 134 alphatint materials alpha_off.
+        public static bool IsAlphaShader(string shaderPath) =>
+            Path.GetFileName(shaderPath).Split('_', '.').Contains("alpha", StringComparer.OrdinalIgnoreCase);
 
         private string RemoveBOM(string xml)
         {
