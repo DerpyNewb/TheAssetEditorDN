@@ -47,6 +47,8 @@ namespace Editors.VfxEditor.Preview
         public int ProjectileAxis { get; set; }
         /// <summary>Draw from the projectile's frame: it and the guide model hold the centre and the trail streams back.</summary>
         public bool StaticView { get; set; }
+        /// <summary>A wind along +X in m/s, for the emitters with an EffectedByWindFactor; read when Show builds the simulation.</summary>
+        public float Wind { get; set; }
         public IReadOnlyList<string> Lines => _lines;
         public SceneNode? Model { get; private set; }
         public event Action? TimeChanged;
@@ -76,7 +78,7 @@ namespace Editors.VfxEditor.Preview
             _effectWorldAt = Projectile
                 ? ProjectileFlight.WorldAt(ProjectileFlight.Axes[ProjectileAxis].Axis, ProjectileSpeed, LoopLength)
                 : _ => Matrix.Identity;
-            _simulator = new ParticleSimulator(settings, Seed, _effectWorldAt, log: _lines.Add);
+            _simulator = new ParticleSimulator(settings, Seed, _effectWorldAt, log: _lines.Add, wind: Vector3.UnitX * Wind);
             _node = _sceneManager.RootNode.AddObject(new VfxEffectNode("VfxPreview", new ParticleRenderItem(_simulator, _textures, () => _resourceLibrary.GetStaticEffect(ShaderTypes.Particle), _meshes)));
             SetTime(Time);
         }

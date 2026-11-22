@@ -84,12 +84,17 @@ namespace GameWorld.Core.Vfx
         public const float Step = 1f / 60;
         public const int ParticleCap = 2000;
         const float Epsilon = 1e-5f;
+        // CA's wind constant (exe+1a7f0cc, fx_particle_vfx_simulation_cs): each update closes 2 x this of the gap per 1/30 s.
+        const float WindPull = 0.004975f;
+        /// <summary>A particle's warm-up is cut at this many steps (10 s), so a modder's huge interval cannot hang the preview.</summary>
+        public const int MaxWarmUpSteps = 600;
 
         private readonly List<EmitterSettings> _settings;
         private readonly int _seed;
         private readonly Func<float, Matrix> _effectWorldAt;
         private float _spawnEnd;
         private readonly Action<string>? _log;
+        private readonly Vector3 _wind;
         private readonly List<EmitterRuntime> _emitters = [];
         private float _origin;
         private int _steps;
@@ -114,13 +119,15 @@ namespace GameWorld.Core.Vfx
 
         /// <param name="effectWorldAt">the effect's frame at an effect time: the bone, then the tag's offset</param>
         /// <param name="spawnEnd">effect time at which spawning stops; live particles finish their lives</param>
-        public ParticleSimulator(IEnumerable<EmitterSettings> settings, int seed, Func<float, Matrix> effectWorldAt, float spawnEnd = float.PositiveInfinity, Action<string>? log = null)
+        /// <param name="wind">the wind's velocity in the effect's space, m/s; the game sends its own each frame</param>
+        public ParticleSimulator(IEnumerable<EmitterSettings> settings, int seed, Func<float, Matrix> effectWorldAt, float spawnEnd = float.PositiveInfinity, Action<string>? log = null, Vector3 wind = default)
         {
             _settings = settings.Where(x => x.Draws).ToList();
             _seed = seed;
             _effectWorldAt = effectWorldAt;
             _spawnEnd = spawnEnd;
             _log = log;
+            _wind = wind;
             Reset();
         }
 
@@ -189,7 +196,7 @@ namespace GameWorld.Core.Vfx
                 var dt = Step * s.SpeedMultiplier;
                 var world = EmitterWorld(e, end, effectWorld);
                 var age = (end - e.Start) * s.SpeedMultiplier;
-                Move(e, dt, world, age);
+                Move(e, dt, world, age, _wind);
 
                 var alive = age > 0 && (s.InfiniteLife || age <= e.Life);
                 var from = e.LastPosition;
@@ -270,7 +277,7 @@ namespace GameWorld.Core.Vfx
                 return;
             }
             var child = new ChildEffect(particleEvent, parent, at + particleEvent.Offset, Frame(particleEvent, p));
-            child.Simulator = new ParticleSimulator(particleEvent.Emitters, e.Random.Next(), _ => child.Frame, log: _log);
+            child.Simulator = new ParticleSimulator(particleEvent.Emitters, e.Random.Next(), _ => child.Frame, log: _log, wind: _wind);
             Tint(child, p);
             e.Children.Add(child);
         }
@@ -361,7 +368,7 @@ namespace GameWorld.Core.Vfx
 
         // carried: the share of the emitter's own velocity a world-space particle starts with (SpawnInheritedSpeed). moving: that
         // velocity, in the effect's space.
-        static void Spawn(EmitterRuntime e, float age, Matrix world, Vector3 carried, Vector3 moving)
+        void Spawn(EmitterRuntime e, float age, Matrix world, Vector3 carried, Vector3 moving)
         {
             var s = e.Settings;
             var random = e.Random;
@@ -443,55 +450,95 @@ namespace GameWorld.Core.Vfx
                 if (s.Rigid.Count > 0)
                     p.Model = Math.Min((int)(Next() * s.Rigid.Count), s.Rigid.Count - 1);
             }
+            // ParticleVelocityWarmupInterval (fx_particle_vfx_spawn_cs): its position, velocity and turn are stepped through the
+            // simulation's own forces for that long before its first frame, stopping where its life would end. Its clock is not:
+            // the shader writes its birth time and lifetime back as they were, so it still lives its whole life from 0.
+            var dt = Step * s.SpeedMultiplier;
+            if (s.WarmUp > 0 && dt > 0)
+            {
+                var field = Field(e, world, age);
+                var wind = Wind(s, _wind, world);
+                var warm = p;
+                // Epsilon: 0.5 / (1/60) is 29.9999994 in float.
+                for (var k = (int)Math.Min(MathF.Floor(s.WarmUp / dt + Epsilon), MaxWarmUpSteps); k > 0 && Advance(s, ref warm, dt, world, field, wind); k--)
+                {
+                }
+                p = warm with { Age = p.Age };
+            }
             p.Id = e.NextId++;
             e.Particles.Add(p);
         }
 
         // world: the emitter's matrix at the end of the step, which a collision is tested against and a vector field rides.
-        static void Move(EmitterRuntime e, float dt, Matrix world, float age)
+        static void Move(EmitterRuntime e, float dt, Matrix world, float age, Vector3 wind)
         {
             var s = e.Settings;
             var field = Field(e, world, age);
+            var pull = Wind(s, wind, world);
             for (var i = e.Particles.Count - 1; i >= 0; i--)
             {
                 var p = e.Particles[i];
-                p.Age += dt;
-                if (p.Age >= p.Life)
+                if (Advance(s, ref p, dt, world, field, pull))
                 {
-                    if (s.Events.Count > 0)
-                        e.Dead.Add(p);
-                    e.Particles.RemoveAt(i);
+                    e.Particles[i] = p;
                     continue;
                 }
-
-                var v = p.Age / p.Life;
-                var force = Vector3.Zero;
-                foreach (var curve in s.Forces)
-                    force += Vector(curve, v, p.RForce) * VfxConventions.ForceToMetres;
-                var push = Vector3.Zero;
-                if (field is var (volume, toParticles, toField, size))
-                {
-                    push = Vector3.TransformNormal(volume.Sample(Vector3.Transform(p.Position, toField) / size + new Vector3(0.5f)), toParticles)
-                        * (s.FieldStrength?.Evaluate(0, v, p.RForce) ?? 0);
-                    force += push;
-                }
-                // Exact for a constant force, so a path under one is the analytic path.
-                if (!s.SkipPositionUpdate)
-                    p.Position += p.Velocity * dt + force * (dt * dt / 2);
-                p.Velocity = (p.Velocity + force * dt) * VfxConventions.Drag(s.Deceleration?.Evaluate(0, v, p.RDeceleration) ?? 0, dt);
-                if (field != null && s.FieldTightness?.Evaluate(0, v, p.RForce) is > 0 and var tightness)
-                    p.Velocity = Vector3.Lerp(p.Velocity, push, Math.Min(tightness, 1));
-                if (s.MaxSpeed > 0 && p.Velocity.LengthSquared() > s.MaxSpeed * s.MaxSpeed)
-                    p.Velocity = Vector3.Normalize(p.Velocity) * s.MaxSpeed;
-                p.Angle += p.Spin * dt;
-                p.TurnXy += p.SpinXy * dt;
-                var spinDrag = VfxConventions.Drag(s.SpinDeceleration?.Evaluate(0, v, p.RSpinDeceleration) ?? 0, dt);
-                p.Spin *= spinDrag;
-                p.SpinXy *= spinDrag;
-                if (s.Collisions && !s.SkipPositionUpdate)
-                    Collide(s.Space, world, ref p);
-                e.Particles[i] = p;
+                if (s.Events.Count > 0)
+                    e.Dead.Add(p);
+                e.Particles.RemoveAt(i);
             }
+        }
+
+        // One step of a particle's life; false once it has outlived it. wind: the velocity it is pulled toward, in its own space.
+        static bool Advance(EmitterSettings s, ref Particle p, float dt, Matrix world, (VfxVectorField Volume, Matrix ToParticles, Matrix ToField, float Size)? field, Vector3? wind)
+        {
+            p.Age += dt;
+            if (p.Age >= p.Life)
+                return false;
+
+            var v = p.Age / p.Life;
+            var force = Vector3.Zero;
+            foreach (var curve in s.Forces)
+                force += Vector(curve, v, p.RForce) * VfxConventions.ForceToMetres;
+            var push = Vector3.Zero;
+            if (field is var (volume, toParticles, toField, size))
+            {
+                push = Vector3.TransformNormal(volume.Sample(Vector3.Transform(p.Position, toField) / size + new Vector3(0.5f)), toParticles)
+                    * (s.FieldStrength?.Evaluate(0, v, p.RForce) ?? 0);
+                force += push;
+            }
+            // Exact for a constant force, so a path under one is the analytic path.
+            if (!s.SkipPositionUpdate)
+                p.Position += p.Velocity * dt + force * (dt * dt / 2);
+            p.Velocity = (p.Velocity + force * dt) * VfxConventions.Drag(s.Deceleration?.Evaluate(0, v, p.RDeceleration) ?? 0, dt);
+            // Only the velocity along the wind is pulled; across it, the particle keeps what it had.
+            if (wind is { } target)
+            {
+                var along = Vector3.Normalize(target);
+                p.Velocity -= 2 * WindPull * MathF.Min(30 * dt, 1) * Vector3.Dot(p.Velocity - target, along) * along;
+            }
+            if (field != null && s.FieldTightness?.Evaluate(0, v, p.RForce) is > 0 and var tightness)
+                p.Velocity = Vector3.Lerp(p.Velocity, push, Math.Min(tightness, 1));
+            if (s.MaxSpeed > 0 && p.Velocity.LengthSquared() > s.MaxSpeed * s.MaxSpeed)
+                p.Velocity = Vector3.Normalize(p.Velocity) * s.MaxSpeed;
+            p.Angle += p.Spin * dt;
+            p.TurnXy += p.SpinXy * dt;
+            var spinDrag = VfxConventions.Drag(s.SpinDeceleration?.Evaluate(0, v, p.RSpinDeceleration) ?? 0, dt);
+            p.Spin *= spinDrag;
+            p.SpinXy *= spinDrag;
+            if (s.Collisions && !s.SkipPositionUpdate)
+                Collide(s.Space, world, ref p);
+            return true;
+        }
+
+        // EffectedByWindFactor: the wind times the factor, in the particles' space. The game also adds WindVarianceFactor times a
+        // gust direction it sends each frame, which the preview has no source for. Under 0.01 m/s there is no wind.
+        static Vector3? Wind(EmitterSettings s, Vector3 wind, Matrix world)
+        {
+            var target = wind * s.WindFactor;
+            if (target.Length() < 0.01f)
+                return null;
+            return s.Space == SimulationSpace.LocalPositionRotation ? Vector3.TransformNormal(target, Matrix.Invert(world)) : target;
         }
 
         // VectorField*: read as Unreal's vector fields, whose .fga files CA's came from (one still carries the extension). The

@@ -25,9 +25,9 @@ namespace GameWorld.Core.Test.Vfx
             return s;
         }
 
-        static ParticleSimulator Run(EmitterSettings s, float time, Func<float, Matrix> effectWorldAt = null, float spawnEnd = float.PositiveInfinity, int seed = 1, Action<string> log = null)
+        static ParticleSimulator Run(EmitterSettings s, float time, Func<float, Matrix> effectWorldAt = null, float spawnEnd = float.PositiveInfinity, int seed = 1, Action<string> log = null, Vector3 wind = default)
         {
-            var simulator = new ParticleSimulator([s], seed, effectWorldAt ?? (_ => Matrix.Identity), spawnEnd, log);
+            var simulator = new ParticleSimulator([s], seed, effectWorldAt ?? (_ => Matrix.Identity), spawnEnd, log, wind);
             simulator.AdvanceTo(time);
             return simulator;
         }
@@ -439,6 +439,88 @@ namespace GameWorld.Core.Test.Vfx
             var s = Steady(x => { x.MaxParticles = 1; x.Forces = [C(0.6f * force, 0.8f * force, 0)]; x.MaxSpeed = cap; });
             var p = Run(s, 1).Emitters[0].Particles.Single();
             Assert.That(p.Velocity.Length(), Is.EqualTo(capped ? cap : force * VfxConventions.ForceToMetres * p.Age).Within(1e-3));
+        }
+
+        // EffectedByWindFactor (exe+1a7f0cc, fx_particle_vfx_simulation_cs): the velocity along the wind times the factor closes
+        // 2 x 0.004975 of its gap to it per 1/30 s, so half that per 1/60 s step; across the wind it is left alone. A turned
+        // local-space emitter is pulled toward the same wind, and a pull under 0.01 m/s is none.
+        static float WindSpeedAfter(float target, float age) => target * (1 - MathF.Pow(1 - 0.004975f, MathF.Round(age / ParticleSimulator.Step)));
+
+        [TestCase(SimulationSpace.World, 0.5f, 5f)]
+        [TestCase(SimulationSpace.LocalPositionRotation, 0.5f, 5f)]
+        [TestCase(SimulationSpace.World, 0f, 0f)]
+        [TestCase(SimulationSpace.World, 0.0009f, 0f)]
+        public void Wind_PullsTheVelocityAlongIt_AndLeavesTheRestAlone(SimulationSpace space, float factor, float target)
+        {
+            // Particles rising at 3 m/s from an emitter turned a quarter turn about Y, in a 10 m/s wind along X.
+            var s = Steady(x => { x.Space = space; x.WindFactor = factor; x.InitialSpeed = C(3); x.Spread = (90, 90); });
+            var states = States(Run(s, 3, _ => Matrix.CreateRotationY(MathHelper.PiOver2), wind: new Vector3(10, 0, 0)));
+            Assert.That(states, Has.Count.GreaterThan(20));
+            Assert.Multiple(() =>
+            {
+                foreach (var p in states)
+                    Assert.That(Vector3.Distance(p.Velocity, new Vector3(WindSpeedAfter(target, p.Age), 3, 0)), Is.LessThan(1e-3f), $"age {p.Age}");
+            });
+        }
+
+        // A particle event's effect is out in the same wind as its parent.
+        [Test]
+        public void Wind_ReachesParticleEventEffects()
+        {
+            var child = Steady(x => { x.Name = "child"; x.WindFactor = 1; });
+            var parent = Steady(x => { x.MaxParticles = 1; x.Events = [new ParticleEvent(false, [child])]; });
+            var states = ParticleSimulator.States(Children(Run(parent, 2, wind: new Vector3(5, 0, 0))).Single()).ToList();
+            Assert.That(states, Is.Not.Empty);
+            Assert.Multiple(() =>
+            {
+                foreach (var p in states)
+                    Assert.That(Vector3.Distance(p.Velocity, new Vector3(WindSpeedAfter(5, p.Age), 0, 0)), Is.LessThan(1e-3f), $"age {p.Age}");
+            });
+        }
+
+        // ParticleVelocityWarmupInterval (fx_particle_vfx_spawn_cs): each new particle's position and velocity are run through the
+        // simulation's forces, the wind included, for that long before its first frame; 0.5 s is 30 steps of 1/60 s. Its age is not:
+        // the shader stores its birth time and lifetime back unchanged, so it lives its whole life from 0.
+        [Test]
+        public void WarmUp_MovesEachNewParticleOn_ButLeavesItsAge()
+        {
+            var s = Steady(x => { x.WarmUp = 0.5f; x.Forces = [C(0, 100, 0)]; x.WindFactor = 1; });
+            var states = States(Run(s, 1, wind: new Vector3(5, 0, 0)));
+            Assert.That(states.Select(x => x.Age), Is.EqualTo(States(Run(Steady(), 1)).Select(x => x.Age)), "the same particles, of the same ages");
+            Assert.Multiple(() =>
+            {
+                foreach (var p in states)
+                {
+                    // 1 m/s2 upward from rest, and the wind along X, over its age and the warm-up's 0.5 s.
+                    var run = p.Age + 0.5f;
+                    Assert.That(Vector3.Distance(p.Velocity, new Vector3(WindSpeedAfter(5, run), run, 0)), Is.LessThan(1e-3f), $"age {p.Age}");
+                    Assert.That(p.Position.Y, Is.EqualTo(run * run / 2).Within(1e-3), $"age {p.Age}");
+                }
+            });
+        }
+
+        // The shader's warm-up loop breaks once the stepped time passes the particle's life, and the particle still lives: 111 of
+        // vanilla's 255 warmed emitters ask for at least their particles' life (dust_blowing's sand, 10 s on a 5 s life). It is stepped
+        // to the end of its life, within a step.
+        [Test]
+        public void WarmUp_LongerThanTheParticle_StopsAtItsLife()
+        {
+            var states = States(Run(Steady(x => { x.WarmUp = 2; x.ParticleLife = C(1); x.Forces = [C(0, 100, 0)]; }), 0.5f));
+            Assert.That(states, Is.Not.Empty);
+            Assert.Multiple(() =>
+            {
+                foreach (var p in states)
+                    Assert.That(p.Velocity.Y, Is.EqualTo(1 + p.Age).Within(0.05), $"age {p.Age}");
+            });
+        }
+
+        // A modder's huge interval is cut at MaxWarmUpSteps rather than stepping for ever.
+        [Test]
+        public void WarmUp_IsCutAtMaxWarmUpSteps()
+        {
+            var run = Task.Run(() => States(Run(Steady(x => { x.WarmUp = 1e9f; x.ParticleLife = C(1e9f); x.Forces = [C(0, 100, 0)]; }), 1)));
+            Assert.That(run.Wait(TimeSpan.FromSeconds(20)), Is.True, "AdvanceTo returned");
+            Assert.That(run.Result.Select(x => x.Velocity.Y - x.Age), Is.All.EqualTo(ParticleSimulator.MaxWarmUpSteps * ParticleSimulator.Step).Within(1e-2));
         }
 
         // ps_alpha_crush: each particle carries its crush level, off the curve over its life.

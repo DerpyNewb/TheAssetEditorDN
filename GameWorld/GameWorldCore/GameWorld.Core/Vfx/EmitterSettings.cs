@@ -75,6 +75,11 @@ namespace GameWorld.Core.Vfx
         public float InheritedSpeed { get; set; }
         /// <summary>SpawnInheritedDirectionBlend: VfxConventions.InheritDirection.</summary>
         public float InheritedDirectionBlend { get; set; }
+        /// <summary>EffectedByWindFactor: the share of the wind a particle's velocity is pulled toward; 0, the default, is none.</summary>
+        public float WindFactor { get; set; }
+        /// <summary>ParticleVelocityWarmupInterval: seconds of the simulation a new particle's position, velocity and turn are run
+        /// through before its first frame; its age still starts at 0. 0 or below is none, as the shader's integer step count makes it.</summary>
+        public float WarmUp { get; set; }
         /// <summary>OnParticleSpawn and OnParticleDeath: the effects each particle starts at its birth and its death.</summary>
         public IReadOnlyList<ParticleEvent> Events { get; set; } = [];
         /// <summary>ParticlesSpawnOnTerrain: particles start on the ground.</summary>
@@ -316,8 +321,11 @@ namespace GameWorld.Core.Vfx
                 s.LoopFieldPosition = Flag("VectorfieldPositionLoopAnim");
                 s.LoopFieldOrientation = Flag("VectorfieldOrientationLoopAnim");
             }
-            if (Number("EffectedByWindFactor", 0) != 0 || Number("WindVarianceFactor", 0) != 0)
-                s.Skipped.Add("wind is not simulated");
+            // The game multiplies the gusts by EffectedByWindFactor too, so a variance with no factor does nothing there either.
+            s.WindFactor = Number("EffectedByWindFactor", 0);
+            if (s.WindFactor != 0 && Number("WindVarianceFactor", 0) != 0)
+                s.Skipped.Add("WindVarianceFactor is not simulated: the gusts' direction comes from the game each frame");
+            s.WarmUp = Number("ParticleVelocityWarmupInterval", 0);
             s.InheritedSpeed = Number("SpawnInheritedSpeed", 0);
             s.InheritedDirectionBlend = Number("SpawnInheritedDirectionBlend", 0);
             s.Events = (resolved.Events ?? []).Where(x => x.Emitters.Count > 0)

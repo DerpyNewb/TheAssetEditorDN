@@ -271,6 +271,10 @@
                                   ToolTip="The effect's local axis the projectile flies along"/>
                         <CheckBox Content="Static" IsChecked="{Binding StaticView}" Margin="10,0,0,0" VerticalAlignment="Center"
                                   ToolTip="Watch from the projectile: it and the guide model hold the centre of the view while the trail streams back behind them. Unticked, they fly across the view."/>
+                        <TextBlock Text="Wind" Margin="10,0,4,0" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding Wind}" Width="40"
+                                 ToolTip="A wind blowing along +X, in metres a second. Particles of an emitter with an EffectedByWindFactor are pulled toward the wind times that factor, as the game does. The game's gusts (WindVarianceFactor) are not simulated. 0 is still air."/>
+                        <TextBlock Text="m/s" Margin="2,0,0,0" VerticalAlignment="Center"/>
                         <Button Content="Model..." Command="{Binding LoadModelCommand}" Margin="10,0,0,0" Padding="6,0"
                                 ToolTip="A .rigid_model_v2 from the loaded packs to stand where the effect is, as a guide. The preview only; nothing is written to the file."/>
                         <TextBlock Text="{Binding ModelName}" Margin="6,0" VerticalAlignment="Center"/>

@@ -767,6 +767,8 @@ namespace Editors.VfxEditor.ViewModels
             }
         }
 
+        public double Wind { get => _preview.Wind; set { if (double.IsFinite(value)) _preview.Wind = (float)value; OnPropertyChanged(); RefreshPreview(); } }
+
         public bool ShowGrid { get => _grid.ShowGrid; set { _grid.ShowGrid = value; OnPropertyChanged(); } }
 
         /// <summary>Where a screenshot goes, and whether that folder opens after.</summary>

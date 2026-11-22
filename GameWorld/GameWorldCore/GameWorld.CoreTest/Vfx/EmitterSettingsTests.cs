@@ -123,21 +123,26 @@ namespace GameWorld.Core.Test.Vfx
             });
         }
 
-        // SpawnInheritedDirectionBlend is read, so it reports nothing. Wind is not simulated, so WindVarianceFactor says so on its
-        // own (453 vanilla emitters set it with no EffectedByWindFactor). ref_spawn_speed, on the <vfx> element of 11 flamethrower
-        // and acid effects, is not read, and says so; -1, on the other 7,459, is unset.
+        // SpawnInheritedDirectionBlend, EffectedByWindFactor and ParticleVelocityWarmupInterval are read, so they report nothing. The
+        // game's gusts are not simulated, so WindVarianceFactor says so, but only beside a wind factor: the game scales the gusts by it
+        // too, so the 453 vanilla emitters that set a variance with no factor have no wind there either. ref_spawn_speed, on the
+        // <vfx> element of 11 flamethrower and acid effects, is not read, and says so; -1, on the other 7,459, is unset.
         [Test]
-        public void DirectionBlendIsRead_AndWindVarianceAndRefSpawnSpeedSaySo()
+        public void DirectionBlendWindAndWarmUpAreRead_AndWindVarianceAndRefSpawnSpeedSaySo()
         {
-            var properties = """<property name="SpawnInheritedDirectionBlend" quality="0" value="0.50"/><property name="WindVarianceFactor" quality="0" value="0.30"/>""";
+            const string variance = """<property name="WindVarianceFactor" quality="0" value="0.30"/>""";
+            var properties = variance + """<property name="SpawnInheritedDirectionBlend" quality="0" value="0.50"/><property name="EffectedByWindFactor" quality="0" value="0.80"/><property name="ParticleVelocityWarmupInterval" quality="0" value="0.25"/>""";
             var chain = SmokeChain.Replace("\"smoke\"", "\"e\"");
             var flame = ReadFile(Xml(emitters: Emitter("e", properties), chains: chain, root: " ref_spawn_speed=\"30.00\""));
+            var calm = ReadFile(Xml(emitters: Emitter("e", variance), chains: chain));
             var plain = ReadFile(Xml(emitters: Emitter("e"), chains: chain, root: " ref_spawn_speed=\"-1.00\""));
             Assert.Multiple(() =>
             {
-                Assert.That(flame.InheritedDirectionBlend, Is.EqualTo(0.5f));
-                Assert.That(flame.Skipped, Has.None.Contains("SpawnInheritedDirectionBlend"));
-                Assert.That(flame.Skipped, Has.One.Contains("wind"));
+                Assert.That((flame.InheritedDirectionBlend, flame.WindFactor, flame.WarmUp), Is.EqualTo((0.5f, 0.8f, 0.25f)));
+                Assert.That((plain.WindFactor, plain.WarmUp), Is.EqualTo((0f, 0f)));
+                Assert.That(flame.Skipped, Has.None.Matches<string>(x => x.Contains("SpawnInheritedDirectionBlend") || x.Contains("EffectedByWindFactor") || x.Contains("Warmup")));
+                Assert.That(flame.Skipped, Has.One.Contains("WindVarianceFactor"));
+                Assert.That(calm.Skipped, Has.None.Contains("Wind"));
                 Assert.That(flame.Skipped, Has.One.Contains("ref_spawn_speed 30"));
                 Assert.That(plain.Skipped, Has.None.Contains("ref_spawn_speed"));
             });
