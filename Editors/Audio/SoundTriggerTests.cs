@@ -114,6 +114,26 @@ namespace Test.Audio
                 return id;
             }
 
+            /// <summary>A random or sequence container with its playback rules: mode 0 random, 1 sequence; random mode 0 standard, 1 shuffle.</summary>
+            public uint Container(byte mode, byte randomMode, ushort avoidRepeat, params (uint Child, int Weight)[] playlist)
+            {
+                var id = _next++;
+                Items[id] = new CAkRanSeqCntr_V136
+                {
+                    Id = id,
+                    HircType = AkBkHircType.RandomSequenceContainer,
+                    Mode = mode,
+                    RandomMode = randomMode,
+                    AvoidRepeatCount = avoidRepeat,
+                    BitVector = 0x12,   // CA's usual: bIsUsingWeight clear whatever the weights are
+                    CAkPlayList = new CAkRanSeqCntr_V136.CAkPlayList_V136
+                    {
+                        Playlist = playlist.Select(x => new CAkRanSeqCntr_V136.CAkPlayList_V136.AkPlaylistItem_V136 { PlayId = x.Child, Weight = x.Weight }).ToList(),
+                    },
+                };
+                return id;
+            }
+
             public uint Blend(params uint[] children)
             {
                 var id = _next++;
@@ -454,6 +474,83 @@ namespace Test.Audio
                 Assert.That(mixer.Sound, Is.InstanceOf<SoundAll>());
                 Assert.That(SoundNodes.Pick(mixer.Sound!, new Random(7)), Is.EqualTo(new uint[] { 411, 412 }));
             });
+        }
+
+        // A playlist's own rules (CAkRanSeqCntr). A picker keeps each container's place from one firing to the next, as the game does
+        // for one unit.
+        static List<uint> Picks(Bank bank, int firings, string tag = "Tag")
+        {
+            var sound = Resolve(bank, tag).Sound!;
+            var picker = new SoundPicker(new Random(1));
+            return Enumerable.Range(0, firings).Select(_ => picker.Pick(sound).Single()).ToList();
+        }
+
+        static (uint, int)[] Equal(params uint[] children) => children.Select(x => (x, 50000)).ToArray();
+
+        [Test]
+        public void Sequence_PlaysThePlaylistInOrder_AndStartsOver()
+        {
+            var bank = new Bank().Row("Tag", "Seq");
+            bank.Event("Seq", bank.Play(bank.Container(1, 0, 0, Equal(bank.Sound(1), bank.Sound(2), bank.Sound(3)))));
+            Assert.That(Picks(bank, 7), Is.EqualTo(new uint[] { 1, 2, 3, 1, 2, 3, 1 }));
+        }
+
+        // A child is picked by its weight, though CA's banks never set bIsUsingWeight. A child that cannot play takes its weight with it:
+        // 10 and 10 either side of a missing 90 are even.
+        [Test]
+        public void Random_WeighsItsChildren_AndADroppedChildTakesItsWeight()
+        {
+            var bank = new Bank().Row("Tag", "Weighted").Row("Gap", "Gapped");
+            bank.Event("Weighted", bank.Play(bank.Container(0, 0, 0, (bank.Sound(1), 90000), (bank.Sound(2), 10000))));
+            bank.Event("Gapped", bank.Play(bank.Container(0, 0, 0, (bank.Sound(3), 10000), (bank.Sound(4, wemExists: false), 90000), (bank.Sound(5), 10000))));
+            var weighted = Picks(bank, 2000);
+            var gapped = Picks(bank, 2000, "Gap");
+            Assert.Multiple(() =>
+            {
+                Assert.That(weighted.Count(x => x == 1) / 2000.0, Is.EqualTo(0.9).Within(0.03));
+                Assert.That(gapped.Count(x => x == 3) / 2000.0, Is.EqualTo(0.5).Within(0.05));
+            });
+        }
+
+        // A random pick skips the last AvoidRepeat children, held to all but one: 1 of 3 never plays one twice running, 2 of 3 plays all
+        // three in turn, and 5 of 3 does the same without running out of children.
+        [TestCase((ushort)1, 2)]
+        [TestCase((ushort)2, 3)]
+        [TestCase((ushort)5, 3)]
+        public void Random_AvoidsRepeatingItsLastPicks(ushort avoid, int window)
+        {
+            var bank = new Bank().Row("Tag", "Avoid");
+            bank.Event("Avoid", bank.Play(bank.Container(0, 0, avoid, Equal(bank.Sound(1), bank.Sound(2), bank.Sound(3)))));
+            var picks = Picks(bank, 300);
+            Assert.That(Enumerable.Range(0, picks.Count - window + 1).All(i => picks.Skip(i).Take(window).Distinct().Count() == window), Is.True);
+        }
+
+        // Shuffle plays every child once a round, in a new order each round, and avoiding 1 keeps a round's first from repeating the last
+        // round's last.
+        [Test]
+        public void Shuffle_PlaysEachChildOnceARound()
+        {
+            var bank = new Bank().Row("Tag", "Shuffle");
+            bank.Event("Shuffle", bank.Play(bank.Container(0, 1, 1, Equal(bank.Sound(1), bank.Sound(2), bank.Sound(3), bank.Sound(4)))));
+            var picks = Picks(bank, 400);
+            var rounds = picks.Chunk(4).ToList();
+            Assert.Multiple(() =>
+            {
+                Assert.That(rounds.All(x => x.Order().SequenceEqual(new uint[] { 1, 2, 3, 4 })), Is.True);
+                Assert.That(rounds.Select(x => string.Join(",", x)).Distinct().Count(), Is.GreaterThan(5), "the order changes");
+                Assert.That(Enumerable.Range(1, picks.Count - 1).All(i => picks[i] != picks[i - 1]), Is.True, "no repeat at a round's turn");
+            });
+        }
+
+        // The session keeps a sequence's place from one firing to the next, and through a Rebuild.
+        [Test]
+        public void Session_SequenceGoesOn_AcrossFiringsAndRebuilds()
+        {
+            var bank = new Bank().Row("Tag", "Seq");
+            bank.Event("Seq", bank.Play(bank.Container(1, 0, 0, Equal(bank.Sound(1), bank.Sound(2), bank.Sound(3)))));
+            var run = new SessionRun(bank).Rebuild(Trigger("Tag", 0.5f)).Frames(0, 200);
+            run.Rebuild(Trigger("Tag", 0.5f)).Frames(200, 100);
+            Assert.That(run.Played, Is.EqualTo(new uint[] { 1, 2, 3 }));
         }
 
         [Test]

@@ -12,6 +12,8 @@ namespace Editors.Audio.SoundTriggers
     {
         List<(double Start, SoundNode Sound)> _playable = [];
         List<uint> _leaves = [];
+        // Keeps each container's place across firings and Rebuilds, as the game keeps it for one unit.
+        readonly SoundPicker _picker = new(random);
 
         // NaN until the first frame, which makes that frame a jump.
         double _previous = double.NaN;
@@ -109,7 +111,7 @@ namespace Editors.Audio.SoundTriggers
                 if (!Fires(start, offset, step, length, loop))
                     continue;
 
-                foreach (var id in SoundNodes.Pick(sound, random))
+                foreach (var id in _picker.Pick(sound))
                     play(id);
             }
         }

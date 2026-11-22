@@ -2,6 +2,7 @@
 using Shared.GameFormats.Wwise;
 using Shared.GameFormats.Wwise.Enums;
 using Shared.GameFormats.Wwise.Hirc;
+using Shared.GameFormats.Wwise.Hirc.V136;
 
 namespace Editors.Audio.SoundTriggers
 {
@@ -14,8 +15,12 @@ namespace Editors.Audio.SoundTriggers
     /// <summary>Everything under it plays together: a blend container, an actor mixer, or several Play actions on one event.</summary>
     public sealed record SoundAll(IReadOnlyList<SoundNode> Children) : SoundNode;
 
-    /// <summary>One child plays per firing: a random or sequence container.</summary>
-    public sealed record SoundOneOf(IReadOnlyList<SoundNode> Children) : SoundNode;
+    /// <summary>One child plays per firing: a random or sequence container, by its Wwise playback rules. Id is the container's, which a
+    /// SoundPicker keeps its place by. Weights are the playlist's, one per child (Wwise's 50000 is a weight of 50), or null for equal
+    /// chances. AvoidRepeat is how many of the last children a random pick skips, Shuffle plays each child once before any again, and
+    /// Sequence plays them in playlist order, starting over at the end; a sequence ignores the other three.</summary>
+    public sealed record SoundOneOf(IReadOnlyList<SoundNode> Children, uint Id = 0, IReadOnlyList<int>? Weights = null, int AvoidRepeat = 0,
+        bool Shuffle = false, bool Sequence = false) : SoundNode;
 
     public static class SoundNodes
     {
@@ -29,14 +34,66 @@ namespace Editors.Audio.SoundTriggers
             _ => [],
         };
 
-        /// <summary>The source ids one firing plays: every child of a SoundAll, one random child of a SoundOneOf.</summary>
-        public static IReadOnlyList<uint> Pick(SoundNode node, Random random) => node switch
+        /// <summary>The source ids one firing plays, with no memory of earlier firings: see SoundPicker.</summary>
+        public static IReadOnlyList<uint> Pick(SoundNode node, Random random) => new SoundPicker(random).Pick(node);
+    }
+
+    /// <summary>Picks what each firing plays: every child of a SoundAll, one child of a SoundOneOf by its rules. It keeps each container's
+    /// place across firings, as Wwise keeps it per game object: a sequence's next child, a random container's last picks, and the children a
+    /// shuffle has played this round.</summary>
+    public sealed class SoundPicker(Random random)
+    {
+        // By container id: the children picked, oldest first (random), or the next child's index (sequence).
+        readonly Dictionary<uint, List<int>> _played = [];
+        readonly Dictionary<uint, int> _next = [];
+
+        public IReadOnlyList<uint> Pick(SoundNode node) => node switch
         {
             SoundLeaf leaf => [leaf.SourceId],
-            SoundAll all => all.Children.SelectMany(child => Pick(child, random)).ToList(),
-            SoundOneOf { Children.Count: > 0 } oneOf => Pick(oneOf.Children[random.Next(oneOf.Children.Count)], random),
+            SoundAll all => all.Children.SelectMany(Pick).ToList(),
+            SoundOneOf { Children.Count: > 0 } oneOf => Pick(oneOf.Children[Choose(oneOf)]),
             _ => [],
         };
+
+        int Choose(SoundOneOf container)
+        {
+            var count = container.Children.Count;
+            if (container.Sequence)
+            {
+                var index = _next.GetValueOrDefault(container.Id) % count;
+                _next[container.Id] = index + 1;
+                return index;
+            }
+
+            if (!_played.TryGetValue(container.Id, out var played))
+                _played[container.Id] = played = [];
+            // Wwise skips the last AvoidRepeat picks, at most all but one child. A shuffle also skips what this round has played, and a
+            // round ends once every child has played. Some child is always left: fewer of the avoided than of the unplayed are unplayed.
+            var avoided = played.TakeLast(Math.Min(container.AvoidRepeat, count - 1)).ToHashSet();
+            if (container.Shuffle)
+                avoided.UnionWith(played.TakeLast(played.Count % count));
+            var allowed = Enumerable.Range(0, count).Where(x => !avoided.Contains(x)).ToList();
+            var chosen = Weighted(allowed, container.Weights);
+            // ponytail: the history grows by one int a firing, a few thousand in an hour of looping; trim it if a session ever runs for days.
+            played.Add(chosen);
+            return chosen;
+        }
+
+        // A child by its weight; equal chances without weights, or when the allowed ones weigh nothing.
+        int Weighted(List<int> allowed, IReadOnlyList<int>? weights)
+        {
+            var total = weights == null ? 0 : allowed.Sum(x => (double)Math.Max(0, weights[x]));
+            if (total <= 0)
+                return allowed[random.Next(allowed.Count)];
+            var at = random.NextDouble() * total;
+            foreach (var index in allowed)
+            {
+                at -= Math.Max(0, weights![index]);
+                if (at < 0)
+                    return index;
+            }
+            return allowed[^1];
+        }
     }
 
     /// <summary>A switch group the resolved sound listens to: its case ids in the container's own order and the one it plays when nothing is chosen.</summary>
@@ -171,7 +228,7 @@ namespace Editors.Audio.SoundTriggers
                         case ICAkSwitchCntr container:
                             return VisitSwitch(container);
                         case ICAkRanSeqCntr container:
-                            return Combine(VisitAll(container.GetChildren()), oneOf: true);
+                            return VisitRanSeq(container);
                         case ICAkLayerCntr container:
                             return Combine(VisitAll(container.GetChildren()), oneOf: false);
                         case ICAkActorMixer container:
@@ -188,6 +245,20 @@ namespace Editors.Audio.SoundTriggers
             }
 
             List<SoundNode> VisitAll(IEnumerable<uint> ids) => ids.Select(Visit).OfType<SoundNode>().ToList();
+
+            // The playlist's rules, for the children that can play. CAkRanSeqCntr's mode is 0 random, 1 sequence, and its random mode 0
+            // standard, 1 shuffle. The weights are always taken: wwiser's bIsUsingWeight, bit 0 of the bit vector, is clear on all 90,624
+            // of CA's containers, 564 of which weigh their children unequally. Left out: continuous play, where one Play runs the whole
+            // list (3,880 of CA's), plays one child a firing here, and restarting backward (29) starts over.
+            SoundNode? VisitRanSeq(ICAkRanSeqCntr container)
+            {
+                var kept = container.GetChildren().Select((id, index) => (Node: Visit(id), Index: index)).Where(x => x.Node != null).ToList();
+                if (kept.Count < 2 || container is not CAkRanSeqCntr_V136 rules)
+                    return Combine(kept.Select(x => x.Node!).ToList(), oneOf: true);
+                var sequence = rules.Mode == 1;
+                return new SoundOneOf(kept.Select(x => x.Node!).ToList(), rules.Id, kept.Select(x => rules.CAkPlayList.Playlist[x.Index].Weight).ToList(),
+                    rules.AvoidRepeatCount, Shuffle: rules.RandomMode == 1, Sequence: sequence);
+            }
 
             SoundNode? VisitSwitch(ICAkSwitchCntr container)
             {
