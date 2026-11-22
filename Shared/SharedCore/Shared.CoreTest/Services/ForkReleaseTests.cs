@@ -27,6 +27,7 @@ namespace Shared.CoreTest.Services
             Assert.That(ForkRelease.Newer(new[] { "v0.78-dn-v2.0" }, x => x, new Version(1, 9, 1)), Has.Count.EqualTo(1), "2.0 is offered to the hotfix before it");
             Assert.That(ForkRelease.Newer(new[] { "v0.79-dn-v2.1" }, x => x, new Version(2, 0)), Has.Count.EqualTo(1), "2.1 is offered to 2.0, on a new upstream number");
             Assert.That(ForkRelease.Newer(new[] { "v0.79-dn-v2.2" }, x => x, new Version(2, 1)), Has.Count.EqualTo(1), "2.2 is offered to 2.1");
+            Assert.That(ForkRelease.Newer(new[] { "v0.79-dn-v2.3" }, x => x, new Version(2, 2)), Has.Count.EqualTo(1), "2.3 is offered to 2.2");
         }
 
         [Test]
