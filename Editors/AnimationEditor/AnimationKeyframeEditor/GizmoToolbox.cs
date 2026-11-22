@@ -25,7 +25,7 @@ namespace AnimationEditor.AnimationKeyframeEditor
         private GizmoMode _lastGizmoTool = GizmoMode.Translate;
 
         private int _lastFrame = 0;
-        private bool _isSelectModeSubscribed;
+        private BoneSelectionState _hookedState;
 
 
         public GizmoToolbox(AnimationKeyframeEditorViewModel parent)
@@ -143,9 +143,33 @@ namespace AnimationEditor.AnimationKeyframeEditor
             }
         }
 
+        // Every new bone selection state (Select bones from another mode, undo) needs the handlers;
+        // a state without them threw on the first gizmo move
+        internal void HookState(ISelectionState state)
+        {
+            if (state is not BoneSelectionState boneState || boneState == _hookedState)
+                return;
+
+            if (_hookedState != null)
+            {
+                _hookedState.SelectionChanged -= OnSelectionChanged;
+                _hookedState.BoneModifiedEvent -= OnModifiedBonesEvent;
+            }
+
+            // A clone copies SelectionChanged, handlers included
+            boneState.SelectionChanged -= OnSelectionChanged;
+            boneState.SelectionChanged += OnSelectionChanged;
+            boneState.BoneModifiedEvent += OnModifiedBonesEvent;
+            _hookedState = boneState;
+        }
+
         public void SelectMode()
         {
             if (_parent.Rider.MainNode.Children.Count <= 1) return;
+
+            // With the animation controls off there's no current frame, so no joint to pick or pose
+            if (!_parent.Player.IsEnabled.Value)
+                _parent.Player.IsEnabled.Value = true;
 
             var variantMeshRoot = _parent.Rider.MainNode.Children[1];
             if (variantMeshRoot.Children.Count == 0) return;
@@ -171,16 +195,7 @@ namespace AnimationEditor.AnimationKeyframeEditor
                 _parent.PushPosingState(selection);
             }
 
-            if (!_isSelectModeSubscribed)
-            {
-                _isSelectModeSubscribed = true;
-                _parent.SelectionManager.GetState().SelectionChanged += OnSelectionChanged;
-
-                if (_parent.SelectionManager.GetState() is BoneSelectionState state)
-                {
-                    state.BoneModifiedEvent += OnModifiedBonesEvent;
-                }
-            }
+            HookState(_parent.SelectionManager.GetState());
         }
 
         public void SelectPreviousBones()

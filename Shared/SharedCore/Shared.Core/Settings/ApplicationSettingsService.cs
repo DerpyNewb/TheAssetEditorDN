@@ -61,6 +61,12 @@ namespace Shared.Core.Settings
         /// <summary>The hotkeys changed in the settings window, by id, as text such as "Ctrl+Z"; empty is no hotkey. One left out keeps
         /// its default.</summary>
         public Dictionary<string, string> Hotkeys { get; set; } = [];
+        // Upstream's switch for opening a .pack to edit in place. The fork always does, so nothing here turns it off.
+        public bool EnableDirectPackEditing { get; set; } = true;
+
+        // Upstream's <name>.pack1 beside the pack on the first save. Off: BackupBeforeSave copies to the backup folder
+        // instead, which keeps backups out of the data and Workshop folders.
+        public bool BackupPacksOnFirstSave { get; set; } = false;
     }
 
     public class ApplicationSettingsService

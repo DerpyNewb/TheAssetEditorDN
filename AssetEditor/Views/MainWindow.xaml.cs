@@ -6,6 +6,8 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using AssetEditor.ViewModels;
 using AssetEditor.WindowsTitleMenu;
+using Microsoft.Extensions.DependencyInjection;
+using Shared.Core.Services;
 using Shared.Core.Settings;
 using Shared.Core.ToolCreation;
 using Shared.Ui.BaseDialogs.PackFileTree;
@@ -244,7 +246,9 @@ namespace AssetEditor.Views
 
         private void MaximizeRestoreButton_ToolTipOpening(object sender, ToolTipEventArgs e)
         {
-            maximizeRestoreButton.ToolTip = WindowState == WindowState.Normal ? "Maximize" : "Restore";
+            var key = WindowState == WindowState.Normal ? "WindowChrome.Maximise" : "WindowChrome.Restore";
+            if (Application.Current is IAssetEditorMain appMain)
+                maximizeRestoreButton.ToolTip = appMain.ServiceProvider.GetRequiredService<LocalizationManager>().Get(key);
         }
 
         private void OnCloseButtonClick(object sender, RoutedEventArgs e)

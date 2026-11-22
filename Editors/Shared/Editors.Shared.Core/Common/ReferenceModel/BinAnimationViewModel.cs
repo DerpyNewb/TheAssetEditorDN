@@ -34,6 +34,8 @@ namespace Editors.Shared.Core.Common.ReferenceModel
         /// <summary>Whether what plays came from a slot. "Any animation" plays with no slot, even while a slot is still picked.</summary>
         public bool PlayingSlot { get; private set; }
 
+        bool _isSettingAnimationFile;
+
         public BinAnimationViewModel(SceneObjectEditor sceneObjectEditor, IPackFileService pfs, ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper, SceneObject sceneObject, IUiCommandFactory uiCommandFactory)
         {
             _sceneObjectEditor = sceneObjectEditor;
@@ -89,6 +91,22 @@ namespace Editors.Shared.Core.Common.ReferenceModel
 
         List<IAnimationBinGenericFormat> LoadFragmentsForSkeleton(string skeletonName) => AnimationSets.ForSkeleton(_pfs, skeletonName);
 
+        /// <summary>Reloads the bin list, keeping the selected bin and <paramref name="slot"/> where they're still there.</summary>
+        public void ReloadFragments(AnimationBinEntryGenericFormat? slot)
+        {
+            var selectedBin = FragmentList.SelectedItem?.FullPath;
+            if (_sceneObject.Skeleton == null)
+                return;
+
+            FragmentList.UpdatePossibleValues(LoadFragmentsForSkeleton(Path.GetFileNameWithoutExtension(_sceneObject.SkeletonName.Value)));
+            if (selectedBin == null)
+                return;
+
+            FragmentList.SelectedItem = FragmentList.PossibleValues.FirstOrDefault(x => x.FullPath == selectedBin);
+            if (FragmentList.SelectedItem != null && slot != null)
+                FragmentSlotList.SelectedItem = FragmentSlotList.PossibleValues.FirstOrDefault(x => x.SlotName == slot.SlotName && x.AnimationFile == slot.AnimationFile);
+        }
+
         void OnFragmentSelected(IAnimationBinGenericFormat value, FilterCollection<AnimationBinEntryGenericFormat> animationSlotsCollection, string skeletonName)
         {
             if (value == null)
@@ -108,6 +126,24 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             animationSlotsCollection.UpdatePossibleValues(value.Entries);
         }
 
+        // An animation picked from the packs, not a slot: clears the slot and its metas, keeps the fragment's persistent ones
+        public void SetAnimationFile(PackFile file)
+        {
+            _isSettingAnimationFile = true;
+            FragmentSlotList.SelectedItem = null;
+            _isSettingAnimationFile = false;
+            PlayingSlot = false;
+
+            var fullPath = _pfs.GetFullPath(file);
+            _sceneObjectEditor.SetAnimation(_sceneObject, file, fullPath);
+            SoundMetaName = null;
+            _sceneObject.SoundMetaData = null;
+            _sceneObjectEditor.SetMetaFile(_sceneObject, null, _sceneObject.PersistMetaData);
+
+            MetaDataName = null;
+            AnimationFileName = "[" + _pfs.GetPackFileContainer(file)?.Name + "] " + fullPath;
+        }
+
         /// <summary>Plays any animation made for the model's skeleton, with the .anm.meta beside it when there is one, without picking
         /// a set and a slot first (upstream #263). A set that is picked still gives it its persistent meta.</summary>
         public void PlayAnimation(AnimationReference? animation)
@@ -122,6 +158,9 @@ namespace Editors.Shared.Core.Common.ReferenceModel
         /// a copy of the picked slot naming other files, which plays them without writing the set.</summary>
         public void PlaySlot(AnimationBinEntryGenericFormat? value)
         {
+            if (_isSettingAnimationFile)
+                return;
+
             PlayingSlot = !string.IsNullOrEmpty(value?.SlotName);
             AnimationReference? animationReference = null;
             PackFile? meta = null;

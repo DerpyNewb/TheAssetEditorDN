@@ -14,6 +14,7 @@ namespace Editors.Shared.Core.Common.ReferenceModel
         private readonly IPackFileService _pfs;
         private readonly IStandardDialogs _uiProvider;
         private readonly SceneObjectEditor _sceneObjectBuilder;
+        private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
         private bool _disposed;
 
         [ObservableProperty] string _headerName;
@@ -40,6 +41,7 @@ namespace Editors.Shared.Core.Common.ReferenceModel
             _pfs = packFileService;
             _uiProvider = uiProvider;
             _sceneObjectBuilder = sceneObjectBuilder;
+            _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
             Data = data;
             HeaderName = headerName;
 
@@ -90,6 +92,24 @@ namespace Editors.Shared.Core.Common.ReferenceModel
         public void SetSkeleton(PackFile file) => _sceneObjectBuilder.SetSkeleton(Data, file);
 
         public void RemoveMesh() => _sceneObjectBuilder.RemoveMesh(Data);
+
+        public void BrowseAnimation()
+        {
+            if (Data.Skeleton == null)
+            {
+                _uiProvider.ShowDialogBox("Load a mesh first. The animation list only shows animations for its skeleton.", "No skeleton");
+                return;
+            }
+
+            var skeletonName = Path.GetFileNameWithoutExtension(Data.SkeletonName.Value);
+            var animationsForSkeleton = _skeletonAnimationLookUpHelper.GetAnimationsForSkeleton(skeletonName)
+                .Select(x => x.AnimationFile)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var result = _uiProvider.DisplayBrowseDialog([".anim"], animationsForSkeleton.Contains);
+            if (result.Result == true && result.File != null)
+                FragAndSlotSelection.SetAnimationFile(result.File);
+        }
 
         public void Dispose()
         {

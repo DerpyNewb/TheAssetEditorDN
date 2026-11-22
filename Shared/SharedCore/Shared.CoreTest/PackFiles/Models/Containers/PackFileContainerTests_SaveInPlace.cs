@@ -1,6 +1,7 @@
 ﻿using Moq;
 using Shared.ByteParsing;
 using Shared.Core.Misc;
+using Shared.Core.PackFiles.ErrorHandling;
 using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Models.Containers;
 using Shared.Core.PackFiles.Models.FileSources;
@@ -97,7 +98,7 @@ namespace Shared.CoreTest.PackFiles.Models.Containers
             File.WriteAllBytes(_path, bytes);
             File.SetLastWriteTimeUtc(_path, DateTime.UtcNow.AddHours(1));
 
-            Assert.That(() => pack.SaveToDisk(_path, false, Wh3), Throws.Exception.With.Message.Contains("changed outside"));
+            Assert.That(() => pack.SaveToDisk(_path, false, Wh3), Throws.InstanceOf<PackFileChangedOnDiskException>());
             Assert.That(File.ReadAllBytes(_path), Is.EqualTo(bytes));
         }
 
@@ -112,25 +113,6 @@ namespace Shared.CoreTest.PackFiles.Models.Containers
             pack.SaveToDisk(_path, false, Wh3);
 
             Assert.That(pack.FileList[left].DataSource.ReadData(), Is.EqualTo(before));
-        }
-
-        [Test]
-        public void Verify_NamesAFileWhoseBytesAreNotWhatWasWritten()
-        {
-            var pack = Open();
-            var written = Path.Combine(_dir, "written.pack");
-            List<WrittenFile> files;
-            using (var stream = new FileStream(written, FileMode.Create))
-            using (var writer = new BinaryWriter(stream))
-                files = PackFileSerializerWriter.SaveToByteArray(written, pack, writer, Wh3);
-            Assert.That(() => PackFileSerializerWriter.Verify(written, files), Throws.Nothing);
-
-            var last = files.MaxBy(x => x.Source.Offset)!;
-            var bytes = File.ReadAllBytes(written);
-            bytes[last.Source.Offset] ^= 0xFF;
-            File.WriteAllBytes(written, bytes);
-
-            Assert.That(() => PackFileSerializerWriter.Verify(written, files), Throws.InstanceOf<InvalidDataException>().With.Message.Contains(last.Path));
         }
 
         sealed class UnreadableSource : IDataSource

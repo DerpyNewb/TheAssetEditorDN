@@ -39,7 +39,7 @@ namespace Test.E2EVerification
             var runner = new AssetEditorTestRunner();
             runner.CreateCaContainer();
             runner.Dialogs.Setup(x => x.ShowSystemOpenFileDialog(It.IsAny<bool>(), It.IsAny<string>())).Returns(new SystemOpenFileDialogResult(true, [_path]));
-            runner.CommandFactory.Create<OpenPackCommand>().Execute();
+            runner.CommandFactory.Create<OpenPackForEditingCommand>().Execute();
             return runner;
         }
 

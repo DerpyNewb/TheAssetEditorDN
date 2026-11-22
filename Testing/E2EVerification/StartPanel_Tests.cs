@@ -12,7 +12,7 @@ namespace Test.E2EVerification
     // it off.
     internal class StartPanel_Tests
     {
-        const string OpenPackFilter = "Pack files (*.pack)|*.pack";
+        const string OpenPackFilter = "Pack files (*.pack)|*.pack|All files (*.*)|*.*";
 
         static (StartPanelViewModel Panel, AssetEditorTestRunner Runner, ApplicationSettings Settings) Open()
         {

@@ -23,8 +23,6 @@
                     <MenuItem/>
                 </MenuItem>
                 <MenuItem x:Name="ResetLayoutMenu" Header="{loc:Loc EditorHost.Menu.ResetLayout}" Click="OnResetLayout"/>
-                <Separator/>
-                <MenuItem Header="{loc:Loc EditorHost.Menu.SaveShortcutFile}" IsEnabled="False"/>
             </MenuItem>
             <MenuItem Header="{loc:Loc EditorHost.Menu.Camera}">
                 <MenuItem Header="{loc:Loc EditorHost.Menu.FocusSelection}" Command="{Binding FocusCameraCommand}"/>

@@ -272,9 +272,10 @@ namespace Test.UnitSimulator
             AssertDefaultLayout(shown);
         }
 
-        // The Mount Tool shares the view with a host that is not an EditorHostBase: the default layout, nothing kept.
+        // The Mount Tool (upstream's Rider Animation Editor since the 2026-11-22 merge) is an EditorHostBase like the others: it
+        // opens with the default layout and keeps its own on close, under its own name.
         [Test, Apartment(ApartmentState.STA)]
-        public void TheMountTool_OpensWithTheDefaultLayout_AndSavesNothing()
+        public void TheMountTool_OpensWithTheDefaultLayout_AndKeepsItsOwn()
         {
             var folder = TempFolder();
             var runner = new AssetEditorTestRunner();
@@ -285,7 +286,7 @@ namespace Test.UnitSimulator
                 Assert.That(shown.Dock.Layout.Descendents().OfType<LayoutAnchorable>().Count(), Is.EqualTo(3));
                 mount.Close();
             }
-            Assert.That(Directory.EnumerateFiles(folder), Is.Empty);
+            Assert.That(Directory.EnumerateFiles(folder).Select(Path.GetFileName), Is.EqualTo(new[] { "MountTool_Editor.xml" }));
         }
 
         static MenuItem MenuNamed(Shown shown, string name) => (MenuItem)shown.View.FindName(name) ?? throw new AssertionException($"no menu item {name}");

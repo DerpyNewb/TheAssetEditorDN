@@ -26,7 +26,7 @@ namespace AssetEditor.ViewModels
         [RelayCommand] void NewProject() => Pick(() => commands.Create<CreateNewProjectCommand>().Execute());
         [RelayCommand] void OpenProject() => Pick(() => commands.Create<OpenProjectCommand>().Execute());
         [RelayCommand] void ProjectFromPack() => Pick(() => commands.Create<ImportPackAsAsProjectCommand>().Execute());
-        [RelayCommand] void OpenPack() => Pick(() => commands.Create<OpenPackCommand>().Execute());
+        [RelayCommand] void OpenPack() => Pick(() => commands.Create<OpenPackForEditingCommand>().Execute());
         [RelayCommand] void Skip() => Pick(null);
 
         void Pick(Action? run)

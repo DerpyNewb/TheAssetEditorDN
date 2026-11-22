@@ -44,11 +44,11 @@ namespace Shared.Core.PackFiles.Utility
             var target = NewPath(packPath, Autosave, settings);
             try
             {
-                List<WrittenFile> written;
+                // The writer reads the new index back before it returns. Its source updates are not applied: the editor's files
+                // keep reading from the pack they came from, not from the autosave.
                 using (var stream = new FileStream(target, FileMode.CreateNew))
                 using (var writer = new BinaryWriter(stream))
-                    written = PackFileSerializerWriter.SaveToByteArray(target, pack, writer, game);
-                PackFileSerializerWriter.Verify(target, written);
+                    PackFileSerializerWriter.SaveToByteArray(target, pack, writer, game);
             }
             catch
             {

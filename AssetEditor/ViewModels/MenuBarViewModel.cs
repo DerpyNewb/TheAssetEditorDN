@@ -34,11 +34,14 @@ namespace AssetEditor.ViewModels
         private readonly TouchedFilesRecorder _touchedFilesRecorder;
         private readonly IFileSaveService _packFileSaveService;
         private readonly IStandardDialogs _standardDialogs;
+        private readonly LocalizationManager _localizationManager;
 
         public ObservableCollection<RecentPackFileItem> RecentPackFiles { get; set; } = [];
         /// <summary>File > Restore Backup: each pack opened lately that has backups, and under it the backups.</summary>
         public ObservableCollection<BackupMenuItem> RestorableBackups { get; } = [];
-        public ObservableCollection<EditorShortcutViewModel> Editors { get; set; } = [];
+        /// <summary>Tools menu entries: <see cref="EditorShortcutViewModel"/>s, with a
+        /// <see cref="ToolsMenuSectionHeaderViewModel"/> before each titled section.</summary>
+        public ObservableCollection<object> Editors { get; set; } = [];
 
         public MenuBarViewModel(IPackFileService packfileService, 
             ApplicationSettingsService settingsService, 
@@ -46,7 +49,8 @@ namespace AssetEditor.ViewModels
             IUiCommandFactory uiCommandFactory,
             TouchedFilesRecorder touchedFilesRecorder, 
             IFileSaveService packFileSaveService,
-            IStandardDialogs standardDialogs)
+            IStandardDialogs standardDialogs,
+            LocalizationManager localizationManager)
         {
             _packfileService = packfileService;
             _settingsService = settingsService;
@@ -55,6 +59,7 @@ namespace AssetEditor.ViewModels
             _touchedFilesRecorder = touchedFilesRecorder;
             _packFileSaveService = packFileSaveService;
             _standardDialogs = standardDialogs;
+            _localizationManager = localizationManager;
             var settings = settingsService.CurrentSettings;
             settings.RecentPackFiles.CollectionChanged += OnRecentPackFilePathsChanged;
             CreateRecentPackFilesItems();
@@ -93,7 +98,7 @@ namespace AssetEditor.ViewModels
         [RelayCommand] private void OpenProjectFolder() => _uiCommandFactory.Create<OpenProjectCommand>().Execute();
         [RelayCommand] private void ImportPackAsProject() => _uiCommandFactory.Create<ImportPackAsAsProjectCommand>().Execute();
         [RelayCommand] private void ImportReferencePack() => _uiCommandFactory.Create<ImportReferencePackCommand>().Execute();
-        [RelayCommand] private void OpenPack() => _uiCommandFactory.Create<OpenPackCommand>().Execute();
+        [RelayCommand] private void OpenPack() => _uiCommandFactory.Create<OpenPackForEditingCommand>().Execute();
         [RelayCommand] private void CreateNewProject() => _uiCommandFactory.Create<CreateNewProjectCommand>().Execute();
 
         /// <summary>File > Import 3D model: into the root of the editable pack, offering to create one when there is none.</summary>
@@ -237,14 +242,20 @@ namespace AssetEditor.ViewModels
 
         void CreateTools()
         {
-            var infos = _editorDatabase
+            var sections = _editorDatabase
                 .GetEditorInfos()
-                .OrderBy(x=>x.ToolbarName)
-                .Where(x=>x.AddToolbarButton)
-                .ToList();
+                .Where(x => x.AddToolbarButton)
+                .GroupBy(x => x.ToolsMenuSection)
+                .OrderBy(x => x.Key);
 
-            foreach (var item in infos)
-                Editors.Add(new EditorShortcutViewModel(item, _uiCommandFactory));   
+            foreach (var section in sections)
+            {
+                if (section.Key != ToolsMenuSection.Top)
+                    Editors.Add(new ToolsMenuSectionHeaderViewModel(_localizationManager.Get($"MenuBar.Tools.Section.{section.Key}")));
+
+                foreach (var item in section.OrderBy(x => x.ToolbarName))
+                    Editors.Add(new EditorShortcutViewModel(item, _uiCommandFactory));
+            }
         }
     }
 }

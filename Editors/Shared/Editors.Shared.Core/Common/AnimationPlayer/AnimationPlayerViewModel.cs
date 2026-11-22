@@ -62,9 +62,43 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
                 SelectedMainAnimation = playerItem;
 
             OnAnimationPlayerEnabled(IsEnabled.Value);
+            RefreshAssetViewModel(asset, playerItem);
             ValueChangedDelegate<AnimationClip> handler = (x) => RefreshAssetViewModel(asset, playerItem);
             _animationChangedHandlers.Add(handler);
             asset.AnimationChanged += handler;
+        }
+
+        // Removes the asset's row; the asset itself is left as it is, and no longer steps with the controls
+        public void UnregisterAsset(SceneObject asset)
+        {
+            var index = _assetList.IndexOf(asset);
+            if (index == -1)
+                return;
+
+            asset.AnimationChanged -= _animationChangedHandlers[index];
+            _animationChangedHandlers.RemoveAt(index);
+            _assetList.RemoveAt(index);
+
+            var playerItem = PlayerItems.First(x => x.Asset == asset);
+            PlayerItems.Remove(playerItem);
+
+            if (SelectedMainAnimation == playerItem)
+            {
+                asset.Player.OnFrameChanged -= OnAnimationFrameChanged;
+                _selectedMainAnimation = null;
+                if (PlayerItems.Count != 0)
+                    SelectedMainAnimation = PlayerItems[0];
+                else
+                    NotifyPropertyChanged(nameof(SelectedMainAnimation));
+            }
+        }
+
+        // Picks up a changed Description
+        public void RefreshAsset(SceneObject asset)
+        {
+            var playerItem = PlayerItems.FirstOrDefault(x => x.Asset == asset);
+            if (playerItem != null)
+                RefreshAssetViewModel(asset, playerItem);
         }
 
         void RefreshAssetViewModel(SceneObject asset, AssetPlayerItem playerItem)
@@ -96,13 +130,13 @@ namespace Editors.Shared.Core.Common.AnimationPlayer
             try { _assetList.ForEach(step); }
             finally { _stepping = false; }
         }
+
         public void SetAnimationFirstFrame() => _assetList.ForEach(x => SetFrame(x, 0));
 
         public void SetAnimationLastFrame()
         {
-            LoopAnimation.Value = false;
             foreach (var item in _assetList)
-                SetFrame(item, SelectedMainAnimation.Asset.Player.FrameCount());
+                SetFrame(item, SelectedMainAnimation.Asset.Player.FrameCount() - 1);
         }
 
         private void OnAnimationFrameChanged(int currentFrame)

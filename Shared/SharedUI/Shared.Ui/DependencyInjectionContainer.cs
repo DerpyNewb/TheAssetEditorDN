@@ -58,6 +58,7 @@ namespace Shared.Ui
             services.AddScoped<OpenNodeInNotepadCommand>();
             services.AddScoped<OpenNodeInHxDCommand>();
             services.AddScoped<OpenPackInFileExplorerCommand>();
+            services.AddScoped<ReloadPackFromDiskCommand>();
             services.AddScoped<SaveAsPackFileContainerCommand>();
             services.AddScoped<SavePackFileContainerCommand>();
             services.AddScoped<SetAsEditablePackCommand>();
@@ -73,6 +74,7 @@ namespace Shared.Ui
             registry.RegisterPackFileContextMenuItem<SavePackFileContainerCommand>(ContextMenuType.MainApplication, path: "", priority: 20, ContextMenuCluster.PackFileOperation);
             registry.RegisterPackFileContextMenuItem<SaveAsPackFileContainerCommand>(ContextMenuType.MainApplication, path: "", priority: 30, ContextMenuCluster.PackFileOperation);
             registry.RegisterPackFileContextMenuItem<ChangeOutputLocationCommand>(ContextMenuType.MainApplication, path: "", priority: 40, ContextMenuCluster.PackFileOperation);
+            registry.RegisterPackFileContextMenuItem<ReloadPackFromDiskCommand>(ContextMenuType.MainApplication, path: "", priority: 45, ContextMenuCluster.PackFileOperation);
             registry.RegisterPackFileContextMenuItem<CopyToEditablePackCommand>(ContextMenuType.MainApplication, path: "", priority: 50, ContextMenuCluster.PackFileOperation);
             registry.RegisterPackFileContextMenuItem<RestoreBackupCommand>(ContextMenuType.MainApplication, path: "", priority: 60, ContextMenuCluster.PackFileOperation);
 

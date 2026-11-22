@@ -21,7 +21,6 @@ namespace Editors.AnimationMeta
             serviceCollection.AddTransient<MainEditorView>();
             serviceCollection.AddTransient<MetaDataEditorViewModel>();
 
-            serviceCollection.AddScoped<EditorHost<SuperViewViewModel>>();
             serviceCollection.AddScoped<SuperViewViewModel>();
 
             serviceCollection.AddScoped<IMetaDataBuilder, MetaDataBuilder>(); // Needs heavy refactorying!
@@ -46,7 +45,7 @@ namespace Editors.AnimationMeta
         {
             EditorInfoBuilder
                 .Create<SuperViewViewModel, EditorHostView>(EditorEnums.SuperView_Editor)
-                .AddToToolbar("SuperView")
+                .AddToToolbar("SuperView", section: ToolsMenuSection.Top)
                 .AddExtention(".variantmeshdefinition", EditorPriorites.Low)
                 .Build(factory);
 

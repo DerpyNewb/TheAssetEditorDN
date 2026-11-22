@@ -110,7 +110,7 @@ namespace GameWorld.Core.Components.Selection
         public void TriggerModifiedBoneEvent(List<int> modifiedBones)
         {
             ModifiedBones = modifiedBones;
-            BoneModifiedEvent.Invoke(this);
+            BoneModifiedEvent?.Invoke(this);
         }
     }
 }

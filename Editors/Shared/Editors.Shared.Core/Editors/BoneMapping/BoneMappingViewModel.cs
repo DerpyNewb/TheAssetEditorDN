@@ -1,5 +1,7 @@
 ﻿using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using Shared.Core.Misc;
 using Shared.Core.Services;
 using Shared.Ui.Common;

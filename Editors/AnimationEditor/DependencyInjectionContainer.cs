@@ -15,7 +15,6 @@ namespace Editors.AnimationVisualEditors
     {
         public override void Register(IServiceCollection serviceCollection)
         {
-            serviceCollection.AddScoped<EditorHost<MountAnimationCreatorViewModel>>();
             serviceCollection.AddScoped<MountAnimationCreatorViewModel>();
 
             serviceCollection.AddScoped<AnimationKeyframeEditorViewModel>();
@@ -27,13 +26,13 @@ namespace Editors.AnimationVisualEditors
         public override void RegisterTools(IEditorDatabase database)
         {
             EditorInfoBuilder
-                .Create<EditorHost<MountAnimationCreatorViewModel>, EditorHostView>(EditorEnums.MountTool_Editor)
-                .AddToToolbar("Mount Tool", false)
+                .Create<MountAnimationCreatorViewModel, EditorHostView>(EditorEnums.MountTool_Editor)
+                .AddToToolbar("Rider Animation Editor", true, ToolsMenuSection.Animation)
                 .Build(database);
         
             EditorInfoBuilder
               .Create<AnimationKeyframeEditorViewModel, EditorHostView>(EditorEnums.AnimationKeyFrame_Editor)
-              .AddToToolbar("KeyFrame Tool", true)
+              .AddToToolbar("Keyframe Editor", true, ToolsMenuSection.Animation)
               .Build(database);
         }
     }

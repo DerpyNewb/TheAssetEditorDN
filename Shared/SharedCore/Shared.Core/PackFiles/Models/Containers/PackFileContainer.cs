@@ -38,6 +38,10 @@ namespace Shared.Core.PackFiles.Models.Containers
         
         public Dictionary<string, PackFile> FileList { get; set; } = [];
 
+        // The file AE last wrote and how it looked afterwards. A save over anything else (the pack as
+        // it was opened or reloaded) is the first one, the one that keeps a backup.
+        private (string Path, PackFileStamp? Stamp)? _lastSave;
+
         protected PackFileContainer(string name, PackFileVersion version)
         {
             Name = name;
@@ -48,6 +52,105 @@ namespace Shared.Core.PackFiles.Models.Containers
         public void SaveSettings()
         {
             PackFileSettings.Save();
+        }
+
+        // Notes the size and write time of each pack the files are read from, so reading or saving
+        // fails with a clear error once another program (e.g. RPFM) rewrites it, instead of reading stale offsets
+        internal void TrackChangesOnDisk()
+        {
+            foreach (var parent in GetPackedFileSourceParents())
+                parent.ExpectedStamp = PackFileStamp.Read(parent.FilePath);
+        }
+
+        internal bool HasChangedOnDisk() => GetPackedFileSourceParents().Any(x => x.HasChangedOnDisk);
+
+        // Files whose content isn't read from this pack's file: edited, added or copied in AE since the last save
+        internal List<PackFile> GetUnsavedFiles()
+        {
+            var isReadFromThisPack = CreateIsReadFromThisPack();
+            return FileList.Values.Where(x => isReadFromThisPack(x) == false).ToList();
+        }
+
+        private Func<PackFile, bool> CreateIsReadFromThisPack()
+        {
+            if (string.IsNullOrWhiteSpace(SystemFilePath))
+                return _ => false;
+
+            var packPath = Path.GetFullPath(SystemFilePath);
+            return file => file.DataSource is PackedFileSource packed
+                && string.Equals(Path.GetFullPath(packed.Parent.FilePath), packPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Re-reads the pack after another program (e.g. RPFM) saved it. Files AE has edited, added or copied
+        // but not saved stay on top of the new version; everything else now reads from the new file. PackFile
+        // instances are kept for paths that still exist, so open editors keep valid references. Renames and
+        // deletions AE hasn't saved are undone, since the new version still has those files.
+        // Returns the unsaved files that were kept.
+        internal List<PackFile> ReloadFromDisk()
+        {
+            Guard.IsNotNullOrWhiteSpace(SystemFilePath, "Only a pack opened from disk can be reloaded");
+
+            var isReadFromThisPack = CreateIsReadFromThisPack();
+            var unsaved = FileList.Where(x => isReadFromThisPack(x.Value) == false).ToList();
+            var unsavedPaths = unsaved.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            PackFileContainer fresh;
+            using (var stream = File.OpenRead(SystemFilePath))
+            using (var reader = new BinaryReader(stream, System.Text.Encoding.ASCII))
+                fresh = PackFileSerializerLoader.Load(SystemFilePath, stream.Length, reader, new RecordingDuplicateFileResolver());
+
+            var reloaded = new Dictionary<string, PackFile>(fresh.FileList.Count + unsaved.Count);
+            foreach (var (path, freshFile) in fresh.FileList)
+            {
+                if (unsavedPaths.Contains(path))
+                    continue;
+
+                if (FileList.TryGetValue(path, out var existing))
+                {
+                    existing.DataSource = freshFile.DataSource;
+                    reloaded[path] = existing;
+                }
+                else
+                {
+                    reloaded[path] = freshFile;
+                }
+            }
+
+            foreach (var (path, file) in unsaved)
+                reloaded[path] = file;
+
+            FileList = reloaded;
+            Header = fresh.Header;
+            OriginalLoadByteSize = fresh.OriginalLoadByteSize;
+            OriginalLoadWriteTimeUtc = File.GetLastWriteTimeUtc(SystemFilePath);
+            TrackChangesOnDisk();
+
+            // The other program's version is now the one to keep on the next save
+            _lastSave = null;
+
+            return unsaved.Select(x => x.Value).ToList();
+        }
+
+        // Why PackFileSerializerWriter can't write this pack back, or null if it can.
+        // Checked when a pack is opened for editing, so nobody finds out on the first save.
+        internal string? WhyCannotBeSaved()
+        {
+            if (Header.HasEncryptedIndex || Header.HasEncryptedData)
+                return "it is encrypted";
+            if (Header.Version == PackFileVersion.PFH6)
+                return "it is a PFH6 pack, which AssetEditor can read but not write";
+            if (Header.HasExtendedHeader)
+                return "its header has an extended section AssetEditor can't write";
+            return null;
+        }
+
+        private IEnumerable<PackedFileSourceParent> GetPackedFileSourceParents()
+        {
+            return FileList.Values
+                .Select(x => x.DataSource)
+                .OfType<PackedFileSource>()
+                .Select(x => x.Parent)
+                .Distinct();
         }
 
         public static PackFileContainer CreateCaPackFile(string name, string? systemFilePath = null, PackFileVersion version = PackFileVersion.PFH5)
@@ -325,8 +428,15 @@ namespace Shared.Core.PackFiles.Models.Containers
                 throw new IOException(msg);
             }
 
-            if (createBackup)
-                SaveUtility.CreateFileBackup(path);
+            // Files still read from the packs they were loaded from; a rewritten pack would feed the save garbage
+            foreach (var parent in GetPackedFileSourceParents())
+                parent.EnsureUnchanged();
+
+            // createBackup keeps the file being replaced as <name>.pack1, but only on the first save since
+            // the pack was opened or reloaded: later saves would only back up what AE itself wrote
+            var backupPath = createBackup && File.Exists(path) && IsFirstSaveOver(path)
+                ? SaveUtility.GetPackBackupPath(path)
+                : null;
 
             if (OriginalLoadByteSize != -1)
             {
@@ -338,46 +448,43 @@ namespace Shared.Core.PackFiles.Models.Containers
                     throw new Exception("File has been changed outside of AssetEditor. Can not save the file as it will cause corruptions");
             }
 
-            // Written beside it, read back, and only then put in its place in one step. The files point at the new pack once it is there,
-            // so a save that fails leaves the pack on disk and the editor as they were.
-            var tempPath = path + "_temp";
-            try
-            {
-                List<WrittenFile> written;
-                using (var stream = new FileStream(tempPath, FileMode.Create))
-                using (var writer = new BinaryWriter(stream))
-                    written = PackFileSerializerWriter.SaveToByteArray(path, this, writer, effectiveGameInformation);
-                PackFileSerializerWriter.Verify(tempPath, written);
+            var sourceUpdates = SaveUtility.WriteThroughTempFile(path, writer =>
+                {
+                    var updates = PackFileSerializerWriter.SaveToByteArray(path, this, writer, effectiveGameInformation);
+                    // A file the save leaves out (IgnoredFilesWhenSerializing) still reads from the pack about to be replaced, at
+                    // offsets that mean nothing in the new one; it is read now, while the old pack is still there.
+                    var written = updates.Select(x => x.PackFile).ToHashSet();
+                    foreach (var file in FileList.Values.Where(x => !written.Contains(x) && x.DataSource is PackedFileSource s && SamePath(s.Parent.FilePath, path)))
+                        file.DataSource = new MemorySource(file.DataSource.ReadData());
+                    return updates;
+                },
+                backupPath);
+            _logger.Here().Information(backupPath == null
+                ? "Pack file written and moved into place"
+                : $"Pack file written and moved into place, the previous version kept as '{backupPath}'");
 
-                // A file the save leaves out still reads from the pack about to be replaced.
-                var writtenFiles = written.Select(x => x.File).ToHashSet();
-                foreach (var file in FileList.Values.Where(x => !writtenFiles.Contains(x) && x.DataSource is PackedFileSource s && SamePath(s.Parent.FilePath, path)))
-                    file.DataSource = new MemorySource(file.DataSource.ReadData());
-
-                _logger.Here().Information("Pack written to {TempPath} and read back, now replacing {Path}", tempPath, path);
-                if (File.Exists(path))
-                    File.Replace(tempPath, path, null);
-                else
-                    File.Move(tempPath, path);
-
-                foreach (var file in written)
-                    file.File.DataSource = file.Source;
-            }
-            catch
-            {
-                File.Delete(tempPath);
-                throw;
-            }
+            // Only now does the file at path hold the offsets the new sources point at
+            foreach (var update in sourceUpdates)
+                update.PackFile.DataSource = update.NewSource;
+            TrackChangesOnDisk();
 
             SystemFilePath = path;
             var saved = new FileInfo(path);
             OriginalLoadByteSize = saved.Length;
             OriginalLoadWriteTimeUtc = saved.LastWriteTimeUtc;
+            _lastSave = (Path.GetFullPath(path), PackFileStamp.Read(path));
 
             _logger.Here().Information("SaveToDisk completed");
         }
 
         static bool SamePath(string a, string b) => string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+
+        private bool IsFirstSaveOver(string path)
+        {
+            return _lastSave is not { } last
+                || string.Equals(last.Path, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase) == false
+                || last.Stamp != PackFileStamp.Read(path);
+        }
 
         private static string BuildPackPath(string? directoryPath, string fileName)
         {

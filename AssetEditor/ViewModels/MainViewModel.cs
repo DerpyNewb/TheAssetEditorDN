@@ -25,6 +25,8 @@ namespace AssetEditor.ViewModels
     {
         private readonly IUiCommandFactory _uiCommandFactory;
         private readonly HotkeyService _hotkeys;
+        private readonly ApplicationSettingsService _settingsService;
+        private readonly LocalizationManager _localizationManager;
 
         public PackFileBrowserViewModel FileTree { get; private set; }
         public MenuBarViewModel MenuBar { get; set; }
@@ -48,10 +50,13 @@ namespace AssetEditor.ViewModels
                 IUiCommandFactory uiCommandFactory, 
                 IEventHub eventHub,
                 ApplicationSettingsService applicationSettingsService,
-                HotkeyService hotkeys)
+                HotkeyService hotkeys,
+                LocalizationManager localizationManager)
         {
             _hotkeys = hotkeys;
             MenuBar = menuViewModel;
+            _settingsService = applicationSettingsService;
+            _localizationManager = localizationManager;
 
             EditorManager = editorManager;
             _uiCommandFactory = uiCommandFactory;
@@ -88,7 +93,7 @@ namespace AssetEditor.ViewModels
 
         public void OpenFile(PackFile file) => _uiCommandFactory.Create<OpenEditorCommand>().Execute(file);
 
-        public void OpenPack(string path) => _uiCommandFactory.Create<OpenPackCommand>().Open(path);
+        public void OpenPack(string path) => _uiCommandFactory.Create<OpenPackForEditingCommand>().Open(path);
 
         [RelayCommand] private void Closing(IEditorInterface editor) 
         {
@@ -117,7 +122,22 @@ namespace AssetEditor.ViewModels
 
         private void SetStatusBarEditablePackFile(PackFileContainerSetAsMainEditableEvent e)
         {
-            EditablePackFile = e.Container != null ? $"Active project: {e.Container.Name}" : "Active project: None set";
+            var container = e.Container;
+            if (container == null || container.ContainerType != PackFileContainerType.Normal)
+            {
+                EditablePackFile = container != null ? $"Active project: {container.Name}" : "Active project: None set";
+                return;
+            }
+
+            // Editing a .pack in place: say so, which game's rules a save follows, and when there is no backup
+            var gameType = container.PackFileSettings.GameVersion ?? _settingsService.CurrentSettings.CurrentGame;
+            var gameName = GameInformationDatabase.GetGameById(gameType).DisplayName;
+            var text = string.Format(_localizationManager.Get("MainWindow.StatusBar.DirectPack"), container.Name, gameName);
+            // Either backup counts: the fork's copy to the backup folder or upstream's .pack1
+            var settings = _settingsService.CurrentSettings;
+            if (settings.BackupBeforeSave == false && settings.BackupPacksOnFirstSave == false)
+                text += _localizationManager.Get("MainWindow.StatusBar.NoBackup");
+            EditablePackFile = text;
         }
     }
 }

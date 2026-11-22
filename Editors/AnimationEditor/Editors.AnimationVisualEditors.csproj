@@ -16,4 +16,15 @@
     <InternalsVisibleTo Include="Test.E2EVerification" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="Test.AnimationVisualEditors\**" />
+    <EmbeddedResource Remove="Test.AnimationVisualEditors\**" />
+    <None Remove="Test.AnimationVisualEditors\**" />
+    <Page Remove="Test.AnimationVisualEditors\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Test.AnimationVisualEditors" />
+  </ItemGroup>
+
 </Project>

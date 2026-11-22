@@ -97,6 +97,7 @@ namespace AssetEditor.ViewModels
                         Path = _settingsService.CurrentSettings.GameDirectories.FirstOrDefault(x => x.Game == game.Type)?.Path
                     });
             }
+
         }
 
 
