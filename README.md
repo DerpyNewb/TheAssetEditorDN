@@ -111,4 +111,4 @@ Pull requests are welcome. The project uses a modular architecture with dependen
 
 ## License
 
-See the repository for license details. meshoptimizer is MIT licensed, and its licence ships beside the DLL.
+MIT, as upstream's repository declares: see [LICENSE](LICENSE). Every build ships it beside `AssetEditor.exe`, with the MIT notices of the code built into it, meshoptimizer and the PBR shaders, in `licenses\`.

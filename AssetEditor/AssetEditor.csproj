@@ -55,7 +55,11 @@
             <Link>AiDocumentation\%(RecursiveDir)%(Filename)%(Extension)</Link>
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-        </Content>        
+        </Content>
+        <!-- MIT wants each notice with every copy: the project's own, and the third-party code built into it. -->
+        <Content Include="..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+        <Content Include="..\GameWorld\GameWorldCore\GameWorld.Core\Services\SceneSaving\Lod\MeshOptimizerIntegration\Native\LICENSE.md" Link="licenses\meshoptimizer.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+        <Content Include="..\GameWorld\ContentProject\Content\Shaders\Pbr\License\*.txt" Link="licenses\pbr_shaders_%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     </ItemGroup>
 
     <PropertyGroup>
