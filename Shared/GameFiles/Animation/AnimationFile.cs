@@ -25,6 +25,12 @@ namespace Shared.GameFormats.Animation
         {
             public List<RmvVector3> Transforms { get; set; } = new List<RmvVector3>();
             public List<RmvVector4> Quaternion { get; set; } = new List<RmvVector4>();
+
+            // Version 8 only: the bytes each range-packed channel was read from, by position in Transforms/Quaternion
+            // (null where the channel wasn't ranged). Near an extreme range several bytes decode to the same float,
+            // so the float alone can't say which byte to write back; the writer reuses one while it still decodes to the value.
+            internal List<sbyte[]?>? V8TranslationBytes { get; set; }
+            internal List<sbyte[]?>? V8QuaternionBytes { get; set; }
         }
 
         public class AnimationHeader
@@ -36,7 +42,7 @@ namespace Shared.GameFormats.Animation
             public uint FlagCount { get; set; } = 0;
             public List<string> FlagVariables { get; set; } = new List<string>();
             public float AnimationTotalPlayTimeInSec { get; set; }
-            public uint UnknownValue_v8 { get; set; } = 0;
+            public uint UnknownValue_v8 { get; set; } = 6;   // 6 in every vanilla v8 file
         }
 
         public enum AnimationBoneMappingType
@@ -97,12 +103,17 @@ namespace Shared.GameFormats.Animation
         public class AnimationPart
         {
             public Frame StaticFrame { get; set; } = null;
-            // A part with no dynamic frames (a pose) still carries a frame count: how many frames the pose is held for.
-            // CA writes round(play time x 20) + 1, never under 3.
-            public int PoseFrameCount { get; set; } = 3;
             public List<Frame> DynamicFrames = new List<Frame>();
             public List<AnimationBoneMapping> RotationMappings { get; set; } = new List<AnimationBoneMapping>();
             public List<AnimationBoneMapping> TranslationMappings { get; set; } = new List<AnimationBoneMapping>();
+
+            // The frame-count word of a part with no dynamic frames. Not always 3: CA writes the length the
+            // animation would have had (round(duration * frameRate) + 1). Null for a part built from scratch.
+            public int? DeclaredFrameCount { get; set; }
+
+            // Version 8 only: how the file packed each channel, kept so the part saves back as it was read.
+            // Null for a part that didn't come from a v8 file; the writer then stores everything uncompressed.
+            public AnimationV8OptimizationData? V8Packing { get; set; }
         }
 
         public class AnimationV8OptimizationData
@@ -111,8 +122,10 @@ namespace Shared.GameFormats.Animation
             public sbyte[] TranslationBitRate { get; set; }
             public sbyte[] RotationBitRate { get; set; }
 
-            public (RmvVector3 Min, RmvVector3 Max)[] Range_map_translations { get; set; }
-            public (RmvVector4 Min, RmvVector4 Max)[] Range_map_quaternion { get; set; }
+            // Decoded as Max + (byte / 127) * Min, so Min is the half-width and Max the midpoint.
+            // The table lengths are CA's own choice and can run past the last ranged bone, so keep them whole.
+            public (RmvVector3 Min, RmvVector3 Max)[] Range_map_translations { get; set; } = [];
+            public (RmvVector4 Min, RmvVector4 Max)[] Range_map_quaternion { get; set; } = [];
 
             public AnimationV8OptimizationData(uint boneCount)
             {
@@ -251,19 +264,17 @@ namespace Shared.GameFormats.Animation
             // Animation Data
             var animPosCount = chunk.ReadInt32();
             var animRotCount = chunk.ReadInt32();
-            var frameCount = chunk.ReadInt32();    // Always 3 when there is no data? Why?
+            var frameCount = chunk.ReadInt32();
 
-            if (animPosCount != 0 || animRotCount != 0)
+            if (animPosCount == 0 && animRotCount == 0)
+                animPart.DeclaredFrameCount = frameCount;
+            else
             {
                 for (var i = 0; i < frameCount; i++)
                 {
                     var frame = ReadFrame(chunk, (uint)animPosCount, (uint)animRotCount);
                     animPart.DynamicFrames.Add(frame);
                 }
-            }
-            else
-            {
-                animPart.PoseFrameCount = frameCount;
             }
 
             return new List<AnimationPart>() { animPart };
@@ -335,17 +346,16 @@ namespace Shared.GameFormats.Animation
                 var frame_tracks_quaternions_count = chunk.ReadUInt32();
                 var frame_count = chunk.ReadUInt32();
 
-                if (frame_tracks_tranlations_count != 0 || frame_tracks_quaternions_count != 0)
+                animationPart.V8Packing = optimizationData;
+                if (frame_tracks_tranlations_count == 0 && frame_tracks_quaternions_count == 0)
+                    animationPart.DeclaredFrameCount = (int)frame_count;
+                else
                 {
                     for (var frameIndex = 0; frameIndex < frame_count; frameIndex++)
                     {
                         var frame = ReadFrameV8(chunk, frame_tracks_tranlations_count, frame_tracks_quaternions_count, true, optimizationData);
                         animationPart.DynamicFrames.Add(frame);
                     }
-                }
-                else
-                {
-                    animationPart.PoseFrameCount = (int)frame_count;
                 }
 
                 output.Add(animationPart);
@@ -357,7 +367,7 @@ namespace Shared.GameFormats.Animation
 
         static Frame ReadFrameV8(ByteChunk chunk, uint positions, uint rotations, bool isDynamic, AnimationV8OptimizationData optimizationData)
         {
-            var frame = new Frame();
+            var frame = new Frame { V8TranslationBytes = [], V8QuaternionBytes = [] };
             for (var i = 0; i < optimizationData.BoneCount; i++)
             {
                 var bitRate = isDynamic ? optimizationData.TranslationBitRate[i] : -optimizationData.TranslationBitRate[i];
@@ -366,12 +376,14 @@ namespace Shared.GameFormats.Animation
                     case 12:
                         var vector = new RmvVector3(chunk.ReadSingle(), chunk.ReadSingle(), chunk.ReadSingle());
                         frame.Transforms.Add(vector);
+                        frame.V8TranslationBytes.Add(null);
                         break;
 
                     case 3:
                         var d0 = chunk.ReadSBytes(3);
                         var vecto2r = AnimationFileLoadHelpers.Decode_translation_24_888_ranged(d0, optimizationData, i);
                         frame.Transforms.Add(vecto2r);
+                        frame.V8TranslationBytes.Add(d0);
                         break;
 
                     case 0:
@@ -395,12 +407,14 @@ namespace Shared.GameFormats.Animation
 
                         var quaternion = new RmvVector4(quat[0] * maxValue, quat[1] * maxValue, quat[2] * maxValue, quat[3] * maxValue);
                         frame.Quaternion.Add(quaternion);
+                        frame.V8QuaternionBytes.Add(null);
                         break;
 
                     case 4:
                         var d0 = chunk.ReadSBytes(4);
                         var q = AnimationFileLoadHelpers.Decode_quaternion_32_s8888_ranged(d0, optimizationData, i);
                         frame.Quaternion.Add(q);
+                        frame.V8QuaternionBytes.Add(d0);
                         break;
 
                     case 0:
@@ -417,8 +431,8 @@ namespace Shared.GameFormats.Animation
 
         static byte[] ConvertToBytesInvernal(AnimationFile input)
         {
-            if (input.AnimationParts.Count != 1 && input.Header.Version != 8)
-                throw new Exception($"Only version 8 animations can hold more than one part; this one is version {input.Header.Version} with {input.AnimationParts.Count}.");
+            if (input.Header.Version != 8 && input.AnimationParts.Count != 1)
+                throw new Exception("Animations before version 8 must contain exactly one part.");
 
             using var memoryStream = new MemoryStream();
             using var writer = new BinaryWriter(memoryStream);
@@ -431,10 +445,10 @@ namespace Shared.GameFormats.Animation
             for (var i = 0; i < input.Header.SkeletonName.Length; i++)
                 writer.Write(input.Header.SkeletonName[i]);
 
-            // As the reader: flags from version 7 on. Version 6 has none.
+            // Flags exist from v7 on, same as GetAnimationHeader reads them
             if (input.Header.Version > 6)
             {
-                writer.Write(input.Header.FlagCount);
+                writer.Write((uint)input.Header.FlagVariables.Count);
                 foreach (var flag in input.Header.FlagVariables)
                     writer.Write(ByteParsers.String.WriteCaString(flag));
             }
@@ -454,7 +468,7 @@ namespace Shared.GameFormats.Animation
 
             if (input.Header.Version == 8)
             {
-                WriteAnimationParts_v8(writer, input);
+                AnimationFileV8Writer.Write(writer, input);
                 return memoryStream.ToArray();
             }
 
@@ -496,83 +510,12 @@ namespace Shared.GameFormats.Animation
                 {
                     writer.Write(0);   // animPosCount
                     writer.Write(0);   // animRotCount
-                    writer.Write(animationPart.PoseFrameCount);
+                    writer.Write(animationPart.DeclaredFrameCount ?? 3);
                 }
             }
 
             return memoryStream.ToArray();
         }
-
-        // Version 8 at full precision: every track is written as CA's uncompressed encodings (translation 12, rotation 8; negative
-        // for a static track), so the range maps are empty. A ranged (3/4) track CA shipped is decoded on load and comes back as
-        // the uncompressed encoding of the same value, larger but not lossy beyond the 1/32767 rotation step.
-        // ponytail: no ranged encoder; add one if file size matters.
-        static void WriteAnimationParts_v8(BinaryWriter writer, AnimationFile input)
-        {
-            const sbyte Translation = 12;
-            const sbyte Rotation = 8;
-            var boneCount = input.Bones.Length;
-
-            writer.Write(input.Header.UnknownValue_v8);
-            writer.Write((uint)input.AnimationParts.Count);
-
-            foreach (var part in input.AnimationParts)
-            {
-                if (part.TranslationMappings.Count != boneCount || part.RotationMappings.Count != boneCount)
-                    throw new Exception($"An animation part maps {part.TranslationMappings.Count} translations and {part.RotationMappings.Count} rotations for {boneCount} bones.");
-
-                // Tracks go out in bone order, because the reader numbers them that way: the n-th dynamic bone reads the n-th value.
-                var dynamicT = new List<int>();
-                var dynamicR = new List<int>();
-                var staticT = new List<int>();
-                var staticR = new List<int>();
-                for (var bone = 0; bone < boneCount; bone++)
-                {
-                    var t = part.TranslationMappings[bone];
-                    writer.Write(t.IsStatic ? (sbyte)-Translation : t.IsDynamic ? Translation : (sbyte)0);
-                    if (t.IsStatic) staticT.Add(t.Id); else if (t.IsDynamic) dynamicT.Add(t.Id);
-                }
-                for (var bone = 0; bone < boneCount; bone++)
-                {
-                    var r = part.RotationMappings[bone];
-                    writer.Write(r.IsStatic ? (sbyte)-Rotation : r.IsDynamic ? Rotation : (sbyte)0);
-                    if (r.IsStatic) staticR.Add(r.Id); else if (r.IsDynamic) dynamicR.Add(r.Id);
-                }
-
-                writer.Write(0u);   // range map translations
-                writer.Write(0u);   // range map quaternions
-
-                writer.Write((uint)staticT.Count);
-                writer.Write((uint)staticR.Count);
-                if (staticT.Count != 0 || staticR.Count != 0)
-                {
-                    if (part.StaticFrame == null)
-                        throw new Exception("An animation part maps static tracks but has no static frame.");
-                    WriteFrame(writer, SelectTracks(part.StaticFrame, staticT, staticR));
-                }
-
-                writer.Write((uint)dynamicT.Count);
-                writer.Write((uint)dynamicR.Count);
-                if (dynamicT.Count != 0 || dynamicR.Count != 0)
-                {
-                    if (part.DynamicFrames.Count == 0)
-                        throw new Exception("An animation part maps dynamic tracks but has no frames.");
-                    writer.Write((uint)part.DynamicFrames.Count);
-                    foreach (var frame in part.DynamicFrames)
-                        WriteFrame(writer, SelectTracks(frame, dynamicT, dynamicR));
-                }
-                else
-                {
-                    writer.Write((uint)part.PoseFrameCount);
-                }
-            }
-        }
-
-        static Frame SelectTracks(Frame frame, List<int> translations, List<int> rotations) => new()
-        {
-            Transforms = translations.Select(id => frame.Transforms[id]).ToList(),
-            Quaternion = rotations.Select(id => frame.Quaternion[id]).ToList(),
-        };
 
         public static byte[] ConvertToBytes(AnimationFile input)
         {
@@ -583,7 +526,7 @@ namespace Shared.GameFormats.Animation
         }
 
 
-        static void WriteFrame(BinaryWriter writer, Frame frame)
+        internal static void WriteFrame(BinaryWriter writer, Frame frame)
         {
             for (var i = 0; i < frame.Transforms.Count(); i++)
             {

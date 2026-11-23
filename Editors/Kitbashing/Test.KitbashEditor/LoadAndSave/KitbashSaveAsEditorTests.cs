@@ -13,7 +13,8 @@ namespace Test.KitbashEditor.LoadAndSave
         {
             var runner = new AssetEditorTestRunner();
             runner.CreateCaContainer();
-            var outputPackFile = runner.LoadPackFile(TestFiles.KarlPackFile, true);
+            // Karl's pack stands in for the game's data: only a material that ships with the game or the mod is kept as loaded
+            var outputPackFile = runner.LoadPackFile(TestFiles.KarlPackFile, true, loadAsGamePack: true);
             var editor = (ISaveableEditor)runner.CommandFactory.Create<OpenEditorCommand>().Execute(runner.PackFileService.FindFile(TestFiles.RmvFilePathKarl)!);
             var saveSettings = runner.GetRequiredServiceInCurrentEditorScope<GeometrySaveSettings>();
             saveSettings.IsUserInitialized = true;

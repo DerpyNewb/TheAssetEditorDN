@@ -48,7 +48,7 @@ namespace GameWorld.Core.Services.SceneSaving.Material
             }
 
             var materials = new InMemoryMaterialSerializer(game);
-            var wsModel = WsModelGeneratorService.CreateWsModel(materials, modelPath, meshes);
+            var wsModel = WsModelGeneratorService.CreateWsModel(materials, modelPath, meshes, regenerateMaterials: false);
 
             var output = new List<(string, byte[])> { (Path.ChangeExtension(modelPath, ".wsmodel"), Encoding.UTF8.GetBytes(wsModel)) };
             output.AddRange(materials.Files.Select(x => (x.Key, Encoding.UTF8.GetBytes(x.Value))));
@@ -69,6 +69,9 @@ namespace GameWorld.Core.Services.SceneSaving.Material
         class InMemoryMaterialSerializer(GameTypeEnum game) : IMaterialToWsMaterialSerializer
         {
             public Dictionary<string, string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+            // An imported model was never loaded from a material file, so there is none to keep.
+            public string? ReserveLoadedMaterial(string meshName, UiVertexFormat meshVertexFormat, CapabilityMaterial material) => null;
 
             public string ProsessMaterial(string modelFilePath, string meshName, UiVertexFormat meshVertexFormat, CapabilityMaterial material)
             {

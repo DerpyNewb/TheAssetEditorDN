@@ -1,9 +1,9 @@
 ﻿using System.Globalization;
 using System.IO;
-using CommonControls.SelectionListDialog;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Editors.AnimatioReTarget.Editor.BoneHandling;
+using Editors.AnimatioReTarget.Editor.Settings;
 using Editors.Shared.Core.Common;
 using Editors.Shared.Core.Common.ReferenceModel;
 using GameWorld.Core.Animation;
@@ -17,29 +17,24 @@ using Shared.Core.Services;
 using Shared.GameFormats.Animation;
 using Shared.GameFormats.AnimationPack;
 using Shared.GameFormats.RigidModel;
-using Shared.Ui.BaseDialogs.SelectionListDialog;
-using Shared.Ui.Common;
 
 namespace Editors.AnimatioReTarget.Editor.Saving
 {
-    /// <summary>What a batch export did: animations saved, skipped as already in the pack, and failed with why.</summary>
-    public record BatchExportResult(int Saved, int Skipped, List<string> Failed);
-
     public partial class SaveManager : ObservableObject
     {
+        private readonly BoneManager _boneManager;
         private readonly ISkeletonAnimationLookUpHelper _skeletonAnimationLookUpHelper;
         private readonly IPackFileService _pfs;
         private readonly IFileSaveService _saveService;
         private readonly IStandardDialogs _standardDialogs;
+        private readonly LocalizationManager _loc;
         private readonly IAbstractFormFactory<SaveWindow> _settingsWindowFactory;
         [ObservableProperty] SaveSettings _settings;
 
         SceneObject _generated;
         SceneObject _source;
         SceneObject _target;
-
-        /// <summary>Retargets one source clip with the editor's current mapping and settings. Set by the editor.</summary>
-        public Func<AnimationClip, AnimationClip>? Remap { get; set; }
+        AnimationGenerationSettings _generationSettings;
 
         public SaveManager(BoneManager boneManager,
             ISkeletonAnimationLookUpHelper skeletonAnimationLookUpHelper,
@@ -47,12 +42,15 @@ namespace Editors.AnimatioReTarget.Editor.Saving
             SaveSettings saveSettings,
             IFileSaveService saveService,
             IStandardDialogs standardDialogs,
+            LocalizationManager localizationManager,
             IAbstractFormFactory<SaveWindow> settingsWindowFactory)
         {
+            _boneManager = boneManager;
             _skeletonAnimationLookUpHelper = skeletonAnimationLookUpHelper;
             _pfs = pfs;
             _saveService = saveService;
             _standardDialogs = standardDialogs;
+            _loc = localizationManager;
             _settingsWindowFactory = settingsWindowFactory;
             _settings = saveSettings;
             _settings.PropertyChanged += (_, e) =>
@@ -76,11 +74,12 @@ namespace Editors.AnimatioReTarget.Editor.Saving
             return SaveUtility.EnsureEnding(newPath, ".anim");
         }
 
-        public void SetSceneNodes(SceneObject source, SceneObject target, SceneObject generated)
+        public void SetSceneNodes(SceneObject source, SceneObject target, SceneObject generated, AnimationGenerationSettings generationSettings)
         {
             _generated = generated;
             _source = source;
             _target = target;
+            _generationSettings = generationSettings;
         }
 
         public void SaveAnimation(bool prompOnConflict = true)
@@ -92,25 +91,42 @@ namespace Editors.AnimatioReTarget.Editor.Saving
                 return;
             }
 
-            _saveService.Save(outputPath, ToBytes(_generated.AnimationClip), prompOnConflict);
+            var sourceFile = Settings.AnimationFormat == 8 ? _pfs.FindFile(_source!.AnimationName.Value) : null;
+            var sourceHeader = sourceFile == null ? null : AnimationFile.Create(sourceFile).Header;   // the header alone can run past what GetAnimationHeader peeks
+            _saveService.Save(outputPath, ToBytes(_generated.AnimationClip, _generated.Skeleton, sourceHeader), prompOnConflict);
         }
 
-        byte[] ToBytes(AnimationClip clip)
+        // The single save and the batch both write through here, so they write the same bytes for the same clip
+        byte[] ToBytes(AnimationClip clip, GameSkeleton skeleton, AnimationFile.AnimationHeader? sourceHeader)
         {
-            var animFile = clip.ConvertToFileFormat(_generated.Skeleton);
-            if (Settings.AnimationFormat != 7)
-            {
-                var skeleton = _skeletonAnimationLookUpHelper.GetSkeletonFileFromName(animFile.Header.SkeletonName);
-                animFile.ConvertToVersion(Settings.AnimationFormat, skeleton, _pfs);
-            }
+            var animFile = ToOutputFile(clip, skeleton, sourceHeader);
             // Renamed after the conversion, which looks the skeleton up by the header's name.
             if (Settings.UseGeneratedSkeleton && !string.IsNullOrWhiteSpace(Settings.ScaledSkeletonName))
                 animFile.Header.SkeletonName = Settings.ScaledSkeletonName.Trim();
             return AnimationFile.ConvertToBytes(animFile);
         }
 
-        /// <summary>The skeleton scale the generated animation is made at. Set by the editor.</summary>
-        public Func<float>? SkeletonScale { get; set; }
+        // The retargeted clip is on another skeleton, so only the source's header values carry over to v8 (flags,
+        // unknown_v8), never its packing
+        AnimationFile ToOutputFile(AnimationClip clip, GameSkeleton skeleton, AnimationFile.AnimationHeader? sourceHeader)
+        {
+            if (Settings.AnimationFormat == 8)
+            {
+                var unknownValueV8 = sourceHeader?.Version == 8 ? sourceHeader.UnknownValue_v8 : (uint?)null;
+                return clip.ConvertToFileFormat(skeleton, 8, unknownValueV8, sourceHeader?.FlagVariables);
+            }
+
+            var animFile = clip.ConvertToFileFormat(skeleton);
+            if (Settings.AnimationFormat != 7)
+            {
+                var skeletonFile = _skeletonAnimationLookUpHelper.GetSkeletonFileFromName(animFile.Header.SkeletonName);
+                animFile.ConvertToVersion(Settings.AnimationFormat, skeletonFile, _pfs);
+            }
+            return animFile;
+        }
+
+        string BuildSourcePathOutput(string sourcePath) =>
+            OutputPath(sourcePath) ?? throw new InvalidOperationException(_loc.Get("AnimationReTarget.Batch.Error.SkeletonsRequired"));
 
         /// <summary>"_s" and the scale's digits: humanoid01_s15 is humanoid01 at 1.5.</summary>
         public static string ScaleSuffix(float scale) => "_s" + scale.ToString(CultureInfo.InvariantCulture).Replace(".", "");
@@ -125,7 +141,7 @@ namespace Editors.AnimatioReTarget.Editor.Saving
         public List<string>? ExportScaledMesh()
         {
             const string title = "Export at scale";
-            var scale = SkeletonScale?.Invoke() ?? 1;
+            var scale = _generationSettings?.SkeletonScale ?? 1;
             var skeleton = _generated?.Skeleton;
             var root = _generated?.ModelNode;
             var models = root == null ? [] : SceneNodeHelper.GetChildrenOfType<Rmv2ModelNode>(root).Append(root as Rmv2ModelNode)
@@ -212,16 +228,37 @@ namespace Editors.AnimatioReTarget.Editor.Saving
             window.ShowDialog();
         }
 
-        /// <summary>Every animation made for the source skeleton, by path, skeleton files left out.</summary>
-        public List<string> BatchCandidates()
+        // Batch retarget. Ported from Szy-Cathay/TheAssetEditor-CN 08d0ed5dc, writing to the editable pack instead
+        // of the fork's folder project
+
+        public bool CanBatchRetarget(out string errorMessage)
+        {
+            if (_source?.Skeleton == null || _target?.Skeleton == null)
+                errorMessage = _loc.Get("AnimationReTarget.Batch.Error.SkeletonsRequired");
+            else if (!float.IsFinite(_generationSettings.AnimationSpeedMult) || _generationSettings.AnimationSpeedMult <= 0)
+                errorMessage = _loc.Get("AnimationReTarget.Batch.Error.InvalidSpeed");
+            else if (!_boneManager.FlatBones.Any(x => x.HasMapping && x.MappedIndex >= 0))
+                errorMessage = _loc.Get("AnimationReTarget.Batch.Error.MappingRequired");
+            else if (_pfs.GetEditablePack() == null)
+                errorMessage = _loc.Get("AnimationReTarget.Batch.Error.EditablePackRequired");
+            else
+                errorMessage = string.Empty;
+
+            return errorMessage.Length == 0;
+        }
+
+        /// <summary>The source skeleton's animations, without the skeleton files under animations\skeletons\.</summary>
+        public IReadOnlyList<AnimationReference> GetBatchCandidates()
         {
             if (_source?.Skeleton == null)
                 return [];
-            return _skeletonAnimationLookUpHelper.CopyAnimationsForSkeleton(_source.Skeleton.SkeletonName)
-                .Select(x => x.AnimationFile)
-                .Where(x => !x.StartsWith(@"animations\skeletons", StringComparison.OrdinalIgnoreCase))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+
+            // The copy, not the live list: a pack load refreshes the live one on a worker thread mid-walk
+            return _skeletonAnimationLookUpHelper
+                .CopyAnimationsForSkeleton(_source.Skeleton.SkeletonName)
+                .Where(x => !IsSkeletonAnimationPath(x.AnimationFile))
+                .OrderBy(x => x.AnimationFile, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Container?.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
@@ -241,113 +278,148 @@ namespace Editors.AnimatioReTarget.Editor.Saving
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        /// <summary>
-        /// Retargets each animation with the current mapping and settings and saves it where Save would save it. Asks once when any
-        /// of them is already in the editable pack: overwrite them all, skip them all, or stop. Null when stopped. One animation
-        /// that fails is listed and the rest still go.
-        /// </summary>
-        public BatchExportResult? BatchExport(IReadOnlyList<string> sourceAnimationPaths)
+        public static bool IsTechAnimation(AnimationReference animation) =>
+            GetPathSegments(animation.AnimationFile).Contains("tech", StringComparer.OrdinalIgnoreCase);
+
+        public static bool IsSkeletonAnimationPath(string path)
         {
-            var editablePack = _pfs.GetEditablePack();
-            if (editablePack == null || Remap == null || _source?.Skeleton == null || _target?.Skeleton == null)
-            {
-                _standardDialogs.ShowDialogBox("Pick a source and a target model, and have an editable pack, before a batch export.");
-                return null;
-            }
+            if (!path.EndsWith(".anim", StringComparison.OrdinalIgnoreCase))
+                return false;
 
-            var jobs = sourceAnimationPaths.Select(x => (Source: x, Output: OutputPath(x)!)).ToList();
-            var existing = jobs.Count(x => _pfs.FindFile(x.Output, editablePack) != null);
-            var overwrite = true;
-            if (existing != 0)
+            var segments = GetPathSegments(path);
+            for (var i = 0; i < segments.Length - 1; i++)
             {
-                var choice = _standardDialogs.ShowChoiceBox($"{existing} of the {jobs.Count} animations are already in your pack.", "Batch export", ["Overwrite them", "Skip them", "Cancel"]);
-                if (choice != 0 && choice != 1)
-                    return null;
-                overwrite = choice == 0;
+                if (segments[i].Equals("animations", StringComparison.OrdinalIgnoreCase) &&
+                    segments[i + 1].Equals("skeletons", StringComparison.OrdinalIgnoreCase))
+                    return true;
             }
+            return false;
+        }
 
-            var saved = 0;
-            var skipped = 0;
-            var failed = new List<string>();
-            foreach (var (source, output) in jobs)
+        static string[] GetPathSegments(string path) => path.Replace('/', '\\').Split('\\', StringSplitOptions.RemoveEmptyEntries);
+
+        public Task<BatchAnimationRetargetResult> ExecuteBatchAsync(BatchAnimationRetargetRequest request, IProgress<BatchProgress>? progress, CancellationToken cancellationToken)
+        {
+            // Checked before the background task starts, so a bad setup throws to the caller and writes nothing
+            if (!CanBatchRetarget(out var validationError))
+                throw new InvalidOperationException(validationError);
+            if (request.PathMode == BatchRetargetPathMode.SelectedFolder && string.IsNullOrWhiteSpace(request.TargetFolder))
+                throw new InvalidOperationException(_loc.Get("AnimationReTarget.Batch.Error.TargetFolderRequired"));
+
+            // The bone settings are read on the background task, so the window keeps them disabled until it ends
+            return Task.Run(() => ExecuteBatch(request, progress, cancellationToken));
+        }
+
+        BatchAnimationRetargetResult ExecuteBatch(BatchAnimationRetargetRequest request, IProgress<BatchProgress>? progress, CancellationToken cancellationToken)
+        {
+            var outputPack = _pfs.GetEditablePack()!;
+
+            // Plan every output path first. A path that collides with an earlier item, or that already exists when
+            // not overwriting, is skipped
+            var planned = request.Animations.Select(x => PlanItem(request, x)).ToList();
+            var seenOutputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var skipped = new HashSet<int>();
+            for (var i = 0; i < planned.Count; i++)
             {
-                if (!overwrite && _pfs.FindFile(output, editablePack) != null)
-                {
-                    skipped++;
+                var outputPath = planned[i].OutputPath;
+                if (outputPath == null)
                     continue;
-                }
 
-                try
-                {
-                    var file = _pfs.FindFile(source) ?? throw new FileNotFoundException("not in any loaded pack");
-                    var clip = new AnimationClip(AnimationFile.Create(file), _source.Skeleton);
-                    _saveService.Save(output, ToBytes(Remap(clip)), false);
-                    saved++;
-                }
-                catch (Exception e)
-                {
-                    failed.Add($"{source}: {e.Message}");
-                }
+                if (!seenOutputs.Add(outputPath) || (!request.OverwriteExisting && _pfs.FindFile(outputPath, outputPack) != null))
+                    skipped.Add(i);
             }
-            return new BatchExportResult(saved, skipped, failed);
-        }
 
-        public void ShowBatchExport()
-        {
-            var items = BatchCandidates()
-                .Select(x => new SelectionListViewModel<string>.Item { DisplayName = x, ItemValue = x })
-                .ToList();
-            if (items.Count == 0)
+            var results = new List<BatchAnimationRetargetItemResult>(planned.Count);
+            for (var i = 0; i < planned.Count; i++)
             {
-                _standardDialogs.ShowDialogBox("Pick a source model first. Batch export lists the animations made for its skeleton.");
-                return;
+                var item = planned[i];
+                var sourcePath = item.Animation.AnimationFile;
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    results.AddRange(planned.Skip(i).Select(x => new BatchAnimationRetargetItemResult(x.Animation.AnimationFile, x.OutputPath, BatchAnimationRetargetItemStatus.NotProcessed)));
+                    break;
+                }
+
+                if (item.ErrorMessage != null)
+                {
+                    results.Add(new(sourcePath, null, BatchAnimationRetargetItemStatus.Failed, item.ErrorMessage));
+                }
+                else if (skipped.Contains(i))
+                {
+                    results.Add(new(sourcePath, item.OutputPath, BatchAnimationRetargetItemStatus.Skipped));
+                }
+                else
+                {
+                    try
+                    {
+                        var content = RetargetAnimation(item.Animation);
+                        RunOnUiThread(() => _saveService.Save(item.OutputPath!, content, false));
+                        results.Add(new(sourcePath, item.OutputPath, BatchAnimationRetargetItemStatus.Success));
+                    }
+                    catch (Exception e)
+                    {
+                        results.Add(new(sourcePath, item.OutputPath, BatchAnimationRetargetItemStatus.Failed, e.Message));
+                    }
+                }
+
+                progress?.Report(new BatchProgress(i + 1, planned.Count, sourcePath));
             }
 
-            var window = SelectionListWindow.ShowDialog($"Animations to retarget onto {_target?.Skeleton?.SkeletonName} (filter, then Select all)", items);
-            var picked = items.Where(x => x.IsChecked.Value).Select(x => x.ItemValue).ToList();
-            if (window.Result == false || picked.Count == 0)
-                return;
-            RunBatch(picked);
+            return new BatchAnimationRetargetResult(results);
         }
 
-        /// <summary>Batch export by animation set: every animation the ticked bins play, e.g. all of a unit's.</summary>
-        public void ShowBatchExportFromSets()
+        record BatchPlanItem(AnimationReference Animation, string? OutputPath, string? ErrorMessage);
+
+        BatchPlanItem PlanItem(BatchAnimationRetargetRequest request, AnimationReference animation)
         {
-            var items = BatchSets()
-                .Select(x => (Set: x, Count: AnimationsIn([x]).Count))
-                .Where(x => x.Count != 0)
-                .Select(x => new SelectionListViewModel<IAnimationBinGenericFormat>.Item { DisplayName = $"{x.Set.FullPath} ({x.Count} animations)", ItemValue = x.Set })
-                .ToList();
-            if (items.Count == 0)
+            try
             {
-                _standardDialogs.ShowDialogBox("No animation set (bin) in the loaded packs plays animations for the source skeleton. Pick a source model first, and load the packs that hold its bins.");
-                return;
+                return new BatchPlanItem(animation, BuildBatchOutputPath(request, animation.AnimationFile), null);
             }
-
-            var window = SelectionListWindow.ShowDialog($"Animation sets to retarget onto {_target?.Skeleton?.SkeletonName}: every animation in the ticked bins", items);
-            var picked = AnimationsIn(items.Where(x => x.IsChecked.Value).Select(x => x.ItemValue));
-            if (window.Result == false || picked.Count == 0)
-                return;
-            RunBatch(picked);
+            catch (Exception e)
+            {
+                return new BatchPlanItem(animation, null, e.Message);
+            }
         }
 
-        void RunBatch(List<string> picked)
+        string BuildBatchOutputPath(BatchAnimationRetargetRequest request, string sourcePath)
         {
-            if (picked.Count > 50 && _standardDialogs.ShowChoiceBox($"Retarget {picked.Count} animations? AssetEditor won't respond until it finishes.", "Batch export", ["Retarget them", "Cancel"]) != 0)
-                return;
+            if (request.PathMode == BatchRetargetPathMode.SourcePath)
+                return BuildSourcePathOutput(sourcePath);
 
-            BatchExportResult? result;
-            using (new WaitCursor())
-                result = BatchExport(picked);
-            if (result == null)
-                return;
+            // Only the folder that holds the .anim is kept, so stand\idle.anim lands in <chosen>\stand\idle.anim
+            var containingFolder = Path.GetFileName(Path.GetDirectoryName(sourcePath));
+            if (string.IsNullOrWhiteSpace(containingFolder))
+                throw new InvalidDataException(string.Format(_loc.Get("AnimationReTarget.Batch.Error.SourceFolderRequired"), sourcePath));
 
-            var summary = $"Saved {result.Saved} animations.";
-            if (result.Skipped != 0)
-                summary += $" Skipped {result.Skipped} already in your pack.";
-            if (result.Failed.Count != 0)
-                summary += $"\n\n{result.Failed.Count} failed:\n" + string.Join("\n", result.Failed.Take(20));
-            _standardDialogs.ShowDialogBox(summary, "Batch export");
+            var fileName = Settings.SavePrefix + Path.GetFileName(sourcePath);
+            var targetFolder = request.TargetFolder!.Replace('/', '\\').Trim('\\');
+            return SaveUtility.EnsureEnding(Path.Combine(targetFolder, containingFolder, fileName), ".anim");
+        }
+
+        byte[] RetargetAnimation(AnimationReference animation)
+        {
+            var packFile = _pfs.FindFile(animation.AnimationFile, animation.Container)
+                ?? throw new FileNotFoundException(string.Format(_loc.Get("AnimationReTarget.Batch.Error.AnimationNotFound"), animation.AnimationFile));
+
+            var sourceFile = AnimationFile.Create(packFile);
+            var sourceClip = new AnimationClip(sourceFile, _source.Skeleton);
+            var remapper = new AnimationRemapperService(_generationSettings, _boneManager.Bones);
+            var remappedClip = remapper.ReMapAnimation(_source.Skeleton, _target.Skeleton, sourceClip);
+
+            return ToBytes(remappedClip, _target.Skeleton, sourceFile.Header);
+        }
+
+        // Adding to the pack raises events the pack tree handles, so writes go through the UI thread. Tests have no
+        // Application and write directly
+        static void RunOnUiThread(Action action)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+                action();
+            else
+                dispatcher.Invoke(action);
         }
     }
 }

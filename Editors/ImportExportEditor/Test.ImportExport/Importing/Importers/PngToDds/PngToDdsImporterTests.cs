@@ -106,16 +106,16 @@ namespace Test.ImportExport.Importing.Importers.PngToDds
             try
             {
                 var pfs = PackFileSerivceTestHelper.Create(PathHelper.GetDataFolder("Data\\Karl_and_celestialgeneral_Pack"));
-                var dialogs = new Mock<IStandardDialogs>();
-                var importer = new GltfImporter(pfs, dialogs.Object, new SkeletonAnimationLookUpHelper(pfs, new Mock<IGlobalEventHub>().Object), new RmvMaterialBuilder(pfs, dialogs.Object));
-                var container = PackFileContainer.CreatePackFile("new", "new.pack");
+                var importer = new GltfImporter(pfs, new SkeletonAnimationLookUpHelper(pfs, new Mock<IGlobalEventHub>().Object), new RmvMaterialBuilder());
+                var container = PackFileContainer.CreatePackFile("new");
 
-                importer.Import(new GltfImporterSettings(glb, "skeletons", container, Wh3, true, true, true, true, false, 20.0f, true));
+                var result = importer.Import(new GltfImporterSettings(glb, "skeletons", container, Wh3, true, true, true, true, false, 20.0f));
 
+                Assert.That(result.Succeeded, Is.True, string.Join(Environment.NewLine, result.Errors));
                 var textures = container.GetAllFiles().Where(x => x.Key.EndsWith(".dds")).ToList();
-                Assert.That(textures, Has.Count.EqualTo(3 * 4), "base colour, material map and normal for each of the four meshes");
+                // Karl's two body meshes share one set of images, as do his two heads; identical textures are written once.
+                Assert.That(textures, Has.Count.EqualTo(3 * 2 + 1), "base colour, material map and normal for the body and the head, and the one neutral mask they all lack");
                 var normal = Read(textures.First(x => x.Key.Contains("normal")).Value);
-                Assert.That(dialogs.Invocations.Where(x => x.Method.Name.Contains("Exception") || x.Method.Name.Contains("Error")), Is.Empty);
                 Assert.That(normal.Pixels.Chunk(4).All(p => p[0] >= 250 && p[2] <= 5), "every normal texel is orange: R=255, B=0");
             }
             finally
@@ -139,7 +139,9 @@ namespace Test.ImportExport.Importing.Importers.PngToDds
                 var source = new PackFile(path, new FileSystemSource(path));
 
                 Assert.That((importer.CanImportFile(source), importer.TextureType), Is.EqualTo((ImportSupportEnum.HighPriority, TextureType.Normal)));
-                importer.Execute(source, @"variantmeshes\tex", PackFileContainer.CreatePackFile("new", "new.pack"), Wh3);
+                var result = importer.Execute(source, @"variantmeshes\tex", PackFileContainer.CreatePackFile("new"), Wh3, null, CancellationToken.None);
+
+                Assert.That(result.Succeeded, Is.True);
 
                 var file = added.Single();
                 Assert.That((file.DirectoyPath, file.PackFile.Name), Is.EqualTo((@"variantmeshes\tex", Path.GetFileNameWithoutExtension(path).ToLowerInvariant() + ".dds")));

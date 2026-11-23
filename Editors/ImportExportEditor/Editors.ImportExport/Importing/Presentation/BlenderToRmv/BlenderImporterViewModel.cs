@@ -1,5 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using Editors.ImportExport.Blender;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Editors.ImportExport.Importing.Importers.BlenderToRmv;
 using Editors.ImportExport.Misc;
 using Shared.Core.PackFiles.Models;
@@ -28,11 +27,19 @@ namespace Editors.ImportExport.Importing.Presentation.BlenderToRmv
         public ImportSupportEnum CanImportFile(PackFile file) =>
             FileExtensionHelper.IsBlenderImportFile(file.Name) ? ImportSupportEnum.HighPriority : ImportSupportEnum.NotSupported;
 
-        public void Execute(PackFile importSource, string outputPath, IPackFileContainer packFileContainer, GameTypeEnum gameType)
+        public ImportResult Execute(PackFile importSource, string outputPath, IPackFileContainer packFileContainer, GameTypeEnum gameType, IProgress<ImportProgress>? progress, CancellationToken cancellationToken)
         {
-            var outcome = importer.Import(importSource.Name, packFileContainer, outputPath,
+            // On the UI thread: Blender asks for blender.exe when it is not found, waits behind its busy window and asks before
+            // writing a file back over the one it was exported from. The import window shows what it wrote.
+            BlenderImportOutcome Import() => importer.Import(importSource.Name, packFileContainer, outputPath,
                 string.IsNullOrWhiteSpace(SkeletonName) ? null : SkeletonName.Trim(), Version, GenerateLods, AskToReplace, gameType);
-            BlenderResultReport.Show("Import from Blender", outcome.Result);
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            var outcome = dispatcher == null ? Import() : dispatcher.Invoke(Import);
+
+            var result = outcome.Result;
+            return result.Ok
+                ? ImportResult.Success(outcome.AddedPackPaths, result.Warnings)
+                : new ImportResult(false, [], result.Warnings, [result.Error ?? "Blender failed without a message."]);
         }
 
         bool AskToReplace(string originalPath) =>

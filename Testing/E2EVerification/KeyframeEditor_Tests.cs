@@ -215,7 +215,7 @@ namespace Test.E2EVerification
             Assert.That(part.DynamicFrames, Is.Empty);
             Assert.That(part.StaticFrame, Is.Not.Null);
             Assert.That(part.TranslationMappings.All(x => x.IsStatic) && part.RotationMappings.All(x => x.IsStatic), Is.True);
-            Assert.That(part.PoseFrameCount, Is.EqualTo(expectedFrameCount));
+            Assert.That(part.DeclaredFrameCount, Is.EqualTo(expectedFrameCount));
             Assert.That(saved.Header.FrameRate, Is.EqualTo(20));
             Assert.That(saved.Header.AnimationTotalPlayTimeInSec, Is.EqualTo(expectedTime).Within(1e-6));
 

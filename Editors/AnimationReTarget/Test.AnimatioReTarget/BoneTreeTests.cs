@@ -1,9 +1,10 @@
 ﻿using Editors.AnimatioReTarget.Editor;
 using Editors.AnimatioReTarget.Editor.BoneHandling;
+using Editors.AnimatioReTarget.Editor.Saving;
 using Editors.Shared.Core.Common;
 using GameWorld.Core.Animation;
+using GameWorld.Core.Services;
 using Microsoft.Xna.Framework;
-using Moq;
 using Shared.Core.Commands;
 using Shared.Core.ToolCreation;
 using Test.TestingUtility.Shared;
@@ -98,6 +99,20 @@ namespace Test.AnimatioReTarget
         public void Live_AGlobalSetting_RegeneratesTheClip()
         {
             Assert.That(Regenerations(() => _editor.Settings.SkeletonScale = 2), Is.EqualTo(1));
+        }
+
+        // A speed of 0 or below is skipped, not remapped: the remap's clip had no frames and the player threw.
+        [TestCase(0f)]
+        [TestCase(-1f)]
+        [TestCase(float.NaN)]
+        public void Live_AnInvalidSpeed_LeavesTheClipAsItWas(float speed)
+        {
+            Pump();
+            var before = _generated.AnimationClip;
+
+            Assert.That(Regenerations(() => _editor.Settings.AnimationSpeedMult = speed), Is.Zero);
+            Assert.That(_generated.AnimationClip, Is.SameAs(before));
+            Assert.That(Regenerations(() => _editor.Settings.AnimationSpeedMult = 0.5f), Is.EqualTo(1));
         }
 
         // "Clear selected bone settings" puts new offset vectors in: an edit to the new one must still regenerate.
@@ -422,9 +437,10 @@ namespace Test.AnimatioReTarget
             }
         }
 
-        // Batch export: upstream left it disabled with its code commented out.
+        // Batch retarget runs on the save window's engine (ExecuteBatchAsync); BatchAnimationRetargetTests covers its paths, skips,
+        // failures and cancel. These keep what that suite does not: the batch writes what Save writes, and a set's animations.
 
-        List<string> TwoSources()
+        List<AnimationReference> TwoSources()
         {
             // The test pack has one humanoid01 animation; a second comes from another, read-only pack, as a mod's would.
             const string Idle = "animations\\battle\\humanoid01\\2handed_hammer\\stand\\hu1_2hh_stand_idle_01.anim";
@@ -434,33 +450,34 @@ namespace Test.AnimatioReTarget
 
             // The animation index takes a new pack in on a background task.
             var deadline = DateTime.UtcNow.AddSeconds(10);
-            var candidates = _editor.SaveManager.BatchCandidates();
-            while (candidates.Count < 2 && DateTime.UtcNow < deadline)
+            var candidates = _editor.SaveManager.GetBatchCandidates();
+            while (candidates.DistinctBy(x => x.AnimationFile, StringComparer.OrdinalIgnoreCase).Count() < 2 && DateTime.UtcNow < deadline)
             {
                 Thread.Sleep(20);
-                candidates = _editor.SaveManager.BatchCandidates();
+                candidates = _editor.SaveManager.GetBatchCandidates();
             }
-            Assert.That(candidates, Does.Contain("animations\\battle\\humanoid01\\2handed_hammer\\stand\\hu1_2hh_stand_idle_01.anim"));
-            Assert.That(candidates, Has.None.StartsWith("animations\\skeletons"), "a skeleton is not an animation to retarget");
-            Assert.That(candidates, Has.Count.GreaterThanOrEqualTo(2));
-            return candidates.Take(2).ToList();
+            var paths = candidates.Select(x => x.AnimationFile).ToList();
+            Assert.That(paths, Does.Contain("animations\\battle\\humanoid01\\2handed_hammer\\stand\\hu1_2hh_stand_idle_01.anim"));
+            Assert.That(paths, Has.None.StartsWith("animations\\skeletons"), "a skeleton is not an animation to retarget");
+            Assert.That(paths.Distinct(StringComparer.OrdinalIgnoreCase).Count(), Is.GreaterThanOrEqualTo(2));
+            return candidates.DistinctBy(x => x.AnimationFile, StringComparer.OrdinalIgnoreCase).Take(2).ToList();
         }
 
         byte[]? Saved(string source) =>
             _runner.PackFileService.FindFile(_editor.SaveManager.OutputPath(source)!, _output)?.DataSource.ReadData();
 
-        void AnswerExisting(int? choice) => _runner.Dialogs
-            .Setup(x => x.ShowChoiceBox(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
-            .Returns(choice);
+        BatchAnimationRetargetResult Batch(IEnumerable<AnimationReference> sources) => _editor.SaveManager
+            .ExecuteBatchAsync(new([.. sources], BatchRetargetPathMode.SourcePath, null, true), null, CancellationToken.None)
+            .GetAwaiter().GetResult();
 
         [Test]
-        public void BatchExport_SavesEachAnimation_AsTheSingleSaveWould()
+        public void Batch_SavesEachAnimation_AsTheSingleSaveWould()
         {
             var sources = TwoSources();
-            var result = _editor.SaveManager.BatchExport(sources)!;
-            Assert.That(result.Saved, Is.EqualTo(2));
+            var result = Batch(sources);
+            Assert.That(result.SuccessCount, Is.EqualTo(2), string.Join("\n", result.Items.Select(x => x.ErrorMessage)));
 
-            foreach (var source in sources)
+            foreach (var source in sources.Select(x => x.AnimationFile))
             {
                 var batch = Saved(source);
                 Assert.That(batch, Is.Not.Null, source);
@@ -471,41 +488,6 @@ namespace Test.AnimatioReTarget
                 _editor.SaveManager.SaveAnimation(false);
                 Assert.That(Saved(source), Is.EqualTo(batch), $"{source}: the batch wrote what Save writes for it");
             }
-        }
-
-        [Test]
-        public void BatchExport_AsksOnceAboutAnimationsAlreadyInThePack()
-        {
-            var sources = TwoSources();
-            _editor.SaveManager.BatchExport([sources[0]]);
-            var first = Saved(sources[0]);
-            _editor.Settings.SkeletonScale = 2;   // so a rewrite is told apart from the file left alone
-
-            AnswerExisting(1);   // Skip them
-            var skipped = _editor.SaveManager.BatchExport(sources)!;
-            _runner.Dialogs.Verify(x => x.ShowChoiceBox(It.Is<string>(m => m.Contains("1 of the 2")), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()), Times.Once);
-            Assert.That((skipped.Saved, skipped.Skipped), Is.EqualTo((1, 1)));
-            Assert.That(Saved(sources[0]), Is.EqualTo(first));
-
-            AnswerExisting(0);   // Overwrite them
-            var overwritten = _editor.SaveManager.BatchExport(sources)!;
-            Assert.That((overwritten.Saved, overwritten.Skipped), Is.EqualTo((2, 0)));
-            Assert.That(Saved(sources[0]), Is.Not.EqualTo(first));
-        }
-
-        [TestCase(2)]
-        [TestCase(null)]
-        public void BatchExport_Cancelled_WritesNothing(int? choice)
-        {
-            var sources = TwoSources();
-            _editor.SaveManager.BatchExport([sources[0]]);
-            var first = Saved(sources[0]);
-            _editor.Settings.SkeletonScale = 2;
-
-            AnswerExisting(choice);
-            Assert.That(_editor.SaveManager.BatchExport(sources), Is.Null);
-            Assert.That(Saved(sources[0]), Is.EqualTo(first));
-            Assert.That(Saved(sources[1]), Is.Null);
         }
 
         sealed class Set(params string?[] animations) : Shared.GameFormats.AnimationPack.IAnimationBinGenericFormat
@@ -519,30 +501,20 @@ namespace Test.AnimatioReTarget
                 animations.Select(x => new Shared.GameFormats.AnimationPack.AnimationBinEntryGenericFormat { SlotName = "STAND", AnimationFile = x! }).ToList();
         }
 
-        // A set names an animation once per slot that plays it, in forward slashes, and leaves some slots empty.
+        // A set names an animation once per slot that plays it, in forward slashes, and leaves some slots empty. It names no pack,
+        // so the batch reads whichever loaded pack has the file.
         [Test]
-        public void BatchExport_OfAnAnimationSet_SavesEachAnimationItNamesOnce()
+        public void Batch_OfAnAnimationSet_SavesEachAnimationItNamesOnce()
         {
             const string Idle = "animations\\battle\\humanoid01\\2handed_hammer\\stand\\hu1_2hh_stand_idle_01.anim";
             var set = new Set(Idle.Replace('\\', '/'), Idle, "", null);
 
-            var animations = Editors.AnimatioReTarget.Editor.Saving.SaveManager.AnimationsIn([set]);
-            var result = _editor.SaveManager.BatchExport(animations)!;
+            var animations = SaveManager.AnimationsIn([set]);
+            var result = Batch(animations.Select(x => new AnimationReference(x, null!)));
 
             Assert.That(animations, Is.EqualTo(new[] { Idle }));
-            Assert.That((result.Saved, result.Failed.Count), Is.EqualTo((1, 0)));
+            Assert.That((result.SuccessCount, result.FailureCount), Is.EqualTo((1, 0)), result.Items.Single().ErrorMessage);
             Assert.That(Saved(Idle), Is.Not.Null, "saved where Save saves it");
-        }
-
-        [Test]
-        public void BatchExport_OneBadAnimation_DoesNotStopTheRest()
-        {
-            var good = TwoSources()[0];
-            var result = _editor.SaveManager.BatchExport(["animations\\battle\\humanoid01\\no_such_file.anim", good])!;
-            Assert.That(result.Saved, Is.EqualTo(1));
-            Assert.That(result.Failed, Has.Count.EqualTo(1));
-            Assert.That(result.Failed[0], Does.Contain("no_such_file"));
-            Assert.That(Saved(good), Is.Not.Null);
         }
 
         [Test]

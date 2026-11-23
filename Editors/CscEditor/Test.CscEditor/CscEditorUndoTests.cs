@@ -6,8 +6,8 @@ using Test.TestingUtility.Shared;
 
 namespace Test.CscEditor
 {
-    // The CSC editor's undo: an added element and a re-parent are steps of their own, an edit not yet checkpointed is what Undo
-    // takes back, and undo and redo rebuild the scene and select the element the step was made in.
+    // The CSC editor's undo, driven through the real editor: adding an element, re-parenting it and editing a field are one step
+    // each, and undo and redo rebuild the scene and select the element the step was made in.
     public class CscEditorUndoTests
     {
         [Test]
@@ -46,6 +46,7 @@ namespace Test.CscEditor
             Assert.That(Now().Item3, Is.EqualTo(-2), "the locator is gone");
             vm.Undo();
             Assert.That(Now().Item1, Is.EqualTo(elements), "nothing left to undo");
+            Assert.That(vm.HasUnsavedChanges, Is.False, "undone back to the file as loaded");
 
             vm.Redo();
             vm.Redo();

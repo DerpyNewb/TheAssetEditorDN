@@ -1,9 +1,14 @@
-﻿using Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers;
+﻿using Editors.ImportExport.Exporting.Exporters.DdsToMaterialPng;
+using Editors.ImportExport.Exporting.Exporters.DdsToNormalPng;
+using Editors.ImportExport.Exporting.Exporters.RmvToGltf.Helpers;
 using Editors.ImportExport.Importing.Importers.GltfToRmv;
 using Editors.ImportExport.Importing.Importers.GltfToRmv.Helper;
 using GameWorld.Core.Services;
 using Moq;
+using Shared.Core.ErrorHandling;
 using Shared.Core.Events;
+using Shared.Core.PackFiles;
+using Shared.Core.PackFiles.Models;
 using Shared.Core.PackFiles.Models.Containers;
 using Shared.Core.Services;
 using Shared.GameFormats.RigidModel;
@@ -36,7 +41,7 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
             public const int lod0MeshCount = 4;
             public const int Lod0Mesh0IndexCount = 25539;
             public const int Lod0Mesh0VertexCount = 6397;
-            public const int Lod0Mesh0TextureCount = 3;
+            public const int Lod0Mesh0TextureCount = 4;
         }
     }
 
@@ -57,18 +62,18 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
             var sceneSaver = new TestGltfSceneSaver();
             var standardDialog = new Mock<IStandardDialogs>();
             var sceneLoader = new GltfSceneLoader(standardDialog.Object);
-            var materialBuilder = new RmvMaterialBuilder(pfs, standardDialog.Object);
-            var importer = new GltfImporter(pfs, standardDialog.Object, skeletontonLookupHelper, materialBuilder);
-            var packFileContainer = PackFileContainer.CreatePackFile("new", "new.pack");
-            var settings = new GltfImporterSettings(TestData.InputGtlfFile, "skeletons", packFileContainer, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, true, 20.0f, true);
+            var materialBuilder = new RmvMaterialBuilder();
+            var importer = new GltfImporter(pfs, skeletontonLookupHelper, materialBuilder);
+            var packFileContainer = PackFileContainer.CreatePackFile("new");
+            var settings = new GltfImporterSettings(TestData.InputGtlfFile, "skeletons", packFileContainer, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, true, 20.0f);
 
             // Act
             importer.Import(settings);
             var rmv2FileName = @$"{settings.DestinationPackPath}\{Path.GetFileNameWithoutExtension(settings.InputGltfFile)}.rigid_model_v2".ToLower();
-            var packFile = packFileContainer.FindFile(rmv2FileName);
+            var isPackFileAddedToContainer = packFileContainer.FileList.TryGetValue(rmv2FileName, out var packFile);
                          
             //  Assert                        
-            Assert.That(packFile, Is.Not.Null);            
+            Assert.That(isPackFileAddedToContainer, Is.EqualTo(true));            
             var rmv2File = ModelFactory.Create().Load(packFile!.DataSource!.ReadData());
             Assert.That(rmv2File, Is.Not.Null);
             Assert.That(rmv2File!.LodHeaders.Length, Is.EqualTo(TestData.Rmv2Expected.lodCount));            
@@ -80,6 +85,9 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
             Assert.That(rmv2File!.ModelList[0][0]!.Material!.GetAllTextures().Count(), Is.EqualTo(TestData.Rmv2Expected.Lod0Mesh0TextureCount));
             Assert.That(rmv2File!.ModelList[0][0]!.Mesh.IndexList.Length, Is.EqualTo(TestData.Rmv2Expected.Lod0Mesh0IndexCount));
             Assert.That(rmv2File!.ModelList[0][0]!.Mesh.VertexList.Length, Is.EqualTo(TestData.Rmv2Expected.Lod0Mesh0VertexCount));
+            Assert.That(
+                packFileContainer.FileList.Keys.Any(path => Path.GetFileName(path).Contains(" _")),
+                Is.False);
 
             // The .wsmodel beside it names the model and a material for every part, and each texture a material names is in the pack.
             var wsModelFile = packFileContainer.FindFile(Path.ChangeExtension(rmv2FileName, ".wsmodel"));
@@ -97,6 +105,37 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
                 Assert.That(imported, Has.All.Matches<string>(t => packFileContainer.FindFile(t) != null), entry.MaterialPath);
             }
         }
+
+        [Test]
+        public void InvalidGltf_ReturnsReadableFailure()
+        {
+            var packFileService = new Mock<IPackFileService>();
+            var materialBuilder = new RmvMaterialBuilder();
+            var importer = new GltfImporter(
+                packFileService.Object,
+                Mock.Of<ISkeletonAnimationLookUpHelper>(),
+                materialBuilder);
+            var settings = new GltfImporterSettings(
+                Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.gltf"),
+                "models",
+                PackFileContainer.CreatePackFile("new"),
+                Shared.Core.Settings.GameTypeEnum.Warhammer3,
+                false,
+                false,
+                false,
+                false,
+                false,
+                20.0f);
+
+            var result = importer.Import(settings);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Succeeded, Is.False);
+                Assert.That(result.Errors, Has.Some.Contains("Can't read the glTF/GLB file"));
+                Assert.That(result.Exception, Is.TypeOf<InvalidDataException>());
+            });
+        }
     }
 
     // A glTF mesh with two materials is one mesh with two primitives. Only the first primitive used to be read, so the second
@@ -108,8 +147,10 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
         {
             var glb = Path.Combine(Path.GetTempPath(), $"karl_two_primitives_{Guid.NewGuid():N}.glb");
             var model = SharpGLTF.Schema2.ModelRoot.Load(TestData.InputGtlfFile);
+            // The body gets the head's primitive and material: Karl's two bodies share their images, and identical textures
+            // are written once, so a second body primitive would name the same files.
             var first = model.LogicalMeshes[0].Primitives[0];
-            var second = model.LogicalMeshes[1].Primitives[0];
+            var second = model.LogicalMeshes[2].Primitives[0];
             var added = model.LogicalMeshes[0].CreatePrimitive();
             foreach (var accessor in second.VertexAccessors)
                 added.SetVertexAccessor(accessor.Key, accessor.Value);
@@ -119,21 +160,24 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
             try
             {
                 var pfs = PackFileSerivceTestHelper.Create(TestData.InputPack);
-                var dialogs = new Mock<IStandardDialogs>();
-                var importer = new GltfImporter(pfs, dialogs.Object, new SkeletonAnimationLookUpHelper(pfs, new Mock<IGlobalEventHub>().Object), new RmvMaterialBuilder(pfs, dialogs.Object));
-                var container = PackFileContainer.CreatePackFile("new", "new.pack");
-                var settings = new GltfImporterSettings(glb, "skeletons", container, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, false, 20.0f, true);
+                var importer = new GltfImporter(pfs, new SkeletonAnimationLookUpHelper(pfs, new Mock<IGlobalEventHub>().Object), new RmvMaterialBuilder());
+                var container = PackFileContainer.CreatePackFile("new");
+                var settings = new GltfImporterSettings(glb, "skeletons", container, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, false, 20.0f);
 
-                importer.Import(settings);
+                var result = importer.Import(settings);
 
+                Assert.That(result.Succeeded, Is.True, string.Join(Environment.NewLine, result.Errors));
                 var rmvPath = $@"{settings.DestinationPackPath}\{Path.GetFileNameWithoutExtension(glb)}.rigid_model_v2".ToLower();
                 var parts = ModelFactory.Create().Load(container.FindFile(rmvPath)!.DataSource!.ReadData()).ModelList[0];
                 Assert.That(parts, Has.Length.EqualTo(TestData.Rmv2Expected.lod0MeshCount + 1), "mesh 0's second primitive is a part of its own");
                 Assert.That(parts[0].Mesh.IndexList, Has.Length.EqualTo(first.GetIndices().Count));
                 Assert.That(parts[1].Mesh.IndexList, Has.Length.EqualTo(second.GetIndices().Count));
                 Assert.That(parts.Select(p => p.Material.ModelName).Distinct().Count(), Is.EqualTo(parts.Length), "part names are unique");
-                var firstTextures = parts[0].Material.GetAllTextures().Select(t => t.Path).ToList();
-                var secondTextures = parts[1].Material.GetAllTextures().Select(t => t.Path).ToList();
+                // The neutral mask the import adds for a material without one is a single shared file, so it is left out here.
+                static List<string> FromGltf(RmvModel part) => part.Material.GetAllTextures()
+                    .Where(t => t.TexureType != Shared.GameFormats.RigidModel.Types.TextureType.Mask).Select(t => t.Path).ToList();
+                var firstTextures = FromGltf(parts[0]);
+                var secondTextures = FromGltf(parts[1]);
                 Assert.That(firstTextures.Intersect(secondTextures), Is.Empty, "each primitive's material has its own files");
                 Assert.That(firstTextures.Concat(secondTextures), Has.All.Matches<string>(t => container.FindFile(t) != null));
             }
@@ -159,11 +203,11 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
             var skeletontonLookupHelper = new SkeletonAnimationLookUpHelper(pfs, eventHub.Object);
             var skeletontonBuilder = new GltfSkeletonBuilder(pfs);
             var animationBuilder = new GltfAnimationBuilder(pfs);
-            var materialBuilder = new RmvMaterialBuilder(pfs, standardDialog.Object);
+            var materialBuilder = new RmvMaterialBuilder();
             var sceneLoader = new GltfSceneLoader(standardDialog.Object);
             var skeletonFile = skeletontonLookupHelper.GetSkeletonFileFromName(TestData.Rmv2Expected.skeletonName);
-            var packFileContainer = PackFileContainer.CreatePackFile("new", "new.pack");
-            var settings = new GltfImporterSettings(TestData.InputGtlfFile, "skeletons", packFileContainer, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, true, 20.0f, true);
+            var packFileContainer = PackFileContainer.CreatePackFile("new");
+            var settings = new GltfImporterSettings(TestData.InputGtlfFile, "skeletons", packFileContainer, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, true, 20.0f);
 
             // Act....          
             var modelRoot = sceneLoader.Load(settings);
@@ -193,11 +237,11 @@ namespace Test.ImportExport.Importing.Importers.GltfImporterTest
             var skeletontonLookupHelper = new SkeletonAnimationLookUpHelper(pfs, eventHub.Object);
             var skeletontonBuilder = new GltfSkeletonBuilder(pfs);
             var animationBuilder = new GltfAnimationBuilder(pfs);
-            var materialBuilder = new RmvMaterialBuilder(pfs, standardDialog.Object);
+            var materialBuilder = new RmvMaterialBuilder();
             var sceneLoader = new GltfSceneLoader(standardDialog.Object);
             var skeletonFile = skeletontonLookupHelper.GetSkeletonFileFromName(TestData.Rmv2Expected.skeletonName);
-            var packFileContainer = PackFileContainer.CreatePackFile("new", "new.pack");
-            var settings = new GltfImporterSettings(TestData.InputGtlfFile, "skeletons", packFileContainer, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, true, 20.0f, true);
+            var packFileContainer = PackFileContainer.CreatePackFile("new");
+            var settings = new GltfImporterSettings(TestData.InputGtlfFile, "skeletons", packFileContainer, Shared.Core.Settings.GameTypeEnum.Warhammer3, true, true, true, true, true, 20.0f);
 
             //  Act 
             var modelRoot = sceneLoader.Load(settings);

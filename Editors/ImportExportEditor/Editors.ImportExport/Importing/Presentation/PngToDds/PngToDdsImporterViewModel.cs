@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Editors.ImportExport.Importing.Importers.GltfToRmv.Helper;
 using Editors.ImportExport.Importing.Importers.PngToDds;
 using Editors.ImportExport.Misc;
 using Shared.Core.PackFiles;
@@ -31,12 +32,14 @@ namespace Editors.ImportExport.Importing.Presentation.PngToDds
             return ImportSupportEnum.HighPriority;
         }
 
-        public void Execute(PackFile importSource, string outputPath, IPackFileContainer packFileContainer, GameTypeEnum gameType)
+        public ImportResult Execute(PackFile importSource, string outputPath, IPackFileContainer packFileContainer, GameTypeEnum gameType, IProgress<ImportProgress>? progress, CancellationToken cancellationToken)
         {
             // Lower case: since WH3 6.1 an upper-case letter in a pack path crashes the game.
             var name = Path.GetFileNameWithoutExtension(importSource.Name).ToLowerInvariant() + ".dds";
             var dds = PngToDdsImporter.Import(importSource.DataSource.ReadData(), TextureType, gameType, name, Convert);
-            packFileService.AddFilesToPack(packFileContainer, [new NewPackFileEntry(outputPath, dds)]);
+            var path = Path.Combine(outputPath, name);
+            PackFileDispatcherWriter.AddFilesToPackIfNoConflicts(packFileService, packFileContainer, [new NewPackFileEntry(outputPath, dds)], [path], overwriteExisting: true);
+            return ImportResult.Success([path]);
         }
 
         // From CA's suffixes, and the ones this editor's own exports and Blender's add.

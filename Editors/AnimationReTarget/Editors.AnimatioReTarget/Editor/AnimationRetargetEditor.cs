@@ -120,9 +120,7 @@ namespace Editors.AnimatioReTarget.Editor
 
             BoneManager.SetSceneNodes(source.Data, target.Data, generated.Data);
             Rendering.SetSceneNodes(source.Data, target.Data, generated.Data);
-            SaveManager.SetSceneNodes(source.Data, target.Data, generated.Data);
-            SaveManager.Remap = UpdateAnimation;
-            SaveManager.SkeletonScale = () => Settings.SkeletonScale;
+            SaveManager.SetSceneNodes(source.Data, target.Data, generated.Data, Settings);
             OffsetHandle.Follow(generated.Data, () => Settings.SkeletonScale);
             // Another source animation is retargeted with the mapping and settings already made.
             _source.AnimationChanged += _ => ScheduleUpdate();
@@ -306,6 +304,14 @@ namespace Editors.AnimatioReTarget.Editor
             if (_source.AnimationClip == null)
             {
                 errorText = "No animation to copy selected";
+                return false;
+            }
+
+            // The batch's rule. A live update runs on every keystroke, so a 0 typed on the way to 0.5 must not remap: a clip
+            // of no frames, or a negative count, is refused by the player and threw out of the dispatcher.
+            if (float.IsFinite(Settings.AnimationSpeedMult) == false || Settings.AnimationSpeedMult <= 0)
+            {
+                errorText = "The animation speed multiplier must be greater than 0.";
                 return false;
             }
 

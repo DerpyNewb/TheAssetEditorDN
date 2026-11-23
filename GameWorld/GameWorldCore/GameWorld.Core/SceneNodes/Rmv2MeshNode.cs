@@ -168,6 +168,7 @@ namespace GameWorld.Core.SceneNodes
             typedTarget.Scale = Scale;
             typedTarget.ReduceMeshOnLodGeneration = ReduceMeshOnLodGeneration;
             typedTarget.AnimationPlayer = AnimationPlayer;
+            typedTarget.AttachmentPointName = AttachmentPointName;
             typedTarget.ScaleMult = ScaleMult;
             typedTarget.PivotPoint = PivotPoint;
 

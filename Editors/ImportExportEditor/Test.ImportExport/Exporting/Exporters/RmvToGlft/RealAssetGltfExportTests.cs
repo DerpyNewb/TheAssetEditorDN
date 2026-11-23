@@ -322,10 +322,11 @@ public class RealAssetGltfExportTests
             Assert.That(ModelRoot.Load(glb).LogicalAnimations, Has.Count.EqualTo(2), "the export carries both clips");
 
             var container = Shared.Core.PackFiles.Models.Containers.PackFileContainer.CreatePackFile("new", "new.pack");
-            var importer = new Editors.ImportExport.Importing.Importers.GltfToRmv.GltfImporter(pfs, dialogs.Object, skeletonLookup,
-                new Editors.ImportExport.Importing.Importers.GltfToRmv.Helper.RmvMaterialBuilder(pfs, dialogs.Object));
-            importer.Import(new Editors.ImportExport.Importing.Importers.GltfToRmv.GltfImporterSettings(glb, "imported", container,
-                Shared.Core.Settings.GameTypeEnum.Warhammer3, false, false, false, false, true, 20.0f, true));
+            var importer = new Editors.ImportExport.Importing.Importers.GltfToRmv.GltfImporter(pfs, skeletonLookup,
+                new Editors.ImportExport.Importing.Importers.GltfToRmv.Helper.RmvMaterialBuilder());
+            var result = importer.Import(new Editors.ImportExport.Importing.Importers.GltfToRmv.GltfImporterSettings(glb, "imported", container,
+                Shared.Core.Settings.GameTypeEnum.Warhammer3, false, false, false, false, true, 20.0f, AutoDetectAnimationKeysPerSecond: false));
+            Assert.That(result.Succeeded, Is.True, string.Join(Environment.NewLine, result.Errors));
 
             var anims = container.FileList.Where(x => x.Key.EndsWith(".anim")).OrderBy(x => x.Key).Select(x => x.Value).ToList();
             Assert.That(anims, Has.Count.EqualTo(2), string.Join(", ", container.FileList.Keys));

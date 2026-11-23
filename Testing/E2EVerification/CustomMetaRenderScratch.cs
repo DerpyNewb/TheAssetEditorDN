@@ -73,14 +73,16 @@ namespace Test.E2EVerification
         [Test, Apartment(ApartmentState.STA), Explicit]
         public void RenderRetargetSave()
         {
-            var outDir = Setup(new AssetEditorTestRunner());
+            var runner = new AssetEditorTestRunner();
+            var outDir = Setup(runner);
             var settings = new Editors.AnimatioReTarget.Editor.Saving.SaveSettings
             {
                 OutputPath = @"animations\battle\humanoid01e\2handed_hammer\stand\prefix_hu1_2hh_stand_idle_01.anim",
                 UseGeneratedSkeleton = true,
                 ScaledSkeletonName = "humanoid01e_s15",
             };
-            var styled = new Editors.AnimatioReTarget.Editor.Saving.SaveWindow(settings);
+            var loc = (LocalizationManager)runner.ServiceProvider.GetService(typeof(LocalizationManager))!;
+            var styled = new Editors.AnimatioReTarget.Editor.Saving.SaveWindow(settings, new Mock<IStandardDialogs>().Object, loc);
             var content = styled.Content;
             styled.Content = null;
             var window = Offscreen(content, 800, 250);

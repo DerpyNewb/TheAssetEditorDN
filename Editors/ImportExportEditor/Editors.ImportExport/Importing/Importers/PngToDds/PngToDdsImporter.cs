@@ -21,15 +21,29 @@ namespace Editors.ImportExport.Importing.Importers.PngToDds
         public static PackFile Import(string inputPath, TextureType textureType, GameTypeEnum gameType, string outFileName, bool convert = true) =>
             Import(File.ReadAllBytes(inputPath), textureType, gameType, outFileName, convert);
 
+        /// <summary>An image with no file of its own, such as a texture embedded in a .glb.</summary>
+        public static PackFile Import(Stream image, TextureType textureType, GameTypeEnum gameType, string outFileName, bool convert = true, float? alphaCutoff = null)
+        {
+            using var bytes = new MemoryStream();
+            image.CopyTo(bytes);
+            return Import(bytes.ToArray(), textureType, gameType, outFileName, convert, alphaCutoff: alphaCutoff);
+        }
+
         /// <param name="convert">Normal maps from blue (most 3D software) to CA's orange layout, material maps from Blender's
         /// (metal in blue) to CA's (metal in red). Nothing for the other types.</param>
         /// <param name="format">A block-compressed format to write; the one the game uses for <paramref name="textureType"/> when left out.</param>
         /// <param name="mipmaps">A full mip chain, as CA's textures have, or the top level alone.</param>
-        public static PackFile Import(byte[] image, TextureType textureType, GameTypeEnum gameType, string outFileName, bool convert = true, DXGI_FORMAT? format = null, bool mipmaps = true)
+        /// <param name="alphaCutoff">A glTF alpha-mask cutoff: alpha at or above it becomes opaque, below it transparent, as glTF draws it.</param>
+        public static PackFile Import(byte[] image, TextureType textureType, GameTypeEnum gameType, string outFileName, bool convert = true, DXGI_FORMAT? format = null, bool mipmaps = true, float? alphaCutoff = null)
         {
             var (pixels, width, height) = Decode(image);
             if (convert)
                 Convert(pixels, textureType);
+            if (alphaCutoff is { } cutoff)
+            {
+                for (var i = 3; i < pixels.Length; i += 4)
+                    pixels[i] = pixels[i] >= cutoff * 255 ? (byte)255 : (byte)0;
+            }
 
             var target = format ?? DDSFormatHelper.GetDDSFormat(gameType, textureType);
             // CA's base colours with cut-outs are BC3: BC1 keeps one bit of alpha.

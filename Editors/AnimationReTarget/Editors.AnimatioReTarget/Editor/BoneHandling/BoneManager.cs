@@ -280,6 +280,10 @@ namespace Editors.AnimatioReTarget.Editor.BoneHandling
         }
 
         public ObservableCollection<SkeletonBoneNode_new?> FlatBoneList { get; } = [];
+
+        /// <summary>Every bone of the tree, in target skeleton order, without the picker's "none".</summary>
+        public List<SkeletonBoneNode_new> FlatBones => [.. FlatBoneList.OfType<SkeletonBoneNode_new>()];
+
         [RelayCommand] void ClearRelativeBone()
         {
             if (SelectedBone != null)

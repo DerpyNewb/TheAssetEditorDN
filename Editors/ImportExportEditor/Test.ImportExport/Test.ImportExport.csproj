@@ -37,4 +37,9 @@
     <None Include="Blender\Scripts\*.py" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="TestData\Gltf\*.glb" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TestData\Gltf\*.gltf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
