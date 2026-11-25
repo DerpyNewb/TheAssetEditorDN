@@ -100,9 +100,10 @@ namespace Editors.Shared.Core.Common
         {
             ParentNode.ModelMatrix = Matrix.Multiply(Offset, Matrix.Identity);
 
-            var timeInSec = Player.GetTimeUs() / 1_000_000f;
+            // IMetaDataInstance.Update takes the time in seconds, not the frame index.
+            var currentTime = Player.GetTimeUs() / 1_000_000f;
             foreach (var item in MetaDataItems)
-                item.Update(timeInSec);
+                item.Update(currentTime);
         }
 
     }

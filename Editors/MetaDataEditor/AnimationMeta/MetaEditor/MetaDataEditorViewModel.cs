@@ -101,6 +101,7 @@ namespace Editors.AnimationMeta.Presentation
                 MetaDataFileVersion = ParsedFile.Version;
             }
 
+            Tags.Clear();
             UpdateView();
             HasUnsavedChanges = false;
             _undo.Clear();
@@ -218,6 +219,28 @@ namespace Editors.AnimationMeta.Presentation
         {
             UndoCommand.NotifyCanExecuteChanged();
             RedoCommand.NotifyCanExecuteChanged();
+        }
+
+        // After the 3D view moved or turned a tag: its fields show the new values, and, unless the change was
+        // cancelled, its position and orientation count as unsaved edits. A drag is one undo step in this editor's own
+        // history, recorded when it ends, so Ctrl+Z and the toolbar's undo take back gizmo drags and typed edits in order.
+        public void RefreshAttributeValues(ParsedMetadataAttribute source, bool countAsEdit)
+        {
+            var tag = Tags.FirstOrDefault(x => ReferenceEquals(x._input, source));
+            if (tag == null)
+                return;
+
+            foreach (var variable in tag.Variables)
+            {
+                var changed = variable.RefreshFromTarget();
+                if (countAsEdit && (changed || variable is VectorAttributeViewModel or OrientationAttributeViewModel))
+                    variable.IsModified = true;
+            }
+            if (countAsEdit)
+            {
+                Record(new object());
+                OnPropertyChanged(nameof(HasUnsavedChanges));
+            }
         }
 
         [RelayCommand] void MoveUpAction() => _uiCommandFactory.Create<MoveEntryCommand>().ExecuteUp(this);

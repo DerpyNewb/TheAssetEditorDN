@@ -31,6 +31,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation
             (typeof(SplashAttack_v10), Drawn.Yes, "SuperView draws the attack's area between its start and end positions. It turns yellow while the attack is on."),
             (typeof(SoundTrigger_v10), Drawn.Yes, "SuperView draws a locator on this tag's bone. It turns yellow when the sound fires, and with Sound on, you hear it."),
             (typeof(SoundTrigger_v4), Drawn.Yes, "SuperView draws a locator on this tag's bone. It turns yellow when the sound fires, and with Sound on, you hear it."),
+            (typeof(SoundBuilding_v2), Drawn.Partly, "SuperView draws a marker at this tag's position. It doesn't play the sound."),
             (typeof(Transform_v10), Drawn.Partly, "SuperView moves and turns this tag's target bone from its start to its end time, fading in and out over its blend times, and on top of a dock. A tag at 0 to 0 with no blends holds for the whole clip. SuperView ignores the tag's source bone."),
             (typeof(DisableModel), Drawn.Yes, "SuperView hides the model while this tag is on."),
             (typeof(ReScale), Drawn.Yes, "SuperView draws the model at this tag's scale while the tag is on."),

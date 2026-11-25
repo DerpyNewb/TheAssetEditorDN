@@ -24,7 +24,7 @@ namespace Test.AnimationMeta
 
             var offsetRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.3f);
             var offset = new Vector3(0.5f, 0.1f, 0.1f);
-            var rule = new CopyRootTransform(new Provider(main), 1, offset, offsetRotation, 1.5f);
+            var rule = new CopyRootTransform(new Provider(main), 1, () => offset, () => offsetRotation, 1.5f);
 
             var clip = new AnimationClip(BindPose(prop), prop);
             Assert.That(CopyRootTransform.RootFollowsBone(prop, clip, main.GetWorldTransform(1)), Is.False, "a root at the prop's own origin is in the bone's space");
@@ -52,7 +52,7 @@ namespace Test.AnimationMeta
             Assert.That(CopyRootTransform.RootFollowsBone(prop, clip, main.GetWorldTransform(1)), Is.True, "a root on the bone is in the model's space");
 
             var offset = new Vector3(0, 0, offsetZ);
-            var rule = new CopyRootTransform(new Provider(main), 1, offset, Quaternion.Identity, 1, rootFollowsBone: true);
+            var rule = new CopyRootTransform(new Provider(main), 1, () => offset, () => Quaternion.Identity, 1, rootFollowsBone: true);
             var skin = AnimationSampler.Sample(0, 0, prop, clip, [rule]).BoneTransforms[1].WorldTransform;
 
             // The handle as animated (the clip is the bind pose), moved by Position along the bone's axes.
@@ -73,7 +73,7 @@ namespace Test.AnimationMeta
             var clip = new AnimationClip(Keyed(prop, Vector3.Zero, quarterTurnX, quarterTurnX), prop);
             Assert.That(CopyRootTransform.RootKeyIsFixedTurn(prop, clip), Is.True);
 
-            var rule = new CopyRootTransform(new Provider(main), 1, Vector3.Zero, Quaternion.Identity, 1, bindRoot: prop.GetWorldTransform(0));
+            var rule = new CopyRootTransform(new Provider(main), 1, () => Vector3.Zero, () => Quaternion.Identity, 1, bindRoot: prop.GetWorldTransform(0));
             var skin = AnimationSampler.Sample(0, 0, prop, clip, [rule]).BoneTransforms[1].WorldTransform;
             var handle = new Vector3(0.78f, -0.2f, 0.03f); // the grip on the gun's left flank
             var expected = Vector3.Transform(handle, main.GetWorldTransform(1));

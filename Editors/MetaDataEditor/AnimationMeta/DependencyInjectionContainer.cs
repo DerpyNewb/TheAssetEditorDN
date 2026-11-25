@@ -5,6 +5,7 @@ using Editors.AnimationMeta.MetaEditor.Examples;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.Presentation.View;
 using Editors.AnimationMeta.SuperView;
+using Editors.AnimationMeta.SuperView.Editing;
 using Editors.AnimationMeta.SuperView.Visualisation;
 using Editors.Shared.Core.Common.BaseControl;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,9 +23,12 @@ namespace Editors.AnimationMeta
             serviceCollection.AddTransient<MetaDataEditorViewModel>();
 
             serviceCollection.AddScoped<SuperViewViewModel>();
+            // SuperView adds the gizmo and picker to its own world; RegisterGameComponent would add them to every editor's.
+            serviceCollection.AddScoped<CombatMetaDataEditSession>();
+            serviceCollection.AddScoped<CombatMetaDataGizmoComponent>();
+            serviceCollection.AddScoped<MetaDataMarkerPickerComponent>();
 
             serviceCollection.AddScoped<IMetaDataBuilder, MetaDataBuilder>(); // Needs heavy refactorying!
-            RegisterGameComponent<MetaTagGizmoComponent>(serviceCollection);
 
             // Read from the game's packs once per session, for every editor.
             serviceCollection.AddSingleton<VanillaMetaExamples>();

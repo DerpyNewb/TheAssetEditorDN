@@ -12,9 +12,10 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Rules
         readonly int _boneId;
 
         bool _hasError = false;
-        Vector3 _offsetPos;
-        Quaternion _offsetRot;
-        float _scale;
+        // Read on every frame, so the prop follows its tag while the tag is being dragged.
+        readonly Func<Vector3> _offsetPos;
+        readonly Func<Quaternion> _offsetRot;
+        readonly float _scale;
 
         readonly bool _rootFollowsBone;
         readonly Matrix? _bindRoot;
@@ -48,7 +49,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Rules
             return !Same(first!.Value, Quaternion.Identity) && !Same(first.Value, bind);
         }
 
-        public CopyRootTransform(ISkeletonProvider skeleton, int boneId, Vector3 offsetPos, Quaternion offsetRot, float scale, bool rootFollowsBone = false, Matrix? bindRoot = null)
+        public CopyRootTransform(ISkeletonProvider skeleton, int boneId, Func<Vector3> offsetPos, Func<Quaternion> offsetRot, float scale, bool rootFollowsBone = false, Matrix? bindRoot = null)
         {
             _skeletonProvider = skeleton;
             _boneId = boneId;
@@ -72,7 +73,7 @@ namespace Editors.AnimationMeta.SuperView.Visualisation.Rules
                 // A root animated in the model's space is taken into the bone's first, so it is not carried to the bone twice.
                 // A root keyed to a fixed turn (RootKeyIsFixedTurn) sits in its bind pose instead.
                 var root = _rootFollowsBone ? frame.BoneTransforms[0].WorldTransform * Matrix.Invert(transform) : _bindRoot ?? frame.BoneTransforms[0].WorldTransform;
-                var m = root * Matrix.CreateScale(_scale) * Matrix.CreateFromQuaternion(_offsetRot) * Matrix.CreateTranslation(_offsetPos) * transform;
+                var m = root * Matrix.CreateScale(_scale) * Matrix.CreateFromQuaternion(_offsetRot()) * Matrix.CreateTranslation(_offsetPos()) * transform;
                 frame.BoneTransforms[0].WorldTransform = m;
             }
             catch (Exception e)

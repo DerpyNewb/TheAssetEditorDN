@@ -10,6 +10,8 @@ using System.Windows.Threading;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.Presentation.View;
 using Editors.AnimationMeta.SuperView;
+using Editors.AnimationMeta.SuperView.Editing;
+using Editors.AnimationMeta.SuperView.Timeline;
 using Editors.Shared.Core.Common.BaseControl;
 using GameWorld.Core.Animation;
 using Material.Icons;
@@ -26,9 +28,10 @@ using Test.TestingUtility.TestUtility;
 
 namespace Test.AnimationMeta
 {
-    // SuperView's tag timeline under the slot panel, and the meta editor's "Set start to now" and "Set end to now", on Throt's
-    // ATTACK_5.
-    public class SuperViewTimelineTests
+    // The meta editor's "Set start to now" and "Set end to now", the player's keys, what the scrub bar's META markers do that
+    // upstream's SuperViewTimelineTests leave to this fork (an undo, a marker outside the clip, Delete's rows), and the gizmo's
+    // drags in the tab's own undo history, on Throt's ATTACK_5.
+    public class SuperViewTagTimesTests
     {
         AssetEditorTestRunner _runner = null!;
         SuperViewViewModel _superView = null!;
@@ -64,104 +67,39 @@ namespace Test.AnimationMeta
             return Meta.SelectedTag;
         }
 
-        TimelineTick Tick(MetaDataEntry row) => _superView.TimelineTicks.Single(x => x.Tag == row._input);
+        List<MetaDataTimelineItem> Markers => _superView.Player.TimelineItems.Cast<MetaDataTimelineItem>().ToList();
+        MetaDataTimelineItem Marker(MetaDataEntry row) => Markers.Single(x => x.Item.Source == row._input);
+        void Click(MetaDataTimelineItem marker) => _superView.Player.TimelineItemClickCommand.Execute(marker);
+        double FrameSeconds => MainPlayer.AnimationClip!.MicrosecondsPerFrame / 1_000_000.0;
 
         static AttributeViewModel Field(MetaDataEntry row, string name) => row.Variables.Single(x => x.FieldName == name);
 
+        // A tag's undo rebuilds the tab's rows from the file, which upstream's timeline hears as a change to the tags.
         [Test]
-        public void TheStrip_HasATickAtEveryTimedTagsStart_FromBothMetas()
-        {
-            var untimed = _runner.GetRequiredServiceInCurrentEditorScope<MetaDataFileParser>().CreateDefault("FIRE_POS_0");
-            var version2 = (FirePos_v2)_runner.GetRequiredServiceInCurrentEditorScope<MetaDataFileParser>().CreateDefault("FIRE_POS_2");
-            version2.StartTime = Length / 2;
-            Meta.ParsedFile!.Attributes.Add(untimed);
-            Meta.ParsedFile!.Attributes.Add(version2);
-            Meta.UpdateView();
-            var quarter = Add("FIRE_POS_10", Length / 4, Length / 4);
-
-            static IEnumerable<ParsedMetadataAttribute> Timed(MetaDataEditorViewModel editor) =>
-                editor.ParsedFile?.Attributes.Where(x => x is DecodedMetaEntryBase or DecodedMetaEntryBase_v2) ?? [];
-            var timed = Timed(_superView.PersistentMetaEditor).Concat(Timed(Meta)).ToList();
-
-            Assert.That(_superView.HasTimeline, Is.True);
-            Assert.That(_superView.TimelineTicks.Select(x => x.Tag), Is.EqualTo(timed), "one tick per timed tag, persistent first");
-            Assert.That(_superView.TimelineTicks.Select(x => x.Tag), Does.Not.Contain(untimed), "FIRE_POS_0 has no times");
-            Assert.That(_superView.TimelineTicks.Count(x => x.Tab == MetaTab.Persistent), Is.EqualTo(Timed(_superView.PersistentMetaEditor).Count()));
-            Assert.That(Tick(quarter).From, Is.EqualTo(0.25).Within(1e-4), "a quarter of the way along");
-            Assert.That(_superView.TimelineTicks.Single(x => x.Tag == version2).From, Is.EqualTo(0.5).Within(1e-4), "FIRE_POS_2, a version-2 tag");
-        }
-
-        [Test]
-        public void AWindow_GetsABarToItsEnd_AndAnInstantDoesNot()
-        {
-            var window = Add("SPLASH_ATTACK_10", Length * 0.2f, Length * 0.6f);
-            var instant = Add("FIRE_POS_10", Length * 0.5f, Length * 0.5f);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That((Tick(window).IsWindow, Tick(window).From, Tick(window).To), Is.EqualTo((true, 0.2, 0.6)).Using<(bool, double, double)>(Near));
-                Assert.That((Tick(instant).IsWindow, Tick(instant).From, Tick(instant).To), Is.EqualTo((false, 0.5, 0.5)).Using<(bool, double, double)>(Near));
-                Assert.That(Tick(window).Tooltip, Is.EqualTo(FormattableString.Invariant($"SPLASH_ATTACK_10 runs from {Length * 0.2f:0.00#} s to {Length * 0.6f:0.00#} s.")));
-                Assert.That(Tick(instant).Tooltip, Is.EqualTo(FormattableString.Invariant($"FIRE_POS_10 is at {Length * 0.5f:0.00#} s.")));
-            });
-        }
-
-        static bool Near((bool, double, double) a, (bool, double, double) b) => a.Item1 == b.Item1 && Math.Abs(a.Item2 - b.Item2) < 1e-4 && Math.Abs(a.Item3 - b.Item3) < 1e-4;
-
-        // Vanilla has tags before 0 (hu3_blunderbuss_aim_fire_stand_high_01 fires at -0.02 s); an edit can put one past the end.
-        [Test]
-        public void ATagOutsideTheClip_SitsAtTheNearerEdge_AndSaysSo()
-        {
-            var before = Add("FIRE_POS_10", -0.02f, -0.02f);
-            var after = Add("IMPACT_POS_10", Length + 1, Length + 1);
-            var atEnd = Add("TARGET_POS_10", Length, Length);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That((Tick(before).From, Tick(before).Outside), Is.EqualTo((0d, true)));
-                Assert.That(Tick(before).Tooltip, Does.EndWith("That's before the clip starts, so its tick sits at the left edge."));
-                Assert.That((Tick(after).From, Tick(after).Outside), Is.EqualTo((1d, true)));
-                Assert.That(Tick(after).Tooltip, Does.Contain(FormattableString.Invariant($"That's after the clip ends at {Length:0.00#} s")));
-                Assert.That((Tick(atEnd).From, Tick(atEnd).Outside), Is.EqualTo((1d, false)), "the last moment is in the clip");
-            });
-        }
-
-        [Test]
-        public void TheStrip_FollowsAnEdit_AnAdd_ADelete_AndAnUndo()
+        public void TheMarkers_FollowAnEdit_AnAdd_ADelete_AndAnUndo()
         {
             var row = Add("FIRE_POS_10", Length * 0.1f, Length * 0.1f);
-            var count = _superView.TimelineTicks.Count;
+            var count = Markers.Count;
 
             Field(row, "Start Time").ValueAsString = (Length * 0.7f).ToString();
-            Assert.That(Tick(row).From, Is.EqualTo(0.7).Within(1e-4), "an edit");
+            Assert.That(Marker(row).Start, Is.EqualTo(Length * 0.7f).Within(1e-5), "an edit");
 
-            Add("IMPACT_POS_10", 0, 0);
-            Assert.That(_superView.TimelineTicks, Has.Count.EqualTo(count + 1), "an add");
+            Add("IMPACT_POS_10", 0.1f, 0.1f);
+            Assert.That(Markers, Has.Count.EqualTo(count + 1), "an add");
 
             foreach (var tag in Meta.Tags)
                 tag.IsSelected = tag._input == row._input;
             Meta.DeleteActionCommand.Execute(null);
-            Assert.That(_superView.TimelineTicks.Select(x => x.Tag), Does.Not.Contain(row._input), "a delete");
-            Assert.That(_superView.TimelineTicks, Has.Count.EqualTo(count));
+            Assert.That(Markers.Select(x => x.Item.Source), Does.Not.Contain(row._input), "a delete");
+            Assert.That(Markers, Has.Count.EqualTo(count));
 
             Meta.UndoCommand.Execute(null);
-            Assert.That(_superView.TimelineTicks, Has.Count.EqualTo(count + 1), "an undo");
+            Assert.That(Markers, Has.Count.EqualTo(count + 1), "an undo");
         }
 
+        // A clicked marker picks its row as the only one Delete takes, which the list keeps in step with its own clicks only.
         [Test]
-        public void TheSelectedTag_IsHighlighted_InTheTabThatShowsIt()
-        {
-            _superView.SelectedTabControllerIndex = 1;
-            var row = Add("FIRE_POS_10", 0.1f, 0.1f);
-
-            Assert.That(_superView.TimelineTicks.Where(x => x.IsSelected).Select(x => x.Tag), Is.EqualTo(new[] { row._input }));
-
-            _superView.SelectedTabControllerIndex = 0;
-            Assert.That(_superView.TimelineTicks.Where(x => x.IsSelected && x.Tab != MetaTab.Persistent), Is.Empty, "the animation tab is not shown");
-        }
-
-        [Test]
-        public void ClickingATick_MovesThePlayheadThere_AndSelectsItsTag()
+        public void ClickingAMarker_MakesItsRowTheOnlyOneDeleteTakes_AndPausesTheClip()
         {
             var row = Add("FIRE_POS_10", Length * 0.5f, Length * 0.5f);
             Meta.SelectedTag = Meta.Tags[0];
@@ -169,76 +107,68 @@ namespace Test.AnimationMeta
             _superView.SelectedTabControllerIndex = 0;
             MainPlayer.Play();
 
-            _superView.SelectTickCommand.Execute(Tick(row));
+            Click(Marker(row));
 
             Assert.Multiple(() =>
             {
-                Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo((long)Math.Round(Length * 0.5f * 1_000_000d)), "the playhead");
+                Assert.That(MainPlayer.GetTimeUs() / 1_000_000.0, Is.EqualTo(Length * 0.5).Within(FrameSeconds), "the playhead");
                 Assert.That(MainPlayer.IsPlaying, Is.False, "stopped there");
-                Assert.That(_superView.Player.SelectedAnimationCurrentTime.Value, Is.EqualTo(Length * 0.5f).Within(1e-5), "the playback bar's readout");
                 Assert.That(_superView.SelectedTabControllerIndex, Is.EqualTo(1), "the animation tab");
                 Assert.That(Meta.SelectedTag, Is.SameAs(row));
                 Assert.That(Meta.Tags.Where(x => x.IsSelected), Is.EqualTo(new[] { row }), "the only row Delete would take");
-                Assert.That(Tick(row).IsSelected, Is.True, "its tick is highlighted");
             });
         }
 
+        // Vanilla has tags before 0 (hu3_blunderbuss_aim_fire_stand_high_01 fires at -0.02 s); an edit can put one past the end.
         [Test]
-        public void ClickingATickOutsideTheClip_GoesToTheNearerEnd()
+        public void ClickingAMarkerOutsideTheClip_GoesToTheNearerEnd()
         {
             var after = Add("FIRE_POS_10", Length + 1, Length + 1);
-            _superView.SelectTickCommand.Execute(Tick(after));
-            Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo(MainPlayer.GetAnimationLengthUs()));
+            Click(Marker(after));
+            Assert.That(MainPlayer.CurrentFrame, Is.EqualTo(MainPlayer.FrameCount() - 1), "the last frame");
 
             var before = Add("FIRE_POS_10", -0.5f, -0.5f);
-            _superView.SelectTickCommand.Execute(Tick(before));
+            Click(Marker(before));
             Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo(0));
         }
 
+        // The gizmo's drag goes into the tab's own history, between the typed edits either side of it, so the toolbar's undo, Ctrl+Z
+        // and the meta editor's undo take back the same steps in the same order. Upstream kept a second history for the gizmo alone.
         [Test]
-        public void ClickingAPersistentTick_ShowsThePersistentTab()
+        public void AGizmoDrag_IsOneStepInTheTabsUndo_BetweenTypedEdits()
         {
-            var persistent = _superView.TimelineTicks.FirstOrDefault(x => x.Tab == MetaTab.Persistent);
-            Assert.That(persistent, Is.Not.Null, "Throt's persistent meta has no tag with times");
             _superView.SelectedTabControllerIndex = 1;
+            var row = Add("FIRE_POS_10", 0.1f, 0.1f);
+            var session = _runner.GetRequiredServiceInCurrentEditorScope<CombatMetaDataEditSession>();
+            Assert.That(session.CurrentSource, Is.SameAs(row._input), "the gizmo is on the picked tag");
+            Field(row, "Start Time").ValueAsString = 0.2f.ToString();
+            var start = ((FirePos_v10)row._input).Position;
 
-            _superView.SelectTickCommand.Execute(persistent);
+            Assert.That(session.BeginGesture(), Is.True);
+            session.Translate(new Microsoft.Xna.Framework.Vector3(1, 0, 0));
+            session.Translate(new Microsoft.Xna.Framework.Vector3(0, 1, 0));
+            Assert.That(session.EndGesture(), Is.True);
+            var moved = ((FirePos_v10)row._input).Position;
+            Field(Meta.SelectedTag!, "End Time").ValueAsString = 0.3f.ToString();
 
-            Assert.That(_superView.SelectedTabControllerIndex, Is.EqualTo(0));
-            Assert.That(_superView.PersistentMetaEditor.SelectedTag!._input, Is.SameAs(persistent!.Tag));
-            Assert.That(persistent.Tooltip, Does.EndWith(" It's in the persistent meta."));
-        }
-
-        [Test]
-        public void ScrubTo_PausesTheClipThere_AndMovesThePlayhead()
-        {
-            var lengthUs = MainPlayer.GetAnimationLengthUs();
-            MainPlayer.Play();
-
-            _superView.ScrubTo(0.5);
-
+            FirePos_v10 Last() => (FirePos_v10)Meta.ParsedFile!.Attributes.Last();
             Assert.Multiple(() =>
             {
-                Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo((long)Math.Round(0.5 * lengthUs)));
-                Assert.That(MainPlayer.IsPlaying, Is.False, "paused there");
-                Assert.That(_superView.PlayheadFraction, Is.EqualTo(0.5).Within(1e-4));
-                Assert.That(_superView.Player.SelectedAnimationCurrentTime.Value, Is.EqualTo(Length * 0.5f).Within(1e-4), "the playback bar's readout");
+                Assert.That(moved, Is.Not.EqualTo(start), "the drag moved the tag");
+                Assert.That(_superView.HasUnsavedChanges, Is.True);
+                Assert.That(_superView.CanUndoEditIn3D, Is.True);
             });
 
-            _superView.ScrubTo(2);
-            Assert.That((MainPlayer.GetTimeUs(), _superView.PlayheadFraction), Is.EqualTo((lengthUs, 1d)), "past the end is the end");
-            _superView.ScrubTo(-1);
-            Assert.That((MainPlayer.GetTimeUs(), _superView.PlayheadFraction), Is.EqualTo((0L, 0d)), "before the start is the start");
-        }
-
-        // Playback moves the player a frame at a time, which raises the frame event the playback bar's readout follows.
-        [Test]
-        public void ThePlayhead_FollowsThePlayer_AsItPlays()
-        {
-            MainPlayer.CurrentFrame = MainPlayer.FrameCount() / 2;
-
-            Assert.That(_superView.PlayheadFraction, Is.EqualTo(MainPlayer.GetTimeUs() / (double)MainPlayer.GetAnimationLengthUs()).Within(1e-6));
-            Assert.That(_superView.PlayheadFraction, Is.GreaterThan(0.3).And.LessThan(0.7));
+            _superView.UndoEditIn3DCommand.Execute(null);
+            Assert.That((Last().Position, Last().EndTime), Is.EqualTo((moved, 0.1f)), "the typed edit after the drag");
+            _superView.UndoEditIn3DCommand.Execute(null);
+            Assert.That((Last().Position, Last().StartTime), Is.EqualTo((start, 0.2f)), "the whole drag, as one step");
+            _superView.UndoEditIn3DCommand.Execute(null);
+            Assert.That(Last().StartTime, Is.EqualTo(0.1f), "the typed edit before it");
+            _superView.RedoEditIn3DCommand.Execute(null);
+            _superView.RedoEditIn3DCommand.Execute(null);
+            Assert.That((Last().Position, Last().StartTime), Is.EqualTo((moved, 0.2f)), "redone");
+            Assert.That(session.CurrentSource, Is.SameAs(Last()), "the gizmo follows the pick to the tag the undo read back");
         }
 
         [Test]
@@ -259,7 +189,7 @@ namespace Test.AnimationMeta
                 Assert.That(Field(row, "Start Time").ValueAsString, Is.EqualTo(0.25f.ToString()), "the box shows it");
                 Assert.That(Field(row, "End Time").ValueAsString, Is.EqualTo(0.5f.ToString()));
                 Assert.That(_superView.HasUnsavedChanges, Is.True);
-                Assert.That((Tick(row).From, Tick(row).To), Is.EqualTo((0.25 / Length, 0.5 / Length)).Using<(double, double)>((a, b) => Math.Abs(a.Item1 - b.Item1) < 1e-4 && Math.Abs(a.Item2 - b.Item2) < 1e-4), "the strip follows");
+                Assert.That((Marker(row).Start, Marker(row).End), Is.EqualTo((0.25, (double?)0.5)).Using<(double, double?)>((a, b) => Math.Abs(a.Item1 - b.Item1) < 1e-6 && Math.Abs(a.Item2!.Value - b.Item2!.Value) < 1e-6), "the marker follows");
             });
         }
 
@@ -314,98 +244,6 @@ namespace Test.AnimationMeta
             Assert.That(Meta.HasPlayer, Is.True, "SuperView's editor");
         }
 
-        // Hosted in a plain window off screen, as Kitbash's view tests are. WPF ignores a synthetic mouse, so the ticks are
-        // pressed through their automation peers.
-        [Test, Apartment(ApartmentState.STA)]
-        public void TheStripView_DrawsEachTickAtItsTime_AndPressingOneSelectsItsTag()
-        {
-            var outside = Add("IMPACT_POS_10", Length + 1, Length + 1);
-            var window = Add("SPLASH_ATTACK_10", Length * 0.2f, Length * 0.6f);
-            var target = Add("FIRE_POS_10", Length * 0.5f, Length * 0.5f);
-            Meta.SelectedTag = Meta.Tags[0];
-
-            var view = new MetaTimelineView { DataContext = _superView };
-            var host = new Window { Content = view, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None, Left = -10000, Width = 400, Height = 120 };
-            try
-            {
-                host.Show();
-                Pump();
-                var panel = FindAll<MetaTimelinePanel>(view).Single();
-                var width = panel.ActualWidth;
-                var buttons = FindAll<Button>(view).Where(x => AutomationProperties.GetAutomationId(x) == "MetaTimelineTick").ToList();
-                Assert.That(width, Is.GreaterThan(300));
-                Assert.That(buttons, Has.Count.EqualTo(_superView.TimelineTicks.Count));
-                foreach (var button in buttons)
-                {
-                    var tick = (TimelineTick)button.DataContext;
-                    var line = button.TranslatePoint(new Point(MetaTimelinePanel.Pad, 0), panel).X;
-                    Assert.That(line, Is.EqualTo(Math.Clamp(tick.From * width - 1, 0, width - 2)).Within(0.5), tick.Tooltip);
-                    Assert.That(button.ToolTip, Is.EqualTo(tick.Tooltip));
-                }
-                Assert.That(Part(TickButton(view, outside), "Tick").OpacityMask, Is.Not.Null, "an outside tick is dashed");
-                Assert.That(Part(TickButton(view, target), "Tick").OpacityMask, Is.Null, "an inside one is not");
-                Assert.That(TickButton(view, window).ActualWidth - 2 * MetaTimelinePanel.Pad, Is.EqualTo(0.4 * width + 1).Within(0.5), "the bar runs to the end");
-
-                ((IInvokeProvider)new ButtonAutomationPeer(TickButton(view, target)).GetPattern(PatternInterface.Invoke)).Invoke();
-                Pump();
-
-                Assert.That(Meta.SelectedTag, Is.SameAs(target));
-                Assert.That(((SolidColorBrush)Part(TickButton(view, target), "Tick").Fill).Color, Is.EqualTo(Colors.Red), "the selected tick is red");
-                Assert.That((Part(TickButton(view, outside), "Tick").Fill as SolidColorBrush)?.Color, Is.Not.EqualTo(Colors.Red), "the others are not");
-            }
-            finally
-            {
-                host.Close();
-            }
-        }
-
-        // A press is raised as the tunnelling PreviewMouseDown a real click is; PreviewMouseLeftButtonDown is a direct event, so
-        // raised on a tick it never reaches the strip. Scrubbing pauses the clip, which is how the test tells a scrub happened.
-        [Test, Apartment(ApartmentState.STA)]
-        public void TheStripView_DrawsThePlayhead_AndIsASliderForTheClip()
-        {
-            var tick = Add("FIRE_POS_10", Length * 0.5f, Length * 0.5f);
-            var view = new MetaTimelineView { DataContext = _superView };
-            var host = new Window { Content = view, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None, Left = -10000, Width = 400, Height = 120 };
-            try
-            {
-                host.Show();
-                Pump();
-                var ticks = (ItemsControl)view.FindName("Ticks");
-                var strip = (Border)view.FindName("Strip");
-                var playhead = FindAll<Canvas>(view).Single(x => AutomationProperties.GetAutomationId(x) == "MetaTimelinePlayhead");
-                var width = ticks.ActualWidth;
-                double PlayheadX() => playhead.TranslatePoint(new Point(0, 0), ticks).X;
-                Assert.That(width, Is.GreaterThan(300));
-
-                _superView.ScrubTo(0.25);
-                Pump();
-                Assert.That(PlayheadX(), Is.EqualTo(0.25 * width - 1).Within(0.5), "a quarter of the way along");
-
-                view.Scrub(0.75 * width);
-                Pump();
-                Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo(0.75 * MainPlayer.GetAnimationLengthUs()).Within(MainPlayer.GetAnimationLengthUs() * 1e-3), "the clip");
-                Assert.That(PlayheadX(), Is.EqualTo(0.75 * width - 1).Within(0.5), "the playhead");
-
-                MainPlayer.Play();
-                Press(Part(TickButton(view, tick), "Tick"));
-                Assert.That(MainPlayer.IsPlaying, Is.True, "a press on a tick is left to its click");
-                Press(strip);
-                Assert.That(MainPlayer.IsPlaying, Is.False, "a press on the strip scrubs, which pauses the clip");
-            }
-            finally
-            {
-                host.Close();
-            }
-
-            static void Press(UIElement target)
-            {
-                target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseDownEvent });
-                target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseUpEvent });
-                Pump();
-            }
-        }
-
         [Test]
         public void Space_PlaysAndPausesTheClip_AndARebindMovesIt()
         {
@@ -427,10 +265,12 @@ namespace Test.AnimationMeta
         public void Play_CarriesOnFromWhereTheClipWasPaused_AndStartsAgainOnlyFromTheEnd()
         {
             var length = MainPlayer.GetAnimationLengthUs();
-            _superView.ScrubTo(0.5);
+            // The scrub bar's own call, which pauses on the nearest frame.
+            _superView.Player.SetAnimationTime(length / 2 / 1_000_000.0);
+            Assert.That(MainPlayer.IsPlaying, Is.False, "paused");
             _superView.OnKeyPressed(Key.Space, ModifierKeys.None);
             Assert.That(MainPlayer.IsPlaying, Is.True);
-            Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo(length / 2.0).Within(length * 1e-3), "where it was paused");
+            Assert.That(MainPlayer.GetTimeUs(), Is.EqualTo(length / 2.0).Within(MainPlayer.AnimationClip!.MicrosecondsPerFrame), "where it was paused");
 
             _superView.OnKeyPressed(Key.Space, ModifierKeys.None);
             MainPlayer.SetTime(length);
@@ -438,7 +278,7 @@ namespace Test.AnimationMeta
             Assert.That(MainPlayer.GetTimeUs(), Is.Zero, "from the end it starts again");
         }
 
-        // Left and Right step a frame, a held key steps on, and the strip's playhead follows. Stepping onto the last frame with
+        // Left and Right step a frame, a held key steps on, and the scrub bar's playhead follows. Stepping onto the last frame with
         // Loop on stays there, paused; it used to start the clip again from frame 0.
         [Test]
         public void TheArrowKeys_StepAFrame_AndHeldStepOn_ToTheLastFrame_WithoutLoopingBack()
@@ -447,7 +287,7 @@ namespace Test.AnimationMeta
             Assert.That(_superView.Player.LoopAnimation.Value, Is.True, "Loop is on, as it opens");
             Assert.That(_superView.OnKeyPressed(Key.Right, ModifierKeys.None), Is.True);
             Assert.That(MainPlayer.CurrentFrame, Is.EqualTo(1));
-            Assert.That(_superView.PlayheadFraction, Is.GreaterThan(0), "the playhead followed");
+            Assert.That(_superView.Player.ScrubTime, Is.GreaterThan(0), "the playhead followed");
             Assert.That(_superView.OnKeyPressed(Key.Left, ModifierKeys.None), Is.True);
             Assert.That(MainPlayer.CurrentFrame, Is.Zero);
 
@@ -477,8 +317,6 @@ namespace Test.AnimationMeta
             Assert.That(MainPlayer.CurrentFrame, Is.EqualTo(1));
         }
 
-        static Button TickButton(DependencyObject view, MetaDataEntry row) => FindAll<Button>(view).Single(x => x.DataContext is TimelineTick tick && tick.Tag == row._input);
-        static Rectangle Part(Button button, string part) => (Rectangle)button.Template.FindName(part, button);
 
         [Test, Apartment(ApartmentState.STA)]
         public void TheTagList_MarksEachRow_AndShowsTheNowButtonsOnlyWithAPlayer()

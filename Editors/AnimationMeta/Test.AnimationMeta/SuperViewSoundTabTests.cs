@@ -1,3 +1,5 @@
+using Editors.AnimationMeta.SuperView.Editing;
+using Editors.AnimationMeta.SuperView.Timeline;
 using System.IO;
 using Editors.AnimationMeta.Presentation;
 using Editors.AnimationMeta.SuperView;
@@ -85,20 +87,21 @@ namespace Test.AnimationMeta
             Assert.That(_superView.SoundFileProblems.Where(x => x.StartsWith("Slot ")), Is.Empty);
         }
 
+        // The scrub bar has a lane for each META file: the .snd.meta's tags sit under the persistent and the animation lanes.
         [Test]
-        public void SndMetaTags_AreTimelineTicks_OnTheSoundTab()
+        public void SndMetaTags_AreScrubBarMarkers_InALaneOfTheirOwn()
         {
             _superView.SlotSound = WriteSndMeta(SndMeta);
-            var ticks = _superView.TimelineTicks.Where(x => x.Tab == MetaTab.Sound).ToList();
-            Assert.That(ticks.Select(x => x.Tag), Is.EqualTo(_superView.SoundMetaEditor.ParsedFile!.Attributes));
-            Assert.That(ticks.Select(x => x.Tooltip), Is.All.EndWith(" It's in the slot's .snd.meta."));
+            var markers = Markers(MetaDataDocumentOwner.Sound);
+            Assert.That(markers.Select(x => x.Item.Source), Is.EqualTo(_superView.SoundMetaEditor.ParsedFile!.Attributes));
+            Assert.That(markers.Select(x => x.Lane), Is.All.EqualTo(2));
             _superView.SelectedTabControllerIndex = 1;
 
-            _superView.SelectTickCommand.Execute(ticks[1]);
+            _superView.Player.TimelineItemClickCommand.Execute(markers[1]);
 
             Assert.That(_superView.SelectedTabControllerIndex, Is.EqualTo(2));
-            Assert.That(_superView.SoundMetaEditor.SelectedTag?._input, Is.SameAs(ticks[1].Tag));
-            Assert.That(_superView.TimelineTicks.Single(x => x.IsSelected).Tag, Is.SameAs(ticks[1].Tag), "its tick is highlighted");
+            Assert.That(_superView.SoundMetaEditor.SelectedTag?._input, Is.SameAs(markers[1].Item.Source));
+            Assert.That(Highlighted, Is.SameAs(markers[1].Item.Source), "its marker is highlighted");
         }
 
         [Test]
@@ -123,7 +126,7 @@ namespace Test.AnimationMeta
             Assert.That(PathOf(_superView.SceneObjects[0].Data.PersistSoundMetaData), Is.EqualTo(path));
             Assert.That(_superView.SlotGrid.SelectedRow?.Slot.SlotName, Is.EqualTo("ATTACK_5"), "the clip played is still ATTACK_5");
             Assert.That(_superView.SoundMetaEditor.ParsedFile, Is.Null);
-            Assert.That(_superView.TimelineTicks.Where(x => x.Tab == MetaTab.Sound), Is.Empty);
+            Assert.That(Markers(MetaDataDocumentOwner.Sound), Is.Empty);
             Assert.That(_superView.SoundFileProblems.Where(x => x.StartsWith("Persistent ")), Is.Empty, "a loaded one is no problem");
         }
 
@@ -148,7 +151,7 @@ namespace Test.AnimationMeta
             Assert.DoesNotThrow(() => _superView.SlotSound = Missing);
 
             Assert.That(_superView.SoundMetaEditor.ParsedFile, Is.Null);
-            Assert.That(_superView.TimelineTicks.Where(x => x.Tab == MetaTab.Sound), Is.Empty);
+            Assert.That(Markers(MetaDataDocumentOwner.Sound), Is.Empty);
             Assert.That(_superView.SoundFileProblems, Does.Contain($"Slot .snd.meta {Missing} is in no loaded pack."));
             Assert.That(_superView.MetaEditor.ParsedFile, Is.Not.Null, "the clip still plays with its meta");
         }
@@ -178,7 +181,7 @@ namespace Test.AnimationMeta
             _superView.BrowseSoundTabCommand.Execute(null);
 
             Assert.That(_superView.SoundMetaEditor.ParsedFile!.Attributes, Has.Count.EqualTo(2));
-            Assert.That(_superView.TimelineTicks.Count(x => x.Tab == MetaTab.Sound), Is.EqualTo(2));
+            Assert.That(Markers(MetaDataDocumentOwner.Sound), Has.Count.EqualTo(2));
             Assert.That(_superView.SlotGrid.HasUnsavedChanges, Is.False, "no slot was edited");
 
             selection.PlayAnimation(selection.AnimationList.PossibleValues.First(x => Key(x.AnimationFile) != clip));
@@ -362,7 +365,7 @@ namespace Test.AnimationMeta
             SaveFromOutside(SndMeta, SndMetaBytes(0.1f, 0.4f, 0.8f));
 
             Assert.That(_superView.SoundMetaEditor.ParsedFile!.Attributes, Has.Count.EqualTo(3));
-            Assert.That(_superView.TimelineTicks.Count(x => x.Tab == MetaTab.Sound), Is.EqualTo(3), "the scene was rebuilt");
+            Assert.That(Markers(MetaDataDocumentOwner.Sound), Has.Count.EqualTo(3), "the scene was rebuilt");
             Assert.That(_superView.SoundMetaChangedOnDisk, Is.Empty);
         }
 
@@ -581,37 +584,45 @@ namespace Test.AnimationMeta
             Assert.That((editor.CurrentFile, editor.HasUnsavedChanges), Is.EqualTo((copy, false)));
         }
 
-        // Deferred item D12: the scene highlights the shown tab's picked tag (the Sound tab's on the Sound tab, the Animation tab's on
-        // the other two), and the strip highlights the shown tab's. A switch between Persistent and Animation changes nothing in the
-        // scene, so the scene is not built again, but the strip follows.
+        // Deferred item D12: the scene highlights the shown tab's picked tag, which is also the one the gizmo moves, and the scrub bar
+        // highlights its marker. A switch between two tabs with the same pick (none, here) changes nothing in the scene, so the scene
+        // is not built again.
         [Test]
-        public void TheShownTab_DecidesWhichTagIsHighlighted_AndPersistentToAnimationLeavesTheSceneAlone()
+        public void TheShownTab_DecidesWhichTagIsHighlighted_AndASwitchWithTheSamePickLeavesTheSceneAlone()
         {
             _superView.SlotSound = WriteSndMeta(SndMeta);
             var data = _superView.SceneObjects[0].Data;
             _superView.SelectedTabControllerIndex = (int)MetaTab.Clip;
             _superView.MetaEditor.SelectedTag = null;
-            var persistentTag = _superView.PersistentMetaEditor.Tags.First(x => _superView.TimelineTicks.Any(t => t.Tag == x._input));
-            _superView.PersistentMetaEditor.SelectedTag = persistentTag;
+            _superView.PersistentMetaEditor.SelectedTag = null;
             _superView.SoundMetaEditor.SelectedTag = _superView.SoundMetaEditor.Tags[1];
 
             var onClip = RedSoundMarkers(data);
             _superView.SelectedTabControllerIndex = (int)MetaTab.Sound;
             var onSound = RedSoundMarkers(data);
-            var selectedOnSound = _superView.TimelineTicks.Single(x => x.IsSelected).Tag;
+            var selectedOnSound = Highlighted;
             _superView.SelectedTabControllerIndex = (int)MetaTab.Clip;
             var backOnClip = RedSoundMarkers(data);
             var scene = data.MetaDataItems;
             _superView.SelectedTabControllerIndex = (int)MetaTab.Persistent;
+            var sameScene = data.MetaDataItems == scene;
+            var persistentTag = _superView.PersistentMetaEditor.Tags.First(x => Markers(MetaDataDocumentOwner.Persistent).Any(m => m.Item.Source == x._input));
+            _superView.PersistentMetaEditor.SelectedTag = persistentTag;
 
             Assert.Multiple(() =>
             {
                 Assert.That((onClip, onSound, backOnClip), Is.EqualTo((0, 1, 0)), "the Sound tab's pick is red on the Sound tab only");
                 Assert.That(selectedOnSound, Is.SameAs(_superView.SoundMetaEditor.Tags[1]._input));
-                Assert.That(data.MetaDataItems, Is.SameAs(scene), "Animation to Persistent did not build the scene again");
-                Assert.That(_superView.TimelineTicks.Single(x => x.IsSelected).Tag, Is.SameAs(persistentTag._input), "the strip highlights the persistent tab's pick");
+                Assert.That(sameScene, Is.True, "Animation to Persistent, neither with a pick, did not build the scene again");
+                Assert.That(Highlighted, Is.SameAs(persistentTag._input), "the scrub bar highlights the persistent tab's pick");
             });
         }
+
+        List<MetaDataTimelineItem> Markers(MetaDataDocumentOwner owner) =>
+            _superView.Player.TimelineItems.OfType<MetaDataTimelineItem>().Where(x => x.Item.Owner == owner).ToList();
+
+        // The tag whose marker the scrub bar highlights.
+        ParsedMetadataAttribute? Highlighted => (_superView.Player.SelectedTimelineItem as MetaDataTimelineItem)?.Item.Source;
 
         // The Sound: markers drawn red, the picked tag's colour.
         static int RedSoundMarkers(SceneObject data) => GameWorld.Core.SceneNodes.SceneNodeHelper.GetChildrenOfType<GameWorld.Core.SceneNodes.SimpleDrawableNode>(data.MainNode)
@@ -620,75 +631,49 @@ namespace Test.AnimationMeta
                 .GetField("_renderList", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(x)!)
                 .Any(label => label.Colour == Microsoft.Xna.Framework.Color.Red));
 
-        // Deferred item D12: a press on a tick in another tab switches the tab and picks the tag, and builds the scene once for both.
+        // Deferred item D12: a click on a marker in another tab switches the tab and picks the tag, and builds the scene once for both.
         // The scene build is counted by the VFX filter list it sets every time.
         [Test]
-        public void SelectTick_InAnotherTab_BuildsTheSceneOnce()
+        public void ClickingAMarker_InAnotherTab_BuildsTheSceneOnce()
         {
             _superView.SlotSound = WriteSndMeta(SndMeta);
             _superView.SelectedTabControllerIndex = (int)MetaTab.Clip;
-            var tick = _superView.TimelineTicks.First(x => x.Tab == MetaTab.Sound);
+            var marker = Markers(MetaDataDocumentOwner.Sound)[0];
             var builds = 0;
             _superView.PropertyChanged += (_, e) => builds += e.PropertyName == nameof(SuperViewViewModel.VfxFilterIds) ? 1 : 0;
 
-            _superView.SelectTickCommand.Execute(tick);
+            _superView.Player.TimelineItemClickCommand.Execute(marker);
 
             Assert.That((_superView.SelectedTabControllerIndex, builds), Is.EqualTo(((int)MetaTab.Sound, 1)));
             Assert.That(RedSoundMarkers(_superView.SceneObjects[0].Data), Is.EqualTo(1), "and the scene it built shows the pick");
         }
 
-        // Deferred item D12: the scene's position handles are on the shown tab's picked tag: the Sound tab's on the Sound tab, the
-        // Animation tab's on the others.
+        // Deferred item D12: the gizmo is on the shown tab's picked tag, so a SOUND_TRIGGER in the .snd.meta can be moved on the Sound
+        // tab, and nothing is under the gizmo on a tab with no pick.
         [Test]
-        public void TheHandles_FollowTheShownTabsPick()
+        public void TheGizmo_FollowsTheShownTabsPick()
         {
             _superView.SlotSound = WriteSndMeta(SndMeta);
             _superView.MetaEditor.SelectedTag = null;
             _superView.SoundMetaEditor.SelectedTag = _superView.SoundMetaEditor.Tags[0];
-            var gizmo = _runner.GetRequiredServiceInCurrentEditorScope<MetaTagGizmoComponent>();
-            int Handles()
-            {
-                gizmo.Update(new Microsoft.Xna.Framework.GameTime());
-                return gizmo.Handles.Count;
-            }
+            var session = _runner.GetRequiredServiceInCurrentEditorScope<CombatMetaDataEditSession>();
 
             _superView.SelectedTabControllerIndex = (int)MetaTab.Sound;
-            var onSound = Handles();
+            var onSound = session.CurrentSource;
             _superView.SelectedTabControllerIndex = (int)MetaTab.Clip;
 
-            Assert.That((onSound, Handles()), Is.EqualTo((1, 0)));
+            Assert.That(onSound, Is.SameAs(_superView.SoundMetaEditor.Tags[0]._input));
+            Assert.That(session.CurrentSource, Is.Null);
         }
 
-        // Deferred item D14: Sound ticks are drawn in a colour of their own, as ticks from all three tabs share the strip, and red still
-        // marks the picked one. The Sound tab's browse button says what it does.
+        // Deferred item D14: the Sound tab's browse button says what it does.
         [Test, Apartment(ApartmentState.STA)]
-        public void SoundTicks_HaveAColourOfTheirOwn_AndTheBrowseButtonATooltip()
+        public void TheSoundTabsBrowseButton_HasATooltip()
         {
             _superView.SlotSound = WriteSndMeta(SndMeta);
+            // The button is in the Sound tab, and a tab control builds only the tab it shows.
+            _superView.SelectedTabControllerIndex = (int)MetaTab.Sound;
             AppResources.Load();
-            var view = new MetaTimelineView { DataContext = _superView };
-            var host = new System.Windows.Window { Content = view, ShowInTaskbar = false, ShowActivated = false, WindowStyle = System.Windows.WindowStyle.None, Left = -10000, Width = 400, Height = 120 };
-            try
-            {
-                host.Show();
-                Pump();
-                var marks = Descendants(view).OfType<System.Windows.Controls.Button>()
-                    .Select(x => (Tab: ((TimelineTick)x.DataContext).Tab, Fill: (((System.Windows.Shapes.Rectangle)x.Template.FindName("Tick", x)).Fill as System.Windows.Media.SolidColorBrush)?.Color))
-                    .ToList();
-                Assert.That(marks.Count(x => x.Tab == MetaTab.Sound), Is.EqualTo(2));
-                Assert.That(marks.Where(x => x.Tab == MetaTab.Sound).Select(x => x.Fill), Is.All.EqualTo(System.Windows.Media.Colors.SeaGreen));
-                Assert.That(marks.Where(x => x.Tab != MetaTab.Sound).Select(x => x.Fill), Has.None.EqualTo(System.Windows.Media.Colors.SeaGreen));
-
-                _superView.SelectTickCommand.Execute(_superView.TimelineTicks.First(x => x.Tab == MetaTab.Sound));
-                Pump();
-                var picked = Descendants(view).OfType<System.Windows.Controls.Button>().Single(x => ((TimelineTick)x.DataContext).IsSelected);
-                Assert.That((((System.Windows.Shapes.Rectangle)picked.Template.FindName("Tick", picked)).Fill as System.Windows.Media.SolidColorBrush)?.Color, Is.EqualTo(System.Windows.Media.Colors.Red));
-            }
-            finally
-            {
-                host.Close();
-            }
-
             var panel = new EditorView { DataContext = _superView };
             panel.Measure(new System.Windows.Size(1400, 900));
             panel.Arrange(new System.Windows.Rect(0, 0, 1400, 900));

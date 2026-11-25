@@ -177,6 +177,9 @@ namespace Test.AnimationMeta
         static List<Vector3> Lines(SimpleDrawableNode node) =>
             [.. ((List<VertexPositionColor>)typeof(SimpleDrawableNode).GetField("_lineVertexList", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(node)!).Select(x => x.Position)];
 
+        // A marker draws round its own origin and its node carries the tag's position and orientation.
+        static List<Vector3> WorldLines(SimpleDrawableNode node) => [.. Lines(node).Select(p => Vector3.Transform(p, node.ModelMatrix))];
+
         SimpleDrawableNode Drawn(string name) => _scene.MainNode.Children.OfType<SimpleDrawableNode>().Single(x => x.Name == name);
 
         static Vector4 Yaw90 => new(0, MathF.Sin(MathHelper.PiOver4), 0, MathF.Cos(MathHelper.PiOver4));
@@ -186,10 +189,10 @@ namespace Test.AnimationMeta
         {
             Build(null, Meta(new CrewLocation_v10 { Filter = "crew2", Position = new Vector3(1, 0, -2), Orientation = Yaw90 }));
 
-            // The X axis, turned 90 degrees about Y, points along -Z.
-            var lines = Lines(Drawn("Crew:crew2"));
-            Assert.That(lines, Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(1, 0, -2.3f)) < 1e-4f), "X axis end");
-            Assert.That(lines, Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(1, 0.3f, -2)) < 1e-4f), "Y axis end");
+            // The X axis, 0.2 long and turned 90 degrees about Y, points along -Z.
+            var lines = WorldLines(Drawn("Crew:crew2"));
+            Assert.That(lines, Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(1, 0, -2.2f)) < 1e-4f), "X axis end");
+            Assert.That(lines, Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(1, 0.2f, -2)) < 1e-4f), "Y axis end");
         }
 
         [Test]
@@ -287,7 +290,7 @@ namespace Test.AnimationMeta
         public void CrewLocation_Version2_FromThePersistentMeta_IsDrawnToo()
         {
             Build(Meta(new CrewLocation_v2 { Filter = "crew1", Position = new Vector3(0, 0, -4) }), Meta());
-            Assert.That(Lines(Drawn("Crew:crew1")), Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(0.3f, 0, -4)) < 1e-4f));
+            Assert.That(WorldLines(Drawn("Crew:crew1")), Has.Some.Matches<Vector3>(p => Vector3.Distance(p, new Vector3(0.1f, 0, -4)) < 1e-4f), "the locator round its position");
         }
     }
 }

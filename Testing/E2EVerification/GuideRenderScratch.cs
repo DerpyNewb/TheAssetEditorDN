@@ -151,7 +151,7 @@ namespace Test.E2EVerification
 
             // SuperView's panel: the timeline, the tag list with its marks and buttons, the picked tag's fields.
             superView.SelectedTabControllerIndex = 1;
-            superView.ScrubTo(seconds * 1_000_000 / player.GetAnimationLengthUs());
+            superView.Player.SetAnimationTime(seconds);
             var panel =Offscreen(new Editors.AnimationMeta.SuperView.EditorView { DataContext = superView }, 560, 1250);
             panel.Show();
             Save(panel, Path.Combine(outDir, "panel.png"));

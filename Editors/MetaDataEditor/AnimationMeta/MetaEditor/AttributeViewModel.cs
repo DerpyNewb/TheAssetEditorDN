@@ -49,14 +49,32 @@ namespace Editors.AnimationMeta.Presentation
             _valueAsString = valueStr;
             _fieldName = fieldName;
             _description = description;
-            Validate();
+            // A field being built announces nothing. The vector and orientation fields fail the base parse here, before they set
+            // IsValid themselves, and SuperView takes each announcement as an edit: a sound rebuild per field of every row.
+            Validate(announceValidity: false);
         }
 
         partial void OnValueAsStringChanged(string value) => Validate();
 
-        void Validate()
+        // Shows the tag's value again after something other than this field changed it (the 3D view in SuperView).
+        // True if what is shown changed.
+        public virtual bool RefreshFromTarget()
         {
+            var value = _property.GetValue(_target)?.ToString();
+            if (value == null || value == ValueAsString)
+                return false;
+            ValueAsString = value;
+            return true;
+        }
+
+        void Validate(bool announceValidity = true)
+        {
+            var wasValid = IsValid;
             IsValid = _parser.Encode(ValueAsString, out _) != null;
+            // A value that cannot be saved changes nothing in the tag, and nor may putting the old value back, but SuperView
+            // lists the field as a problem while it is invalid.
+            if (announceValidity && wasValid != IsValid)
+                _eventHub.Publish(new MetaDataAttributeChangedEvent());
             if (IsValid)
             {
                 switch (_parser.Type)
@@ -132,6 +150,19 @@ namespace Editors.AnimationMeta.Presentation
             IsValid = true;
         }
 
+        public override bool RefreshFromTarget()
+        {
+            var q = new Quaternion((Vector4)_property.GetValue(_target)!);
+            var shown = MathUtil.EulerDegreesToQuaternion(Value.GetAsVector3());
+            if (Math.Abs(Quaternion.Dot(Quaternion.Normalize(shown), Quaternion.Normalize(q))) > 0.999999f)
+                return false;
+
+            Value.DisableCallbacks = true;
+            Value.Set(MathUtil.QuaternionToEulerDegree(q));
+            Value.DisableCallbacks = false;
+            return true;
+        }
+
         private void OnValueChangedCallback(Vector3 vector)
         {
             var vector3 = Value.GetAsVector3();
@@ -171,6 +202,18 @@ namespace Editors.AnimationMeta.Presentation
             Value.DisableCallbacks = false;
             OnValueChangedCallback(value);
         }
+        public override bool RefreshFromTarget()
+        {
+            var value = (Vector3)_property.GetValue(_target)!;
+            if (Value.GetAsVector3() == value)
+                return false;
+
+            Value.DisableCallbacks = true;
+            Value.Set(value);
+            Value.DisableCallbacks = false;
+            return true;
+        }
+
 
         private void OnValueChangedCallback(Vector3 vector)
         {
